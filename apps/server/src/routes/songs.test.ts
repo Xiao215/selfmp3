@@ -127,6 +127,10 @@ describe('GET /api/songs/:id/similar', () => {
       body: JSON.stringify({ loved: true }),
     })
     expect(response.status).toBe(200)
+    // Timed by the stamp on the edit, so Liked can put it first.
+    expect(((await response.json()) as { lovedAt: string | null }).lovedAt).toMatch(
+      /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/,
+    )
     expect((await similar(1)).songs.find(song => song.id === 2)?.loved).toBe(true)
   })
 })
@@ -194,9 +198,9 @@ describe('POST /api/songs/merge', () => {
       sourceUrl: null,
     })
 
-  const post = (url: string, body: unknown) =>
+  const post = (url: string, body: unknown, method = 'POST') =>
     fetch(`${origin}${url}`, {
-      method: 'POST',
+      method,
       headers: {
         Authorization: `Bearer ${container.config.authToken ?? ''}`,
         'Content-Type': 'application/json',
@@ -243,6 +247,108 @@ describe('POST /api/songs/merge', () => {
     expect(container.tags.all().map(tag => tag.name)).toEqual(['rain'])
   })
 
+  /*
+   * Another device put alpha on while this one's picker was open, or while it
+   * was offline: the tick sends beta alone, and alpha stays.
+   */
+  it('changes only the tags an edit names, keeping one another device put on', async () => {
+    const song = insert('夜に駆ける')
+    const alpha = container.tags.create('alpha', 10).id
+    const beta = container.tags.create('beta', 30).id
+    container.tags.setSongTags(song, [alpha])
+
+    const on = await post(`/api/songs/${song}/tags`, { add: [beta], remove: [] }, 'PATCH')
+    expect(on.status).toBe(200)
+    expect(((await on.json()) as { tagIds: number[] }).tagIds.sort()).toEqual([alpha, beta].sort())
+
+    const off = await post(`/api/songs/${song}/tags`, { add: [], remove: [beta] }, 'PATCH')
+    expect(((await off.json()) as { tagIds: number[] }).tagIds).toEqual([alpha])
+  })
+
+  it('rests songs in one request, and stamps the rest for every device', async () => {
+    const one = insert('群青')
+    const two = insert('夜に駆ける')
+    const until = '2026-11-24T12:00:00.000Z'
+    const response = await post('/api/songs/bulk/edit', {
+      edits: [one, two].map(songId => ({ songId, patch: { restUntil: until } })),
+    })
+    expect(await response.json()).toEqual({ affected: 2 })
+    expect(container.songs.byId(one)).toMatchObject({ restUntil: until })
+    expect(container.songs.byId(two)).toMatchObject({ restUntil: until })
+    const stamped = container.db
+      .prepare(
+        "SELECT s.uid FROM sync_stamps t JOIN songs s ON s.uid = t.uid WHERE t.kind = 'song' AND t.field = 'restUntil'",
+      )
+      .all() as { uid: string }[]
+    expect(stamped).toHaveLength(2)
+
+    await post('/api/songs/bulk/edit', { edits: [{ songId: one, patch: { restUntil: null } }] })
+    expect(container.songs.byId(one)).toMatchObject({ restUntil: null })
+  })
+
+  it('counts a song already gone as deleted, for a delete asked again', async () => {
+    const song = insert('Gone')
+    const first = await post('/api/songs/bulk/delete', { songIds: [song] })
+    expect(await first.json()).toEqual({ removed: 1, failed: [] })
+    const again = await post('/api/songs/bulk/delete', { songIds: [song] })
+    expect(await again.json()).toEqual({ removed: 1, failed: [] })
+  })
+
+  const playsOf = (id: number): number =>
+    (
+      container.db.prepare('SELECT COUNT(*) AS n FROM play_events WHERE song_id = ?').get(id) as {
+        n: number
+      }
+    ).n
+
+  const played = (id: number, times: number) => {
+    for (let i = 0; i < times; i++) {
+      const at = `2026-08-0${i + 1} 10:00:00`
+      container.stats.record(id, 60_000, true, at, null)
+      container.songs.recordPlay(id, at)
+    }
+  }
+
+  it('keeps one song with every play when two merges cross', async () => {
+    const a = insert('Crossed')
+    const b = insert('Crossed')
+    played(a, 2)
+    played(b, 3)
+
+    const answers = await Promise.all([
+      post('/api/songs/merge', { keep: a, songIds: [b] }),
+      post('/api/songs/merge', { keep: b, songIds: [a] }),
+    ])
+    const merged = await Promise.all(
+      answers.map(async r => ((await r.json()) as { merged: number }).merged),
+    )
+    expect(merged.sort()).toEqual([0, 1])
+
+    const left = [a, b].map(id => container.songs.byId(id)).filter(song => song !== null)
+    expect(left).toHaveLength(1)
+    expect(left[0]!.playCount).toBe(5)
+    expect(playsOf(left[0]!.id)).toBe(5)
+  })
+
+  it('folds a copy once when the same merge is sent twice at once', async () => {
+    const kept = insert('Twice')
+    const extra = insert('Twice')
+    played(kept, 3)
+    played(extra, 3)
+
+    const answers = await Promise.all([
+      post('/api/songs/merge', { keep: kept, songIds: [extra] }),
+      post('/api/songs/merge', { keep: kept, songIds: [extra] }),
+    ])
+    const merged = await Promise.all(
+      answers.map(async r => ((await r.json()) as { merged: number }).merged),
+    )
+    expect(merged.sort()).toEqual([0, 1])
+    expect(container.songs.byId(extra)).toBeNull()
+    expect(container.songs.byId(kept)!.playCount).toBe(6)
+    expect(playsOf(kept)).toBe(6)
+  })
+
   it('folds nothing into a song that is not there, and nothing into itself', async () => {
     const only = insert('Only')
     expect(await (await post('/api/songs/merge', { keep: 9999, songIds: [only] })).json()).toEqual({
@@ -250,5 +356,126 @@ describe('POST /api/songs/merge', () => {
     })
     expect((await post('/api/songs/merge', { keep: only, songIds: [only] })).status).toBe(400)
     expect(container.songs.byId(only)).not.toBeNull()
+  })
+})
+
+/*
+ * Plays nobody could have made: a 0 ms "completed" play counted, a play dated
+ * year 1 or 2999 was recorded as now, seeking to the end of a twelve-minute
+ * song after three seconds was a full play, and one phone's log added ten
+ * thousand plays of a three-second song at the same instant.
+ */
+describe('POST /api/songs/:id/played', () => {
+  const variables = [
+    'SELFMP3_DATA_DIR',
+    'SELFMP3_LIBRARY_DIR',
+    'SELFMP3_LOG_LEVEL',
+    'SELFMP3_CLOUD_DIR',
+  ] as const
+  const saved = new Map<string, string | undefined>()
+  let root = ''
+  let token = ''
+  let container: Container
+  let server: http.Server
+  let origin = ''
+  const ids: Record<string, number> = {}
+
+  beforeAll(async () => {
+    for (const name of variables) saved.set(name, process.env[name])
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-played-'))
+    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
+    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
+    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
+    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
+
+    container = createContainer(loadConfig())
+    token = container.config.authToken ?? ''
+    for (const [name, duration] of [
+      ['sky', 735],
+      ['tiny', 4],
+      ['song', 200],
+    ] as const) {
+      ids[name] = container.songs.insert({
+        path: `${name}.m4a`,
+        title: name,
+        artist: '',
+        album: '',
+        albumArtist: '',
+        trackNo: null,
+        year: null,
+        duration,
+        sizeBytes: 1,
+        mime: 'audio/mp4',
+        mtimeMs: 0,
+        hasArt: false,
+        artExt: null,
+        lyricsKind: 'none',
+        sourceUrl: null,
+      })
+    }
+
+    server = http.createServer(createApp(container))
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+
+  afterAll(async () => {
+    await new Promise<void>(resolve => server.close(() => resolve()))
+    container.close()
+    fs.rmSync(root, { recursive: true, force: true })
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  })
+
+  const play = async (id: number, body: object): Promise<Response> =>
+    fetch(`${origin}/api/songs/${id}/played`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  const playCount = (id: number): number => container.songs.byId(id)?.playCount ?? -1
+
+  it('refuses a play with nothing, or too little, heard, ran out or not', async () => {
+    const sky = ids['sky']!
+    expect((await play(sky, { msPlayed: 0, completed: true })).status).toBe(422)
+    expect((await play(sky, { msPlayed: 2566, completed: true })).status).toBe(422)
+    expect((await play(sky, { msPlayed: 30_000, completed: false })).status).toBe(422)
+    expect(playCount(sky)).toBe(0)
+  })
+
+  it('refuses a time no clock that was ever set gives, rather than calling it now', async () => {
+    const tiny = ids['tiny']!
+    for (const playedAt of ['0001-01-01T00:00:00Z', '2999-01-01T00:00:00Z']) {
+      expect((await play(tiny, { msPlayed: 5000, completed: true, playedAt })).status).toBe(422)
+    }
+    expect(playCount(tiny)).toBe(0)
+    // All of a short song, ending a little before its end was counted, is a play.
+    expect((await play(tiny, { msPlayed: 3200, completed: true })).status).toBe(200)
+    expect(playCount(tiny)).toBe(1)
+  })
+
+  it('takes a play across the same stretch as one already here for that play', async () => {
+    const song = ids['song']!
+    const at = '2026-09-01T09:00:00.000Z'
+    const first = await play(song, { msPlayed: 200_000, completed: true, playedAt: at })
+    expect(await first.json()).toEqual({ ok: true, duplicate: false })
+    const again = await play(song, {
+      msPlayed: 200_000,
+      completed: true,
+      playedAt: '2026-09-01T09:00:01.000Z',
+      clientId: 'another-play-0001',
+    })
+    expect(await again.json()).toEqual({ ok: true, duplicate: true })
+    // The next time round, straight after, is a play of its own.
+    const next = await play(song, {
+      msPlayed: 200_000,
+      completed: true,
+      playedAt: '2026-09-01T09:03:20.000Z',
+    })
+    expect(await next.json()).toEqual({ ok: true, duplicate: false })
+    expect(playCount(song)).toBe(2)
   })
 })

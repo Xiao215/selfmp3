@@ -19,6 +19,7 @@ const replica = {
   library: {
     cloudCoverKey: vi.fn(async (songId: number) => keyOf(songId)),
     cloudCoverKeyNow: (songId: number) => keyOf(songId),
+    cloudPicturesNow: vi.fn((): unknown => null),
   },
   cloudPlatform: { doormanUrl: 'https://doorman.example' },
   session: { loadSession: vi.fn(async () => ({ token: 't' })) },
@@ -27,7 +28,7 @@ const replica = {
 }
 vi.mock('../replica', () => replica)
 
-const { createCoverStore } = await import('./coverStore')
+const { createCoverStore, fanOfCovers } = await import('./coverStore')
 type Platform = Parameters<typeof createCoverStore>[0]
 
 /** A platform that keeps names in memory, priming however the test asks. */
@@ -169,6 +170,15 @@ describe('the cover store', () => {
 
     await store.ensureServerCover(7, 'r2', 'https://mac.example/art/7')
     expect(store.coverFor(7)).toBe('file:///7-r2.jpg')
+  })
+
+  it("lets go of a song's old art once its new art is kept", async () => {
+    const platform = fakePlatform()
+    const store = createCoverStore(platform)
+    await store.ensureServerCover(7, 'r1', 'https://mac.example/art/7?r1')
+    await store.ensureServerCover(7, 'r2', 'https://mac.example/art/7?r2')
+    expect(store.coverFor(7)).toBe('file:///7-r2.jpg')
+    expect(await platform.listCloud()).toEqual(['7-r2.jpg'])
   })
 
   it('asks a server for a cover once per address, however many rows draw it', async () => {
@@ -331,5 +341,115 @@ describe('the cover store', () => {
       fakePlatform({ forgetFiles: () => Promise.reject(new Error('locked')) }),
     )
     await expect(store.forgetCovers()).resolves.toBeUndefined()
+  })
+
+  describe('filling from packs of covers', () => {
+    const A = 'covers/aaa.jpg'
+    const B = 'covers/bbb.jpg'
+    const C = 'covers/ccc.png'
+    const PACK = {
+      key: 'covers/ppp.pack',
+      size: 600,
+      covers: [
+        [A, 100],
+        [B, 200],
+        [C, 300],
+      ] as [string, number][],
+    }
+
+    const library = (packs = [PACK]) => {
+      replica.library.cloudPicturesNow.mockReturnValue({
+        covers: new Set([A, B]),
+        artists: [{ banner: C, portrait: A }],
+        packs,
+      })
+    }
+
+    const sink = (have: string[] = []) => ({
+      have: vi.fn(async () => have),
+      unpack: vi.fn(async (_url: string, _headers: Record<string, string>, _slices: unknown) => {
+        // Kept.
+      }),
+    })
+
+    afterEach(() => {
+      replica.library.cloudPicturesNow.mockReturnValue(null)
+    })
+
+    it('fetches a pack once for all the pictures it brings, and cuts each out where it is', async () => {
+      library()
+      const packs = sink()
+      const store = createCoverStore(fakePlatform({ packs }))
+
+      expect(await store.fillFromPacks(() => false)).toEqual(new Set())
+      expect(packs.unpack).toHaveBeenCalledTimes(1)
+      expect(packs.unpack).toHaveBeenCalledWith(
+        'https://doorman.example/v1/files/covers/ppp.pack',
+        { Authorization: 'Bearer t' },
+        [
+          { name: 'aaa.jpg', at: 0, size: 100 },
+          { name: 'bbb.jpg', at: 100, size: 200 },
+          { name: 'ccc.png', at: 300, size: 300 },
+        ],
+      )
+    })
+
+    it('fetches only what is missing, and no pack for one picture', async () => {
+      library()
+      const some = sink(['aaa.jpg'])
+      await createCoverStore(fakePlatform({ packs: some })).fillFromPacks(() => false)
+      expect(some.unpack.mock.calls[0]?.[2]).toEqual([
+        { name: 'bbb.jpg', at: 100, size: 200 },
+        { name: 'ccc.png', at: 300, size: 300 },
+      ])
+
+      // One picture missing is one read alone, not the pack's megabytes.
+      const nearly = sink(['aaa.jpg', 'bbb.jpg'])
+      await createCoverStore(fakePlatform({ packs: nearly })).fillFromPacks(() => false)
+      expect(nearly.unpack).not.toHaveBeenCalled()
+    })
+
+    it('says which pictures a pack that could not be had was to bring', async () => {
+      library()
+      const packs = sink()
+      packs.unpack.mockRejectedValueOnce(new Error('the bucket answered 503'))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const store = createCoverStore(fakePlatform({ packs }))
+      expect(await store.fillFromPacks(() => false)).toEqual(new Set([A, B, C]))
+      warn.mockRestore()
+    })
+
+    it('fetches nothing once the pass is called off, and says what waits', async () => {
+      library()
+      const packs = sink()
+      const store = createCoverStore(fakePlatform({ packs }))
+      expect(await store.fillFromPacks(() => true)).toEqual(new Set([A, B, C]))
+      expect(packs.unpack).not.toHaveBeenCalled()
+    })
+
+    it('does nothing where there is nowhere to put them, or no pack', async () => {
+      library()
+      expect(await createCoverStore(fakePlatform()).fillFromPacks(() => false)).toEqual(new Set())
+      library([])
+      const packs = sink()
+      await createCoverStore(fakePlatform({ packs })).fillFromPacks(() => false)
+      expect(packs.have).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe("Welcome's fan of kept covers", () => {
+  it('takes one picture per song, newest first, up to the limit', () => {
+    const names = [
+      '110-c.jpg',
+      '110-b.jpg',
+      'hash-1.jpg',
+      '110-a.jpg',
+      '12-x.jpg',
+      'notes.txt',
+      '13-y.jpg',
+    ]
+    expect(fanOfCovers(names, 3)).toEqual(['110-c.jpg', 'hash-1.jpg', '12-x.jpg'])
+    expect(fanOfCovers(names, 9)).toEqual(['110-c.jpg', 'hash-1.jpg', '12-x.jpg', '13-y.jpg'])
   })
 })

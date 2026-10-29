@@ -925,7 +925,393 @@ const MIGRATIONS: readonly Migration[] = [
     `,
   },
   {
-    // 44. A job a device downloads itself (docs/features/client-download.md).
+    // 44. The covers and artists' pictures, packed a few megabytes to a file
+    // in the bucket (services/coverPacks.ts), so a device with none of them
+    // reads a few files instead of one per picture. A row per pack: its key,
+    // its size, and the pictures it holds in order, as JSON `[key, size]`
+    // pairs. A library already in the bucket is packed by the next pass.
+    name: 'covers packed a few megabytes to a file',
+    sql: `
+      CREATE TABLE IF NOT EXISTS cloud_cover_packs (
+        key    TEXT    PRIMARY KEY,
+        size   INTEGER NOT NULL,
+        covers TEXT    NOT NULL
+      );
+    `,
+  },
+  {
+    // 45. A song's words and their romanized lines are one file in the bucket
+    // (`wordsKey`), so a device reads them with one call rather than two, and
+    // `romanized_key` goes. Made again without it, so the table is the same
+    // however it is reached. The romanized lines' own files are then named by
+    // nothing, and go as any such file does (`#trashOrphans`). The words' old
+    // text files were put up again as words files by a one-off step of the
+    // cloud pass, removed once the Pi had run it (2026-10-24).
+    name: 'words and romanized lines in one file',
+    sql: `
+      CREATE TABLE cloud_songs_new (
+        song_id     INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+        audio_key   TEXT    NOT NULL,
+        audio_size  INTEGER NOT NULL,
+        audio_sig   TEXT    NOT NULL,
+        cover_key   TEXT,
+        cover_size  INTEGER,
+        cover_sig   TEXT    NOT NULL,
+        lyrics_key  TEXT,
+        lyrics_size INTEGER,
+        lyrics_kind TEXT,
+        lyrics_sig  TEXT    NOT NULL,
+        uploaded_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        motion_key  TEXT,
+        motion_sig  TEXT    NOT NULL DEFAULT ''
+      );
+      INSERT INTO cloud_songs_new (
+        song_id, audio_key, audio_size, audio_sig, cover_key, cover_size, cover_sig,
+        lyrics_key, lyrics_size, lyrics_kind, lyrics_sig, uploaded_at, motion_key, motion_sig
+      )
+      SELECT
+        song_id, audio_key, audio_size, audio_sig, cover_key, cover_size, cover_sig,
+        lyrics_key, lyrics_size, lyrics_kind, lyrics_sig, uploaded_at, motion_key, motion_sig
+      FROM cloud_songs;
+      DROP TABLE cloud_songs;
+      ALTER TABLE cloud_songs_new RENAME TO cloud_songs;
+      CREATE INDEX idx_cloud_songs_audio ON cloud_songs(audio_key);
+    `,
+  },
+  {
+    // 46. What search finds things by besides their own names
+    // (packages/shared/src/searchNames.ts). The names an artist also goes by,
+    // by `artistKey`, as a JSON array, with the stamp of the change that set
+    // them: an artist has no uid, so the stamp is kept here rather than in
+    // sync_stamps. When each artist was last looked up on MusicBrainz
+    // (services/artistNames.ts). And each Chinese or Japanese name spelt in
+    // Latin letters (services/spellings.ts), as a JSON array, since a name in
+    // characters alone is spelt both as pinyin and as romaji.
+    name: 'names search finds things by',
+    sql: `
+      CREATE TABLE IF NOT EXISTS artist_names (
+        artist TEXT PRIMARY KEY,
+        names  TEXT NOT NULL,
+        hlc    TEXT NOT NULL
+      ) WITHOUT ROWID;
+      CREATE TABLE IF NOT EXISTS artist_name_lookups (
+        artist    TEXT PRIMARY KEY,
+        looked_at TEXT NOT NULL
+      ) WITHOUT ROWID;
+      CREATE TABLE IF NOT EXISTS spellings (
+        name  TEXT PRIMARY KEY,
+        spelt TEXT NOT NULL
+      ) WITHOUT ROWID;
+    `,
+  },
+  {
+    // 47. Searching the web is part of smart features, not a switch of its
+    // own (2026-10-24): its row goes with the switch.
+    name: 'web search is part of smart features',
+    sql: `DELETE FROM settings WHERE key = 'smartWeb';`,
+  },
+  {
+    // 48. A playlist's id is never given out twice, as 41 made it for tags.
+    // Deleting the newest playlist and making another gave the new one the old
+    // id, and an open page, an Up next source or a recent list holding it
+    // turned into the new playlist — the new name over the old one's songs.
+    // The sequence starts past every id still here or named by an import.
+    name: 'a playlist’s id is never given out twice',
+    foreignKeysOff: true,
+    sql: `
+      CREATE TABLE playlists_new (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        name           TEXT    NOT NULL,
+        description    TEXT    NOT NULL DEFAULT '',
+        kind           TEXT    NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','live')),
+        rules          TEXT,
+        pinned         INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        uid            TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+        -- Set when a playlist is started as one (Play, Shuffle, a row in it), so
+        -- the playlists page can put the ones in use first. Not synced: it moves
+        -- on every play, and an edit stamp for it would put a playlist in every
+        -- device's log each time music started.
+        last_played_at TEXT
+      );
+      INSERT INTO playlists_new (id, name, description, kind, rules, pinned, created_at,
+                                 updated_at, uid, last_played_at)
+      SELECT id, name, description, kind, rules, pinned, created_at, updated_at, uid,
+             last_played_at
+        FROM playlists;
+      DROP TABLE playlists;
+      ALTER TABLE playlists_new RENAME TO playlists;
+      CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
+      CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
+      END;
+
+      DELETE FROM sqlite_sequence WHERE name = 'playlists';
+      INSERT INTO sqlite_sequence (name, seq)
+      SELECT 'playlists', max(
+        coalesce((SELECT max(id) FROM playlists), 0),
+        coalesce((SELECT max(playlist_id) FROM import_jobs), 0)
+      );
+    `,
+  },
+  {
+    // 49. A live playlist's rules about a tag that has been deleted go
+    // (rulesWithoutTag, which deleting a tag now does as it goes). Such a
+    // rule was invisible and could not be removed: "has" matched nothing, and
+    // "does not have" the whole library. One left with no rules stops
+    // following and keeps the songs it holds in its own order.
+    name: 'rules about deleted tags go',
+    sql: `
+      CREATE TEMP TABLE orphaned AS
+      SELECT DISTINCT p.id
+        FROM playlists p,
+             json_each(CASE WHEN json_valid(p.rules) THEN p.rules ELSE '{}' END, '$.rules') rule
+       WHERE p.kind = 'live'
+         AND json_extract(rule.value, '$.field') = 'tag'
+         AND CAST(json_extract(rule.value, '$.tagId') AS INTEGER) NOT IN (SELECT id FROM tags);
+
+      UPDATE playlists
+         SET rules = json_set(rules, '$.rules', (
+               SELECT json_group_array(json(value)) FROM (
+                 SELECT rule.value FROM json_each(playlists.rules, '$.rules') rule
+                  WHERE json_extract(rule.value, '$.field') IS NOT 'tag'
+                     OR CAST(json_extract(rule.value, '$.tagId') AS INTEGER) IN (SELECT id FROM tags)
+                  ORDER BY rule.key
+               )
+             )),
+             updated_at = datetime('now')
+       WHERE id IN (SELECT id FROM orphaned);
+
+      UPDATE playlists SET kind = 'manual', rules = NULL
+       WHERE id IN (SELECT id FROM orphaned) AND json_array_length(rules, '$.rules') = 0;
+
+      DROP TABLE orphaned;
+    `,
+  },
+  {
+    // 50. A song's id is never given out twice, as 41 and 48 made it for tags
+    // and playlists. Deleting the newest song and importing another gave the
+    // new one the old id, and whatever held it — Up next, a recent list, a
+    // played-song copy on a phone, an open song menu — turned into the new
+    // song. The sequence starts past every id still here or still named by an
+    // import or the lyrics index. Column order is unchanged.
+    name: 'a song’s id is never given out twice',
+    foreignKeysOff: true,
+    sql: `
+      CREATE TABLE songs_new (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        path           TEXT    NOT NULL UNIQUE,
+        title          TEXT    NOT NULL,
+        artist         TEXT    NOT NULL DEFAULT '',
+        album          TEXT    NOT NULL DEFAULT '',
+        album_artist   TEXT    NOT NULL DEFAULT '',
+        track_no       INTEGER,
+        year           INTEGER,
+        duration       REAL    NOT NULL DEFAULT 0,
+        size_bytes     INTEGER NOT NULL DEFAULT 0,
+        mime           TEXT    NOT NULL DEFAULT 'audio/mp4',
+        mtime_ms       INTEGER NOT NULL DEFAULT 0,
+        has_art        INTEGER NOT NULL DEFAULT 0,
+        art_ext        TEXT,
+        lyrics_kind    TEXT    NOT NULL DEFAULT 'none',
+        play_count     INTEGER NOT NULL DEFAULT 0,
+        loved          INTEGER NOT NULL DEFAULT 0,
+        -- The link an import came from: how its own timed lyrics are found.
+        source_url     TEXT,
+        last_played_at TEXT,
+        added_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        art_rev        INTEGER NOT NULL DEFAULT 0,
+        -- Set when lrclib says a track has no words, or when you mark it so. Not a
+        -- lyrics_kind value, because the scanner rewrites that column from the
+        -- files on every rescan, and smart playlists read lyrics_kind != 'none' as
+        -- "has lyrics".
+        instrumental   INTEGER NOT NULL DEFAULT 0,
+        -- How the song is known outside this database (docs/SYNC.md). The integer
+        -- id stays a local handle: another device would hand out the same
+        -- numbers.
+        uid            TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+        -- The cover's most vivid colour, picked from a 24×24 drawing of it so no
+        -- device has to decode the image to draw the playing song in it, and the
+        -- handful of colours it is made of (JSON, most of the cover first), which
+        -- the no-lyrics visuals draw in. cover_tone_rev is the art_rev they were
+        -- picked from: a new cover makes them stale. A cover with no colour in it
+        -- keeps a null hue with the revision set, so it is not read again.
+        cover_hue      REAL,
+        cover_chroma   REAL,
+        cover_tone_rev INTEGER,
+        cover_palette  TEXT
+      );
+      INSERT INTO songs_new (
+        id, path, title, artist, album, album_artist, track_no, year, duration, size_bytes,
+        mime, mtime_ms, has_art, art_ext, lyrics_kind, play_count, loved, source_url,
+        last_played_at, added_at, updated_at, art_rev, instrumental, uid, cover_hue,
+        cover_chroma, cover_tone_rev, cover_palette
+      )
+      SELECT
+        id, path, title, artist, album, album_artist, track_no, year, duration, size_bytes,
+        mime, mtime_ms, has_art, art_ext, lyrics_kind, play_count, loved, source_url,
+        last_played_at, added_at, updated_at, art_rev, instrumental, uid, cover_hue,
+        cover_chroma, cover_tone_rev, cover_palette
+      FROM songs;
+      DROP TABLE songs;
+      ALTER TABLE songs_new RENAME TO songs;
+      CREATE INDEX idx_songs_added  ON songs(added_at DESC);
+      CREATE INDEX idx_songs_artist ON songs(artist COLLATE NOCASE);
+      CREATE INDEX idx_songs_album  ON songs(album COLLATE NOCASE);
+      CREATE INDEX idx_songs_plays  ON songs(play_count DESC);
+      CREATE INDEX idx_songs_source ON songs(source_url) WHERE source_url IS NOT NULL;
+      CREATE INDEX idx_songs_size   ON songs(size_bytes);
+      CREATE UNIQUE INDEX idx_songs_uid ON songs(uid);
+      CREATE TRIGGER lyrics_fts_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM lyrics_fts WHERE song_id = old.id;
+      END;
+      CREATE TRIGGER sync_stamps_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('song','songTag') AND uid = old.uid;
+        DELETE FROM sync_stamps WHERE kind = 'playlistSong' AND field = old.uid;
+      END;
+
+      DELETE FROM sqlite_sequence WHERE name = 'songs';
+      INSERT INTO sqlite_sequence (name, seq)
+      SELECT 'songs', max(
+        coalesce((SELECT max(id) FROM songs), 0),
+        coalesce((SELECT max(song_id) FROM import_jobs), 0),
+        coalesce((SELECT max(CAST(song_id AS INTEGER)) FROM lyrics_fts), 0)
+      );
+    `,
+  },
+  {
+    // 51. A song can rest: until then, Shuffle, a list played whole, Ask's
+    // picks, Forgotten gems and Keep going pass over it (shared rest.ts). An
+    // ISO time, synced like any song field; null is awake.
+    name: 'a song can rest',
+    sql: `ALTER TABLE songs ADD COLUMN rest_until TEXT;`,
+  },
+  {
+    // 52. Who handed a song over: a friend's song brought home from a room or
+    // a share link with Get it (schemas/song.ts, CameWith), as JSON. A job
+    // carries it beside the queue until the song exists, and the song keeps it.
+    name: 'a song remembers who it came from',
+    sql: `
+      ALTER TABLE songs ADD COLUMN came_with TEXT;
+      CREATE TABLE IF NOT EXISTS import_came_with (
+        job_id    TEXT PRIMARY KEY REFERENCES import_jobs(id) ON DELETE CASCADE,
+        came_with TEXT NOT NULL
+      );
+    `,
+  },
+  {
+    // 53. The sound map (docs/features/sound-map.md): where every heard song
+    // sits, folded from the sound vectors (`sig` says which, as
+    // SoundService.packSignature does), kept as the file the bucket gets, so
+    // the next fold starts from it and the map holds still. And that file in
+    // the bucket, as the sound vectors' is kept in cloud_sound.
+    name: 'the sound map',
+    sql: `
+      CREATE TABLE IF NOT EXISTS sound_map (
+        id      INTEGER PRIMARY KEY CHECK (id = 1),
+        sig     TEXT    NOT NULL,
+        data    TEXT    NOT NULL,
+        made_at TEXT    NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS cloud_sound_map (
+        id   INTEGER PRIMARY KEY CHECK (id = 1),
+        key  TEXT    NOT NULL,
+        size INTEGER NOT NULL
+      );
+    `,
+  },
+  {
+    // 54. A removed song's copy in the inbox is deleted after its row, and a
+    // copy not yet deleted is not the sweep's to make a new song of. That was
+    // held in memory only: a server killed during a big removal came back
+    // with the copies it had not reached as new songs (bug bash R3-M8). The
+    // row's deletion now notes its copy, in the same transaction however the
+    // row goes — a removal here, a fold, another device's — and the note goes
+    // once the copy has; a start finishes whatever is left.
+    name: 'a removed song’s copy is remembered until it has gone',
+    sql: `
+      CREATE TABLE IF NOT EXISTS leaving_copies (
+        path    TEXT    PRIMARY KEY,
+        song_id INTEGER NOT NULL
+      );
+      CREATE TRIGGER IF NOT EXISTS songs_leaving AFTER DELETE ON songs BEGIN
+        INSERT OR REPLACE INTO leaving_copies (path, song_id) VALUES (old.path, old.id);
+      END;
+    `,
+  },
+  {
+    // 55. A cover carried in a file that could not be kept — the disk full as
+    // it was written — is still to be read out of it, and the file is the
+    // only place it is. It was lost for good once the copy was let go (bug
+    // bash R3-M11). Each such song is noted here until a cover is kept for
+    // it, and the cloud pass keeps its copy till then.
+    name: 'a cover that could not be kept is read again',
+    sql: `
+      CREATE TABLE IF NOT EXISTS covers_to_read (
+        song_id INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE
+      );
+    `,
+  },
+  {
+    // 56. A tag that went because its last songs were removed (`tagEmptied`,
+    // docs/SYNC.md), as it was then: a device that tags a song with it, not
+    // having heard, brings it back. Deleting it outright lost the tag, and
+    // that song's tagging, on every device (bug bash R3-M7).
+    name: 'tags emptied by a removal are kept aside',
+    sql: `
+      CREATE TABLE IF NOT EXISTS emptied_tags (
+        uid  TEXT    PRIMARY KEY,
+        name TEXT    NOT NULL,
+        hue  INTEGER NOT NULL
+      ) WITHOUT ROWID;
+    `,
+  },
+  {
+    // 57. Smart features are one switch, not one per feature, and there are no
+    // tags every import gets (2026-10-26): their rows go with the settings.
+    name: 'one smart switch, no tags for every import',
+    sql: `
+      DELETE FROM settings WHERE key IN (
+        'smartAsk', 'smartTidy', 'smartTags', 'smartWritten', 'smartMetadata', 'smartImport',
+        'defaultImportTagIds'
+      );
+    `,
+  },
+  {
+    // 58. A kept playlist with no songs goes: one exists once it has a song,
+    // and taking out its last song deletes it (usePlaylistRemoval), but ones
+    // emptied before that stayed, listed only in the sidebar. A live one stays
+    // — its rules may match songs later — and so does one an import has yet
+    // to fill.
+    //
+    // `removed_playlists` is `removed_songs` for playlists: the uid of each
+    // deleted here until the snapshot without it is up, so a server reading
+    // the bucket's newest snapshot again — a restart, *Publish now* — does not
+    // take it back on (services/cloudAdopt.ts). This step's own deletions are
+    // the first: the next start reads a snapshot that still has them.
+    name: 'kept playlists with no songs go',
+    sql: `
+      CREATE TABLE IF NOT EXISTS removed_playlists (
+        uid        TEXT    PRIMARY KEY,
+        removed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      ) WITHOUT ROWID;
+      CREATE TRIGGER IF NOT EXISTS removed_playlist AFTER DELETE ON playlists BEGIN
+        INSERT OR IGNORE INTO removed_playlists (uid) VALUES (old.uid);
+      END;
+
+      DELETE FROM playlists
+       WHERE kind = 'manual'
+         AND NOT EXISTS (SELECT 1 FROM playlist_items i WHERE i.playlist_id = playlists.id)
+         AND NOT EXISTS (
+               SELECT 1 FROM import_jobs j
+                WHERE j.playlist_id = playlists.id AND j.status IN ('queued', 'running', 'error')
+             );
+    `,
+  },
+  {
+    // 59. A job a device downloads itself (docs/features/client-download.md).
     // `fetcher` is who fetches the song — the server, or the device that
     // asked — and a device holds its jobs by a lease (`lease_id`) that it
     // renews while it works on them. One left unrenewed past `lease_until`
@@ -936,6 +1322,8 @@ const MIGRATIONS: readonly Migration[] = [
     // again, and a column added once cannot be added a second time. What a
     // lease said is lost that way; a job held on a second run is the server's.
     name: 'jobs a device downloads',
+    // import_came_with (52) names the jobs: off, so making the table again keeps its rows.
+    foreignKeysOff: true,
     sql: `
       CREATE TABLE import_jobs_new (
         id           TEXT    PRIMARY KEY,

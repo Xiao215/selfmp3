@@ -99,6 +99,9 @@ const BooleanFromEnv = z
     typeof value === 'boolean' ? value : value === 'true' || value === '1' || value === 'yes',
   )
 
+/** The admin page's port on this machine (`adminPort`); 4610 sits beside the API's 4600. */
+const DEFAULT_ADMIN_PORT = 4610
+
 const ConfigSchema = z.object({
   /** Port the API listens on. */
   port: z.coerce.number().int().min(1).max(65535).default(DEFAULT_SERVER_PORT),
@@ -135,6 +138,35 @@ const ConfigSchema = z.object({
     .transform(value => value.replace(/\/+$/, ''))
     .nullable()
     .default(null),
+
+  /**
+   * The owner's admin page (docs/features/admin.md) listens on this port, on
+   * this machine only (127.0.0.1), whatever `host` says. It is reached from
+   * elsewhere through `tailscale serve`, never Funnel, so only the owner's own
+   * devices can open it. 0 turns it off.
+   */
+  adminPort: z.coerce.number().int().min(0).max(65535).default(DEFAULT_ADMIN_PORT),
+
+  /**
+   * The address `tailscale serve` gives the admin page, such as
+   * https://pi.tail3d8516.ts.net:4443. The page answers only to that name and
+   * to this machine's own, so another site cannot reach it by pointing a name
+   * of its own at 127.0.0.1.
+   */
+  adminUrl: z
+    .string()
+    .trim()
+    .url()
+    .transform(value => value.replace(/\/+$/, ''))
+    .nullable()
+    .default(null),
+
+  /**
+   * The doorman's admin key (its ADMIN_TOKEN secret, the same value): what the
+   * admin page changes who can sign in and reads the doorman's counts with,
+   * through this server. Unset, the page shows only what the server counts.
+   */
+  doormanAdminToken: z.string().trim().min(32).nullable().default(null),
 
   /**
    * Where the app you listen in is published: the server's page links there,
@@ -196,6 +228,8 @@ const ConfigSchema = z.object({
       modelSmart: z.string().trim().min(1).default('sonnet'),
       /** Long, because a model behind the claude CLI starts a process per call. */
       timeoutSeconds: z.coerce.number().int().min(5).max(900).default(240),
+      /** Requests in flight to the endpoint at once; cli-bridge runs two. */
+      concurrency: z.coerce.number().int().min(1).max(32).default(2),
     })
     .default({}),
 
@@ -283,6 +317,9 @@ function readEnv(): unknown {
     host: env['SELFMP3_HOST'] || undefined,
     publicUrl: env['SELFMP3_PUBLIC_URL'] || undefined,
     appUrl: env['SELFMP3_APP_URL'] || undefined,
+    adminPort: env['SELFMP3_ADMIN_PORT'] || undefined,
+    adminUrl: env['SELFMP3_ADMIN_URL'] || undefined,
+    doormanAdminToken: env['SELFMP3_DOORMAN_ADMIN_TOKEN'] || undefined,
     // Resolved here rather than as schema defaults so a profile set by `.env`
     // (read just before this) chooses the folders too, not only one exported.
     ...resolveDirs(env),
@@ -294,6 +331,7 @@ function readEnv(): unknown {
       modelFast: env['SELFMP3_AI_MODEL_FAST'] || undefined,
       modelSmart: env['SELFMP3_AI_MODEL_SMART'] || undefined,
       timeoutSeconds: env['SELFMP3_AI_TIMEOUT_SECONDS'] || undefined,
+      concurrency: env['SELFMP3_AI_CONCURRENCY'] || undefined,
     },
     doormanUrl: env['SELFMP3_DOORMAN_URL'] ?? undefined,
     logLevel: env['SELFMP3_LOG_LEVEL'] || undefined,
@@ -323,9 +361,9 @@ export function loadConfig(): Config {
   const config = {
     ...parsed.data,
     cloudDir:
-      parsed.data.cloudDir === null || path.isAbsolute(parsed.data.cloudDir)
-        ? parsed.data.cloudDir
-        : path.join(parsed.data.dataDir, parsed.data.cloudDir),
+      parsed.data.cloudDir === null
+        ? null
+        : path.resolve(parsed.data.dataDir, parsed.data.cloudDir),
   }
 
   for (const dir of [config.libraryDir, config.dataDir, path.join(config.dataDir, 'covers')]) {

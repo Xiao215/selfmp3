@@ -57,6 +57,7 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
 
   const answer = answerRange({
     rangeHeader: req.headers.range,
+    ifRange: req.get('if-range'),
     sizeBytes,
     mime,
     etag,

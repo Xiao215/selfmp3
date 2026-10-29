@@ -1,8 +1,10 @@
 import { useMemo } from 'react'
+import { hexToRgb } from '@selfmp3/client'
 import { hasColour, hueFromString, type Song } from '@selfmp3/shared'
 
+import { useAccentColor } from '../../ui/accent'
 import { motionTuning, type MotionTuning } from './visualMotion.model'
-import { visualColors, visualFeel, type VisualColors } from './visuals.model'
+import { colourlessColors, visualColors, visualFeel, type VisualColors } from './visuals.model'
 
 /**
  * How a song looks and how its motion is tuned — the half of a visual that is
@@ -13,17 +15,21 @@ import { visualColors, visualFeel, type VisualColors } from './visuals.model'
  * differs between them.
  */
 export function useVisualLook(song: Song): { colors: VisualColors; tuning: MotionTuning } {
-  // A cover with no colour in it lends the visual nothing: it draws in the
-  // letter tile's hue, as a song without a cover does.
+  // A cover with no colour in it draws in its own greys with the accent's
+  // rings; a song without a cover in its letter tile's hue.
   const tone = song.coverTone && hasColour(song.coverTone) ? song.coverTone : null
+  const grey = song.coverTone && !tone ? song.coverTone.palette : null
+  const accent = useAccentColor(grey !== null)
   const colors = useMemo(
     () =>
-      visualColors(
-        tone?.hue ?? hueFromString(song.album || song.title),
-        song.audioFeatures?.camelot,
-        tone?.palette,
-      ),
-    [tone?.hue, tone?.palette, song.album, song.title, song.audioFeatures?.camelot],
+      grey
+        ? colourlessColors(grey, hexToRgb(accent))
+        : visualColors(
+            tone?.hue ?? hueFromString(song.album || song.title),
+            song.audioFeatures?.camelot,
+            tone?.palette,
+          ),
+    [grey, accent, tone?.hue, tone?.palette, song.album, song.title, song.audioFeatures?.camelot],
   )
   const bpmKnown = song.audioFeatures?.bpm != null
   const tuning = useMemo(

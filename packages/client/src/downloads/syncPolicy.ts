@@ -1,5 +1,3 @@
-import { formatBytes } from '@selfmp3/shared'
-
 /**
  * When a device downloads, what it says about it, and when a song cannot play.
  *
@@ -86,12 +84,19 @@ type SyncHeader =
   | {
       readonly kind: 'waiting'
       readonly missing: number
-      readonly bytes: number
-      /** Why it is not downloading on its own. */
-      readonly reason: 'offline' | 'held' | 'data' | 'large' | 'manual'
+      /** Why it is not downloading on its own, for now. */
+      readonly reason: 'offline' | 'held' | 'data'
     }
 
-/** The one line above the library. */
+/**
+ * The one line above the library, while there is news: a run, a failure, or a
+ * wait that will end by itself (offline, the cap, mobile data).
+ *
+ * A wait only a tap ends — automatic downloads off, or more than 500 MB — says
+ * nothing here: it would be the same line on every visit to Library (AL1,
+ * 2026-10-25). Library's ⋯ has "Download all", and Settings › On this phone
+ * the totals.
+ */
 export function syncHeader(situation: SyncSituation): SyncHeader {
   if (situation.queued > 0) {
     const total = Math.max(situation.batchTotal, situation.queued)
@@ -105,26 +110,24 @@ export function syncHeader(situation: SyncSituation): SyncHeader {
   if (situation.error !== null) return { kind: 'error', message: situation.error }
   // A browser streams: a song it has not kept is not a problem to report.
   if (!situation.installed || situation.missing === 0) return { kind: 'none' }
-  const waiting = (reason: 'offline' | 'held' | 'data' | 'large' | 'manual'): SyncHeader => ({
+  const waiting = (reason: 'offline' | 'held' | 'data'): SyncHeader => ({
     kind: 'waiting',
     missing: situation.missing,
-    bytes: situation.missingBytes,
     reason,
   })
   if (situation.network === 'none') return waiting('offline')
   if (situation.held) return waiting('held')
-  if (situation.missingBytes > LARGE_SYNC_BYTES) return waiting('large')
-  if (!onWifi(situation.network)) return waiting('data')
-  if (!situation.autoOnWifi) return waiting('manual')
-  // On Wi-Fi with the setting on: it is about to start by itself.
+  if (situation.autoOnWifi && !onWifi(situation.network)) return waiting('data')
+  // On Wi-Fi with the setting on it is about to start by itself; otherwise it
+  // waits for a tap, which is no news.
   return { kind: 'none' }
 }
 
 /** The header in words: what it says, and the one thing it offers. */
 export function syncHeaderText(
   header: SyncHeader,
-  /** This device, by what it is: "40 not on this phone". */
-  place: 'phone' | 'computer',
+  /** Where this device keeps songs: "40 not on this phone", "40 not on this iPad". */
+  place: 'phone' | 'iPad' | 'computer' | 'browser',
 ): { text: string; action: string | null } {
   switch (header.kind) {
     case 'none':
@@ -145,10 +148,6 @@ export function syncHeaderText(
           return { text: `${lead} · storage limit reached for today`, action: null }
         case 'data':
           return { text: `${lead} · on data`, action: 'Download' }
-        case 'large':
-          return { text: `${lead} · ${formatBytes(header.bytes)}`, action: 'Download' }
-        case 'manual':
-          return { text: lead, action: 'Download' }
       }
     }
   }
@@ -171,7 +170,7 @@ export function downloadAsk(
 }
 
 /** Why a song cannot start here, or null when it can. */
-export type PlayBlock = 'offline' | 'held' | 'streaming-off' | 'data'
+export type PlayBlock = 'offline' | 'held' | 'unreachable' | 'streaming-off' | 'data'
 
 export function playBlock({
   downloaded,
@@ -180,6 +179,7 @@ export function playBlock({
   streamUndownloaded,
   fromCloud,
   bucketHeld,
+  storageUnreachable,
   dataAllowed,
 }: {
   /** A file here already: a download, or a copy kept because it was played. */
@@ -199,15 +199,23 @@ export function playBlock({
    * The bucket refusing reads for the day (replica's `bucketHold`). A song not
    * on this device would be refused too: tried anyway, it fails, is retried
    * and skipped, and three of those stop the music however many downloaded
-   * songs come after. An installed app only: a browser's service worker may
-   * still have a played song to hand.
+   * songs come after. A browser too: what its service worker kept of the
+   * songs it played counts as `downloaded`, and nothing else can come.
    */
   bucketHeld: boolean
+  /**
+   * Nothing answers from the storage: the doorman, or the way to it, is down,
+   * though the device says it is online (replica's `doormanTrouble`). The
+   * same as a refusal for a song not here: tried, it failed, was retried and
+   * skipped, three at a time, before the songs this device has.
+   */
+  storageUnreachable: boolean
   dataAllowed: boolean
 }): PlayBlock | null {
   if (downloaded) return null
   if (network === 'none') return 'offline'
-  if (fromCloud && installed && bucketHeld) return 'held'
+  if (fromCloud && bucketHeld) return 'held'
+  if (fromCloud && storageUnreachable) return 'unreachable'
   if (!installed) return null
   if (!streamUndownloaded) return 'streaming-off'
   if (network === 'cellular' && !dataAllowed) return 'data'

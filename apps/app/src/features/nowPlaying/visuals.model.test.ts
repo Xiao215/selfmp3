@@ -10,6 +10,7 @@ import {
   loudnessLevel,
   rippleDisc,
   visualColors,
+  colourlessColors,
   visualFeel,
 } from './visuals.model'
 
@@ -85,6 +86,18 @@ describe('colour from the cover’s palette', () => {
     const colors = visualColors(129, '11B', genshin)
     expect(lightness(colors.inks[2])).toBeGreaterThan(lightness(colors.inks[0]))
     expect(lightness(colors.inks[2])).toBeGreaterThan(lightness(colors.inks[1]))
+  })
+
+  it('draws a colourless cover in its own greys, its rings in the accent', () => {
+    const white = [
+      { l: 0.95, c: 0, h: 0, share: 0.9 },
+      { l: 0.4, c: 0, h: 0, share: 0.1 },
+    ]
+    const accent = [59, 91, 212] as const
+    const colors = colourlessColors(white, accent)
+    for (const ink of [...colors.inks, ...colors.ground]) expect(spread(ink)).toBeLessThan(4)
+    expect(colors.ring).toEqual(accent)
+    expect(light(colors.ground[0])).toBeLessThan(60)
   })
 
   it('draws in the song’s own hue when there is no cover colour', () => {

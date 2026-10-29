@@ -15,7 +15,7 @@ import { useValueStore } from '../state/useValueStore'
  */
 
 const KEY = 'crossfadeSeconds'
-export const CROSSFADE_MAX = 12
+const CROSSFADE_MAX = 12
 
 function read(): number {
   const stored = Number(prefs.get(KEY))

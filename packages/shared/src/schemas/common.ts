@@ -11,11 +11,49 @@ import { z, type ZodError } from 'zod'
 export const IdSchema = z.coerce.number().int().positive()
 export type Id = z.infer<typeof IdSchema>
 
-/** Trimmed, non-empty user text with a sane ceiling. */
-export const NameSchema = z.string().trim().min(1).max(200)
+/**
+ * Format characters, which show nothing: zero-width spaces, a byte-order
+ * mark, and the bidi overrides that make "\u202Eevil" read as "live". Kept:
+ * the joiners (emoji sequences, Persian and Indic words need them) and the
+ * tag characters that spell a flag like Scotland's.
+ */
+const FORMAT = /(?!\u200C|\u200D|[\u{E0020}-\u{E007F}])\p{Cf}/gu
 
-/** Trimmed text that is allowed to be empty (artist, album, ...). */
-export const OptionalTextSchema = z.string().trim().max(500).default('')
+/** Line breaks, tabs and other control characters: one space each run. */
+const BREAKS = /[\p{Cc}\p{Zl}\p{Zp}]+/gu
+
+/** What a name may not start or end with: spaces, and blanks that are not spaces (braille blank, Hangul fillers). */
+const BLANK = String.raw`(?:[\s\u2800\u3164\u115F\u1160\uFFA0]|\u200C|\u200D)`
+const EDGES = new RegExp(`^${BLANK}+|${BLANK}+$`, 'gu')
+
+/**
+ * A name as typed, made fit to show: composed one way (NFC, so "Chaös" typed
+ * two ways is one tag), on one line, with nothing invisible in it, and
+ * trimmed. Empty when nothing visible is left — a name of only a zero-width
+ * space is no name.
+ */
+export function tidyText(text: string): string {
+  return text.normalize('NFC').replace(FORMAT, '').replace(BREAKS, ' ').replace(EDGES, '')
+}
+
+/** The longest a name may be: a song's title, a playlist's name. Fields stop typing here too. */
+export const NAME_MAX = 200
+
+/** Tidied (`tidyText`), non-empty user text with a sane ceiling. */
+export const NameSchema = z.string().transform(tidyText).pipe(z.string().min(1).max(NAME_MAX))
+
+/** Tidied text that is allowed to be empty (artist, album, ...). */
+export const OptionalTextSchema = z
+  .string()
+  .default('')
+  .transform(tidyText)
+  .pipe(z.string().max(500))
+
+/**
+ * The most songs one bulk request names. A selection bigger than this — all
+ * of a large library — is sent as several (the client's `inChunks`).
+ */
+export const BULK_IDS_MAX = 2000
 
 export const OkSchema = z.object({ ok: z.literal(true) })
 export type Ok = z.infer<typeof OkSchema>

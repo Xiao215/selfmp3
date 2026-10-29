@@ -30,6 +30,8 @@ interface MetadataSource {
     readonly isPending: boolean
     readonly isError: boolean
     readonly isSuccess: boolean
+    readonly isFetching: boolean
+    readonly refetch: () => unknown
   }
   readonly apply: {
     readonly mutate: (input: ApplyMetadata, options: { onSuccess: () => void }) => void

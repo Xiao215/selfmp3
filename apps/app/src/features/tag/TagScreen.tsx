@@ -6,8 +6,9 @@ import { useLibrary, iconSize } from '@selfmp3/client'
 import { Pencil, TagPlus } from '../../ui/components/Icons'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
-import { PlaceMissing } from './PlaceMissing'
+import { PlaceMissing, PlaceWaiting } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
+import { placeParam } from './placeLinks'
 import { existingTag, placeSongs } from './tag.model'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { goBack } from '../../ui/useBackTo'
@@ -36,7 +37,7 @@ export function TagScreen(): ReactNode {
   const tag = library?.tags.find(entry => entry.id === tagId) ?? byName
 
   useEffect(() => {
-    if (tag && name && tag.name !== name) router.setParams({ name: tag.name })
+    if (tag && name && tag.name !== name) router.setParams({ name: placeParam(tag.name) })
   }, [tag, name, router])
 
   // A tile on the home-screen widget opens `/tag/<name>?play=1`: the tag
@@ -46,7 +47,10 @@ export function TagScreen(): ReactNode {
     if (play !== '1' || !tag || !library) return
     const ids = placeSongs([{ kind: 'tag', tag }], library.songs).map(song => song.id)
     if (ids.length > 0) {
-      player.playFrom(ids, 0, { source: { kind: 'tag', tagId: tag.id, name: tag.name } })
+      player.playFrom(ids, 0, {
+        source: { kind: 'tag', tagId: tag.id, name: tag.name },
+        whole: true,
+      })
     }
     router.setParams({ play: undefined })
   }, [play, tag, library, player, router])
@@ -61,7 +65,7 @@ export function TagScreen(): ReactNode {
     [library, tag],
   )
 
-  if (!library) return null
+  if (!library) return <PlaceWaiting />
   if (!tag) return <PlaceMissing kind="tag" name={name ?? ''} />
   return (
     <>

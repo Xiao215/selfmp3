@@ -6,12 +6,14 @@ const one = {
   count: 1,
   loved: 0,
   held: 0,
+  resting: 0,
   installed: true,
   roomSong: false,
   inPlaylist: false,
   nowPlaying: false,
   place: 'phone',
   shareable: false,
+  detailsInMenu: false,
 }
 
 const ids = (facts: typeof one): string[] => songActions(facts).map(action => action.id)
@@ -24,7 +26,9 @@ describe('what can be done to songs', () => {
       'Add to playlist',
       'Add to Up next',
       'Play similar songs',
+      'Show on the map',
       'Download',
+      'Rest for a month',
       'Song details',
       'Delete from library…',
     ])
@@ -41,12 +45,22 @@ describe('what can be done to songs', () => {
       'Add to Up next',
       'Download the rest',
       'Remove 2 from this phone',
+      'Rest for a month',
       'Delete 3 songs from library…',
     ])
     expect(labels({ ...one, count: 2, loved: 2, held: 2 })).toContain('Unlike all')
     expect(labels({ ...one, count: 2, loved: 2, held: 2 })).toContain('Remove from this phone')
     expect(labels({ ...one, count: 2 })).toContain('Like all')
     expect(labels({ ...one, count: 2 })).toContain('Download all')
+  })
+
+  it('wakes a resting song, and rests or wakes several by their counts', () => {
+    expect(labels({ ...one, resting: 1 })).toContain('Wake up')
+    expect(labels({ ...one, resting: 1 })).not.toContain('Rest for a month')
+    expect(labels({ ...one, count: 3, resting: 1 })).toEqual(
+      expect.arrayContaining(['Rest for a month', 'Wake up 1']),
+    )
+    expect(labels({ ...one, count: 2, resting: 2 })).toContain('Wake up all')
   })
 
   it('keeps nothing on a browser', () => {
@@ -62,7 +76,21 @@ describe('what can be done to songs', () => {
     expect(ids({ ...one, nowPlaying: true })).toEqual([
       'addToPlaylist',
       'playSimilar',
+      'showOnMap',
       'download',
+      'rest',
+      'delete',
+    ])
+  })
+
+  it('keeps Song details for a phone’s Now Playing, which has no door of its own to it', () => {
+    expect(ids({ ...one, nowPlaying: true, detailsInMenu: true })).toEqual([
+      'addToPlaylist',
+      'playSimilar',
+      'showOnMap',
+      'download',
+      'rest',
+      'details',
       'delete',
     ])
   })
@@ -73,8 +101,10 @@ describe('what can be done to songs', () => {
       'Add to playlist',
       'Add to Up next',
       'Play similar songs',
+      'Show on the map',
       'Share link',
       'Download',
+      'Rest for a month',
       'Song details',
       'Delete from library…',
     ])

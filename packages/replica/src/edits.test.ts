@@ -91,6 +91,8 @@ const BASE: CloudSnapshot = {
     },
   ],
   artists: [],
+  artistNames: [],
+  spellings: {},
   sound: null,
 }
 
@@ -132,9 +134,14 @@ describe('editing songs', () => {
     expect(view.playlistSongs[d.idOf('playlists', '8')]).toEqual([d.idOf('songs', 'b')])
   })
 
-  it('sets a song’s tags as the ones that go on and the ones that come off', () => {
+  it('changes a song’s tags as the ones that go on and the ones that come off', () => {
     const d = device()
-    const changes = edits.setSongTags(d.ctx(), d.idOf('songs', 'a'), [d.idOf('tags', '2'), 9999])
+    const changes = edits.changeSongTags(
+      d.ctx(),
+      d.idOf('songs', 'a'),
+      [d.idOf('tags', '2'), 9999],
+      [d.idOf('tags', '1')],
+    )
     expect(
       changes.map(change => change.type === 'songTagged' && [change.tagUid, change.on]),
     ).toEqual([
@@ -160,12 +167,25 @@ describe('editing songs', () => {
     const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')])
     expect(changes.map(change => [change.type, change.uid])).toEqual([
       ['songRemoved', uid('a')],
-      ['tagRemoved', uid('1')],
+      ['tagEmptied', uid('1')],
     ])
     expect(d.apply(changes).library.tags.map(tag => tag.name)).toEqual(['rain'])
     expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'b')]).map(c => c.type)).toEqual([
       'songRemoved',
     ])
+  })
+
+  // R3-M7: the tag went everywhere, and the song tagged with it lost it.
+  it('leaves a tag another device has just put on a song this one had not heard of', () => {
+    const here = device()
+    const removing = edits.removeSongs(here.ctx(), [here.idOf('songs', 'a')])
+    const there = device()
+    const tagging = edits
+      .changeSongTags(there.ctx(), there.idOf('songs', 'b'), [there.idOf('tags', '1')], [])
+      .map(change => ({ ...change, hlc: change.hlc.replace('iphone-0b7d44a1', 'web-5c6d7e8f') }))
+    const both = replayedSnapshot(replay(BASE, [], [...removing, ...tagging]), BASE)
+    expect(both.tags.map(tag => tag.name)).toEqual(['chill', 'rain'])
+    expect(both.songs.find(s => s.uid === uid('b'))?.tagUids).toEqual([uid('1')])
   })
 
   it('counts a play under the play outbox’s own id, so a resend counts once', () => {
@@ -181,9 +201,39 @@ describe('editing songs', () => {
     expect(view.library.songs.find(s => s.title === 'Song c')?.playCount).toBe(1)
   })
 
+  it('merges nothing into a kept song that is gone, as the server does', () => {
+    const d = device()
+    expect(edits.mergeSongs(d.ctx(), 424242, [d.idOf('songs', 'a')])).toEqual([])
+    expect(
+      edits.mergeSongs(d.ctx(), d.idOf('songs', 'a'), [d.idOf('songs', 'b'), 424242]),
+    ).toMatchObject([{ type: 'songMerged', uid: uid('b'), into: uid('a') }])
+  })
+
   it('refuses a song this device does not have', () => {
     const d = device()
     expect(() => edits.editSong(d.ctx(), 424242, { loved: true })).toThrow(CloudRouteError)
+  })
+})
+
+describe('naming an artist', () => {
+  it('keeps the names an artist also goes by, tidied, under the artist as the songs write them', () => {
+    const d = device()
+    const { changes, named } = edits.nameArtist(d.ctx(), 'AURORA LANE', [
+      ' Aurora ',
+      'aurora',
+      'Aurora Lane',
+      'オーロラ',
+    ])
+    expect(named).toEqual({ artist: 'aurora lane', names: ['Aurora', 'オーロラ'] })
+    expect(changes).toEqual([{ type: 'artistNamed', hlc: expect.any(String), ...named }])
+    expect(d.apply(changes).library.artistNames).toEqual({ 'aurora lane': ['Aurora', 'オーロラ'] })
+  })
+
+  it('refuses an artist no song names', () => {
+    const d = device()
+    expect(() => edits.nameArtist(d.ctx(), 'Nobody', ['x'])).toThrow(
+      expect.objectContaining({ status: 404 }),
+    )
   })
 })
 
@@ -221,6 +271,70 @@ describe('editing tags', () => {
   })
 })
 
+describe('deleting a tag playlists follow', () => {
+  /** A live playlist on chill — and, for "Chill and loved", on being loved too. */
+  const follow = (d: ReturnType<typeof device>, name: string) => {
+    const made = edits.createPlaylist(d.ctx(), {
+      name,
+      description: '',
+      kind: 'live',
+      rules: {
+        match: 'all',
+        rules: [
+          { field: 'tag', op: 'has', tagId: d.idOf('tags', '1') },
+          ...(name === 'Chill and loved'
+            ? [{ field: 'loved' as const, op: 'is' as const, value: true }]
+            : []),
+        ],
+        orderBy: 'addedAt',
+        order: 'desc',
+        limit: null,
+      },
+    })
+    return d.apply(made.changes).ids.playlists[made.uid] ?? 0
+  }
+
+  it('keeps the songs of a playlist that followed only it, and stops it following', () => {
+    const d = device()
+    const chill = follow(d, 'Chill')
+    const changes = edits.removeTag(d.ctx(), d.idOf('tags', '1'))
+    expect(changes.map(change => change.type)).toEqual(['playlistUnfollowed', 'tagRemoved'])
+    const view = d.apply(changes)
+    expect(view.library.playlists.find(p => p.id === chill)).toMatchObject({
+      kind: 'manual',
+      rules: null,
+    })
+    expect(view.playlistSongs[chill]).toEqual([d.idOf('songs', 'a')])
+  })
+
+  // Dropping only the tag's rule widened an "all" playlist and narrowed an "any" one.
+  it('keeps the songs of a playlist that follows other things too', () => {
+    const d = device()
+    const both = follow(d, 'Chill and loved')
+    const changes = edits.removeTag(d.ctx(), d.idOf('tags', '1'))
+    expect(changes.map(change => change.type)).toEqual(['playlistUnfollowed', 'tagRemoved'])
+    const view = d.apply(changes)
+    expect(view.library.playlists.find(p => p.id === both)).toMatchObject({
+      kind: 'manual',
+      rules: null,
+    })
+  })
+
+  it('leaves the removed songs out of a playlist their emptied tag stops', () => {
+    const d = device()
+    const chill = follow(d, 'Chill')
+    const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')])
+    expect(changes.map(change => change.type)).toEqual([
+      'songRemoved',
+      'playlistUnfollowed',
+      'tagEmptied',
+    ])
+    const view = d.apply(changes)
+    expect(view.library.playlists.find(p => p.id === chill)?.kind).toBe('manual')
+    expect(view.playlistSongs[chill]).toEqual([])
+  })
+})
+
 describe('editing playlists', () => {
   it('makes a playlist with rules naming tags by uid', () => {
     const d = device()
@@ -243,6 +357,26 @@ describe('editing playlists', () => {
     const view = d.apply(made.changes)
     const id = view.ids.playlists[made.uid] ?? 0
     expect(view.playlistSongs[id]).toEqual([d.idOf('songs', 'a')])
+  })
+
+  it('makes a playlist with its first songs in the same changes', () => {
+    const d = device()
+    const made = edits.createPlaylist(d.ctx(), {
+      name: 'Picked',
+      description: '',
+      kind: 'manual',
+      rules: null,
+      // One the library does not have is left out, as an add leaves it out.
+      songIds: [d.idOf('songs', 'b'), 999_999, d.idOf('songs', 'a')],
+    })
+    expect(made.changes.map(change => change.type)).toEqual([
+      'playlistCreated',
+      'playlistSong',
+      'playlistSong',
+    ])
+    const view = d.apply(made.changes)
+    const id = view.ids.playlists[made.uid] ?? 0
+    expect(view.playlistSongs[id]).toEqual(['b', 'a'].map(c => d.idOf('songs', c)))
   })
 
   it('puts songs in at a position, as a new order', () => {

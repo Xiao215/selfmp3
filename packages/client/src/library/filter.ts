@@ -1,7 +1,10 @@
 import {
+  NO_NAMES,
   fuzzyRankPrepared,
-  preparedTextFor,
+  preparedNamesFor,
+  songSearchNames,
   sortSongs,
+  type LibraryNames,
   type FuzzyMatch,
   type Song,
   type SongSortField,
@@ -30,6 +33,8 @@ export interface LibraryFilter {
   readonly sort: SongSortField
   readonly descending: boolean
   readonly downloadedOnly: boolean
+  /** Only the songs you like: the strip's Liked chip, which narrows whatever else is on. */
+  readonly likedOnly: boolean
 }
 
 /** The app's opening view: newest first. */
@@ -38,6 +43,7 @@ export const DEFAULT_FILTER: LibraryFilter = {
   sort: 'addedAt',
   descending: true,
   downloadedOnly: false,
+  likedOnly: false,
 }
 
 /**
@@ -96,35 +102,105 @@ export function tagMatchCount(song: Pick<Song, 'tagIds'>, tagIds: readonly numbe
   return matched
 }
 
-/** Sort options offered in the UI — the app's list, in the app's order. */
-export const SORT_OPTIONS: { field: SongSortField; label: string }[] = [
-  { field: 'addedAt', label: 'Recently added' },
-  { field: 'title', label: 'Title' },
-  { field: 'artist', label: 'Artist' },
-  { field: 'album', label: 'Album' },
-  { field: 'duration', label: 'Length' },
-  { field: 'playCount', label: 'Most played' },
-  { field: 'lastPlayedAt', label: 'Recently played' },
+/** One way round a sort goes, named for its field: "Newest first", and "newest" beside the field. */
+export interface SortOrder {
+  readonly descending: boolean
+  readonly label: string
+  readonly short: string
+}
+
+const order = (descending: boolean, label: string, short = label.toLowerCase()): SortOrder => ({
+  descending,
+  label,
+  short,
+})
+
+const BY_NAME = [order(false, 'A–Z', 'A–Z'), order(true, 'Z–A', 'Z–A')] as const
+
+/**
+ * Sort options offered in the UI — the app's list, in the app's order — each
+ * with its two ways round, named for the field rather than as an arrow. The
+ * first is the field's own: what choosing the field starts on.
+ */
+export const SORT_OPTIONS: {
+  field: SongSortField
+  label: string
+  orders: readonly [SortOrder, SortOrder]
+}[] = [
+  {
+    field: 'addedAt',
+    label: 'Recently added',
+    orders: [order(true, 'Newest first', 'newest'), order(false, 'Oldest first', 'oldest')],
+  },
+  { field: 'title', label: 'Title', orders: BY_NAME },
+  { field: 'artist', label: 'Artist', orders: BY_NAME },
+  { field: 'album', label: 'Album', orders: BY_NAME },
+  {
+    field: 'duration',
+    label: 'Length',
+    orders: [order(true, 'Longest'), order(false, 'Shortest')],
+  },
+  {
+    field: 'playCount',
+    label: 'Most played',
+    orders: [order(true, 'Most'), order(false, 'Fewest')],
+  },
+  {
+    field: 'lastPlayedAt',
+    label: 'Recently played',
+    orders: [order(true, 'Newest'), order(false, 'Oldest')],
+  },
 ]
 
-function searchText(song: Song): string {
-  return `${song.title} ${song.artist} ${song.album}`
+type PreparedNames = ReturnType<typeof preparedNamesFor<Song>>
+
+/**
+ * Each song's names, lowercased once per song object rather than once per
+ * keystroke, and once per set of the library's other names
+ * (`songSearchNames`).
+ *
+ * Kept by the other names themselves — the artists' names and the spellings —
+ * not by whatever object carries them, which is usually the whole library:
+ * a refetch hands back a new library whenever any song changed, but the
+ * query's structural sharing keeps every unchanged song, and these two
+ * records when nothing in them changed, as the objects they were. So the
+ * songs a refetch did not touch keep their prepared names, and a song that
+ * changed is a new object and is prepared again.
+ */
+const preparedByNames = new WeakMap<
+  LibraryNames['artistNames'],
+  WeakMap<LibraryNames['spellings'], PreparedNames>
+>()
+
+function preparedNames({ artistNames, spellings }: LibraryNames): PreparedNames {
+  let bySpellings = preparedByNames.get(artistNames)
+  if (!bySpellings) {
+    bySpellings = new WeakMap()
+    preparedByNames.set(artistNames, bySpellings)
+  }
+  let prepared = bySpellings.get(spellings)
+  if (!prepared) {
+    // Its own copy of the two, not the library they came with: kept for as
+    // long as the names are, it must not hold a refetched-away library.
+    const names: LibraryNames = { artistNames, spellings }
+    prepared = preparedNamesFor<Song>(song => songSearchNames(song, names))
+    bySpellings.set(spellings, prepared)
+  }
+  return prepared
 }
 
 /**
- * Each song's search text, lowercased once per song object rather than once
- * per keystroke. The library query hands back the same objects until it is
- * refetched, so typing reuses them; a refetch brings new objects and the old
- * text goes with the old songs.
- */
-const preparedSearchText = preparedTextFor<Song>(searchText)
-
-/**
  * Songs best-first for a query: the library's search, and the palette's.
- * One matcher and one prepared text for both, so they cannot disagree.
+ * One matcher and one set of names for both, so they cannot disagree. A song
+ * is found by its title, artist and album, by each spelt in Latin letters,
+ * and by the names its artists also go by (`names`).
  */
-export function searchSongs<S extends Song>(query: string, songs: readonly S[]): FuzzyMatch<S>[] {
-  return fuzzyRankPrepared(query, songs, preparedSearchText)
+export function searchSongs<S extends Song>(
+  query: string,
+  songs: readonly S[],
+  names: LibraryNames = NO_NAMES,
+): FuzzyMatch<S>[] {
+  return fuzzyRankPrepared(query, songs, preparedNames(names))
 }
 
 export function filterSongs(
@@ -139,6 +215,7 @@ export function filterSongs(
     result = result.filter(song => tagMatchCount(song, filter.tagIds) > 0)
   }
   if (filter.downloadedOnly) result = result.filter(song => isDownloaded(song.id))
+  if (filter.likedOnly) result = result.filter(song => song.loved)
 
   // The shared comparison, so the phone and the desktop put the same library in
   // the same order.

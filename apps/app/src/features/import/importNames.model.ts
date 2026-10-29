@@ -66,6 +66,7 @@ export function suggestionsByRow(
 /**
  * A row's suggestion while its names are still the ones the model read: once
  * they are fixed by hand, or the suggestion taken, there is nothing to offer.
+ * Nor is there when it would change nothing.
  */
 export function suggestionFor(
   item: Names,
@@ -74,12 +75,38 @@ export function suggestionFor(
   if (!suggestion) return undefined
   const { from } = suggestion
   const same = item.title === from.title && item.artist === from.artist && item.album === from.album
-  return same ? suggestion : undefined
+  return same && suggestionChanges(suggestion).length > 0 ? suggestion : undefined
 }
 
-/** A suggestion in a line: the names it gives, the album only when there is one. */
-export function suggestionWords(suggestion: Names): string {
-  return [suggestion.title, suggestion.artist || 'Unknown artist', suggestion.album]
-    .filter(Boolean)
-    .join(' · ')
+/** One name a suggestion changes: which, and the words for what it would be. */
+export interface NameChange {
+  readonly name: 'title' | 'artist' | 'album'
+  readonly label: 'Title' | 'Artist' | 'Album'
+  readonly words: string
+  /** It would leave the name empty: `words` says so ("No album") rather than being it. */
+  readonly empty: boolean
+}
+
+const NAMES = [
+  { name: 'title', label: 'Title', none: 'Untitled' },
+  { name: 'artist', label: 'Artist', none: 'Unknown artist' },
+  { name: 'album', label: 'Album', none: 'No album' },
+] as const
+
+/**
+ * The names a suggestion changes, in the row's order — title, artist, album —
+ * leaving out the ones it keeps, so only what changes is shown.
+ */
+export function suggestionChanges(suggestion: NameSuggestion): NameChange[] {
+  return NAMES.flatMap(({ name, label, none }) => {
+    const value = suggestion[name]
+    if (value === suggestion.from[name]) return []
+    const empty = value.trim() === ''
+    return [{ name, label, words: empty ? none : value, empty }]
+  })
+}
+
+/** The changes in words, for a screen reader: "title 群青, album THE BOOK". */
+export function changesWords(changes: readonly NameChange[]): string {
+  return changes.map(change => `${change.label.toLowerCase()} ${change.words}`).join(', ')
 }

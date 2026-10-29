@@ -65,8 +65,10 @@ test('a song page still keeps the link in the bucket, and offers to open self.mp
   await app.waitForURL(`${DEFAULT_APP_URL}/`)
   await app.close()
 
+  // Kept, and not promised to a server that does not exist.
   await page.getByRole('button', { name: 'Keep it for later' }).click()
-  await expect(page.getByText(/^Waiting for your server/)).toBeVisible()
+  await expect(page.getByText(/^Kept for later/)).toBeVisible()
+  await expect(page.getByText(/^Waiting for your server/)).toHaveCount(0)
   await page.close()
 
   expect(askedShared).toEqual([])

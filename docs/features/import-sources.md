@@ -4,8 +4,12 @@ Import's one box takes words to search for, a link from YouTube, YouTube Music, 
 or Spotify, or a list of song names. A search opens its own page of what it found; anything
 else shows every song on the same review before anything downloads. Under
 the box it says what it read ("网易云 playlist", "Spotify album", "A list of song names").
-On a keyboard, Enter does what the button does (Search or Look it up) and Shift+Enter
-starts a new line; a phone's Return still starts a line.
+The box has one button, an arrow inside it at its end, which lights in the accent once
+there is something to send. On a keyboard, Enter does what the arrow does (Search or Look
+it up) and Shift+Enter starts a new line; a phone's Return still starts a line. Under the
+box one quiet line says what it works with; with nothing importing, the songs added last
+stand under it as "Recently imported". Tags are chosen at review, where the songs can be
+seen, not on the box.
 
 Each song comes from one of two places: YouTube, or 网易云 itself. Spotify's audio cannot
 be downloaded, so a Spotify song is found on YouTube by its name, as is a song from a
@@ -82,6 +86,19 @@ The search is asked once typing settles (350 ms), only for the latest words, and
 the import draft with its ticks, so Back keeps it — Import offers it again ("Search · …,
 2 songs picked") while anything is picked — and a reload finds it as it was.
 
+## Several links, or names beside them
+
+Several links are read at once, each on its own. One that cannot be read (a removed video,
+a page that is not there) does not take the others with it: their songs are reviewed, and
+the review says over them which links it could not read and why, in words
+(`lookUpFailure`), never yt-dlp's. Lines with no link in them, pasted with the links, are
+song names, looked up as a list of them is; the box says so before the wait ("YouTube song
+and 1 song name"). A look-up may take the server two minutes (a YouTube mix, a long list)
+before the app gives up on it and says, in the screen's words, "Your library took too long to
+answer. Try again in a moment." — a search, Look again and the model's better names wait as
+long (`lookUp` in `importSource.ts`). What went wrong stays on the card until the box is
+edited: an edit is the next try, and the card goes.
+
 ## A list of song names
 
 Words with no link in them are a list (`services/trackLists.ts`):
@@ -90,7 +107,10 @@ Words with no link in them are a list (`services/trackLists.ts`):
   `Artist — Title`, or just `Title`. Numbering (`1.`, `2)`) and trailing durations (`3:45`)
   are ignored; `(Official Video)`, `[Remastered 2011]`, `feat. …` and similar noise is
   stripped. Whether lines are `Artist - Title` or `Title - Artist` is guessed from the whole
-  list (the side that repeats is the artist), defaulting to artist first.
+  list (the side that repeats is the artist), defaulting to artist first. A list too short
+  to tell is checked both ways: a song the library has the other way round is that song,
+  and YouTube Music's answers are scored against both readings, the better one taken
+  (`bestReading`).
 - **A CSV/TSV export**: Exportify, TuneMyMusic, or Apple Music's *File → Library → Export
   Playlist*. Recognised columns: Track Name / Name / Title, Artist Name(s) / Artist, Album,
   Duration (ms) / Time, Playlist name.
@@ -108,7 +128,8 @@ as pinyin, so 周杰伦 and 周杰倫 are the same; a run of characters is one w
 ("zhoujielun"), so 忘我 is not found inside 我不曾忘记 just because it shares its characters.
 
 - 0.7 and up is a match taken as it is;
-- 0.4 to 0.7 is **not sure**, said on the row, worth a listen;
+- 0.4 to 0.7 is **not sure**, said on the row, worth a listen, and left unticked until it
+  has had one;
 - below that is **not found**: the row has no box and nothing to import.
 
 The review shows at once and fills in as songs are found, eight at a time

@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { plural, formatLongDuration, type Tag, NameSchema } from '@selfmp3/shared'
+import { plural, formatLongDuration, type Tag, NAME_MAX } from '@selfmp3/shared'
 import {
   failureText,
   radius,
@@ -21,11 +21,12 @@ import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { Chip } from '../../ui/components/Chip'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
-import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
+import { useSmartOn } from '../smart/useSmartOn'
+import { DrawLine, ListMusic, Live, Sparkle } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../lists/followRules'
-import { tagsWithIds } from '../lists/lists.model'
+import { combinedName, tagsWithIds, type TagMatch } from '../lists/lists.model'
+import { Segmented } from '../../ui/components/Segmented'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { SongsAnswer } from '../smart/SongsAnswer'
 import { useSmartServer } from '../smart/useSmartServer'
@@ -50,12 +51,14 @@ type Kind = 'pick' | 'follow' | 'describe'
  * - **Pick songs**: a name, then picking its songs. It is only made when the
  *   first ones are confirmed, with them: a playlist exists once it has a song
  *   (docs/UI-MIGRATION.md, Phase 5), so cancelling leaves nothing behind.
- * - **Fills from tags**: the tags, then a name (theirs, to start with). It
- *   follows them and keeps itself filled; **Stop filling** on the playlist
+ * - **Live, from tags**: the tags, then a name (theirs, to start with). It
+ *   follows them and keeps itself filled; **Stop adding** on the playlist
  *   keeps every song.
  * - **Describe it**, when Ask is on: what you want to hear, then a name (the
  *   words, to start with), then the songs it picked from your own, each with a
  *   reason (SongsAnswer).
+ * - **Draw it on the map**: the Sound map, the pen ready; what is drawn is
+ *   saved from its tray (docs/features/sound-map.md).
  */
 export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
@@ -63,17 +66,27 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const server = useSmartServer()
   const { data: library } = useLibrary()
-  const switches = useSmartSwitches()
+  const smartOn = useSmartOn()
 
   const [step, setStep] = useState<Step>('kind')
   const [kind, setKind] = useState<Kind>('pick')
   const [tagIds, setTagIds] = useState<readonly number[]>([])
+  // Songs with any of the tags, or with all of them (C1), as the Combined page has it.
+  const [match, setMatch] = useState<TagMatch>('any')
   const [words, setWords] = useState('')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** Named, and picking its songs: the playlist does not exist yet. */
   const [picking, setPicking] = useState<string | null>(null)
+  /**
+   * Which opening of the sheet this is; Cancel starts the next. A playlist
+   * still being made for a cancelled one is not opened, and its failure is
+   * not shown (R3-M5). The ref is what an answer checks, the state what it
+   * was asked in.
+   */
+  const [round, setRound] = useState(0)
+  const latestRound = useRef(0)
 
   const describe = useMutation({
     mutationFn: (text: string) => {
@@ -84,12 +97,19 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
 
   const tags: readonly Tag[] = library?.tags ?? []
   const chosen = tagsWithIds(tagIds, tags)
-  const tagsName = chosen.map(tag => tag.name).join(' · ')
+  const tagsName = combinedName(
+    chosen.map(tag => tag.name),
+    match,
+  )
   const songs = library?.songs ?? []
   // What it would hold, worked out here rather than asked of the server: the
   // whole library is already in memory, and a count that lags behind the
   // choice is worse than no count.
-  const matching = songs.filter(song => tagIds.some(id => song.tagIds.includes(id)))
+  const matching = songs.filter(song =>
+    match === 'all'
+      ? tagIds.every(id => song.tagIds.includes(id))
+      : tagIds.some(id => song.tagIds.includes(id)),
+  )
   const seconds = matching.reduce((total, song) => total + song.duration, 0)
   const offered = [...tags].sort(
     (a, b) => b.songCount - a.songCount || a.name.localeCompare(b.name),
@@ -98,6 +118,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const reset = (): void => {
     setStep('kind')
     setTagIds([])
+    setMatch('any')
     setWords('')
     setName('')
     setError(null)
@@ -112,9 +133,18 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   const cancel = (): void => {
+    latestRound.current += 1
+    setRound(latestRound.current)
     reset()
     onClose()
   }
+
+  /** `finish`, unless the sheet was cancelled since `asked`. */
+  const finishFor =
+    (asked: number) =>
+    (id: number): void => {
+      if (latestRound.current === asked) finish(id)
+    }
 
   const choose = (next: Kind): void => {
     setKind(next)
@@ -143,7 +173,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const createWith = async (songIds: readonly number[]): Promise<void> => {
     const input = newPlaylist('manual', picking ?? '')
     if (!input) return
-    finish((await createPlaylist({ input, songIds })).id)
+    finishFor(round)((await createPlaylist({ input, songIds })).id)
   }
 
   const follow = async (): Promise<void> => {
@@ -153,12 +183,12 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
     const title = name.trim() || tagsName
     try {
       const input = newPlaylist('live', title, {
-        rules: followRules({ tagIds, sort: 'addedAt', descending: true }),
+        rules: followRules({ tagIds, match, sort: 'addedAt', descending: true }),
       })
       if (!input) return
-      finish((await createPlaylist({ input })).id)
+      finishFor(round)((await createPlaylist({ input })).id)
     } catch (caught) {
-      setError(failureText(`Couldn’t make “${title}”`, caught))
+      if (latestRound.current === round) setError(failureText(`Couldn’t make “${title}”`, caught))
     } finally {
       setBusy(false)
     }
@@ -231,13 +261,13 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
               testID="new-playlist-pick"
             />
             <Option
-              icon={<TagIcon size={iconSize.item} color={theme.colors.textSecondary} />}
-              title="Fills from tags"
-              sub="Grows as you tag songs"
+              icon={<Live size={iconSize.item} color={theme.colors.textSecondary} />}
+              title="Live, from tags"
+              sub="Keeps itself filled as you tag songs"
               onPress={() => choose('follow')}
               testID="new-playlist-follow"
             />
-            {switches.ask ? (
+            {smartOn ? (
               <Option
                 icon={<Sparkle size={iconSize.item} />}
                 title="Describe it"
@@ -246,6 +276,16 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
                 testID="new-playlist-describe"
               />
             ) : null}
+            <Option
+              icon={<DrawLine size={iconSize.item} color={theme.colors.textSecondary} />}
+              title="Draw it on the map"
+              sub="A line between places, or a loop round one"
+              onPress={() => {
+                cancel()
+                router.push({ pathname: '/sound-map', params: { draw: '1' } })
+              }}
+              testID="new-playlist-map"
+            />
           </>
         ) : step === 'tags' ? (
           <>
@@ -266,6 +306,19 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
                 />
               ))}
             </ScrollView>
+            {chosen.length > 1 ? (
+              <Segmented
+                label="Songs with"
+                size="small"
+                value={match}
+                onChange={setMatch}
+                options={[
+                  { value: 'any', label: 'Any of them' },
+                  { value: 'all', label: 'All of them' },
+                ]}
+                style={styles.match}
+              />
+            ) : null}
             <Text style={styles.hint}>
               {chosen.length === 0
                 ? 'Choose one or more tags'
@@ -288,7 +341,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             result={answer}
             text={words.trim()}
             name={name}
-            onSaved={finish}
+            onSaved={finishFor(round)}
             onCancel={cancel}
           />
         ) : (
@@ -298,7 +351,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             onSubmit: make,
             placeholder: 'Name',
             label: 'Playlist name',
-            limit: NameSchema,
+            limit: { maxLength: NAME_MAX },
             testID: 'new-playlist-field',
           })
         )}
@@ -396,6 +449,7 @@ const styles = StyleSheet.create(theme => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   // A long tag list scrolls inside the sheet rather than pushing its buttons off.
   tagScroll: { maxHeight: 260 },
+  match: { alignSelf: 'flex-start' },
   hint: {
     color: theme.colors.textMuted,
     fontSize: type.small,

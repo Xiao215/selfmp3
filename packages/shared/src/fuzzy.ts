@@ -1,9 +1,16 @@
 /**
  * Small, dependency-free fuzzy matching.
  *
- * Used for tag pickers and the command palette. A personal library is small
- * enough that scoring every candidate on every keystroke is comfortably fast,
- * which buys us a much better ranking than a plain `includes` filter.
+ * Used for search, the command palette and tag pickers. A personal library is
+ * small enough that scoring every candidate on every keystroke is comfortably
+ * fast, which buys us a much better ranking than a plain `includes` filter.
+ *
+ * A match is on a word start, a run of letters, the initials, or the whole
+ * name with a typo. Letters scattered through a name in order ("calm" in
+ * "Echo Valley Mornings") match only where asked for (`scattered`): a picker
+ * of short names, where they are a quick way to one, and not a search of
+ * songs, where a long title and its artist and album hold almost any few
+ * letters in order and the song meant was lost among them (X2, 2026-10-25).
  */
 
 export interface FuzzyMatch<T> {
@@ -94,14 +101,23 @@ class FuzzyText {
   }
 }
 
+export interface MatchOptions {
+  /**
+   * Whether letters scattered through a name, in order, match it. For pickers
+   * of short names, such as tags; never for songs.
+   */
+  readonly scattered?: boolean
+}
+
 /** A query with its own once-per-keystroke work done: the trim, and the word-start pattern. */
 interface CompiledQuery {
   readonly q: string
   readonly wordPrefix: RegExp
   readonly tolerance: number
+  readonly scattered: boolean
 }
 
-function compileQuery(query: string): CompiledQuery {
+function compileQuery(query: string, options: MatchOptions): CompiledQuery {
   const q = query.trim().toLowerCase()
   return {
     q,
@@ -109,6 +125,7 @@ function compileQuery(query: string): CompiledQuery {
     // answer the next candidate from the middle of it.
     wordPrefix: new RegExp(`\\b${escapeRegExp(q)}`),
     tolerance: q.length >= 6 ? 2 : q.length >= 4 ? 1 : 0,
+    scattered: options.scattered ?? false,
   }
 }
 
@@ -121,7 +138,7 @@ function scoreCompiled(query: CompiledQuery, candidate: FuzzyText): number | nul
   if (query.wordPrefix.test(c)) return SCORE_WORD_PREFIX - c.length
   if (c.includes(q)) return SCORE_SUBSTRING - c.length
   if (candidate.initials.startsWith(q)) return SCORE_ACRONYM - c.length
-  if (isSubsequence(q, c)) return SCORE_SUBSEQUENCE - c.length
+  if (query.scattered && isSubsequence(q, c)) return SCORE_SUBSEQUENCE - c.length
 
   // Last resort: tolerate typos, but only proportionally to query length.
   if (tolerance > 0) {
@@ -155,23 +172,48 @@ function bestFirst<T>(a: Scored<T>, b: Scored<T>): number {
   return b.match.score - a.match.score || a.text.localeCompare(b.text) || a.index - b.index
 }
 
+/**
+ * The best a query does against any of a candidate's names, and whether one
+ * of them is the query exactly. A song is known by its title, its artist and
+ * its album together, and by each of those alone and in Latin letters; one
+ * name matching is the song matching.
+ */
+function scoreNames(
+  query: CompiledQuery,
+  names: FuzzyText | readonly FuzzyText[],
+): { score: number; exact: boolean } | null {
+  if (!Array.isArray(names)) {
+    const one = names as FuzzyText
+    const score = scoreCompiled(query, one)
+    return score === null ? null : { score, exact: one.lower === query.q }
+  }
+  let best: number | null = null
+  let exact = false
+  for (const name of names as readonly FuzzyText[]) {
+    const score = scoreCompiled(query, name)
+    if (score === null) continue
+    if (best === null || score > best) best = score
+    if (name.lower === query.q) exact = true
+  }
+  return best === null ? null : { score: best, exact }
+}
+
 function scoreAll<T>(
   query: string,
   items: readonly T[],
-  prepared: (item: T) => FuzzyText,
+  prepared: (item: T) => FuzzyText | readonly FuzzyText[],
+  options: MatchOptions,
   keep: (scored: Scored<T>) => void,
 ): void {
-  const compiled = compileQuery(query)
+  const compiled = compileQuery(query, options)
   for (let index = 0; index < items.length; index++) {
     const item = items[index] as T
-    const candidate = prepared(item)
-    const score = scoreCompiled(compiled, candidate)
-    if (score === null) continue
-    keep({
-      match: { item, score, exact: candidate.lower === compiled.q },
-      text: candidate.text,
-      index,
-    })
+    const names = prepared(item)
+    const scored = scoreNames(compiled, names)
+    if (scored === null) continue
+    // Ties go by the first name, which is the one the candidate is shown by.
+    const first = Array.isArray(names) ? (names as readonly FuzzyText[])[0] : (names as FuzzyText)
+    keep({ match: { item, ...scored }, text: first?.text ?? '', index })
   }
 }
 
@@ -182,33 +224,50 @@ function scoreAll<T>(
 export function fuzzyRankPrepared<T>(
   query: string,
   items: readonly T[],
-  prepared: (item: T) => FuzzyText,
+  prepared: (item: T) => FuzzyText | readonly FuzzyText[],
+  options: MatchOptions = {},
 ): FuzzyMatch<T>[] {
   if (query.trim().length === 0) {
     return items.map(item => ({ item, score: 0, exact: false }))
   }
   const scored: Scored<T>[] = []
-  scoreAll(query, items, prepared, one => scored.push(one))
+  scoreAll(query, items, prepared, options, one => scored.push(one))
   scored.sort(bestFirst)
   return scored.map(one => one.match)
 }
 
 /**
- * Prepared text for objects, remembered per object. Weakly, so a library that
- * is refetched lets its old songs, and their text, go.
+ * Prepared names for objects known by several, remembered per object. Weakly,
+ * so a library that is refetched lets its old songs, and their names, go. The
+ * first name is the one ties are ordered by.
  */
-export function preparedTextFor<T extends object>(
-  toText: (item: T) => string,
-): (item: T) => FuzzyText {
-  const cache = new WeakMap<T, FuzzyText>()
+export function preparedNamesFor<T extends object>(
+  toNames: (item: T) => readonly string[],
+): (item: T) => readonly FuzzyText[] {
+  const cache = new WeakMap<T, readonly FuzzyText[]>()
   return item => {
     let prepared = cache.get(item)
     if (!prepared) {
-      prepared = new FuzzyText(toText(item))
+      prepared = toNames(item).map(name => new FuzzyText(name))
       cache.set(item, prepared)
     }
     return prepared
   }
+}
+
+/** `fuzzyRank` for things known by several names: each is ranked by its best. */
+export function fuzzyRankNames<T>(
+  query: string,
+  items: readonly T[],
+  toNames: (item: T) => readonly string[],
+  options: MatchOptions = {},
+): FuzzyMatch<T>[] {
+  return fuzzyRankPrepared(
+    query,
+    items,
+    item => toNames(item).map(name => new FuzzyText(name)),
+    options,
+  )
 }
 
 /**
@@ -219,6 +278,7 @@ export function fuzzyRank<T>(
   query: string,
   items: readonly T[],
   toText: (item: T) => string,
+  options: MatchOptions = {},
 ): FuzzyMatch<T>[] {
-  return fuzzyRankPrepared(query, items, item => new FuzzyText(toText(item)))
+  return fuzzyRankPrepared(query, items, item => new FuzzyText(toText(item)), options)
 }

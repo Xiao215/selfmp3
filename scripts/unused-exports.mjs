@@ -59,10 +59,13 @@ const skipDeclaration = (file, text, name) =>
 
 const SCHEMAS = 'packages/shared/src/schemas/' // the server-to-client contract
 
+/*
+ * Playwright's helpers are not here: a `verify/` folder, at the root or in an
+ * app, is `isTest`'s, and a test's own exports are never checked.
+ */
 const EXCLUDED = [
   'apps/extension/src/bridge.ts', // the extension's own contract
   'apps/doorman/src/fakes.ts', // test fixtures, reached into by name
-  '/verify/', // Playwright helpers, run by a config rather than imported
 ]
 
 /**
@@ -86,6 +89,7 @@ const ALLOWED = new Map([
   ['SecretStore', 'the secrets port'],
   ['UpdatesPort', 'the updates port'],
   ['MacAppPort', 'the macApp port'],
+  ['AppUpdatePort', 'the appUpdate port'],
   ['CommandHandlers', 'the useCommands hook, both twins'],
   ['EscapeOptions', 'the useEscape hook, both twins'],
   ['HotkeyOptions', 'the useHotkeys hook, both twins'],
@@ -105,6 +109,7 @@ const ALLOWED = new Map([
     'SharedObject',
     'exported from the doorman’s index.ts as SharedPlaylist, the name wrangler.toml binds',
   ],
+  ['Tally', 'the doorman’s tally Durable Object class, bound by name in wrangler.toml'],
   ['ShareLink', 'the doorman’s share link Durable Object class, bound by name in wrangler.toml'],
   [
     'ShareObject',
@@ -113,6 +118,9 @@ const ALLOWED = new Map([
   // Module state a test empties between cases; nothing the app runs needs it.
   ['forgetChipWidths', 'rowTags.ts, emptied between its tests'],
   ['resetImportDraft', 'importDraft.ts, emptied between the review tests'],
+  ['forgetGuides', 'guideMemory.ts, emptied between the guide tests'],
+  // A whole app a test stands up; a running server is the hub's (hub/app.ts).
+  ['createApp', 'app.ts: one library behind its token, what the route tests serve'],
 ])
 
 /**
@@ -177,8 +185,7 @@ const identity = file => file.replace(/\.(web|desktop|native|ios|android)(?=\.ts
 /** A test, or a harness run by a test runner: its reads do not make a name used. */
 const isTest = file =>
   /\.(test|spec)\.[cm]?[jt]sx?$/.test(file) ||
-  file.includes('/verify/') ||
-  file.startsWith('verify/') ||
+  /(^|\/)verify\//.test(file) ||
   file.includes('/__mocks__/') ||
   /(^|\/)jest\.setup\.[jt]s$/.test(file)
 
@@ -289,7 +296,8 @@ const exported = node =>
  * imports from where.
  */
 function parse(file, text) {
-  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, kindOf(file))
+  // With parents set: `destructured` walks up from a `require(…)` to see what it is assigned to.
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kindOf(file))
   const declared = []
   /** `export { imported as name } from 'specifier'`. */
   const forwards = []
@@ -498,11 +506,34 @@ const testSupport = key => {
   return by.length > 0 && by.every(isTest)
 }
 
+/**
+ * Each name a file spells as code, and how often: an identifier, but not one
+ * after a dot (`x.name` is some other thing's member). Read from the syntax
+ * tree, so a comment or a string that mentions the name is not a use of it —
+ * a doc comment naming its own export once made it look used in its own file.
+ */
+const spellings = new Map()
+function spelledIn(file) {
+  let counts = spellings.get(file)
+  if (counts) return counts
+  counts = new Map()
+  const sf = ts.createSourceFile(file, source.get(file), ts.ScriptTarget.Latest, true, kindOf(file))
+  const visit = node => {
+    const member =
+      (ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) ||
+      (ts.isQualifiedName(node.parent) && node.parent.right === node)
+    if (ts.isIdentifier(node) && !member) counts.set(node.text, (counts.get(node.text) ?? 0) + 1)
+    ts.forEachChild(node, visit)
+  }
+  ts.forEachChild(sf, visit)
+  spellings.set(file, counts)
+  return counts
+}
+
 /** The module spells the name past its own declaration, so it is exported only for a test. */
 const usedInside = (module, name) => {
-  const word = new RegExp(`(?<![\\w$.])${name}\\b`, 'g')
-  const own = module.files.filter(file => !isTest(file))
-  const spelled = own.reduce((sum, file) => sum + (source.get(file)?.match(word)?.length ?? 0), 0)
+  const own = module.files.filter(file => !isTest(file) && source.has(file))
+  const spelled = own.reduce((sum, file) => sum + (spelledIn(file).get(name) ?? 0), 0)
   const declaring = own.filter(file => graph.get(file).declared.includes(name)).length
   return spelled > declaring
 }

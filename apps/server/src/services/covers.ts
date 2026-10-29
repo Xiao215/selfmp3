@@ -2,13 +2,12 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import sharp from 'sharp'
 import { messageOf } from '@selfmp3/shared'
 import type { Config } from '../config.js'
+import { fetchPublic, isPublicAddress } from '../http/publicWeb.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
-import { readCapped } from './fetching.js'
-import { squareCover } from './squareCover.js'
+import { cover as coverImage, CoverTooBig, squareCover } from './squareCover.js'
 
 /**
  * This server's copy of every cover, in `data/covers/<id>`.
@@ -30,6 +29,12 @@ const CONTENT_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
 }
 
+/**
+ * What became of a cover given to `save`: kept; refused for good, a picture
+ * too big to read; or not written, the disk full say, and worth another try.
+ */
+type CoverSaved = 'kept' | 'refused' | 'failed'
+
 export class CoverService {
   readonly #dir: string
   readonly #songs: SongRepository
@@ -39,7 +44,16 @@ export class CoverService {
   /** Thumbnails being made, so requests for the same one share the work. */
   readonly #making = new Map<string, Promise<{ path: string; contentType: string }>>()
 
-  constructor(config: Config, songs: SongRepository, logger: Logger) {
+  /** Which addresses `saveFromUrl` may reach; tests widen it to this machine. */
+  readonly #allowed: (address: string) => boolean
+
+  constructor(
+    config: Config,
+    songs: SongRepository,
+    logger: Logger,
+    allowed: (address: string) => boolean = isPublicAddress,
+  ) {
+    this.#allowed = allowed
     this.#dir = path.join(config.dataDir, 'covers')
     this.#songs = songs
     this.#logger = logger.child('covers')
@@ -50,16 +64,30 @@ export class CoverService {
     return path.join(this.#dir, `${songId}${extension}`)
   }
 
-  async save(songId: number, given: Buffer, extension: string): Promise<void> {
+  /**
+   * Keep a song's cover. Written under a name of its own and renamed into
+   * place, so a cover's real name only ever holds a whole picture: a write
+   * the disk ran out under left an empty file that read as the song's cover
+   * (bug bash R3-M11), and a cover it was replacing is kept instead.
+   */
+  async save(songId: number, given: Buffer, extension: string): Promise<CoverSaved> {
+    let partial: string | null = null
     try {
-      // Square before it is kept, so every copy of it everywhere is
-      // (squareCover.ts). A picture sharp cannot read is kept as it came.
-      const { data, extension: squared } = await squareCover(given, extension).catch(() => ({
-        data: given,
-        extension,
-      }))
+      // Square and a JPEG before it is kept, so every copy of it everywhere is
+      // (squareCover.ts). A picture sharp cannot read is kept as it came; one
+      // too big to read is not kept at all.
+      const { data, extension: squared } = await squareCover(given, extension).catch(
+        (error: unknown) => {
+          if (error instanceof CoverTooBig) throw error
+          return { data: given, extension }
+        },
+      )
       const ext = (EXTENSIONS as readonly string[]).includes(squared) ? squared : '.jpg'
-      await fsp.writeFile(this.#pathFor(songId, ext), data)
+      const file = this.#pathFor(songId, ext)
+      partial = `${file}.${randomUUID()}.partial`
+      await fsp.writeFile(partial, data)
+      await fsp.rename(partial, file)
+      partial = null
       // A cover in another format would stay behind otherwise, a stale file
       // nothing serves: `find` looks only for the format recorded below.
       await Promise.all(
@@ -72,13 +100,54 @@ export class CoverService {
       // request would ever ask for them again.
       await this.#dropThumbnails(songId)
       this.onSaved?.(songId)
+      return 'kept'
     } catch (error) {
+      if (partial) await fsp.rm(partial, { force: true }).catch(() => undefined)
       // Missing art is cosmetic; a placeholder gradient is shown instead.
       this.#logger.warn('could not cache cover art', {
         songId,
         message: messageOf(error),
       })
+      return error instanceof CoverTooBig ? 'refused' : 'failed'
     }
+  }
+
+  /**
+   * Make the covers kept before `save` kept only JPEGs into JPEGs — in the
+   * background, at start. Each is saved again, which counts its revision on:
+   * phones fetch it afresh, the next cloud pass puts it in the bucket and its
+   * packs, and its colour is read again. A JPEG costs a look at its row, so
+   * once every cover is one, a start passes straight through. Returns how many
+   * it converted.
+   *
+   * One sharp cannot read is left exactly as it is, unsaved: saving it would
+   * keep the same file but count its revision on all the same, and every start
+   * would send every device for a cover that never changed.
+   */
+  async jpegKept(songIds: readonly number[]): Promise<number> {
+    let converted = 0
+    for (const songId of songIds) {
+      const extension = this.#songs.artExt(songId)
+      if (extension === null || extension === '.jpg') continue
+      const cover = await this.find(songId)
+      if (!cover) continue
+      try {
+        const squared = await squareCover(await fsp.readFile(cover.path), extension).catch(
+          () => null,
+        )
+        if (squared?.extension === '.jpg') {
+          await this.save(songId, squared.data, squared.extension)
+          // `save` keeps its own failures to itself; the row says whether it took.
+          if (this.#songs.artExt(songId) === '.jpg') converted += 1
+        }
+      } catch (error) {
+        this.#logger.warn('could not make a cover a JPEG', { songId, message: messageOf(error) })
+      }
+      // Between covers, so a big library's pass never holds the server up.
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    if (converted > 0) this.#logger.info('made kept covers JPEGs', { converted })
+    return converted
   }
 
   /**
@@ -124,7 +193,7 @@ export class CoverService {
     const partial = `${file}.${randomUUID()}.partial`
     try {
       await fsp.mkdir(path.dirname(file), { recursive: true })
-      await sharp(cover.path)
+      await coverImage(cover.path)
         .rotate()
         .resize(size, size, { fit: 'cover', withoutEnlargement: true })
         .jpeg({ quality: 82, mozjpeg: true })
@@ -233,49 +302,33 @@ export class CoverService {
   /**
    * Download art from a URL (used for imports where yt-dlp gave a thumbnail).
    *
+   * The URL is someone else's choice — a look-up's answer, a thumbnail, a
+   * client's pick — so it is fetched from the open web only (`fetchPublic`):
+   * never this machine, the home network or the tailnet.
+   *
    * The ten seconds cover the whole thing, headers and body together: a host
    * that answers promptly and then trickles could otherwise hold this open
-   * indefinitely, and the fix-covers pass waits on this one song at a time.
+   * indefinitely, and whatever asked waits on this one song.
    * The size cap is for the same reason from the other direction: a cover is
    * tens of kilobytes, and nothing says the thing at the end of that URL is a
    * cover.
    */
   async saveFromUrl(songId: number, url: string): Promise<boolean> {
-    // `z.string().url()` upstream says it is a URL, not that it is a web
-    // address; art comes off the web and nothing else is worth fetching.
-    let parsed: URL
     try {
-      parsed = new URL(url)
-    } catch {
-      return false
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+      const file = await fetchPublic(
+        url,
+        { signal: AbortSignal.timeout(10_000), limit: MAX_COVER_BYTES },
+        this.#allowed,
+      )
+      // Guard against a redirect to an HTML error page.
+      if (!file?.data || file.data.length < 512) return false
 
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-      if (!response.ok) {
-        await response.body?.cancel()
-        return false
-      }
-
-      const declared = Number(response.headers.get('content-length') ?? Number.NaN)
-      if (Number.isFinite(declared) && declared > MAX_COVER_BYTES) {
-        await response.body?.cancel()
-        return false
-      }
-
-      const contentType = response.headers.get('content-type') ?? ''
-      const extension = contentType.includes('png')
+      const extension = file.contentType.includes('png')
         ? '.png'
-        : contentType.includes('webp')
+        : file.contentType.includes('webp')
           ? '.webp'
           : '.jpg'
-
-      const data = await readCapped(response, MAX_COVER_BYTES)
-      // Guard against a redirect to an HTML error page.
-      if (!data || data.length < 512) return false
-
-      await this.save(songId, data, extension)
+      await this.save(songId, file.data, extension)
       return true
     } catch {
       return false

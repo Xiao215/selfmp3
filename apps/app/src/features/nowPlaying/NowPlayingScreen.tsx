@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Image, PanResponder, Text, useWindowDimensions, View } from 'react-native'
+import {
+  Animated,
+  Easing,
+  Image,
+  PanResponder,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native'
 import { Guide, riseWith } from '../guide/Guide'
 import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -8,70 +16,85 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import {
-  HIT_TARGET,
-  motion,
-  radius,
-  space,
-  type,
-  withAlpha,
-  iconSize,
-  coverSize,
-} from '@selfmp3/client'
+import { radius, space, type, useLibrary, withAlpha, iconSize } from '@selfmp3/client'
 import { useRoom } from '../room/room.store'
+import { describeSource } from '../lists/lists.model'
 import { RoomSheets } from '../room/RoomSheets'
 import { ShareSheet } from '../share/ShareSheet'
 import { RoomPill, TogetherButton } from '../room/Together'
 import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
-import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
+import {
+  ease,
+  motionMs,
+  nativeDriver,
+  spring,
+  timing,
+  useEntrance,
+  useMotionReduced,
+} from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
-import { setStageExit } from '../../shell/stageExit'
+import { pageFootNow, setPageFoot, usePageFoot } from '../../shell/pageFoot'
+import { setStageExit, useStageLeaving } from '../../shell/stageExit'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronDown, Info, Moon, More, UpNext } from '../../ui/components/Icons'
+import { ChevronDown, Moon, More, UpNext } from '../../ui/components/Icons'
+import { HeadPill } from '../../ui/components/HeadPill'
 import { LikeButton } from '../../ui/components/LikeButton'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { SleepMenu, useSleepTimerStatus } from '../../ui/components/SleepMenu'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { useTouchTravel } from '../../ui/useTouchTravel'
 import { TransportControls } from '../../ui/components/TransportControls'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, label, rowTitle, heroTitle } from '../../ui/surfaces'
+import { artShadow, heroTitle } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
 import { modalCoversScreen } from '../../ports/modalCoversScreen'
 import { ToastHost } from '../../ui/components/ToastHost'
-import { useLayout } from '../../shell/useLayout'
+import { useLayout, useLayoutFlags } from '../../shell/useLayout'
 import { DevicesSheet } from '../devices/DevicesSheet'
 import { QueueSheet } from '../queue/QueueSheet'
 import { openQueueSheet } from '../queue/queueSheet.store'
-import { songLink } from '../song/song.model'
 import { ArtistLinks } from './ArtistLinks'
 import { leaveTo, putAway } from './leaveNowPlaying'
 import { EmptyNowPlaying } from './EmptyNowPlaying'
-import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
+import { canRomanize, RomanizeButton } from './LyricsTools'
 import { SongTagsLine } from './SongTagsLine'
-import { lyricsStatusText } from './stageLyrics.model'
 import { useNowPlayingSong } from './useNowPlayingSong'
 import { NowPlayingStage } from './NowPlayingStage'
-import { parseView, PAUSED_COVER_SCALE, swipeOutcome, type PhoneView } from './nowPlaying.model'
-import { StageLyrics } from './StageLyrics'
+import {
+  backdropVeil,
+  isVerticalPull,
+  parseView,
+  PAUSED_BREATH,
+  PAUSED_COVER_SCALE,
+  swipeOutcome,
+  type PhoneView,
+} from './nowPlaying.model'
+import { useShownScheme } from '../../ui/theme/unistyles'
 import { TaggingLine } from './TaggingLine'
+import { useLineMenu } from './useLineMenu'
 import { useSongWords } from './useSongWords'
 import { useTagEditor, useTagging } from './useTagging'
 import { Press } from '../../ui/components/Press'
+import { countUse } from '../usage/usage'
+import { useViewPresence, VIEW_TRAVEL } from './useViewPresence'
+import { LYRICS_GUIDE_STEPS, PhoneWordsBody, PhoneWordsHead } from './PhoneWords'
+import { TouchFlag } from '../../ui/touchFlag'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
  */
 export function NowPlayingScreen(): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const player = usePlayer()
   const router = useRouter()
   const { song: songParam } = useLocalSearchParams<{ song?: string }>()
   const songId = player.current?.id
+  useEffect(() => countUse('now-playing'), [])
   // The address names the song, so a refresh or a copied link comes back to it
   // (usePlaybackMemory reads it when the app opens).
   useEffect(() => {
@@ -106,6 +129,9 @@ export function NowPlayingScreen(): ReactNode {
  */
 function OverTheModal(): ReactNode {
   const insets = useSafeAreaInsets()
+  // Above the page's scrubber and transport, which a toast at the foot covered
+  // — a failure, which stays until it is dismissed, kept Next from being pressed.
+  const foot = usePageFoot()
   const router = useRouter()
   const go = useCallback((href: Href) => leaveTo(router, href), [router])
   return (
@@ -113,7 +139,10 @@ function OverTheModal(): ReactNode {
       <QueueSheet go={go} />
       <RoomSheets go={go} />
       <ShareSheet />
-      <View pointerEvents="box-none" style={[styles.toasts, { bottom: insets.bottom + space.sm }]}>
+      <View
+        pointerEvents="box-none"
+        style={[styles.toasts, { bottom: Math.max(insets.bottom, foot) + space.sm }]}
+      >
         <ToastHost />
       </View>
     </>
@@ -138,11 +167,13 @@ function PhoneNowPlaying(): ReactNode {
 /**
  * The full-screen phone player (docs/ui-mock `P21`, `P22`).
  *
- * Two views of one route. The cover: a header with the way down and ⓘ, the
- * cover that breathes with play and pause, the song with its heart, Up next
- * and ⋯ beside it, its tags, then the scrubber and the transport, low where a
- * thumb is. The sleep timer is under ⋯, and while one runs the header says
- * so in place of "Now playing". The words (`?view=lyrics`): the lyrics fill the page under a small
+ * Two views of one route. The cover: a header with the way down, where the
+ * music came from ("From Library", "From night") and Up next, the cover that
+ * breathes with play and pause, the song on a line of its own (two, if its
+ * name needs them) with its heart and ⋯ beside it, its tags, then the
+ * scrubber and the transport, low where a thumb is. The sleep timer and Song
+ * details are under ⋯ (D1, 2026-10-25), and while a timer runs the header says
+ * so in place of where the music came from. The words (`?view=lyrics`): the lyrics fill the page under a small
  * header, with the scrubber and the transport kept, so reading along never
  * costs the skip. A song with no lyrics says so there; a phone has no visual.
  *
@@ -151,11 +182,15 @@ function PhoneNowPlaying(): ReactNode {
  */
 function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => void }): ReactNode {
   const { theme } = useUnistyles()
+  const scheme = useShownScheme()
   const artFor = useArt()
   const backdropFor = useArt(ROW_COVER_SIZE)
   const router = useRouter()
   const { view: viewParam } = useLocalSearchParams<{ view?: string }>()
   const view = parseView(viewParam)
+  useEffect(() => {
+    if (view === 'lyrics') countUse('lyrics')
+  }, [view])
   const uri = artFor(song)
   /*
    * The blurred page behind everything is drawn from a small cover on purpose.
@@ -167,8 +202,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   const songColor = useSongColor(song, uri)
   const lyrics = useSongWords(song)
   const words = lyrics.words
-  // Not while offline: the words may exist, and there is text to say why they are not here.
-  const noLyrics = words.status === 'missing' && !words.offline
 
   const [sleepOpen, setSleepOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -190,10 +223,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
     router.setParams({ view: next === 'lyrics' ? 'lyrics' : undefined })
   }
   const close = (): void => putAway(router)
-  // The song's own page is a page of the app, not of this modal: the modal
-  // goes down first, so back from the song lands where Now Playing was opened.
-  // Down and then along, not both at once, which is why the push is inside.
-  const openSong = (): void => leaveTo(router, songLink(song.id))
 
   /*
    * The page's two views pass each other (`M2`, 1): the one arriving springs up
@@ -220,6 +249,29 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
     paddingLeft: space.lg + insets.left,
     paddingRight: space.lg + insets.right,
   }
+
+  /*
+   * The scrubber and the transport are the page's foot, and the toasts keep
+   * above them (`setPageFoot`): at the foot, a message sat over Previous, Play
+   * and Next, and a failure — which stays until it is dismissed — took every
+   * press meant for Next. Each view's own, since the words' transport is smaller.
+   */
+  const [decks, setDecks] = useState({ cover: 0, lyrics: 0 })
+  const coverDeck = useCallback(
+    (height: number) => setDecks(now => (now.cover === height ? now : { ...now, cover: height })),
+    [],
+  )
+  const wordsDeck = useCallback(
+    (height: number) => setDecks(now => (now.lyrics === height ? now : { ...now, lyrics: height })),
+    [],
+  )
+  const deck = decks[view]
+  useEffect(() => {
+    if (deck === 0) return undefined
+    const before = pageFootNow()
+    setPageFoot(insets.bottom + deck)
+    return () => setPageFoot(before)
+  }, [deck, insets.bottom])
 
   // A long pull puts the page away or turns it (`swipeOutcome`). Asked only on
   // a move, so taps, the scrubber (which refuses to let go) and the scrolling
@@ -280,7 +332,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         easing: ease.in,
         useNativeDriver: nativeDriver,
       }).start(({ finished }) => done(finished))
-    })
+    }, modalCoversScreen)
     return () => setStageExit(null)
   }, [arrival])
   /*
@@ -291,13 +343,12 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
    * through the verse flipped the page to the cover (Xiao, 2026-10-07). The
    * head strip above the words still pulls, and the chevron still goes back.
    */
-  const [fingerOnWords] = useState(() => new Flag())
+  const [fingerOnWords] = useState(() => new TouchFlag())
   const pan = useMemo(() => {
     const settle = (): void => void spring(pull, 0)
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) =>
-        Math.abs(gesture.dy) > 12 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx) * 2 &&
+        isVerticalPull(gesture.dx, gesture.dy) &&
         (view === 'cover' || (gesture.dy > 0 && !fingerOnWords.on())),
       onPanResponderMove: (_event, gesture) =>
         pull.setValue(view === 'cover' ? gesture.dy : Math.max(0, gesture.dy)),
@@ -331,10 +382,13 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   // whole songs later. It is read against the page's arrival, so a cover that
   // turns up after the page has risen is simply at rest.
   const [handed] = useState(takeCoverHandoff)
+  // Sinking away, it takes no touches (`stageExit.ts`).
+  const leaving = useStageLeaving()
 
   return (
     <Animated.View
       {...pan.panHandlers}
+      pointerEvents={leaving ? 'none' : 'auto'}
       style={[
         styles.shell,
         { backgroundColor: songColor.color, transform: [{ translateY: lift }] },
@@ -359,7 +413,12 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         <View
           style={[
             styles.fill,
-            { backgroundColor: withAlpha(theme.colors.surface0, view === 'lyrics' ? 0.7 : 0.56) },
+            {
+              backgroundColor: withAlpha(
+                theme.colors.surface0,
+                backdropVeil(song.coverTone, scheme, view === 'lyrics' ? 0.7 : 0.56),
+              ),
+            },
           ]}
         />
       </View>
@@ -368,7 +427,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
       {coverPresence.mounted ? (
         <Animated.View
           pointerEvents={view === 'cover' ? 'auto' : 'none'}
-          style={[styles.screen, styles.viewLayer, styles.overBackdrop, edges, coverPresence.style]}
+          style={[styles.screen, styles.viewLayer, edges, coverPresence.style]}
         >
           <CoverView
             song={song}
@@ -376,7 +435,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             color={songColor.color}
             tagging={tagging.on ? { line: tagging.line, stop: tagging.stop } : null}
             onClose={close}
-            onOpenSong={openSong}
             onLyrics={() => setView('lyrics')}
             onTags={tagEditor.toggle}
             onSleep={() => setSleepOpen(true)}
@@ -385,28 +443,31 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             handed={handed}
             guide={lyricsGuide}
             guideTarget={coverTarget}
+            onDeck={coverDeck}
           />
         </Animated.View>
       ) : null}
       {wordsPresence.mounted ? (
         <Animated.View
           pointerEvents={view === 'lyrics' ? 'auto' : 'none'}
-          style={[styles.screen, styles.viewLayer, styles.overBackdrop, edges, wordsPresence.style]}
+          style={[styles.screen, styles.viewLayer, edges, wordsPresence.style]}
         >
           <WordsView
             song={song}
             uri={uri}
             lyrics={lyrics}
-            noLyrics={noLyrics}
             onBack={() => setView('cover')}
             fingerOnWords={fingerOnWords}
+            onDeck={wordsDeck}
           />
         </Animated.View>
       ) : null}
 
       {/* The song menu every other screen has, less what the page shows itself,
           with the sleep timer and Devices after it: this page has no other door
-          to them. Removing asks above the page, and a link puts the page away first. */}
+          to them, nor to Song details. Removing asks above the page, and a link
+          (the song's own page included) puts the page away first, so back from
+          it lands where Now Playing was opened. */}
       <SongMenu
         song={moreOpen ? song : null}
         onClose={() => setMoreOpen(false)}
@@ -427,63 +488,14 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         guide={lyricsGuide}
         at={{ x: 0.5, y: 0.72 }}
         radius={18}
-        steps={[
-          {
-            gesture: 'swipe-up',
-            text: 'Swipe up for lyrics',
-            sub: 'Or tap the cover',
-            distance: 90,
-          },
-        ]}
+        steps={LYRICS_GUIDE_STEPS}
       />
     </Animated.View>
   )
 }
 
-/** How far a view starts from and leaves to: the cover above, the words below. */
-const VIEW_TRAVEL = 48
 /** How far the page gives under a pull, however far the finger goes on. */
 const PULL_GIVE = 150
-
-interface ViewPresence {
-  readonly mounted: boolean
-  readonly style: {
-    readonly opacity: Animated.Value
-    readonly transform: readonly { translateY: Animated.AnimatedInterpolation<number> }[]
-  }
-}
-
-/**
- * One of the page's two views: springing in from `from` points away, leaving
- * back to it over `motion.base` on `ease.in`, and mounted until it has gone.
- *
- * `usePresence` is the app's answer for everything that arrives and leaves, and
- * both of its ways are timed. This is a thing moving in space, which the boards
- * put on the spring, so only the leaving is timed; the rest is `usePresence`,
- * including asking to be mounted in the render so an arriving view never has a
- * frame in which it is wanted and not there.
- *
- * Nothing is ever set back to 0 and played again: turning round part-way
- * retargets whichever of the two is running from where the view has got to.
- */
-function useViewPresence(shown: boolean, from: number): ViewPresence {
-  const [value] = useState(() => new Animated.Value(shown ? 1 : 0))
-  const [mounted, setMounted] = useState(shown)
-  if (shown && !mounted) setMounted(true)
-  const sent = useRef(shown)
-  useEffect(() => {
-    if (sent.current === shown) return
-    sent.current = shown
-    if (shown) spring(value, 1)
-    else timing(value, 0, motion.base, () => setMounted(false), { easing: ease.in })
-  }, [shown, value])
-  // Built once: `from` is the view's own side and never changes.
-  const [style] = useState(() => ({
-    opacity: value,
-    transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }],
-  }))
-  return { mounted, style }
-}
 
 /** The cover view (`P21`). */
 function CoverView({
@@ -492,7 +504,6 @@ function CoverView({
   color,
   tagging,
   onClose,
-  onOpenSong,
   onLyrics,
   onTags,
   onSleep,
@@ -501,10 +512,13 @@ function CoverView({
   handed,
   guide,
   guideTarget,
+  onDeck,
 }: {
   song: Song
   uri: string | null | undefined
   color: string
+  /** How tall the scrubber and the transport are together, so the toasts keep above them. */
+  onDeck: (height: number) => void
   /** The lyrics guide, which lights the cover and lifts it a little as the hand pulls. */
   guide: GuideHandle
   guideTarget: GuideTarget
@@ -514,7 +528,6 @@ function CoverView({
   handed: CoverFrame | null
   tagging: { line: string; stop: () => void } | null
   onClose: () => void
-  onOpenSong: () => void
   onLyrics: () => void
   onTags: () => void
   onSleep: () => void
@@ -542,33 +555,26 @@ function CoverView({
           <TaggingLine line={tagging.line} onStop={tagging.stop} center />
         ) : sleep.line !== null ? (
           <View style={styles.headMiddle}>
-            <Press
+            <HeadPill
+              lead={<Moon size={iconSize.field} color={theme.colors.accent} />}
+              text={sleep.line}
+              label={`Sleep timer: ${sleep.line}`}
               onPress={onSleep}
-              accessibilityRole="button"
-              accessibilityLabel={`Sleep timer: ${sleep.line}`}
               testID="now-playing-sleep"
-              style={({ pressed }) => [styles.sleepPill, pressed && styles.sleepPillPressed]}
-            >
-              <Moon size={iconSize.field} color={theme.colors.accent} />
-              <Text style={styles.sleepText} numberOfLines={1}>
-                {sleep.line}
-              </Text>
-            </Press>
+            />
           </View>
         ) : inRoom ? (
           <View style={styles.headMiddle}>
             <RoomPill />
           </View>
         ) : (
-          <Text style={styles.headLabel} numberOfLines={1}>
-            Now playing
-          </Text>
+          <PlayingFrom />
         )}
         {/* Both sides as wide, so whatever is in the middle sits in the middle. */}
         <View style={[styles.headSide, styles.headSideEnd]}>
           {inRoom && !middleTaken ? null : <TogetherButton filled />}
-          <IconButton onPress={onOpenSong} label="Song details" filled testID="now-playing-info">
-            <Info size={iconSize.nav} color={theme.colors.textPrimary} />
+          <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
+            <UpNext size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
       </View>
@@ -585,7 +591,8 @@ function CoverView({
 
       <View style={styles.titleRow}>
         <View style={styles.titles}>
-          <Text style={styles.title} numberOfLines={1}>
+          {/* The one thing read on this page: its own line, and two if it needs them. */}
+          <Text style={styles.title} numberOfLines={2}>
             {song.title}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
@@ -594,9 +601,6 @@ function CoverView({
         </View>
         <View style={styles.titleButtons}>
           <LikeButton song={song} filled />
-          <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
-            <UpNext size={iconSize.nav} color={theme.colors.textPrimary} />
-          </IconButton>
           <IconButton onPress={onMore} label="More" filled testID="now-playing-more">
             <More size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
@@ -610,16 +614,55 @@ function CoverView({
         // under the modal, out of sight.
         onOpen={href => leaveTo(router, href)}
         onEdit={onTags}
+        labelled
         style={styles.tags}
       />
 
-      <View style={styles.progress}>
-        <SeekBar color={color} />
-      </View>
+      <View onLayout={event => onDeck(event.nativeEvent.layout.height)}>
+        <View style={styles.progress}>
+          <SeekBar color={color} />
+        </View>
 
-      {/* The round white Play (`S2`) is the page's one primary. */}
-      <TransportControls size="page" tint={color} style={styles.controls} />
+        {/* The round white Play (`S2`) is the page's one primary. */}
+        <TransportControls size="page" tint={color} style={styles.controls} />
+      </View>
     </>
+  )
+}
+
+/**
+ * The head's middle, where an eyebrow said "Now playing" on the one page that
+ * can only be that: where the music came from instead, as Up next names it
+ * ("From Library", "From night", "From Long walks"), and a press opens it.
+ * Nothing at all when Up next has no name for its songs, as when a row of
+ * Library is played on its own.
+ */
+function PlayingFrom(): ReactNode {
+  const router = useRouter()
+  const { source, queue } = usePlayer()
+  const { data: library } = useLibrary()
+  const line = useMemo(
+    () =>
+      source && library && queue.items.length > 0
+        ? describeSource(source, { tags: library.tags, playlists: library.playlists })
+        : null,
+    [source, library, queue.items.length],
+  )
+  if (!line) return <View style={styles.from} />
+  const link = line.link
+  return (
+    <Press
+      feedback="dim"
+      onPress={link ? () => leaveTo(router, link as Href) : undefined}
+      disabled={!link}
+      accessibilityRole={link ? 'link' : 'text'}
+      accessibilityLabel={link ? `Open ${line.label}` : `Playing from ${line.label}`}
+      style={styles.from}
+    >
+      <Text style={styles.fromLabel} numberOfLines={1} testID="now-playing-from">
+        From {line.label}
+      </Text>
+    </Press>
   )
 }
 
@@ -642,8 +685,9 @@ type CoverTransform = (
 
 /**
  * The cover, which breathes (`M1`, move 5): smaller while paused and full size
- * playing, so the page says which it is without a glyph being read. Tapping
- * it opens the words, as a pull up does.
+ * playing, so the page says which it is without a glyph being read. Paused, it
+ * goes on breathing, slowly and a little (`PAUSED_BREATH`). Tapping it opens
+ * the words, as a pull up does.
  *
  * It takes whatever height the page leaves it, so on a short phone it is the
  * cover that gives way and nothing below it is pushed off the bottom.
@@ -666,13 +710,22 @@ function BreathingCover({
   guideTarget: GuideTarget
 }): ReactNode {
   const playing = usePlayerPlaying()
-  // The app's own width, not the window's (`shell/rootWidth.ts`).
+  // A swipe across the cover lets go as a press; only a tap opens the words.
+  const touch = useTouchTravel()
+  // The app's own width, not the window's (`shell/layoutSize.model.ts`).
   const { width } = useLayout()
   const window = useWindowDimensions()
   const [room, setRoom] = useState<CoverRoom | null>(null)
+  // Inside the room's own padding, and never more than the room: measured, the
+  // room includes `art`'s padding, so a cover sized to all of it touched the
+  // head and the title, and a 120 floor in a short window ran over both.
   const size = Math.max(
-    120,
-    Math.floor(room ? Math.min(room.width, room.height) : Math.min(width - space.lg * 2, 342)),
+    0,
+    Math.floor(
+      room
+        ? Math.min(room.width, room.height - ART_PADDING * 2, COVER_MOST)
+        : Math.min(width - space.lg * 2, 342),
+    ),
   )
 
   const [breath] = useState(() => new Animated.Value(playing ? 1 : PAUSED_COVER_SCALE))
@@ -684,6 +737,33 @@ function BreathingCover({
     if (playing) spring(breath, 1)
     else timing(breath, PAUSED_COVER_SCALE, MOVE_MS.breath, undefined, { easing: ease.out })
   }, [playing, breath])
+
+  // Paused and settled, a slow breath on top of the shrink; playing, or under
+  // Reduce Motion, it lets out and holds still.
+  const reduced = useMotionReduced()
+  const [rest] = useState(() => new Animated.Value(1))
+  useEffect(() => {
+    if (playing || reduced) {
+      rest.stopAnimation()
+      timing(rest, 1, MOVE_MS.breath, undefined, { easing: ease.out })
+      return
+    }
+    const half = (to: number): Animated.CompositeAnimation =>
+      Animated.timing(rest, {
+        toValue: to,
+        duration: MOVE_MS.restBreath,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: nativeDriver,
+      })
+    const loop = Animated.loop(Animated.sequence([half(PAUSED_BREATH), half(1)]))
+    // Once the shrink has landed, so the two are not one lurch.
+    const wait = setTimeout(() => loop.start(), MOVE_MS.breath)
+    return () => {
+      clearTimeout(wait)
+      loop.stop()
+    }
+  }, [playing, reduced, rest])
+  const breathing = useMemo(() => Animated.multiply(breath, rest), [breath, rest])
 
   /*
    * The cover's travel from the mini player's (`M2`, 1), as two numbers and a
@@ -721,13 +801,14 @@ function BreathingCover({
     // grows into place where it is. The breath multiplies into the same scale
     // either way, so a play or a pause while the page is opening compounds with
     // it rather than fighting it.
-    if (travel === null) return [{ scale: Animated.multiply(breath, between(COVER_OPENS_AT, 1)) }]
+    if (travel === null)
+      return [{ scale: Animated.multiply(breathing, between(COVER_OPENS_AT, 1)) }]
     return [
       { translateX: between(travel.x, 0) },
       { translateY: between(travel.y, 0) },
-      { scale: Animated.multiply(breath, between(travel.scale, 1)) },
+      { scale: Animated.multiply(breathing, between(travel.scale, 1)) },
     ]
-  }, [breath, opening, travel])
+  }, [breathing, opening, travel])
 
   return (
     <View
@@ -741,21 +822,24 @@ function BreathingCover({
         )
       }}
     >
-      <Animated.View style={guide.shown ? riseWith(guide, 24) : null}>
-        <Animated.View style={[styles.artShadow, { transform }]}>
-          <Press
-            depth="row"
-            onPress={onPress}
-            accessibilityRole="button"
-            accessibilityLabel="Show the lyrics"
-          >
-            {/* What the lyrics guide lights: the cover, not the room around it. */}
-            <View ref={guideTarget} collapsable={false}>
+      {/* What the lyrics guide lights: the cover, not the room around it, and
+          where it rests rather than where the guide's pull has lifted it. */}
+      <View ref={guideTarget} collapsable={false}>
+        <Animated.View style={guide.shown ? riseWith(guide, 24) : null} {...touch.handlers}>
+          <Animated.View style={[styles.artShadow, { transform }]}>
+            <Press
+              depth="row"
+              onPress={() => {
+                if (!touch.moved()) onPress()
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Show the lyrics"
+            >
               <Cover uri={uri} title={song.album || song.title} size={size} />
-            </View>
-          </Press>
+            </Press>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      </View>
     </View>
   )
 }
@@ -764,107 +848,74 @@ function BreathingCover({
  * The words alone (`P22`): a small header with the way back, the song and the
  * romaji or pinyin switch; the lyrics across the page; and the scrubber and
  * the transport under them. A song with no lyrics says so where the words
- * would be — no visual on a phone (Xiao, 2026-10-09) — and the switch's place
- * asks the lookup for lyrics again, as the computer's does.
+ * would be — no visual on a phone (Xiao, 2026-10-09).
  */
 function WordsView({
   song,
   uri,
   lyrics,
-  noLyrics,
   onBack,
   fingerOnWords,
+  onDeck,
 }: {
   song: Song
   uri: string | null | undefined
+  /** How tall the scrubber and the transport are together, so the toasts keep above them. */
+  onDeck: (height: number) => void
   lyrics: ReturnType<typeof useSongWords>
-  noLyrics: boolean
   onBack: () => void
   /** Set while a finger that came down on the words is still down: the page's pull leaves it to the list. */
-  fingerOnWords: Flag
+  fingerOnWords: TouchFlag
 }): ReactNode {
   const { theme } = useUnistyles()
-  // The app's own width, not the window's (`shell/rootWidth.ts`).
-  const { width } = useLayout()
-  const words = lyrics.words
-  const fontSize = Math.min(28, Math.max(22, width * 0.064))
+  // A line held: Share from here, Play from here, Copy line.
+  const lineMenu = useLineMenu(song, lyrics.words)
 
   return (
     <View style={styles.wordsView} testID="now-playing-lyrics-view">
-      <View style={styles.wordsHead}>
-        <IconButton onPress={onBack} label="Back to the cover" filled>
-          <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
-        </IconButton>
-        <Cover uri={uri} title={song.album || song.title} size={coverSize.rowDense} />
-        <View style={styles.wordsTitles}>
-          <Text style={styles.wordsTitle} numberOfLines={1}>
-            {song.title}
-          </Text>
-          <Text style={styles.wordsArtist} numberOfLines={1}>
-            {artistOr(song.artist)}
-          </Text>
-        </View>
-        {canRomanize(lyrics) ? (
-          <RomanizeButton lyrics={lyrics} />
-        ) : noLyrics ? (
-          <FindLyricsButton onPress={lyrics.lookAgain} />
-        ) : null}
-      </View>
-
-      <View
-        style={styles.words}
-        // Raw touches reach the view they landed in whoever holds the
-        // gesture, so this is told of the lift even after the list has it.
-        onTouchStart={() => fingerOnWords.set(true)}
-        onTouchEnd={() => fingerOnWords.set(false)}
-        onTouchCancel={() => fingerOnWords.set(false)}
-      >
-        {words.status === 'lyrics' ? (
-          <StageLyrics
-            parsed={words.parsed}
-            roman={words.roman}
-            focus={false}
-            fontSize={fontSize}
-          />
-        ) : (
-          <Text style={styles.wordsStatus}>{lyricsStatusText(words)}</Text>
-        )}
-      </View>
-
-      <View style={styles.progress}>
-        <SeekBar color={theme.colors.textPrimary} />
-      </View>
-      <TransportControls
-        size="words"
-        tint={theme.colors.textPrimary}
-        style={styles.wordsControls}
+      <PhoneWordsHead
+        title={song.title}
+        artist={artistOr(song.artist)}
+        cover={uri}
+        coverTitle={song.album || song.title}
+        onBack={onBack}
+        tool={canRomanize(lyrics) ? <RomanizeButton lyrics={lyrics} /> : null}
       />
+      <PhoneWordsBody
+        words={lyrics.words}
+        fingerOnWords={fingerOnWords}
+        onLineMenu={lineMenu.onLineMenu}
+        style={styles.words}
+      />
+      {lineMenu.menu}
+
+      <View onLayout={event => onDeck(event.nativeEvent.layout.height)}>
+        <View style={styles.progress}>
+          <SeekBar color={theme.colors.textPrimary} />
+        </View>
+        <TransportControls
+          size="words"
+          tint={theme.colors.textPrimary}
+          style={styles.wordsControls}
+        />
+      </View>
     </View>
   )
 }
 
+/** The space kept above and below the cover in its room. */
+const ART_PADDING = space.lg
+
 /**
- * A yes or no that touch handlers set and a gesture reads, outside React's
- * drawing: whether the finger now down came down on the words.
+ * The cover's largest, centred in its room: a browser just under the computer
+ * width (744–819) gets this page, where the cover filled 674 of 819 (P7 A).
+ * A phone never reaches it.
  */
-class Flag {
-  #on = false
-  set(on: boolean): void {
-    this.#on = on
-  }
-  on(): boolean {
-    return this.#on
-  }
-}
+const COVER_MOST = 520
 
 const styles = StyleSheet.create(theme => ({
   shell: { flex: 1 },
-  screen: {
-    flex: 1,
-    backgroundColor: theme.colors.surface0,
-    paddingHorizontal: space.lg,
-  },
-  overBackdrop: { backgroundColor: 'transparent' },
+  screen: { flex: 1 },
   // The page's two views are laid one over the other while they pass, so neither
   // takes its place in a column with the other.
   viewLayer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
@@ -889,22 +940,19 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.sm,
     marginHorizontal: -space.xs,
   },
-  headLabel: {
-    ...label(theme.colors),
-    flex: 1,
-    textAlign: 'center',
-  },
+  from: { flex: 1, minWidth: 0, alignItems: 'center' },
+  fromLabel: { color: theme.colors.textSecondary, fontSize: type.sub, textAlign: 'center' },
   art: {
     flex: 1,
     minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: space.lg,
+    paddingVertical: ART_PADDING,
   },
   artShadow: { borderRadius: radius.card, ...artShadow(theme.colors) },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: space.md,
   },
   titles: { flex: 1, minWidth: 0, gap: 3 },
@@ -913,22 +961,6 @@ const styles = StyleSheet.create(theme => ({
   // Two of the head's round buttons and the gap between them.
   headSide: { width: 40 * 2 + space.sm, flexDirection: 'row', gap: space.sm },
   headSideEnd: { justifyContent: 'flex-end' },
-  sleepPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.tight,
-    minHeight: 32,
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    // The round buttons' own fill either side of it, so it reads on any song's colour.
-    backgroundColor: theme.colors.surface2,
-  },
-  sleepPillPressed: { backgroundColor: theme.colors.surface3 },
-  sleepText: {
-    color: theme.colors.textPrimary,
-    fontSize: type.small,
-    fontWeight: '600',
-  },
   // The song's name is the display face, which carries its own weight.
   title: heroTitle(theme.colors, 'large'),
   artist: {
@@ -949,31 +981,10 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.xl,
   },
   wordsView: { flex: 1, minHeight: 0 },
-  wordsHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingTop: space.sm,
-    minHeight: HIT_TARGET + space.sm,
-  },
-  wordsTitles: { flex: 1, minWidth: 0, gap: 1 },
-  wordsTitle: rowTitle(theme.colors),
-  wordsArtist: {
-    color: theme.colors.textSecondary,
-    fontSize: type.small,
-  },
   words: {
-    flex: 1,
-    minHeight: 0,
     marginTop: space.md,
     marginHorizontal: -space.lg,
     paddingHorizontal: space.lg - 6,
-  },
-  wordsStatus: {
-    color: theme.colors.textMuted,
-    fontSize: type.sub,
-    textAlign: 'center',
-    marginTop: 40,
   },
   // The shell's toast row, at the foot of the page, which has no chrome to sit above.
   toasts: {

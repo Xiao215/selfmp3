@@ -146,6 +146,19 @@ function previewDeps(options: {
   return { deps: deps as unknown as Parameters<typeof buildImportPreview>[0], probed }
 }
 
+describe('buildImportPreview with a link to anywhere else', () => {
+  it.each([
+    'http://127.0.0.1:4646/api/health',
+    'http://localhost:4646/api/health?x=2',
+    'https://example.com/foo',
+    'http://100.64.0.1/admin',
+  ])('refuses %s before yt-dlp is asked to fetch it', async url => {
+    const { deps, probed } = previewDeps({ playlists: { [url]: [track(url, 'health')] } })
+    await expect(buildImportPreview(deps, url)).rejects.toThrow(/Paste a link from YouTube/)
+    expect(probed).toEqual([])
+  })
+})
+
 describe('buildImportPreview with an album or playlist link', () => {
   const albumPage = 'https://music.youtube.com/browse/MPREb_hqiB0KumHYT'
   const playlistPage = 'https://music.youtube.com/playlist?list=PLcKNQQ5neMz2J5RP49n'
@@ -500,6 +513,48 @@ describe('buildImportPreview with a Spotify link or a list of songs', () => {
   it('refuses words that are not songs', async () => {
     const { deps } = previewDeps({})
     await expect(buildImportPreview(deps, '   \n  ')).rejects.toThrow(/one song per line/)
+  })
+  it('reads "Title - Artist" the right way round when the library has the song', async () => {
+    const { deps } = previewDeps({ have: [{ artist: 'YOASOBI', title: '夜に駆ける' }] })
+    const preview = await buildImportPreview(
+      deps,
+      '夜に駆ける - YOASOBI\nNever Gonna Give You Up - Rick Astley',
+    )
+    expect(preview.items[0]).toMatchObject({
+      title: '夜に駆ける',
+      artist: 'YOASOBI',
+      alreadyHave: true,
+    })
+    expect(preview.items[1]?.alreadyHave).toBe(false)
+  })
+})
+
+describe('buildImportPreview with several links, or names beside them', () => {
+  const video = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+  const gone = 'https://youtu.be/zzzzzzzzzzz'
+  const playlists = { [video]: [track(video, 'Me at the zoo', 19)] }
+
+  it('offers the songs of the links it read, and says which it could not and why', async () => {
+    const { deps } = previewDeps({ playlists })
+    const preview = await buildImportPreview(deps, `${gone}\n${video}`)
+    expect(preview.items.map(item => item.title)).toEqual(['Me at the zoo'])
+    expect(preview.unread).toEqual([{ url: gone, why: 'Couldn’t read that link.' }])
+  })
+
+  it('says why in words when the one link it was given cannot be read', async () => {
+    const { deps } = previewDeps({ playlists })
+    await expect(buildImportPreview(deps, gone)).rejects.toThrow('Couldn’t read that link.')
+  })
+
+  it('looks up the song names pasted with a link, by their names', async () => {
+    const { deps } = previewDeps({ playlists })
+    const preview = await buildImportPreview(deps, `米津玄師 - Lemon\n${video}`)
+    expect(preview.from).toBe('list')
+    expect(preview.items.map(item => `${item.artist}|${item.title}`)).toEqual([
+      'YOASOBI|Me at the zoo',
+      '米津玄師|Lemon',
+    ])
+    expect(preview.items[1]).toMatchObject({ url: '', youtube: { url: null, match: 'looking' } })
   })
 })
 

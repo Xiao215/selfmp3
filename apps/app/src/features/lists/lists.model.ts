@@ -1,9 +1,13 @@
+import { uniqueName } from '@selfmp3/client'
 import { placeSongs, type Place } from '../tag/tag.model'
+import { artistLink, tagLink } from '../tag/placeLinks'
 import {
   DescribeResultSchema,
   fromSqliteTime,
   artistKey,
-  libraryArtists,
+  joinedArtists,
+  type Artist,
+  type ArtistJoinNames,
   type Playlist,
   type QueueState,
   type DescribeResult,
@@ -27,21 +31,28 @@ import {
  * Songs played as a list that is neither a tag, an artist nor a playlist.
  * `recent` is Home's Recently played row of songs played on their own: Up next
  * names it, but it is neither saved nor remembered as a list of its own, since
- * Recently played already is that list.
+ * Recently played already is that list. `upnext` is Up next built by hand:
+ * songs added to one song, or to the whole library (`sourceAfterAdding`).
+ * `map` is a spot or a drawn path on the sound map ("Near 晴る", "night → calm").
  */
 const SONGS_ORIGINS = [
   'search',
   'similar',
-  'selection',
   'gems',
   'untagged',
   'found',
   'recent',
+  'liked',
+  'upnext',
+  'usual',
+  'map',
 ] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
 export type ListSource =
   | { readonly kind: 'library' }
+  /** Every song you like, newest like first: a list that keeps itself, not a stored playlist. */
+  | { readonly kind: 'liked' }
   | { readonly kind: 'tag'; readonly tagId: number; readonly name: string }
   | { readonly kind: 'artist'; readonly key: string; readonly name: string }
   | {
@@ -52,10 +63,12 @@ export type ListSource =
       readonly saved?: boolean
     }
   | {
-      /** Tags and artists together: any song any of them holds. */
+      /** Tags and artists together: any song any of them holds, or with `match` all, every one. */
       readonly kind: 'combined'
       readonly tagIds: readonly number[]
       readonly artistKeys: readonly string[]
+      /** Songs every one of them holds (C1); left out, songs any of them holds. */
+      readonly match?: 'all'
       /** The names as they were, for when one has since gone. */
       readonly name: string
     }
@@ -78,6 +91,90 @@ export type ListSource =
 
 /** What Up next is called while Forgotten gems play, from Library's row or the playlists grid. */
 export const GEMS_SOURCE: ListSource = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' }
+
+/** What Up next is called once songs are added to one song or the whole library. */
+export const LINED_UP_SOURCE: ListSource = { kind: 'songs', origin: 'upnext', name: 'Lined up' }
+
+/** What Save calls Up next lined up by hand, made unique among the playlists. */
+const LINED_UP_SAVED = 'Songs you lined up'
+
+/**
+ * What Up next is once songs are added to it (B1, 2026-10-25). A song played
+ * alone, or the whole library, is not a list you made; songs added to it
+ * make one, so it is yours to Save. A tag, a playlist or anything else named
+ * stays what it is: edits there change nothing lasting (G1).
+ */
+export function sourceAfterAdding(source: ListSource | null): ListSource | null {
+  return source === null || source.kind === 'library' ? LINED_UP_SOURCE : source
+}
+
+/**
+ * What Up next is called while the songs played last play, from Home's
+ * Recently played row or Search before anything is typed. Not remembered as a
+ * list: Recently played already is that list.
+ */
+export const RECENTS_SOURCE: ListSource = {
+  kind: 'songs',
+  origin: 'recent',
+  name: 'Recently played',
+}
+
+/** How much of the words searched or asked names what plays from them. */
+const WORDS_SHOWN = 40
+
+/** Words as a name: in quotes, on one line, cut short when long ("“yoru”"). */
+function quotedWords(words: string): string {
+  const chars = Array.from(words.trim().replace(/\s+/g, ' '))
+  const shown =
+    chars.length > WORDS_SHOWN
+      ? `${chars
+          .slice(0, WORDS_SHOWN - 1)
+          .join('')
+          .trimEnd()}…`
+      : chars.join('')
+  return `“${shown}”`
+}
+
+/**
+ * What songs played from Search name Up next, and their tile in Recently
+ * played: the words searched ("“yoru”", kind "Search"), so one search's tile
+ * is told from another's and the same words searched again are the same tile.
+ * Before anything is typed Search's songs are the ones played last, and play
+ * as Recently played: nothing was searched for.
+ */
+export function searchSource(words: string): ListSource {
+  return words.trim()
+    ? { kind: 'songs', origin: 'search', name: quotedWords(words) }
+    : RECENTS_SOURCE
+}
+
+/** Songs Ask found for the words asked ("find", "explore", a question about the library), named for them. */
+export function foundSource(asked: string): ListSource {
+  return { kind: 'songs', origin: 'found', name: quotedWords(asked) }
+}
+
+/** What Up next is called while Liked plays, from its page, its tile or Library's chip. */
+export const LIKED_SOURCE: ListSource = { kind: 'liked' }
+
+/** Liked's page: among the playlists, though it is not one you made. */
+export const LIKED_LINK = { pathname: '/playlists/liked' } as const
+
+/**
+ * The songs you like, the newest like first. A song liked before likes were
+ * timed has no time, and follows the timed ones, newest added first.
+ */
+export function likedSongs<S extends Pick<Song, 'id' | 'loved' | 'lovedAt' | 'addedAt'>>(
+  songs: readonly S[],
+): S[] {
+  return songs
+    .filter(song => song.loved)
+    .sort(
+      (a, b) =>
+        (b.lovedAt ?? '').localeCompare(a.lovedAt ?? '') ||
+        b.addedAt.localeCompare(a.addedAt) ||
+        b.id - a.id,
+    )
+}
 
 /**
  * A song picked out of a general list — a Library row, a song or a lyric hit
@@ -110,11 +207,18 @@ export interface SourceLine {
   readonly link: SourceLink | null
   /** Saved from Up next a moment ago. */
   readonly saved: boolean
+  /** Lined up by hand, not played from anywhere: the line says no "From". */
+  readonly yours?: boolean
 }
 
 /** What Save would make: a playlist filled from tags, or one of these songs. */
 export type SavePlan =
-  | { readonly kind: 'follow'; readonly name: string; readonly tagIds: readonly number[] }
+  | {
+      readonly kind: 'follow'
+      readonly name: string
+      readonly tagIds: readonly number[]
+      readonly match: TagMatch
+    }
   | { readonly kind: 'songs'; readonly name: string; readonly songIds: readonly number[] }
 
 interface Known {
@@ -134,9 +238,20 @@ export function tagsWithIds<T extends { readonly id: number }>(
   })
 }
 
-/** Names joined as a combination reads: "原神纯音乐 or YOASOBI". */
-export function combinedName(names: readonly string[]): string {
-  return names.join(' or ')
+/**
+ * Any of the tags, or all of them (C1, 2026-10-25): a combination widens
+ * unless it is asked to narrow. The same words a rule set says it in.
+ */
+export type TagMatch = 'any' | 'all'
+
+/** Names joined as a combination reads: "原神纯音乐 or YOASOBI", and all of them "night & calm". */
+export function combinedName(names: readonly string[], match: TagMatch = 'any'): string {
+  return names.join(match === 'all' ? ' & ' : ' or ')
+}
+
+/** A combined source's match, read with its default. */
+function sourceMatch(source: { readonly match?: 'all' }): TagMatch {
+  return source.match === 'all' ? 'all' : 'any'
 }
 
 /** A combination's parts as places, read against the library now; ones that have gone are left out. */
@@ -144,9 +259,16 @@ export function combinedPlaces(
   source: { readonly tagIds: readonly number[]; readonly artistKeys: readonly string[] },
   tags: readonly Tag[],
   songs: readonly Song[],
+  names: ArtistJoinNames,
 ): Place[] {
   const byId = new Map(tags.map(tag => [tag.id, tag]))
-  const artists = new Map(libraryArtists(songs).map(artist => [artist.key, artist]))
+  // By any key an artist goes by: a list kept from before two artists were
+  // joined finds the one they are now, once.
+  const artists = new Map<string, Artist>()
+  for (const artist of joinedArtists(songs, names)) {
+    for (const key of artist.keys) artists.set(key, artist)
+  }
+  const found = new Set<Artist>()
   return [
     ...source.tagIds.flatMap(id => {
       const tag = byId.get(id)
@@ -154,13 +276,15 @@ export function combinedPlaces(
     }),
     ...source.artistKeys.flatMap(key => {
       const artist = artists.get(key)
-      return artist ? [{ kind: 'artist' as const, artist }] : []
+      if (!artist || found.has(artist)) return []
+      found.add(artist)
+      return [{ kind: 'artist' as const, artist }]
     }),
   ]
 }
 
 /** The source for a set of places: one tag or artist is itself, more are a combination. */
-export function placesSource(places: readonly Place[]): ListSource | null {
+export function placesSource(places: readonly Place[], match: TagMatch = 'any'): ListSource | null {
   const [only] = places
   if (!only) return null
   if (places.length === 1) {
@@ -174,7 +298,9 @@ export function placesSource(places: readonly Place[]): ListSource | null {
     artistKeys: places.flatMap(place => (place.kind === 'artist' ? [place.artist.key] : [])),
     name: combinedName(
       places.map(place => (place.kind === 'tag' ? place.tag.name : place.artist.name)),
+      match,
     ),
+    ...(match === 'all' ? { match } : {}),
   }
 }
 
@@ -198,6 +324,21 @@ export function librarySource(
   }
 }
 
+/**
+ * What Library is playing with its Liked chip on as well: Liked alone, or the
+ * liked songs among the tags ticked, which are a list of their own.
+ */
+export function libraryListSource(
+  filter: { readonly tagIds: readonly number[]; readonly likedOnly: boolean },
+  tags: readonly Pick<Tag, 'id' | 'name'>[],
+): ListSource {
+  const plain = librarySource(filter.tagIds, tags)
+  if (!filter.likedOnly) return plain
+  if (plain.kind === 'library') return LIKED_SOURCE
+  const names = tagsWithIds(filter.tagIds, tags).map(tag => tag.name)
+  return { kind: 'songs', origin: 'liked', name: ['Liked', ...names].join(' · ') }
+}
+
 const NO_TAG_IDS: readonly number[] = []
 
 /**
@@ -210,14 +351,16 @@ export function sourceTagIds(source: ListSource | null): readonly number[] {
   return NO_TAG_IDS
 }
 
-/** Where a combination opens: its tags and artists in the address. */
+/** Where a combination opens: its tags and artists in the address, and `match=all` when it narrows. */
 export function combinedLink(source: {
   readonly tagIds: readonly number[]
   readonly artistKeys: readonly string[]
+  readonly match?: 'all'
 }): SourceLink {
   const params: Record<string, string> = {}
   if (source.tagIds.length > 0) params['tags'] = source.tagIds.join(',')
   if (source.artistKeys.length > 0) params['artists'] = source.artistKeys.join(',')
+  if (source.match === 'all') params['match'] = 'all'
   return { pathname: '/combined', params }
 }
 
@@ -225,7 +368,8 @@ export function combinedLink(source: {
 export function parseCombinedParams(params: {
   tags?: string | string[]
   artists?: string | string[]
-}): { tagIds: number[]; artistKeys: string[] } {
+  match?: string | string[]
+}): { tagIds: number[]; artistKeys: string[]; match: TagMatch } {
   const one = (value: string | string[] | undefined): string =>
     Array.isArray(value) ? value.join(',') : (value ?? '')
   const tagIds = one(params.tags)
@@ -236,7 +380,11 @@ export function parseCombinedParams(params: {
     .split(',')
     .map(part => artistKey(part))
     .filter(key => key.length > 0)
-  return { tagIds: [...new Set(tagIds)], artistKeys: [...new Set(artistKeys)] }
+  return {
+    tagIds: [...new Set(tagIds)],
+    artistKeys: [...new Set(artistKeys)],
+    match: one(params.match) === 'all' ? 'all' : 'any',
+  }
 }
 
 /**
@@ -254,14 +402,14 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
   switch (source.kind) {
     case 'library':
       return plain('Library', { pathname: '/library' })
+    case 'liked':
+      return plain('Liked', LIKED_LINK)
     case 'tag': {
       const tag = known.tags.find(each => each.id === source.tagId)
-      return tag
-        ? plain(tag.name, { pathname: '/tag/[name]', params: { name: tag.name } })
-        : plain(`${source.name} (deleted)`, null)
+      return tag ? plain(tag.name, tagLink(tag.name)) : plain(`${source.name} (deleted)`, null)
     }
     case 'artist':
-      return plain(source.name, { pathname: '/artist/[name]', params: { name: source.name } })
+      return plain(source.name, artistLink(source.name))
     case 'playlist': {
       const playlist = known.playlists.find(each => each.id === source.playlistId)
       if (!playlist) return plain(`${source.name} (deleted)`, null)
@@ -278,7 +426,9 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
       const whole = names.length === source.tagIds.length
       // An artist's name is not something that changes under it; a tag's is.
       return plain(
-        whole && source.artistKeys.length === 0 ? combinedName(names) : source.name,
+        whole && source.artistKeys.length === 0
+          ? combinedName(names, sourceMatch(source))
+          : source.name,
         combinedLink(source),
       )
     }
@@ -290,7 +440,9 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
         saved: false,
       }
     case 'songs':
-      return plain(source.name, null)
+      return source.origin === 'upnext'
+        ? { ...plain(source.name, null), yours: true }
+        : plain(source.name, null)
     case 'room':
       return plain(source.name, { pathname: '/past-room/[code]', params: { code: source.code } })
   }
@@ -333,6 +485,7 @@ export function savePlan(
   }
   switch (source.kind) {
     case 'library':
+    case 'liked':
     case 'artist':
       return null
     case 'tag':
@@ -348,10 +501,15 @@ export function savePlan(
         tags.length > 0 &&
         tags.length === source.tagIds.length
       ) {
+        const match = sourceMatch(source)
         return {
           kind: 'follow',
-          name: combinedName(tags.map(tag => tag.name)),
+          name: combinedName(
+            tags.map(tag => tag.name),
+            match,
+          ),
           tagIds: source.tagIds,
+          match,
         }
       }
       return songs(source.name)
@@ -360,6 +518,14 @@ export function savePlan(
     case 'room':
       return songs(source.name)
     case 'songs':
+      if (source.origin === 'upnext') {
+        // Lined up by hand, it keeps the order Up next has now, and a name of its own.
+        const songIds = [...new Set(queue.items)]
+        const taken = known.playlists.map(each => each.name)
+        return songIds.length >= 2
+          ? { kind: 'songs', name: uniqueName(LINED_UP_SAVED, taken), songIds }
+          : null
+      }
       // Songs that need a tag are a chore, not a list; Recently played is
       // already kept, on Home, and a playlist of it would be stale tomorrow.
       return source.origin === 'untagged' || source.origin === 'recent' ? null : songs(source.name)
@@ -377,6 +543,8 @@ export function parseListSource(value: unknown): ListSource | null {
   switch (v['kind']) {
     case 'library':
       return { kind: 'library' }
+    case 'liked':
+      return { kind: 'liked' }
     case 'tag': {
       const tagId = id('tagId')
       const name = text('name')
@@ -401,7 +569,13 @@ export function parseListSource(value: unknown): ListSource | null {
         ? (v['artistKeys'] as unknown[]).filter((key): key is string => typeof key === 'string')
         : null
       return name !== null && tagIds && artistKeys
-        ? { kind: 'combined', tagIds: tagIds as number[], artistKeys, name }
+        ? {
+            kind: 'combined',
+            tagIds: tagIds as number[],
+            artistKeys,
+            name,
+            ...(v['match'] === 'all' ? { match: 'all' as const } : {}),
+          }
         : null
     }
     case 'answer': {
@@ -429,6 +603,9 @@ export function parseListSource(value: unknown): ListSource | null {
 
 /** How many lists Recently played remembers, and how many tiles Home shows. */
 const RECENT_LISTS = 12
+
+/** How many of a list's songs Recently played keeps, to play it again. */
+const RECENT_SONGS = 2000
 
 /** A list played on this device, as Recently played keeps it. */
 export interface RecentList {
@@ -458,6 +635,8 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
   switch (source.kind) {
     case 'library':
       return null
+    case 'liked':
+      return 'liked'
     case 'tag':
       return `tag:${source.tagId}`
     case 'artist':
@@ -465,15 +644,26 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
     case 'playlist':
       return `playlist:${source.playlistId}`
     case 'combined':
-      return `combined:${[...source.tagIds].sort((a, b) => a - b).join(',')}|${[...source.artistKeys].sort().join(',')}`
+      return `combined:${[...source.tagIds].sort((a, b) => a - b).join(',')}|${[...source.artistKeys].sort().join(',')}${source.match === 'all' ? '|all' : ''}`
     case 'answer':
       return `answer:${source.text.trim().toLowerCase()}`
     case 'songs':
       // One song is shown as that song; Recently played already has it.
-      if (source.origin === 'untagged' || source.origin === 'recent' || songIds.length < 2) {
+      // Lined up by hand, it grows as it plays: its songs are its tiles.
+      if (
+        source.origin === 'untagged' ||
+        source.origin === 'recent' ||
+        source.origin === 'upnext' ||
+        songIds.length < 2
+      ) {
         return null
       }
-      return `songs:${source.origin}:${songIds.join(',')}`
+      // A search is its words: searched again, it is the same tile, holding
+      // what they find now, whatever order the results came in.
+      if (source.origin === 'search' || source.origin === 'found') {
+        return `songs:${source.origin}:${source.name.toLowerCase()}`
+      }
+      return `songs:${source.origin}:${songIds.slice(0, RECENT_SONGS).join(',')}`
     case 'room':
       // Recently played already shows the room as a tile of its own.
       return null
@@ -495,7 +685,7 @@ export function withListStarted(
   const entry: RecentList = {
     key,
     source,
-    songIds: songIds.slice(0, 2000),
+    songIds: songIds.slice(0, RECENT_SONGS),
     played: before?.played ?? [],
     at: now,
     ...(kept ? { answer: kept } : {}),
@@ -550,13 +740,17 @@ export function parseRecentLists(raw: string | null): readonly RecentList[] {
           : []
       const key = v['key']
       const at = v['at']
+      const songIds = ids('songIds')
+      // Kept under another key than its source has now — a search kept by its
+      // songs before searches were kept by their words — it is not this list.
       if (!source || typeof key !== 'string' || typeof at !== 'number') return []
+      if (key !== sourceKey(source, songIds)) return []
       const answer = DescribeResultSchema.safeParse(v['answer'])
       return [
         {
           key,
           source,
-          songIds: ids('songIds'),
+          songIds,
           played: ids('played'),
           at,
           ...(answer.success ? { answer: answer.data } : {}),
@@ -620,6 +814,8 @@ export function recentKind(source: ListSource): string {
   switch (source.kind) {
     case 'library':
       return 'Library'
+    case 'liked':
+      return 'Keeps itself'
     case 'tag':
       return 'Tag'
     case 'artist':
@@ -636,17 +832,26 @@ export function recentKind(source: ListSource): string {
       switch (source.origin) {
         case 'similar':
           return 'Similar songs'
-        case 'selection':
-          return 'Songs you picked'
         case 'gems':
           return 'Forgotten gems'
+        // The tile's title is the words searched: this says what they were.
         case 'search':
+          return 'Search'
+        // Songs Ask found: the tile's title is the words asked.
         case 'found':
-          return 'From Search'
+          return 'You asked'
         case 'untagged':
           return 'Need a tag'
         case 'recent':
           return 'Recently played'
+        case 'liked':
+          return 'Liked songs'
+        case 'upnext':
+          return 'Lined up'
+        case 'usual':
+          return 'At this hour'
+        case 'map':
+          return 'Sound map'
       }
     case 'room':
       return 'Together'
@@ -654,15 +859,16 @@ export function recentKind(source: ListSource): string {
 }
 
 /**
- * The songs a remembered list plays again. A tag, an artist or tags combined
- * are read again from the library, so a song tagged since is in it; anything
+ * The songs a remembered list plays again. Liked, a tag, an artist or tags
+ * combined are read again from the library, so a song tagged since is in it; anything
  * else plays as it was, less what has left the library.
  */
 export function recentSongIds(
   entry: RecentList,
-  library: { readonly songs: readonly Song[]; readonly tags: readonly Tag[] },
+  library: ArtistJoinNames & { readonly songs: readonly Song[]; readonly tags: readonly Tag[] },
 ): number[] {
   const source = entry.source
+  if (source.kind === 'liked') return likedSongs(library.songs).map(song => song.id)
   const parts =
     source.kind === 'combined'
       ? source
@@ -671,8 +877,9 @@ export function recentSongIds(
         : source.kind === 'artist'
           ? { tagIds: [], artistKeys: [source.key] }
           : null
-  const places = parts ? combinedPlaces(parts, library.tags, library.songs) : []
-  if (places.length > 0) return placeSongs(places, library.songs).map(song => song.id)
+  const places = parts ? combinedPlaces(parts, library.tags, library.songs, library) : []
+  const match = source.kind === 'combined' ? sourceMatch(source) : 'any'
+  if (places.length > 0) return placeSongs(places, library.songs, match).map(song => song.id)
   const known = new Set(library.songs.map(song => song.id))
   return entry.songIds.filter(id => known.has(id))
 }

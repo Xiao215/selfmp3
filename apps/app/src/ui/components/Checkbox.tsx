@@ -1,7 +1,7 @@
 import { forwardRef, useMemo } from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { View } from 'react-native'
-import type { StyleProp, ViewStyle } from 'react-native'
+import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Animated, {
   Easing,
   FadeIn,
@@ -10,9 +10,10 @@ import Animated, {
   ZoomIn,
 } from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
-import { motion, iconSize } from '@selfmp3/client'
+import { motion, iconSize, tagColors } from '@selfmp3/client'
 import { EASE_IN_POINTS, EASE_OUT_POINTS } from '../motion.model'
 import { useMotionReduced } from '../motion'
+import { useShownScheme } from '../theme/unistyles'
 import { Check, Minus } from './Icons'
 import { Press } from './Press'
 
@@ -48,8 +49,11 @@ export function Checkbox({
 }: {
   checked: boolean
   mixed?: boolean
-  /** Makes it the control: pressed, it asks to be the other way. */
-  onChange?: (checked: boolean) => void
+  /**
+   * Makes it the control: pressed, it asks to be the other way. The press
+   * comes too, for a box that means more with Shift held (a song list's).
+   */
+  onChange?: (checked: boolean, event: GestureResponderEvent) => void
   /** What it ticks, read with its state: "Select Evening". */
   label?: string
   /** The press target's own room round the mark. */
@@ -65,7 +69,7 @@ export function Checkbox({
         mixed={mixed}
         label={label ?? ''}
         depth="control"
-        onPress={() => onChange(!checked)}
+        onPress={event => onChange(!checked, event)}
         style={style}
         testID={testID}
         tabIndex={tabIndex}
@@ -146,6 +150,65 @@ function Mark({ checked, mixed }: { checked: boolean; mixed: boolean }): ReactNo
 }
 
 /**
+ * A tag's own mark in a list of tags to tick (the Tags… picker, Combine
+ * with…): the tag's dot grown into a ring in its colour, which fills and
+ * takes a tick when it is on, so the row has one mark rather than a dot and
+ * a checkbox beside it. Half-on, the fill is the colour's shade with a dash.
+ * The same 18 points and the same moves as `Checkbox`.
+ */
+export function TagCheck({
+  hue,
+  checked,
+  mixed = false,
+}: {
+  hue: number | undefined
+  checked: boolean
+  mixed?: boolean
+}): ReactNode {
+  const scheme = useShownScheme()
+  const moves = useCheckMoves()
+  const on = checked || mixed
+  const colours = hue === undefined ? null : tagColors(hue, scheme)
+  const ring = colours ? { borderColor: colours.dot } : null
+  return (
+    <LayoutAnimationConfig skipEntering skipExiting>
+      <View style={styles.box}>
+        <View style={[styles.tagRing, ring]} pointerEvents="none" />
+        {on ? (
+          <Animated.View
+            entering={moves.fillIn}
+            exiting={moves.fillOut}
+            pointerEvents="none"
+            // Half-on is the colour at a shade, not a faded view: the fade in
+            // runs the view's opacity up to 1.
+            style={[
+              styles.tagFill,
+              colours
+                ? {
+                    backgroundColor: checked ? colours.dot : `${colours.dot}${MIXED_ALPHA}`,
+                    borderColor: colours.dot,
+                  }
+                : null,
+            ]}
+          />
+        ) : null}
+        {on ? (
+          <Animated.View entering={moves.markIn} exiting={moves.markOut} pointerEvents="none">
+            <Animated.View entering={moves.markGrow}>
+              {checked ? (
+                <Check size={iconSize.small} color={colours?.onDot} tone="onAccent" />
+              ) : (
+                <Minus size={iconSize.small} tone="textPrimary" />
+              )}
+            </Animated.View>
+          </Animated.View>
+        ) : null}
+      </View>
+    </LayoutAnimationConfig>
+  )
+}
+
+/**
  * The fill and the mark arriving and leaving, built once for every box, or
  * none at all under Reduce Motion. The mark's fade and its grow are two
  * views, so both are Reanimated's own animations, which a browser runs too.
@@ -186,6 +249,9 @@ const SHAPE = {
   borderRadius: 9,
 } as const
 
+/** A half-on tag's fill: its colour at 45%, as a hex alpha. */
+const MIXED_ALPHA = '73'
+
 /** The ring is the mark itself, not a hairline between two things. */
 const RING = 1.5
 
@@ -207,6 +273,10 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.accent,
     borderColor: theme.colors.accent,
   },
+  // A tag's ring is wider than the checkbox's: it is the tag's colour as well
+  // as the mark, and at 1.5 a pale hue read as a hairline.
+  tagRing: { ...SHAPE, borderWidth: 2, borderColor: theme.colors.textMuted },
+  tagFill: { ...SHAPE, borderWidth: 2, backgroundColor: theme.colors.textMuted },
   fillMixed: {
     ...SHAPE,
     borderWidth: RING,

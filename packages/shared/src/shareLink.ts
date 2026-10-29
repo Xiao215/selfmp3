@@ -1,12 +1,17 @@
 import { assertNever } from './exhaustive.js'
+import { formatDuration } from './format.js'
 import type { RoomRefusal } from './room.js'
-import type { RoomSong } from './schemas/room.js'
+import type { RoomFilePart, RoomSong } from './schemas/room.js'
 import {
-  SHARE_MAX_SONGS,
+  SHARE_MAX_ASKS,
+  SHARE_MAX_LINES,
+  SHARE_MAX_OPENED,
+  SHARE_START_MOST,
   type ShareAction,
   type ShareDoc,
   type ShareEnded,
   type ShareFace,
+  type ShareLine,
   type ShareLink,
   type ShareSummary,
 } from './schemas/share.js'
@@ -34,10 +39,6 @@ export const SHARE_KEPT_MS = 90 * DAY_MS
 /** The last day of a link, when it says it is ending (D1). */
 export const SHARE_LAST_DAY_MS = DAY_MS
 
-/** The most asks one link keeps, and names of people who opened it. */
-const MAX_ASKS = 20
-const MAX_OPENED = 50
-
 function refuse(refused: RoomRefusal['refused'], message: string): RoomRefusal {
   return { refused, message }
 }
@@ -48,6 +49,7 @@ export function newShareDoc(input: {
   kind: ShareDoc['kind']
   from: ShareFace
   songs: readonly { id: string; song: RoomSong }[]
+  line?: ShareLine | undefined
   now: number
 }): ShareDoc {
   return {
@@ -55,9 +57,7 @@ export function newShareDoc(input: {
     name: input.name,
     kind: input.kind,
     from: input.from,
-    entries: input.songs
-      .slice(0, SHARE_MAX_SONGS)
-      .map(({ id, song }) => ({ id, song, gone: false })),
+    entries: input.songs.map(({ id, song }) => ({ id, song, gone: false })),
     createdAt: input.now,
     startedAt: input.now,
     playedAt: null,
@@ -66,6 +66,73 @@ export function newShareDoc(input: {
     opened: [],
     guests: 0,
     asks: [],
+    lines: input.line ? [input.line] : [],
+  }
+}
+
+/**
+ * Shared from a line (again): remembered by where it starts, so the same
+ * start shared twice is one line, the latest words for it kept. The oldest
+ * go first past `SHARE_MAX_LINES`; an address whose line was let go still
+ * starts there.
+ */
+export function shareLineAdded(doc: ShareDoc, line: ShareLine | undefined): ShareDoc {
+  if (!line) return doc
+  const others = doc.lines.filter(other => other.at !== line.at)
+  return { ...doc, lines: [...others, line].slice(-SHARE_MAX_LINES) }
+}
+
+/** A start as a link's address carries it: `0:42`, `1:02:03` past an hour. */
+export function formatShareStart(seconds: number): string {
+  return formatDuration(Math.floor(seconds))
+}
+
+/**
+ * The start an address's `t` asks for, in whole seconds, or null for none:
+ * `0:42` and `1:02:03` as `formatShareStart` writes them, and plain seconds
+ * (`42`) as someone might type. Anything else is no start, so a link with a
+ * mangled `t` plays from the top, as one without.
+ */
+export function parseShareStart(value: string | null | undefined): number | null {
+  const given = value?.trim() ?? ''
+  if (/^\d{1,5}$/.test(given)) return startOrNone(Number(given))
+  const [first, ...rest] = given.split(':')
+  if (first === undefined || !/^\d{1,3}$/.test(first) || rest.length < 1 || rest.length > 2) {
+    return null
+  }
+  // Past the first part, minutes and seconds are two figures under 60, as a clock's are.
+  if (!rest.every(part => /^[0-5]\d$/.test(part))) return null
+  return startOrNone([first, ...rest].reduce((sum, part) => sum * 60 + Number(part), 0))
+}
+
+function startOrNone(at: number): number | null {
+  return at <= SHARE_START_MOST ? at : null
+}
+
+/** The line an address's start names, if it was shared from one. */
+export function shareLineAt(link: Pick<ShareLink, 'lines'>, at: number | null): ShareLine | null {
+  if (at === null) return null
+  return link.lines.find(line => line.at === at) ?? null
+}
+
+/** What makes a song the same one when it is shared again: its audio file, else its id, link or name. */
+export function shareSongKey(song: RoomSong): string {
+  return song.audio?.key ?? song.uid ?? song.link ?? song.title
+}
+
+/**
+ * Shared again: each song as its sender's library has it now, so a file
+ * renamed since — its words rewritten, its cover kept another way — is lent
+ * by its new name. Every entry keeps its id, and one gone stays gone.
+ */
+export function shareSongsAgain(doc: ShareDoc, songs: readonly RoomSong[]): ShareDoc {
+  const latest = new Map(songs.map(song => [shareSongKey(song), song]))
+  return {
+    ...doc,
+    entries: doc.entries.map(entry => {
+      const song = entry.gone ? undefined : latest.get(shareSongKey(entry.song))
+      return song ? { ...entry, song } : entry
+    }),
   }
 }
 
@@ -103,7 +170,7 @@ export function sharePlayed(doc: ShareDoc, now: number, fromStart: boolean): Sha
 export function shareOpened(doc: ShareDoc, name: string | null): ShareDoc {
   if (name === null) return { ...doc, guests: doc.guests + 1 }
   if (doc.opened.includes(name)) return doc
-  return { ...doc, opened: [...doc.opened, name].slice(0, MAX_OPENED) }
+  return { ...doc, opened: [...doc.opened, name].slice(0, SHARE_MAX_OPENED) }
 }
 
 /** A song's file is no longer in the bucket. With none of them left, the link has ended. */
@@ -138,7 +205,7 @@ export function shareAsked(
   const kept = doc.asks.find(other => same(other.name))
   return {
     ...doc,
-    asks: [...others, { id: kept?.id ?? ask.id, name: ask.name, at: now }].slice(-MAX_ASKS),
+    asks: [...others, { id: kept?.id ?? ask.id, name: ask.name, at: now }].slice(-SHARE_MAX_ASKS),
   }
 }
 
@@ -169,7 +236,7 @@ export function applyShareAction(
 export function shareLends(
   doc: ShareDoc,
   entryId: string,
-  part: 'audio' | 'cover' | 'lyrics' | 'romanized',
+  part: RoomFilePart,
   now: number,
 ): boolean {
   const entry = doc.entries.find(candidate => candidate.id === entryId)
@@ -191,6 +258,7 @@ export function shareView(
     kind: doc.kind,
     from: doc.from,
     entries: doc.entries,
+    lines: doc.lines,
     createdAt: doc.createdAt,
     endsAt: shareEndsAt(doc),
     limitAt: doc.startedAt + SHARE_LIMIT_MS,
@@ -210,10 +278,12 @@ export function shareSummary(
   doc: ShareDoc,
   input: { key: string; yours: boolean; asked: boolean; now: number },
 ): ShareSummary {
-  const { entries, ...view } = shareView(doc, input)
+  const { entries, lines: _lines, ...view } = shareView(doc, input)
+  const cover = entries.find(entry => entry.song.cover !== null && !entry.gone) ?? null
   return {
     ...view,
     songs: entries.length,
-    cover: entries.find(entry => entry.song.cover !== null && !entry.gone)?.id ?? null,
+    cover: cover?.id ?? null,
+    coverSong: cover?.song ?? null,
   }
 }

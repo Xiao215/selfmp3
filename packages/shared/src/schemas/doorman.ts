@@ -97,6 +97,56 @@ export function signInCodeFromUrl(url: string): string | null {
   return code.success ? code.data : null
 }
 
+/**
+ * Where the doorman says, in the same fragment, that Google did not sign
+ * anyone in, when it has somewhere to send the browser back to:
+ * `#signin-refused=not-allowed&signin-email=…`. It used to show a page of its
+ * own with no way back, and a device waiting for the sign-in waited for good.
+ */
+export const SIGN_IN_REFUSED_FRAGMENT = 'signin-refused'
+export const SIGN_IN_EMAIL_FRAGMENT = 'signin-email'
+
+export const SIGN_IN_REFUSAL = {
+  /** Google signed in an account the owner has not added. */
+  notAllowed: 'not-allowed',
+  /** Nobody may sign in yet: the doorman has no owner. */
+  nobodyAllowed: 'nobody-allowed',
+  /** Cancel on Google's page, or Google refusing for its own reasons. */
+  cancelled: 'cancelled',
+  /** Google could not finish: the code would not trade, or the token did not check out. */
+  failed: 'failed',
+} as const
+export type SignInRefusalReason = (typeof SIGN_IN_REFUSAL)[keyof typeof SIGN_IN_REFUSAL]
+
+export interface SignInRefusal {
+  readonly reason: SignInRefusalReason
+  /** The Google account that is not allowed, for `not-allowed`. */
+  readonly email: string | null
+}
+
+const REASONS: ReadonlySet<string> = new Set(Object.values(SIGN_IN_REFUSAL))
+
+/** Why the doorman sent the browser back without a code, or null when it did not say. */
+export function signInRefusalFromUrl(url: string): SignInRefusal | null {
+  const hash = url.indexOf('#')
+  if (hash < 0) return null
+  const params = new URLSearchParams(url.slice(hash + 1))
+  const reason = params.get(SIGN_IN_REFUSED_FRAGMENT)
+  if (reason === null || !REASONS.has(reason)) return null
+  const email = params.get(SIGN_IN_EMAIL_FRAGMENT)
+  return {
+    reason: reason as SignInRefusalReason,
+    email: email !== null && email.length <= 320 ? email : null,
+  }
+}
+
+/** The fragment for a refusal, as `signInRefusalFromUrl` reads it. */
+export function signInRefusalFragment(refusal: SignInRefusal): string {
+  const params = new URLSearchParams({ [SIGN_IN_REFUSED_FRAGMENT]: refusal.reason })
+  if (refusal.email !== null) params.set(SIGN_IN_EMAIL_FRAGMENT, refusal.email)
+  return params.toString()
+}
+
 export const DoormanClaimRequestSchema = z.object({
   attempt: SignInAttemptSchema,
   /** Left out to ask how things stand; sent to claim the session. */
@@ -143,10 +193,8 @@ export const DoormanMeSchema = z.object({
   /**
    * Which account this is, for a server that works for several
    * (docs/features/shared-server.md): its workspaces are kept by this.
-   * Absent from a session a device kept from before the doorman said it, which
-   * still signs in; a server asks the doorman itself, and refuses without it.
    */
-  account: DoormanAccountSchema.optional(),
+  account: DoormanAccountSchema,
   email: z.string(),
   name: z.string().nullable(),
   picture: z.string().nullable(),
@@ -227,6 +275,48 @@ export const DoormanAccessSchema = DoormanAccessUpdateSchema.extend({
   owners: z.array(z.string()),
 })
 export type DoormanAccess = z.infer<typeof DoormanAccessSchema>
+
+/**
+ * What the doorman counted, a day at a time (`GET /v1/stats?days=N`), for its
+ * owner's admin page: totals across everyone, never anyone's own. Days are
+ * UTC dates, oldest first; a day nothing happened on is left out.
+ */
+export const DoormanStatsSchema = z.object({
+  days: z.array(
+    z.object({
+      day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      counts: z.record(z.string(), z.number().int().nonnegative()),
+    }),
+  ),
+})
+export type DoormanStats = z.infer<typeof DoormanStatsSchema>
+
+/**
+ * Which app a read came from, as the doorman tells them apart (no app says so
+ * itself): `lent` is a song read for someone else, through a room, a shared
+ * playlist or a share link.
+ */
+export const DOORMAN_READ_APPS = [
+  'web',
+  'computer',
+  'phone',
+  'extension',
+  'server',
+  'lent',
+] as const
+export type DoormanReadApp = (typeof DOORMAN_READ_APPS)[number]
+
+/**
+ * The names the doorman counts under. Reads by the bucket folder they were
+ * from and by the app that made them; sign-ins that made a session, and ones
+ * turned away because the address was not on the list.
+ */
+export const DOORMAN_COUNT = {
+  read: (folder: string): string => `reads.${folder}`,
+  readBy: (app: DoormanReadApp): string => `reads.by.${app}`,
+  signedIn: 'signins.new',
+  refused: 'signins.refused',
+} as const
 
 export const DoormanListSchema = z.object({
   objects: z.array(z.object({ key: z.string(), size: z.number().int().nonnegative() })),

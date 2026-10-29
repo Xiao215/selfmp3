@@ -14,3 +14,25 @@ export const ArtistBackdropSchema = z.object({
   rev: z.string().nullable(),
 })
 export type ArtistBackdrop = z.infer<typeof ArtistBackdropSchema>
+
+/** The most other names an artist keeps, and the longest one. */
+export const ARTIST_NAMES_MAX = 20
+export const ARTIST_NAME_MAX = 100
+
+/**
+ * The names an artist also goes by, which search finds them by: 周杰伦 as
+ * "Jay Chou", 幾田りら as "ikura". The server fills them in from MusicBrainz
+ * (services/artistNames.ts), and anyone can change them on the artist's page;
+ * the latest change wins, wherever it was made.
+ */
+export const ArtistNamesSchema = z
+  .array(z.string().trim().min(1).max(ARTIST_NAME_MAX))
+  .max(ARTIST_NAMES_MAX)
+
+/** `PUT /api/artists/names`: an artist's other names, all of them, as they should be now. */
+export const SetArtistNamesSchema = z.object({
+  /** The artist as the songs write them; compared as `artistKey` compares. */
+  artist: z.string().trim().min(1).max(500),
+  names: ArtistNamesSchema,
+})
+export type SetArtistNames = z.infer<typeof SetArtistNamesSchema>

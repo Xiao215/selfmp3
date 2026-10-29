@@ -6,13 +6,14 @@ import {
   type DoormanHealth,
 } from '@selfmp3/shared'
 import { version as DOORMAN_VERSION } from '../package.json'
-import { Access, access, type AccessCache } from './access.js'
+import { Access, access, stats, type AccessCache } from './access.js'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
 import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
+import { device, iphones } from './device.js'
 import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
@@ -80,13 +81,22 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.signOutEverywhere]: { POST: auth.signOutEverywhere },
   [DOORMAN_PATHS.me]: { GET: storage.me },
   [DOORMAN_PATHS.access]: { GET: access, PUT: access },
+  [DOORMAN_PATHS.stats]: { GET: stats },
   [DOORMAN_PATHS.storage]: { PUT: storage.connect, DELETE: storage.disconnect },
   [DOORMAN_PATHS.backblaze]: { POST: storage.connectBackblaze },
   [DOORMAN_PATHS.list]: { GET: files.list },
   [DOORMAN_PATHS.changes]: { GET: files.changes },
 }
 
-const { files: FILES, grants: GRANTS, rooms: ROOMS, shared: SHARED, share: SHARE } = DOORMAN_PATHS
+const {
+  files: FILES,
+  grants: GRANTS,
+  rooms: ROOMS,
+  shared: SHARED,
+  share: SHARE,
+  device: DEVICE,
+  iphones: IPHONES,
+} = DOORMAN_PATHS
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
 const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
@@ -94,6 +104,7 @@ const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
   missing: DOORMAN_ERROR.noSuchBucket,
   network: DOORMAN_ERROR.bucketUnreachable,
   cap: DOORMAN_ERROR.bucketCapExceeded,
+  busy: DOORMAN_ERROR.bucketBusy,
   other: DOORMAN_ERROR.bucketError,
 }
 
@@ -173,6 +184,8 @@ async function route(ctx: Context): Promise<Response> {
   if (path === ROOMS || path.startsWith(`${ROOMS}/`)) return rooms(ctx)
   if (path === SHARED || path.startsWith(`${SHARED}/`)) return shared(ctx)
   if (path === SHARE || path.startsWith(`${SHARE}/`)) return share(ctx)
+  if (path === DEVICE || path.startsWith(`${DEVICE}/`)) return device(ctx)
+  if (path === IPHONES || path.startsWith(`${IPHONES}/`)) return iphones(ctx)
 
   // Own properties only: a request whose method is `constructor` or
   // `toString` must not find its way to Object.prototype.

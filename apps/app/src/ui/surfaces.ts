@@ -1,5 +1,4 @@
 import {
-  fonts,
   HIT_TARGET,
   radius,
   space,
@@ -9,6 +8,7 @@ import {
   type ThemePalette,
   type TypeStep,
 } from '@selfmp3/client'
+import { fonts } from '../ports/fonts'
 
 /**
  * The few shapes every screen repeats, from docs/ui-mock `S2`, so a card or a
@@ -110,7 +110,14 @@ export function pageFrame(wide: boolean): typeof FRAME_WIDE | typeof FRAME_PHONE
  * over everything. A component's own stacking (the stage's cover over its
  * words) stays its own.
  */
-export const Z = { pinnedHeader: 10, scrollbar: 11, scrollbarMark: 12, tooltip: 10000 } as const
+export const Z = {
+  pinnedHeader: 10,
+  scrollbar: 11,
+  scrollbarMark: 12,
+  /** "Skip to the page", over the sidebar while it has the focus. */
+  skipLink: 13,
+  tooltip: 10000,
+} as const
 
 /**
  * A line of a menu or a list of choices (`SheetItem`, the tag picker's, the
@@ -151,16 +158,21 @@ export function sectionTitle(colors: ThemePalette) {
     fontFamily: fonts.display,
     fontSize: type.section,
     letterSpacing: tracking.heading,
-    // The display face's last glyph leans past its own advance width, and
-    // tracked tighter still it is cut off by the text's own box: "Your tags"
-    // loses the tail of its s on a phone. Two points is not enough on a real
-    // one; six is, and is still less than the space that follows any heading.
-    paddingRight: space.tight,
   } as const
 }
 
-/** The small uppercase heading over a group: 11, tracked, quiet. */
+/**
+ * A quiet heading over a group, in sentence case: the sidebar's "Playlists",
+ * Settings' "On this page", "Recently added", a sheet's group. It names a
+ * group; it is not a section's title (`sectionTitle`). Capitals are kept for
+ * one thing only, a figure's name on a stat card (`figureLabel`, N1).
+ */
 export function label(colors: ThemePalette) {
+  return { color: colors.textMuted, fontSize: type.sub, fontWeight: '600' } as const
+}
+
+/** A figure's name on a stat card — LISTENED, PEAK HOUR, STREAK: 11, tracked, quiet capitals. */
+export function figureLabel(colors: ThemePalette) {
   return {
     color: colors.textMuted,
     fontSize: type.tiny,
@@ -190,8 +202,22 @@ export function heroTitle(colors: ThemePalette, step: keyof typeof HERO_TRACKING
     color: colors.textPrimary,
     fontFamily: fonts.display,
     ...textStyle(step),
+    ...headroom(step),
     letterSpacing: HERO_TRACKING[step],
   } as const
+}
+
+/**
+ * Room over a big title's first line for the glyphs that stand above it, in
+ * padding the same margin takes back, so the title sits where it did. The
+ * scale sets these lines shorter than the faces' own, and iOS shortens a line
+ * from its top: a name in Chinese falls back to PingFang, whose deeper descent
+ * lifts the baseline, and 中文流行 drew flat-topped on a phone (2026-10-24).
+ * The text's box is all it may draw in; the padding is part of it.
+ */
+export function headroom(step: TypeStep) {
+  const room = Math.ceil(type[step] / 4)
+  return { paddingTop: room, marginTop: -room } as const
 }
 
 const HERO_TRACKING = {
@@ -206,7 +232,11 @@ const HERO_TRACKING = {
  * their own line height (48, 50, 53) and tracking (-0.5, -0.6, -0.8).
  */
 export function nameTitle(colors: ThemePalette) {
-  return { ...serif(colors, 'display'), letterSpacing: tracking.serif } as const
+  return {
+    ...serif(colors, 'display'),
+    ...headroom('display'),
+    letterSpacing: tracking.serif,
+  } as const
 }
 
 /** A row's or a card's title: one line of body text, set heavier. */

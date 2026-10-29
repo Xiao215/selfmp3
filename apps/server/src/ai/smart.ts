@@ -1,8 +1,8 @@
-import { z } from 'zod/v4'
 import type {
-  AiCheck,
   AiSetup,
-  AskAnswer,
+  ArtistJoinNames,
+  AskReply,
+  AskRequest,
   ImportNames,
   ImportNamesRequest,
   TidyResult,
@@ -11,15 +11,16 @@ import type {
   WrittenReport,
   DescribeResult,
   MetadataSuggestion,
-  RefineRequest,
   Stats,
   Song,
   Tag,
   TagReview,
+  AskTurn,
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
+import type { NamesRepository } from '../repositories/names.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SettingsRepository } from '../repositories/settings.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -29,21 +30,12 @@ import type { WrappedRepository } from '../repositories/wrapped.js'
 import type { MetadataLookupService } from '../services/lookup.js'
 import type { NeteaseMusic } from '../services/netease.js'
 import { ask } from './ask.js'
-import type { AskDeps } from './askActions.js'
+import type { AskDeps } from './askTools.js'
 import type { AskPlaylist } from './askLibrary.js'
 import { AskProgress, type Seen } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { fixSong } from './fixSong.js'
-import { refine } from './refine.js'
-import {
-  LlmError,
-  llmFailureWords,
-  noLlm,
-  openAiCompatible,
-  Remembered,
-  type GenerateRequest,
-  type Llm,
-} from './llm.js'
+import { noLlm, openAiCompatible, Remembered, type GenerateRequest, type Llm } from './llm.js'
 import { importNames } from './importNames.js'
 import {
   catalogueFinder,
@@ -55,6 +47,7 @@ import {
 import { tidy } from './tidy.js'
 import { written } from './written.js'
 import { tagReview } from './tagReview.js'
+import { METRIC, type ServerMetrics } from '../services/metrics.js'
 
 type SmartDeps = AskDeps & {
   remembered: Remembered
@@ -78,8 +71,10 @@ export class SmartFeatures {
     setup: AiSetup
     songs: () => Song[]
     tags: () => Tag[]
+    artistNames?: () => ArtistJoinNames
+    spellings?: AskDeps['spellings']
     sound?: AskDeps['sound']
-    stats: (range: Stats['range']) => Stats
+    stats: (range: Stats['range'], top?: number) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped
     playlists?: () => readonly AskPlaylist[]
@@ -90,8 +85,11 @@ export class SmartFeatures {
     web?: () => boolean
     music?: AskDeps['music']
     lookup?: MetadataLookup
+    /** Whether answers are kept a while for the same question; the eval asks afresh each time. */
+    remember?: boolean
   }) {
-    this.#deps = { ...deps, remembered: new Remembered() }
+    const { remember = true, ...rest } = deps
+    this.#deps = { ...rest, remembered: new Remembered(remember ? undefined : 0) }
   }
 
   describe(request: DescribeInput, signal?: AbortSignal): Promise<DescribeResult> {
@@ -100,26 +98,20 @@ export class SmartFeatures {
 
   ask(
     text: string,
-    playing: number | null = null,
-    allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
+    where: AskRequest['context'] = { playing: null, screen: null },
     ticket?: string,
-    before: readonly string[] = [],
+    before: readonly AskTurn[] = [],
     /** Fires when the device's connection closes: with a ticket, the answer goes on a while without it. */
     signal?: AbortSignal,
-  ): Promise<AskAnswer> {
+  ): Promise<AskReply> {
     return this.#progress.outlast(ticket, signal, (steps, stop) =>
-      ask(this.#stoppedBy(stop), text, playing, allowed, steps, before),
+      ask(this.#stoppedBy(stop), text, where, steps, before),
     )
   }
 
   /** Stop pressed on an Ask that may have outlasted its connection. */
   stopAsk(ticket: string): void {
     this.#progress.stop(ticket)
-  }
-
-  /** An answer changed after it was given (`refine.ts`). */
-  refine(request: RefineRequest, signal?: AbortSignal): Promise<DescribeResult> {
-    return refine(this.#stoppedBy(signal), request, this.#progress.track(request.ticket))
   }
 
   /** The model, for one answer: no more calls once nobody waits for it. */
@@ -140,33 +132,6 @@ export class SmartFeatures {
   /** Where the server asks, for Settings: no call is made. */
   setup(): AiSetup {
     return this.#deps.setup
-  }
-
-  /**
-   * Settings' Test: the smallest call that goes the whole way — the fast tier,
-   * a JSON schema, the reply checked — so passing means the features can run.
-   */
-  async check(): Promise<AiCheck> {
-    try {
-      const { ms } = await this.#deps.llm.generate({
-        task: 'check',
-        tier: 'fast',
-        system: 'You check that a connection works. Reply with JSON only.',
-        prompt: 'Reply {"ok": true}.',
-        schema: CheckReplySchema,
-        timeoutMs: CHECK_TIMEOUT_MS,
-      })
-      return { ok: true, model: this.#deps.setup.models.fast, ms }
-    } catch (caught) {
-      // Nothing stops a check: it has no signal.
-      if (!(caught instanceof LlmError) || caught.kind === 'stopped') throw caught
-      return {
-        ok: false,
-        failure: caught.kind,
-        message: llmFailureWords[caught.kind],
-        detail: caught.message,
-      }
-    }
   }
 
   /** A5 · the Report in a few sentences; `again` writes it afresh. */
@@ -198,11 +163,6 @@ export class SmartFeatures {
   }
 }
 
-/** Long enough for the claude CLI to start a process; short enough to be watched. */
-const CHECK_TIMEOUT_MS = 60_000
-
-const CheckReplySchema = z.object({ ok: z.boolean() })
-
 /**
  * The server's settings as Settings shows them. A base URL can carry a user and
  * password, or a key in its query: only the scheme, host and path are shown.
@@ -217,14 +177,17 @@ export function setupFor(config: Pick<Config, 'ai'>): AiSetup {
 
 /**
  * The smart features over this library, wired the one way the server runs
- * them. `eval.ts` builds them here too, so what it prints is what a device
- * would be answered — catalogues, standing notes and the web switch included.
+ * them. The eval harness (`eval/run.ts`) builds them here too, so what it
+ * measures is what a device would be answered — catalogues, standing notes
+ * and the web included.
  */
 export function smartFeaturesFor(sources: {
   readonly config: Pick<Config, 'ai'>
   readonly logger: Logger
   readonly songs: Pick<SongRepository, 'all'>
   readonly tags: Pick<TagRepository, 'all'>
+  /** Artists' other names, which join one artist's spellings. */
+  readonly names?: Pick<NamesRepository, 'joinNames' | 'spellings'>
   /** The listening model, for Ask's songs in the order they sound (sound/sound.ts). */
   readonly sound?: AskDeps['sound']
   readonly stats: Pick<StatsRepository, 'build'>
@@ -234,17 +197,27 @@ export function smartFeaturesFor(sources: {
   readonly settings: Pick<SettingsRepository, 'get'>
   readonly netease: Pick<NeteaseMusic, 'search' | 'searchAlbums' | 'albumTracks'>
   readonly lookup: Pick<MetadataLookupService, 'lookup'>
+  /** Where each request is counted for the owner's admin page; left out by the eval. */
+  readonly metrics?: Pick<ServerMetrics, 'count'>
+  /** The model in place of the configured one: the eval's, watched for its calls, or a test's. */
+  readonly llm?: Llm
+  /** False for the eval, so a question asked again is answered again (`Remembered`). */
+  readonly remember?: boolean
 }): SmartFeatures {
   const { config, logger, songs, tags, stats, wrapped, playlists, settings, netease } = sources
   const lookup: MetadataLookup = query => sources.lookup.lookup(query)
   const catalogue = (words: string) => netease.search(words)
+  const llm = sources.llm ?? llmFor(config, logger)
   return new SmartFeatures({
-    llm: llmFor(config, logger),
+    llm: sources.metrics ? counted(llm, sources.metrics) : llm,
+    remember: sources.remember ?? true,
     setup: setupFor(config),
     songs: () => songs.all(),
     tags: () => tags.all(),
+    artistNames: sources.names ? () => sources.names!.joinNames() : undefined,
+    spellings: sources.names ? () => sources.names!.spellings() : undefined,
     sound: sources.sound,
-    stats: range => stats.build(range),
+    stats: (range, top) => stats.build(range, undefined, top ?? null),
     lyrics: query =>
       sources.lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),
     wrapped: range => wrapped.build(range),
@@ -252,11 +225,13 @@ export function smartFeaturesFor(sources: {
       playlists.all().map(playlist => ({
         name: playlist.name,
         kind: playlist.kind,
+        rules: playlist.rules,
         songIds: () => playlists.songIds(playlist),
       })),
     notes: () => settings.get().smartNotes,
     catalogue,
-    web: () => settings.get().smartWeb,
+    // Smart features include the web: the model looks there when the library and catalogues don't say.
+    web: () => true,
     music: {
       albums: words => netease.searchAlbums(words),
       albumTracks: id => netease.albumTracks(id),
@@ -266,6 +241,29 @@ export function smartFeaturesFor(sources: {
     findListings: listingFinder({ netease: catalogue, lookup }),
     lookup,
   })
+}
+
+/**
+ * The model, with every request counted for the admin page: by feature (a
+ * task's first word: `ask-route` is Ask), how long it took, and whether it
+ * failed. Counted, not logged: nothing of what was asked is kept.
+ */
+function counted(llm: Llm, metrics: Pick<ServerMetrics, 'count'>): Llm {
+  return {
+    generate: async request => {
+      const feature = request.task.split('-')[0] ?? request.task
+      metrics.count(METRIC.smart(feature))
+      const started = Date.now()
+      try {
+        return await llm.generate(request)
+      } catch (error) {
+        metrics.count(METRIC.smartFailed)
+        throw error
+      } finally {
+        metrics.count(METRIC.smartMs, Date.now() - started)
+      }
+    },
+  }
 }
 
 /** The configured model, or the stand-in that says smart features are off. */
@@ -278,6 +276,7 @@ export function llmFor(config: Pick<Config, 'ai'>, logger: Logger): Llm {
       apiKey: ai.apiKey || null,
       models: { fast: ai.modelFast, smart: ai.modelSmart },
       timeoutMs: ai.timeoutSeconds * 1000,
+      concurrency: ai.concurrency,
     },
     { logger },
   )

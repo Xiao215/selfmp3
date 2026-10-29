@@ -145,8 +145,7 @@ export class Hub {
       )
     }
     const me = await this.#askDoorman(() => this.#doorman!.me(session))
-    const account = me.account
-    if (!account) throw new HttpError(502, 'The doorman is too old to say who you are.', 'doorman')
+    const { account } = me
     if (!me.storage) {
       throw HttpError.conflict('Connect your storage first: this server works in your bucket.')
     }
@@ -256,8 +255,10 @@ export class Hub {
     const doorman = this.#doorman!
     const made = await this.#askDoorman(() => doorman.grant(session, this.#name()))
     const grant = { token: made.token, id: made.grant.id }
-    // A library that was here before and was let go, joining again: the same
-    // workspace, with the new grant.
+    // An account already in the registry with no workspace open: one whose
+    // workspace could not be opened when it joined (`#open` below threw),
+    // joining again. The same workspace, token and all, with the new grant,
+    // rather than a second entry for one account.
     const known = registry.byAccount(account)
     const entry = known
       ? registry.update(known.id, { grant, email: me.email })

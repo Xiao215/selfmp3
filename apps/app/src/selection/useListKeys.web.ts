@@ -48,6 +48,7 @@ const RETRY_FRAMES = 30
  *   list; Shift+Tab the same, backwards.
  * - **↑ ↓** on a row (any focus on it, a click's included) move to the row
  *   above or below and show the ring, since the keyboard is now moving focus.
+ *   Past the first row or the last they are the page's.
  * - **← →** move between a row's own controls: its circle, ▶, the row
  *   itself, its tags and +, its ⋯ (`controlsOf`).
  * - **Space** on a row the keyboard is on ticks it, as its circle does. The
@@ -57,6 +58,9 @@ const RETRY_FRAMES = 30
  *   pointer. A keyboard's menu key is a right-click already.
  * - **⌘A** selects every song in the list — but not from a text field, where it
  *   selects the words, nor under an open sheet, menu or dialog.
+ *
+ * None of these while a sheet, menu or dialog is open: focus is in it, and
+ * it walks its own items (`shell/layerFocus.web.ts`).
  *
  * One listener on the window, in the capture phase, so it answers before the
  * row's own button: React Native for web's buttons take Space and Enter
@@ -103,6 +107,10 @@ export function useListKeys(actions: ListKeyActions): string {
           if (latest.current.selectAll()) event.preventDefault()
           return
         }
+
+        // An open menu, sheet or dialog has the keys: a row's menu opened with
+        // ⇧F10 walks its own items, and the list under it stays where it is.
+        if (layerOpen()) return
 
         const key = event.key
         if (key === 'Tab') {
@@ -177,10 +185,14 @@ export function useListKeys(actions: ListKeyActions): string {
         }
 
         if (key !== 'ArrowDown' && key !== 'ArrowUp') return
+        const step = key === 'ArrowDown' ? 1 : -1
+        // Past either end of the list: the page's arrows go on from here
+        // (`useArrowsBetweenStops`), or the page scrolls.
+        const songId = songOf(row)
+        if (songId !== null && latest.current.endsAt(songId, step)) return
         event.preventDefault()
         event.stopPropagation()
         setTabbing(true)
-        const step = key === 'ArrowDown' ? 1 : -1
         if (moveFrom(row, step)) return
         // The row is the last one drawn — scrolled to after the list drew
         // around where it was, or at the end. Brought into view, the list

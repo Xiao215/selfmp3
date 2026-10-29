@@ -43,6 +43,8 @@ export function Select<T extends string | number>({
   label,
   testID,
   size = 'normal',
+  shown,
+  foot,
 }: {
   value: T
   options: readonly SelectOption<T>[]
@@ -51,6 +53,13 @@ export function Select<T extends string | number>({
   label: string
   testID?: string
   size?: 'normal' | 'small' | 'inline'
+  /** What the button says, when it says more than the chosen option: "Recently added · newest". */
+  shown?: string
+  /**
+   * Under the options, a control that goes with them — Library's way round
+   * for its sort. Changing it leaves the list open.
+   */
+  foot?: ReactNode
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   const [open, setOpen] = useState(false)
@@ -105,12 +114,20 @@ export function Select<T extends string | number>({
         // so that pressing it again reaches it, and what opened the list is
         // what a second press on it should close.
         onPress={() => setOpen(shown => !shown)}
+        // ↓ or ↑ opens the list too, as a combo box's do; once it is open
+        // focus is on the chosen option, and the arrows walk the options.
+        onKeyDown={event => {
+          if (open || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return
+          event.preventDefault()
+          setOpen(true)
+        }}
+        aria-haspopup="listbox"
         testID={testID}
         // This control is a combobox named by what is chosen, with the
         // current value as its content.
         accessibilityRole="combobox"
         accessibilityLabel={label}
-        accessibilityValue={{ text: current?.label ?? '' }}
+        accessibilityValue={{ text: shown ?? current?.label ?? '' }}
         accessibilityState={{ expanded: open }}
       >
         <Text
@@ -122,7 +139,7 @@ export function Select<T extends string | number>({
           ]}
           numberOfLines={1}
         >
-          {current?.label ?? label}
+          {shown ?? current?.label ?? label}
         </Text>
         <Animated.View style={chevron}>
           <ChevronDown
@@ -138,8 +155,10 @@ export function Select<T extends string | number>({
         anchorRef={anchorRef}
         title={label}
         titleTone="label"
+        role="listbox"
       >
         {options.map(item)}
+        {foot ? <View style={styles.foot}>{foot}</View> : null}
       </Popover>
     </>
   )
@@ -194,6 +213,7 @@ const styles = StyleSheet.create(theme => ({
   controlPressed: {
     backgroundColor: theme.colors.surface3,
   },
+  foot: { paddingHorizontal: space.sm, paddingTop: space.tight, paddingBottom: space.xs },
   /* Every option keeps the room, so the labels line up whether ticked or not. */
   checkSlot: { width: 14, alignItems: 'center' },
   value: {

@@ -12,8 +12,10 @@ self.mp3 has three parts, and only one of them is installed on a computer of you
   for every Google account that joins it ([features/shared-server.md](features/shared-server.md)).
 
 If somebody already runs a server and a doorman and has let you in, you need nothing from
-this guide: open the app and sign in. Your devices join that server by themselves. This guide
-is for running the server.
+this guide: open the app, sign in, and make your bucket the first time, as
+**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** shows step by step (about ten minutes, on Backblaze; the app's
+*Don't have a bucket yet?* lists the same steps). Your devices join that server by themselves.
+This guide is for running the server.
 
 | You want | Go to |
 |---|---|
@@ -51,17 +53,17 @@ The log should show `listening on http://…:4600` for each of the computer's ad
 `working for 0 libraries`. `docker compose ps` says `healthy` once the image's health check
 has had an answer from `/api/health`.
 
-The server's own page is `http://localhost:4600`, opened on the server itself: whom it works
-for, how each library's publishing is going, and **Publish now**. On a computer with no
-screen, such as a Pi, open it through SSH from your own computer:
+The owner's admin page listens on the server's own machine only (`127.0.0.1:4610`): how the
+server is used and who may sign in. Put it on your tailnet, never
+on Funnel, and tell the server the address it answers to:
 
 ```bash
-ssh -L 4600:localhost:4600 pi
+tailscale serve --bg --https=4443 http://127.0.0.1:4610
 ```
 
-then `http://localhost:4600` in your browser. The page also opens at the server's other
-addresses with a library's token, but there it only shows: the server takes signing in, a
-bucket and Publish now from its own machine alone (`apps/server/src/routes/cloud.ts`).
+with `SELFMP3_ADMIN_URL=https://<machine>.<tailnet>.ts.net:4443` in `.env`. For the People tab
+and the doorman's counts, set `SELFMP3_DOORMAN_ADMIN_TOKEN` to the doorman's `ADMIN_TOKEN`
+secret, the same value ([features/admin.md](features/admin.md)).
 
 What `docker-compose.yml` sets, and why:
 
@@ -229,8 +231,10 @@ SELFMP3_AI_BASE_URL=http://127.0.0.1:8787/v1
 
 Add `SELFMP3_AI_API_KEY` only if you gave cli-bridge an `API_KEY`. The two model tiers are
 `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART`, both `sonnet` unless you set them.
-Settings › Advanced › Model in the app shows the address and has a **Test** that checks
-both legs: the device to the server, then the server to the model.
+To check that the model answers, run an Ask from the app: a failure says in words whether the
+server could not reach the model, the key was refused or a limit was hit. With no model set
+up, the app dims **Use smart features** in Settings › Smart features and says "Your server
+has no model set up."
 
 cli-bridge runs on your own Claude subscription, and its README asks that it serve only you.
 A server that works for other people's accounts runs their Smart features on the same model.
@@ -241,10 +245,13 @@ of its own instead.
 
 ## The bucket and the doorman
 
-The library is the bucket. Setting one up, and the doorman that signs devices in to it, is
-**[SYNC.md](SYNC.md), "Setting up"**: a Backblaze B2 bucket, a Cloudflare Worker deployed
-by hand from `apps/doorman` ([apps/doorman/README.md](../apps/doorman/README.md)), and the
-key pasted once, on the first device that signs in.
+The library is the bucket. Each account makes its own on Backblaze and pastes its key once, on
+the first device that signs in: **[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** is that, step by step, for
+someone who has never seen a bucket (the words live in `packages/shared/src/bucketGuide.ts`,
+which the app's *Don't have a bucket yet?* reads too). The doorman that signs devices in to
+it is a Cloudflare Worker deployed by hand from `apps/doorman`
+([apps/doorman/README.md](../apps/doorman/README.md)); both are in **[SYNC.md](SYNC.md),
+"Setting up"**.
 
 The server is never given a bucket key by hand. When a device whose bucket names no server
 asks for one, it joins the server the app offers. The server gets a **grant** for that
@@ -256,7 +263,7 @@ account from the doorman, and works for it from then on in a workspace of its ow
 Two settings decide this, and neither of them is on the server.
 
 - **Who may sign in** is the doorman's decision. Its owners (the `OWNER_EMAILS` secret) are
-  always let in. Everyone else is on the list an owner keeps in Settings › Who can sign in,
+  always let in. Everyone else is on the list an owner keeps on the admin page's People tab,
   unless the owner turns on **Anyone with a Google account**. Taking someone off also cuts
   off the server's grant for them.
 - **Which server the app offers** is `DEFAULT_SERVER_URL` in
@@ -394,9 +401,16 @@ npm run cli -- scan --library me@example.com
 ```
 
 From another computer, give the library's token with `--token` instead, and point the command
-at the server with `--url`. Any signed-in device copies it from **Settings › Advanced ›
-Importing › Copy token**, with **Copy address** beside it for `--url`. On the server it is in
-`data/hub.json`, and the server's log prints it when it works for one library:
+at the server with `--url`. The token is kept on the server, in `data/hub.json`: each
+library's entry under `workspaces` has the account's `email` and its `token` (not the
+one inside `grant`, which is the doorman session the account gave the server). The log also
+prints it when it works for one library. On the server, this lists them:
+
+```bash
+jq -r '.workspaces[] | "\(.email) \(.token)"' data/hub.json
+```
+
+`--url` is the address your devices reach the server at:
 
 ```bash
 npm run cli -- --url https://pi.tail1a2b.ts.net --token <token> scan
@@ -511,8 +525,8 @@ under the message about self.mp3, or run this once:
 xattr -dr com.apple.quarantine "/Applications/self.mp3.app"
 ```
 
-An unsigned copy cannot replace itself with a new version. Settings › Advanced › Desktop app ›
-**Check for updates** then offers the release page instead.
+An unsigned copy cannot replace itself with a new version. The update check on Settings'
+About card then offers the release page instead.
 
 **If the keychain asks for your password after every install.** An unsigned build is signed
 ad hoc, by a hash of that exact binary, so macOS treats each build as a different app. Build
@@ -561,7 +575,7 @@ the `user:` line. Run `sudo chown -R 1000:1000 library data` in the compose fold
 "Sign in to confirm you're not a bot" on every link, the block may be on your network's
 address rather than on the request. The server's log has yt-dlp's own words.
 
-**Smart features say they are off, or the Test fails at the second leg.** Check
+**Smart features say there is no model, or Ask cannot reach it.** Check
 `SELFMP3_AI_BASE_URL` in `.env`, and that cli-bridge is running:
 `systemctl --user status cli-bridge`, then `curl -s http://127.0.0.1:8787/v1/models` on the
 server.

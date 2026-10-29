@@ -1,5 +1,5 @@
-import { youtubeVideoId } from '@selfmp3/shared'
-import { importFailure } from '@selfmp3/client'
+import { importFailure, youtubeVideoId } from '@selfmp3/shared'
+import { linkKindName, shortAddress } from '@selfmp3/client'
 import type { ImportRequestView } from '@selfmp3/replica'
 
 /**
@@ -23,6 +23,8 @@ interface PendingImport {
   readonly thumbnail: string | null
   readonly status: string
   readonly failed: boolean
+  /** Not looked up yet: its title is the kind of link it is. */
+  readonly untitled: boolean
 }
 
 /** A YouTube video's thumbnail, from its link alone; null for playlists and anything else. */
@@ -50,10 +52,15 @@ export function pendingImports(
     .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
     .map(item => ({
       uid: item.uid,
-      title: item.title ?? item.url,
+      // Before the server has looked the link up, the kind of link it is,
+      // and its address after what is happening to it (AB1).
+      title: item.title ?? linkKindName(item.url),
       thumbnail: linkThumbnail(item.url),
-      status: pendingStatus(item),
+      status: item.title
+        ? pendingStatus(item)
+        : `${pendingStatus(item)} · ${shortAddress(item.url)}`,
       failed: item.state === 'failed',
+      untitled: !item.title,
     }))
 }
 

@@ -32,6 +32,8 @@ export interface Flight {
 
 const targets = new Set<View>()
 let flights: readonly Flight[] = []
+/** Flights asked for whose ends are still being measured: on their way, as far as a count can tell. */
+let launching = 0
 let landings = 0
 let nextId = 1
 const listeners = new Set<() => void>()
@@ -48,6 +50,12 @@ export function subscribeFlights(listener: () => void): () => void {
 }
 
 export const currentFlights = (): readonly Flight[] => flights
+/**
+ * How many flights are on their way, the ones still being measured
+ * included: the songs are queued before their covers can lift, and the Up
+ * next button's count waits for them to land.
+ */
+export const flightsUnderway = (): number => flights.length + launching
 /** Counts up each time covers land, so the button can pulse once per landing. */
 export const landingCount = (): number => landings
 
@@ -76,17 +84,26 @@ export function flyToUpNext(
   upNextShown: boolean,
 ): void {
   if (upNextShown || !from || uris.length === 0) return
+  launching += 1
+  emit()
   void (async () => {
     const start = await measure(from)
-    if (!start) return
-    for (const target of targets) {
-      const end = await measure(target)
-      if (!end) continue
+    const end = start ? await firstTarget() : null
+    launching -= 1
+    if (start && end) {
       flights = [...flights, { id: nextId++, from: start, to: end, uris: uris.slice(0, 3) }]
-      emit()
-      return
     }
+    emit()
   })()
+}
+
+/** Where covers land: the first Up next button that can be measured, or none. */
+async function firstTarget(): Promise<FlightFrame | null> {
+  for (const target of targets) {
+    const end = await measure(target)
+    if (end) return end
+  }
+  return null
 }
 
 /** A flight has landed: it is taken away, and the button is told. */

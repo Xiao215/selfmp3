@@ -34,6 +34,7 @@ jest.mock('expo-router', () => ({
 jest.mock('../../shell/bottomInset', () => ({
   useFootInset: () => 0,
   useBottomInset: () => 0,
+  useFloatingChrome: () => 0,
 }))
 
 const mockClose = jest.fn()
@@ -60,6 +61,10 @@ jest.mock('./importSource', () => {
           importFind: () => Promise.resolve({ found: [] }),
           importEnqueue: (request: unknown) => mockEnqueue(request),
           importPreview: () => Promise.reject(new Error('not looked up here')),
+        },
+        // Look-ups go to the same server, given longer to answer.
+        get lookUp() {
+          return (this as { api: unknown }).api
         },
         library: { songs: [], tags: [], playlists: [] },
         createTag: () => Promise.reject(new Error('no tags here')),
@@ -131,7 +136,9 @@ beforeEach(() => {
   mockSearch
     .mockReset()
     .mockImplementation((query: string) => Promise.resolve({ items: ANSWERS[query] ?? [] }))
-  mockEnqueue.mockReset().mockResolvedValue({ jobs: [], skipped: 0, playlistId: null })
+  mockEnqueue
+    .mockReset()
+    .mockResolvedValue({ jobs: [], skipped: 0, playlistId: null, device: null, leases: [] })
 })
 
 /**
@@ -215,7 +222,10 @@ describe('Import’s search page', () => {
     expect(await screen.findByText('安達組合')).toBeTruthy()
     expect(mockSearch).toHaveBeenCalledWith('孤勇者')
     expect(screen.getByLabelText('Select 孤勇者')).toBeTruthy()
-    expect(screen.getByTestId('import-search-commit')).toBeDisabled()
+    // Tag and Import come up only once a song is picked.
+    expect(screen.queryByTestId('import-search-commit')).toBeNull()
+    await fireEvent.press(screen.getByLabelText('Select 孤勇者'))
+    expect(screen.getByTestId('import-search-commit')).toBeEnabled()
   })
 
   it('imports the songs ticked over two searches, then goes back to Import afresh', async () => {

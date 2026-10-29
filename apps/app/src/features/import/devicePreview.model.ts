@@ -153,6 +153,8 @@ export async function previewOnDevice(
       },
     ],
     from: 'youtube',
+    // One link, and it was read: nothing left over.
+    unread: [],
   }
 }
 

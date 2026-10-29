@@ -16,7 +16,14 @@
  * `done` is told whether the exit landed. A stopped exit must not navigate —
  * the page is still there — and it must not leave the door shut either, so the
  * next close can start a new one.
+ *
+ * From the moment its exit starts the page takes no touches (`useStageLeaving`):
+ * a tap a moment after the chevron landed on the leaving page's Pause, which
+ * sat where the tab bar comes back, and paused the song (R2-m16).
  */
+
+import { createValueStore } from '../state/valueStore.model'
+import { useValueStore } from '../state/useValueStore'
 
 type Leave = (done: (finished: boolean) => void) => void
 
@@ -27,13 +34,31 @@ let leave: Leave | null = null
  * that would start two exits and call `router.back()` twice — one press too
  * far back through the history.
  */
-let leaving = false
+const leaving = createValueStore(false)
 
-/** Called by the page on mount with its exit, and with null on unmount. */
-export function setStageExit(next: Leave | null): void {
+/** Whether the page showing is on its way out, and so takes no touches. */
+export function useStageLeaving(): boolean {
+  return useValueStore(leaving)
+}
+
+/** Whether the page showing covers the whole app: the phone's, a native modal. */
+let covering = false
+
+/**
+ * Called by the page on mount with its exit, and with null on unmount.
+ * `covers` is the phone's page, presented as a modal over everything the
+ * shell draws, the overlay host for dialogs included (`stageCovers`).
+ */
+export function setStageExit(next: Leave | null, covers = false): void {
   leave = next
+  covering = next !== null && covers
   // A page arriving, or going, is not a page part-way out of the door.
-  leaving = false
+  leaving.set(false)
+}
+
+/** Whether a page is up that covers the whole app, and must go before another is opened. */
+export function stageCovers(): boolean {
+  return covering
 }
 
 export function leaveStage(navigate: () => void): void {
@@ -41,10 +66,10 @@ export function leaveStage(navigate: () => void): void {
     navigate()
     return
   }
-  if (leaving) return
-  leaving = true
+  if (leaving.get()) return
+  leaving.set(true)
   leave(finished => {
-    leaving = false
+    leaving.set(false)
     if (finished) navigate()
   })
 }

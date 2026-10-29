@@ -72,6 +72,13 @@ class_name = "SharedPlaylist"
 name = "SHARES"
 class_name = "ShareLink"
 
+# What the doorman counts for its owner's admin page (src/tally.ts): reads and
+# sign-ins a day at a time, totals only. One Durable Object for the whole
+# doorman.
+[[durable_objects.bindings]]
+name = "TALLY"
+class_name = "Tally"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Changes"]
@@ -88,11 +95,18 @@ new_sqlite_classes = ["SharedPlaylist"]
 tag = "v4"
 new_sqlite_classes = ["ShareLink"]
 
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["Tally"]
+
 # Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
 #   SEAL_KEY              `openssl rand -base64 32`; every key the doorman uses comes from it
 #   OWNER_EMAILS          your Google address (comma-separated for more): always let in, and the
-#                         only ones who may change who else is, in self.mp3's Settings
+#                         only ones who may change who else is
+#   ADMIN_TOKEN           `openssl rand -hex 32`, the same value as SELFMP3_DOORMAN_ADMIN_TOKEN in
+#                         your server's .env: the key its admin page changes the list and reads
+#                         the counts with (docs/features/admin.md)
 
 # `npx wrangler dev --env dev`, on your own computer only: never deployed. The
 # web app's local addresses may call it, and DEV lets it use a bucket on this
@@ -124,3 +138,7 @@ class_name = "SharedPlaylist"
 [[env.dev.durable_objects.bindings]]
 name = "SHARES"
 class_name = "ShareLink"
+
+[[env.dev.durable_objects.bindings]]
+name = "TALLY"
+class_name = "Tally"

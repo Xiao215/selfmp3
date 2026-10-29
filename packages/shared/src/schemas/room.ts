@@ -99,11 +99,8 @@ export const RoomMemberSchema = z.object({
   kind: RoomMemberKindSchema,
   /** Which of the room's eight face colours is theirs. */
   colour: z.number().int().min(0).max(7),
-  /**
-   * Their face's picture; null for a guest, or anyone without one. A room
-   * kept from before faces had pictures has none.
-   */
-  picture: MemberPictureSchema.nullable().default(null),
+  /** Their face's picture; null for a guest, or anyone without one. */
+  picture: MemberPictureSchema.nullable(),
   joinedAt: z.number().int().nonnegative(),
   /** Has a socket open right now. */
   online: z.boolean(),
@@ -155,9 +152,9 @@ export const RoomEntrySchema = z.object({
    */
   owner: RoomIdSchema.nullable(),
   /** Whose song it is when they are not in the room: a shared playlist's (`/from-shared`). */
-  from: RoomMemberNameSchema.nullable().default(null),
+  from: RoomMemberNameSchema.nullable(),
   /** That owner's face's picture, when they have one. */
-  fromPicture: MemberPictureSchema.nullable().default(null),
+  fromPicture: MemberPictureSchema.nullable(),
   addedAt: z.number().int().nonnegative(),
   /**
    * Where the host moved it to in the list, counted from the top of what is
@@ -339,7 +336,7 @@ export const ROOM_MAX_VECTORS = 2000
 export const ROOM_VECTORS_AT_ONCE = 300
 
 /** The parts of a song the doorman lends. */
-export const RoomFilePartSchema = z.enum(['audio', 'cover', 'lyrics', 'romanized'])
+export const RoomFilePartSchema = z.enum(['audio', 'cover', 'lyrics'])
 export type RoomFilePart = z.infer<typeof RoomFilePartSchema>
 
 export const RoomClientMessageSchema = z.object({ type: z.literal('ping'), id: z.number().int() })

@@ -13,7 +13,7 @@ import {
 /**
  * A playlist that fills from tags: saving one, editing it, and stopping.
  *
- * The one thing here that could lose somebody's music is **Stop filling**.
+ * The one thing here that could lose somebody's music is **Stop adding**.
  * A following playlist's songs are the answer to its tags and are stored
  * nowhere, so switching it off has to write them down first — and this is the
  * flow that proves it did, through the real server rather than against a
@@ -43,13 +43,12 @@ async function songIdsOf(request: APIRequestContext, id: number): Promise<number
 /** A tag with songs, and a second one that would add more. */
 async function twoTags(page: Page): Promise<readonly [LibraryTag, LibraryTag] | null> {
   const { songs, tags } = await libraryData(page)
-  const present = songs.filter(song => !song.missing)
-  const has = (id: number) => present.filter(song => song.tagIds.includes(id)).length
+  const has = (id: number) => songs.filter(song => song.tagIds.includes(id)).length
   const first = tags.find(tag => has(tag.id) > 0)
   const second = tags.find(
     tag =>
       tag.id !== first?.id &&
-      present.some(song => song.tagIds.includes(tag.id) && !song.tagIds.includes(first?.id ?? -1)),
+      songs.some(song => song.tagIds.includes(tag.id) && !song.tagIds.includes(first?.id ?? -1)),
   )
   return first && second ? [first, second] : null
 }
@@ -92,7 +91,7 @@ test.describe('a playlist that fills from tags', () => {
     await page.locator('[data-testid="up-next-save"]:visible').click()
 
     // The message says what happened, and the button says it is done.
-    await expect(page.getByText(/^Saved “/)).toBeVisible()
+    await expect(page.getByText('Saved as a playlist')).toBeVisible()
     await expect(page.locator('[data-testid="up-next-saved"]:visible')).toBeVisible()
 
     const made = await page.request.get(`${appApi}/api/playlists`)
@@ -109,7 +108,7 @@ test.describe('a playlist that fills from tags', () => {
     }
   })
 
-  test('the Fills from row adds a tag, and Stop filling keeps every song', async ({ page }) => {
+  test('the live row adds a tag, and Stop adding keeps every song', async ({ page }) => {
     await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)

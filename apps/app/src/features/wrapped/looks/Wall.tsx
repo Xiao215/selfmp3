@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
-import { StyleSheet as NativeStyleSheet, Text, View } from 'react-native'
+import { StyleSheet as NativeStyleSheet, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { fonts, withAlpha } from '@selfmp3/client'
+import { withAlpha } from '@selfmp3/client'
+import { fonts } from '../../../ports/fonts'
 import { Cover } from '../../../ui/components/Cover'
 import { lookInk, wallLook } from '../looks.model'
-import type { LookProps } from './parts'
 import { useSvgId } from '../../../ui/useSvgId'
+import { LookText, type LookProps } from './parts'
 
 /** `P35`'s poster: three covers across, four down. */
 export const WALL_SIZE = { width: 480, height: 720 } as const
@@ -52,23 +53,24 @@ export function WallLook({ input, hue, art }: LookProps): ReactNode {
       </Svg>
 
       <View style={styles.words}>
-        <Text style={[styles.title, { color: ink.ink }]}>{look.title}</Text>
-        <Text style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
+        <LookText style={[styles.title, { color: ink.ink }]}>{look.title}</LookText>
+        <LookText style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
           {look.figure}
-        </Text>
-        <Text style={[styles.line, { color: withAlpha(ink.ink, 0.85) }]}>{look.line}</Text>
+        </LookText>
+        <LookText style={[styles.line, { color: withAlpha(ink.ink, 0.85) }]}>{look.line}</LookText>
         <View style={styles.figures}>
           {look.figures.map(item => (
-            <Text
+            <LookText
               key={item.label}
               style={[styles.fact, { color: withAlpha(ink.ink, 0.85) }]}
               numberOfLines={1}
             >
-              <Text style={[styles.factValue, { color: ink.ink }]}>{item.value}</Text> {item.label}
-            </Text>
+              <LookText style={[styles.factValue, { color: ink.ink }]}>{item.value}</LookText>{' '}
+              {item.label}
+            </LookText>
           ))}
         </View>
-        <Text style={[styles.foot, { color: ink.second }]}>{look.foot}</Text>
+        <LookText style={[styles.foot, { color: ink.second }]}>{look.foot}</LookText>
       </View>
     </View>
   )

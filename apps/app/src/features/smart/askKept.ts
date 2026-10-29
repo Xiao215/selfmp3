@@ -1,12 +1,13 @@
 import { ApiError, type Api } from '@selfmp3/client'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskContext, AskReply, AskTurnInput } from '@selfmp3/shared'
+import { countUse } from '../usage/usage'
 
 /** One Ask, as `askKept` sends it. */
 export interface AskSent {
   readonly text: string
-  readonly playing: number | null
+  readonly context: AskContext
   readonly ticket: string
-  readonly before: readonly string[]
+  readonly before: readonly AskTurnInput[]
 }
 
 /** How often the server is asked whether the answer is done, while its response is on the way. */
@@ -35,7 +36,7 @@ export async function askKept(
   sent: AskSent,
   signal: AbortSignal,
   wait: (ms: number) => Promise<void> = pause,
-): Promise<AskAnswer> {
+): Promise<AskReply> {
   const { ticket } = sent
   const posting = new AbortController()
   const drop = (): void => {
@@ -44,7 +45,7 @@ export async function askKept(
   }
   signal.addEventListener('abort', drop, { once: true })
   try {
-    return await new Promise<AskAnswer>((resolve, reject) => {
+    return await new Promise<AskReply>((resolve, reject) => {
       let settled = false
       const settle = (finish: () => void): void => {
         if (settled) return
@@ -54,7 +55,8 @@ export async function askKept(
       /** What the response failed with when its connection went, not the server's work. */
       let lost: ApiError | null = null
 
-      api.ask(sent.text, sent.playing, ticket, sent.before, posting.signal).then(
+      countUse('ask')
+      api.ask(sent.text, sent.context, ticket, sent.before, posting.signal).then(
         answer => settle(() => resolve(answer)),
         (caught: unknown) => {
           if (!signal.aborted && caught instanceof ApiError && caught.isOffline) lost = caught

@@ -3,9 +3,8 @@ import type { ReactNode, RefObject } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
-import { plural, type Song } from '@selfmp3/shared'
+import { isResting, plural, restUntilFrom, type Song } from '@selfmp3/shared'
 import {
-  failureText,
   isDownloaded,
   isRoomTrackId,
   space,
@@ -14,13 +13,13 @@ import {
   useBulkLoved,
   useCreatePlaylist,
   useLibrary,
+  useRestSongs,
   iconSize,
 } from '@selfmp3/client'
-import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { addedToPlaylist, playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { askForGuide } from '../../features/guide/guideMemory'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
-import { devicePlace } from '../../features/settings/settings.model'
 import { playSimilar } from '../../features/song/playSimilar'
 import { openShareSheet } from '../../features/share/shareSheet.store'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -28,25 +27,27 @@ import { songLink } from '../../features/song/song.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { deviceKind } from '../../ports/device'
 import type { PopoverAnchor } from '../rightClick'
-import { songActions, type SongAction, type SongActionId } from '../songActions.model'
-import { showToast } from '../toast'
+import { restingUntil, songActions, type SongAction, type SongActionId } from '../songActions.model'
+import { showFailure, showToast, showUndoToast } from '../toast'
 import {
   CloudDownload,
   CloudRemove,
   Heart,
   Info,
   ListMusic,
+  Moon,
   Plus,
   QueueAdd,
   ShareOut,
+  SoundMap,
   Sparkles,
   Tag as TagIcon,
   Trash,
   X,
 } from './Icons'
 import { SheetItem } from './Sheet'
+import { thisPlace } from '../../ports/place'
 
 /** Each action's mark, beside its name. */
 const ICON: Record<SongActionId, ReactNode> = {
@@ -56,9 +57,12 @@ const ICON: Record<SongActionId, ReactNode> = {
   addToPlaylist: <ListMusic size={iconSize.item} tone="textSecondary" />,
   addToUpNext: <QueueAdd size={iconSize.item} tone="textSecondary" />,
   playSimilar: <Sparkles size={iconSize.item} tone="textSecondary" />,
+  showOnMap: <SoundMap size={iconSize.item} tone="textSecondary" />,
   share: <ShareOut size={iconSize.item} tone="textSecondary" />,
   download: <CloudDownload size={iconSize.item} tone="textSecondary" />,
   removeDownload: <CloudRemove size={iconSize.item} tone="textSecondary" />,
+  rest: <Moon size={iconSize.item} tone="textSecondary" />,
+  wake: <Moon size={iconSize.item} tone="textSecondary" />,
   details: <Info size={iconSize.item} tone="textSecondary" />,
   removeFromPlaylist: <X size={iconSize.item} tone="textSecondary" />,
   delete: <Trash size={iconSize.item} tone="danger" />,
@@ -79,6 +83,7 @@ export function SongActionItems({
   songs,
   playlist,
   nowPlaying = false,
+  detailsInMenu = false,
   leave = [],
   flyFrom,
   onClose,
@@ -94,6 +99,8 @@ export function SongActionItems({
   playlist?: { readonly id: number; readonly name: string }
   /** Opened on Now Playing (`songActions`). */
   nowPlaying?: boolean
+  /** Now Playing with no door of its own to the song's page (`songActions`). */
+  detailsInMenu?: boolean
   /** What the surface already offers itself: the selection bar's own buttons. */
   leave?: readonly SongActionId[]
   /** Where Up next's covers fly from: the ⋯ that opened the menu. */
@@ -113,6 +120,7 @@ export function SongActionItems({
   const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const bulkLoved = useBulkLoved()
+  const rest = useRestSongs()
   const addToPlaylist = useAddToPlaylist()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const removeFromPlaylist = usePlaylistRemoval()
@@ -124,21 +132,23 @@ export function SongActionItems({
   const ids = songs.map(song => song.id)
   const held = songs.filter(song => isDownloaded(downloads.index, song.id))
   const loved = songs.filter(song => song.loved).length
+  const resting = songs.filter(song => isResting(song)).map(song => song.id)
   const count = songs.length
   const actions = songActions({
     count,
     loved,
     held: held.length,
+    resting: resting.length,
     installed,
     roomSong: songs.some(song => isRoomTrackId(song.id)),
     inPlaylist: playlist !== undefined,
     nowPlaying,
-    place: devicePlace(deviceKind()),
+    detailsInMenu,
+    place: thisPlace(),
     shareable: fromCloud && !needsStorage,
   }).filter(action => !leave.includes(action.id))
   // The one played last first; not the playlist this is, and never a live one.
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
-  const these = count === 1 ? `“${songs[0]?.title ?? ''}”` : plural(count, 'song', 'songs')
 
   /**
    * Said once the server has taken the edit, not as it is sent: a failure is
@@ -163,7 +173,7 @@ export function SongActionItems({
       onNewPlaylist?.()
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id), rename: '1' } })
     } catch (caught) {
-      showToast(failureText('Couldn’t make the playlist', caught), 'error')
+      showFailure('Couldn’t make the playlist', caught)
     }
   }
 
@@ -187,6 +197,11 @@ export function SongActionItems({
     playSimilar: () => {
       if (songs[0]) playSimilar(player, songs[0])
     },
+    showOnMap: () => {
+      const href: Href = { pathname: '/sound-map', params: { song: String(ids[0] ?? 0) } }
+      if (onOpen) onOpen(href)
+      else router.navigate(href)
+    },
     share: () =>
       openShareSheet({
         songIds: ids,
@@ -200,6 +215,22 @@ export function SongActionItems({
     // mobile data or a large total is asked about first.
     download: () => requestDownload(ids),
     removeDownload: () => removeDownloads(held.map(song => song.id)),
+    // The awake ones rest; the Undo wakes just them.
+    rest: () => {
+      const awake = ids.filter(id => !resting.includes(id))
+      const until = restUntilFrom()
+      rest.mutate({ songIds: awake, until })
+      const first = songs.find(song => song.id === awake[0])
+      showUndoToast(
+        {
+          over: restingUntil(until),
+          say: awake.length === 1 && first ? first.title : plural(awake.length, 'song', 'songs'),
+        },
+        () => rest.mutateAsync({ songIds: awake, until: null }),
+        { songs: songs.filter(song => awake.includes(song.id)) },
+      )
+    },
+    wake: () => rest.mutate({ songIds: resting, until: null }),
     details: () => {
       const href = songLink(ids[0] ?? 0)
       if (onOpen) onOpen(href)
@@ -249,9 +280,16 @@ export function SongActionItems({
               key={list.id}
               label={list.name}
               onPress={() => {
+                // Counting only the songs that were not in it already.
                 addToPlaylist.mutate(
                   { playlistId: list.id, songIds: ids },
-                  saidOnSuccess(`Added ${these} to ${list.name}`),
+                  {
+                    onSuccess: after =>
+                      showToast(
+                        addedToPlaylist(list.name, count, list.songCount, after.songCount),
+                        'good',
+                      ),
+                  },
                 )
                 // A computer can drop songs on the sidebar's playlists instead,
                 // which this is the moment to show (`sidebar-drop`).

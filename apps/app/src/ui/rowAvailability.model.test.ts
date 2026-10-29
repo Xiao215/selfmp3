@@ -6,19 +6,21 @@ const phone = { installed: true, streamBlocked: false, libraryUnreachable: false
 const browser = { installed: false, streamBlocked: false, libraryUnreachable: false }
 
 describe('whether a row can play here', () => {
-  it('marks a song an installed app does not keep, and nothing in a browser', () => {
-    expect(rowAvailability(false, phone)).toEqual({
-      downloaded: false,
-      notDownloadedMark: true,
-      unavailable: false,
-    })
-    expect(rowAvailability(true, phone).notDownloadedMark).toBe(false)
-    expect(rowAvailability(false, browser).notDownloadedMark).toBe(false)
+  it('marks only a song that is kept here', () => {
+    expect(rowAvailability(true, phone)).toEqual({ downloaded: true, unavailable: false })
+    expect(rowAvailability(false, phone)).toEqual({ downloaded: false, unavailable: false })
+    expect(rowAvailability(false, browser)).toEqual({ downloaded: false, unavailable: false })
   })
 
   it('fades a song that is not here when the bucket cannot be read', () => {
     expect(rowAvailability(false, { ...phone, streamBlocked: true }).unavailable).toBe(true)
     expect(rowAvailability(true, { ...phone, streamBlocked: true }).unavailable).toBe(false)
+  })
+
+  it('does not fade a song a browser kept for having played it', () => {
+    const capped = { ...browser, streamBlocked: true }
+    expect(rowAvailability(false, capped).unavailable).toBe(true)
+    expect(rowAvailability(false, capped, true)).toEqual({ downloaded: false, unavailable: false })
   })
 
   // Up next knew only the bucket's side: a phone whose server was away faded

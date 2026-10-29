@@ -26,11 +26,32 @@ export const ShareIdSchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a share lin
 /** What a link carries besides its id. */
 export const ShareKeySchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a share link')
 
-/** The most songs one link holds. */
-export const SHARE_MAX_SONGS = 100
+/** The most asks one link keeps (the oldest go first), and names of people who opened it. */
+export const SHARE_MAX_ASKS = 20
+export const SHARE_MAX_OPENED = 50
 
 /** The name of what was shared: a song's title, or the tag's or playlist's. */
 export const ShareNameSchema = z.string().trim().min(1).max(300)
+
+/** The most lines one link remembers being shared from (the oldest go first). */
+export const SHARE_MAX_LINES = 20
+
+/**
+ * A line of a song's words that it was shared from ("Share from here"): where
+ * it starts, in whole seconds, which is the `t` its address carries
+ * (`?t=0:42`); the line; and its romaji or pinyin when its sender had that on.
+ * The friend's page starts the song there and shows the line large, and a
+ * chat's card names it, with no read of the words.
+ */
+/** The latest a start can be: a day into a song is past the end of any. */
+export const SHARE_START_MOST = 24 * 60 * 60
+
+export const ShareLineSchema = z.object({
+  at: z.number().int().nonnegative().max(SHARE_START_MOST),
+  text: z.string().trim().min(1).max(500),
+  reading: z.string().trim().min(1).max(500).nullable(),
+})
+export type ShareLine = z.infer<typeof ShareLineSchema>
 
 /** A link's song: `gone` once its file is no longer in the sender's bucket. */
 export const ShareEntrySchema = z.object({
@@ -68,10 +89,10 @@ export type ShareAskEntry = z.infer<typeof ShareAskSchema>
 export const ShareDocSchema = z.object({
   id: ShareIdSchema,
   name: ShareNameSchema,
-  /** One song, or a tag or playlist as it was. */
+  /** One song, or a tag or playlist as it was: every song of it, however many. */
   kind: z.enum(['song', 'list']),
   from: ShareFaceSchema,
-  entries: z.array(ShareEntrySchema).min(1).max(SHARE_MAX_SONGS),
+  entries: z.array(ShareEntrySchema).min(1),
   createdAt: z.number().int().nonnegative(),
   /** When it was shared, or shared again: its month counts from here. */
   startedAt: z.number().int().nonnegative(),
@@ -83,11 +104,13 @@ export const ShareDocSchema = z.object({
     .nullable(),
   plays: z.number().int().nonnegative(),
   /** The names of the signed-in people who opened it, first opening first. */
-  opened: z.array(RoomMemberNameSchema).max(50),
+  opened: z.array(RoomMemberNameSchema).max(SHARE_MAX_OPENED),
   /** How many times it was opened by someone not signed in. */
   guests: z.number().int().nonnegative(),
   /** Asks to hear it again, since it was last shared. */
-  asks: z.array(ShareAskSchema).max(20),
+  asks: z.array(ShareAskSchema).max(SHARE_MAX_ASKS),
+  /** The lines it was shared from, one per start: a song shared from two lines is one link. */
+  lines: z.array(ShareLineSchema).max(SHARE_MAX_LINES),
 })
 export type ShareDoc = z.infer<typeof ShareDocSchema>
 
@@ -106,6 +129,8 @@ export const ShareLinkSchema = z.object({
   kind: z.enum(['song', 'list']),
   from: ShareFaceSchema,
   entries: z.array(ShareEntrySchema),
+  /** The lines it was shared from; an address's `t` names one. */
+  lines: z.array(ShareLineSchema),
   createdAt: z.number().int().nonnegative(),
   /** When it ends, as things stand: a play moves it on, up to the month. */
   endsAt: z.number().int().nonnegative(),
@@ -126,10 +151,15 @@ export const ShareLinkSchema = z.object({
 export type ShareLink = z.infer<typeof ShareLinkSchema>
 
 /** A link in a list of yours: the songs left out, the first cover's entry kept for its tile. */
-export const ShareSummarySchema = ShareLinkSchema.omit({ entries: true }).extend({
+export const ShareSummarySchema = ShareLinkSchema.omit({ entries: true, lines: true }).extend({
   songs: z.number().int().nonnegative(),
   /** The entry whose cover the tile shows; null when none of them has one. */
   cover: RoomIdSchema.nullable(),
+  /**
+   * That entry's song: a device that has its own copy draws its own copy's
+   * cover, which needs no read of the sender's bucket. Null with `cover`.
+   */
+  coverSong: RoomSongSchema.nullable(),
 })
 export type ShareSummary = z.infer<typeof ShareSummarySchema>
 
@@ -140,7 +170,9 @@ export const ShareCreateSchema = z.object({
   kind: z.enum(['song', 'list']),
   /** Your name, as whoever opens it sees it. */
   you: RoomMemberNameSchema,
-  songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
+  songs: z.array(RoomSongSchema).min(1),
+  /** Shared from a line of the song's words: the same link, remembering the line. */
+  line: ShareLineSchema.optional(),
 })
 export type ShareCreate = z.infer<typeof ShareCreateSchema>
 

@@ -8,20 +8,31 @@ import {
   ShareAskBodySchema,
   ShareCreateSchema,
   ShareIdSchema,
+  ShareLinkSchema,
   ShareSummarySchema,
+  shareSongKey,
   SHARE_KEPT_MS,
   SHARE_LIMIT_MS,
+  type RoomSong,
   type ShareCreate,
   type ShareSummary,
 } from '@selfmp3/shared'
-import { z } from 'zod'
-import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
+import {
+  BucketFileSchema,
+  idIndex,
+  lentAnswer,
+  optionalSession,
+  post,
+  readLent,
+  relayed,
+  summariesOf,
+  type IdIndex,
+} from './doRelay.js'
 import { secureHex, sha256Hex } from './encoding.js'
-import { relayRead } from './files.js'
 import { json, methodNotAllowed, notFound, readJson } from './http.js'
-import { ShareFileSchema } from './share.js'
-import { bearerToken, facePicture, type Session } from './sessions.js'
+import { facePicture, type Session } from './sessions.js'
+import { YOURS_HEADER } from './share.js'
 
 /**
  * Share links (docs/features/share-links.md; the contract is
@@ -30,56 +41,42 @@ import { bearerToken, facePicture, type Session } from './sessions.js'
  * each account's two lists — the links it sent and the ones it opened — and
  * lend songs' files.
  *
- * Each list is a KV value per account, written only when a link is made, is
- * first opened by that account, or is taken off it: a few times a day at most.
+ * Each list is a KV value per account (doRelay.ts's `idIndex`), written only
+ * when a link is made, is first opened by that account, or is taken off it.
  * Every entry is checked with the link itself before it is shown, and one the
  * link no longer knows is dropped.
  *
  * Sharing the same songs again under the same name gives back the same link
  * (`share-same:<sub>:<sha256>`), shared again if it ran out. One its sender
  * ended, or whose songs left the bucket, is not brought back: a new link is
- * made instead.
+ * made instead. The way back to a link lasts as long as the link can, so it
+ * is put again whenever the link is shared again, from either way in. Shared
+ * from a line of its song, it is still the same link: it remembers the line,
+ * and the address says where to start (`?t=0:42`).
  */
 
 const SHARE = DOORMAN_PATHS.share
 
-const IndexSchema = z.array(ShareIdSchema)
-
-/** Whether the link opened was the opener's own, which is no friend's link to remember. */
-const YoursSchema = z.object({ yours: z.boolean() })
-
 type Side = 'out' | 'in'
 
-/** The most links one list keeps. */
-const INDEX_MAX = 200
-
-function indexKey(side: Side, sub: string): string {
-  return `share-${side}:${sub}`
-}
-
-async function linkIds(ctx: Context, side: Side, sub: string): Promise<string[]> {
-  const stored = await ctx.env.KV.get(indexKey(side, sub))
-  if (!stored) return []
-  try {
-    const parsed = IndexSchema.safeParse(JSON.parse(stored))
-    return parsed.success ? parsed.data : []
-  } catch {
-    return []
-  }
-}
-
-async function remember(ctx: Context, side: Side, sub: string, id: string): Promise<void> {
-  const ids = await linkIds(ctx, side, sub)
-  if (ids.includes(id)) return
-  await ctx.env.KV.put(indexKey(side, sub), JSON.stringify([id, ...ids].slice(0, INDEX_MAX)))
+/** The links an account sent (`out`), or opened (`in`). */
+function linkIndex(ctx: Context, side: Side, sub: string): IdIndex {
+  return idIndex(ctx, `share-${side}:${sub}`, ShareIdSchema)
 }
 
 /** A link lives at most a month from when it was last shared, and its card ninety days more. */
 const SAME_TTL_SECONDS = Math.ceil((SHARE_LIMIT_MS + SHARE_KEPT_MS) / 1000)
 
-/** What makes two shares the same: who, what it is called, and which songs, in any order. */
-async function sameKey(sub: string, body: ShareCreate): Promise<string> {
-  const songs = body.songs.map(song => song.audio?.key ?? song.uid ?? song.link ?? song.title)
+/**
+ * What makes two shares the same: who, what it is called, and which songs, in
+ * any order. A link's own entries give the same key as the songs it was made
+ * from: sharing again swaps a song only for one with the same `shareSongKey`.
+ */
+async function sameKey(
+  sub: string,
+  body: Pick<ShareCreate, 'kind' | 'name'> & { songs: readonly RoomSong[] },
+): Promise<string> {
+  const songs = body.songs.map(shareSongKey)
   const hash = await sha256Hex(JSON.stringify([body.kind, body.name, songs.sort()]))
   return `share-same:${sub}:${hash}`
 }
@@ -89,7 +86,12 @@ async function sameKey(sub: string, body: ShareCreate): Promise<string> {
  * is while it plays, shared again once it ran out. Null when there is none,
  * or it was ended by its sender or by its songs leaving the bucket.
  */
-async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Response | null> {
+async function sharedBefore(
+  ctx: Context,
+  sub: string,
+  same: string,
+  body: Pick<ShareCreate, 'songs' | 'line'>,
+): Promise<Response | null> {
   const id = ShareIdSchema.safeParse(await ctx.env.KV.get(same))
   if (!id.success) return null
   const object = shareObject(ctx, id.data)
@@ -100,7 +102,16 @@ async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Re
   }
   const before = ShareSummarySchema.parse(await answer.json())
   if (!before.yours) return null
-  await remember(ctx, 'out', sub, before.id)
+  await linkIndex(ctx, 'out', sub).remember(before.id)
+  if (before.ended && before.ended.why !== 'idle' && before.ended.why !== 'limit') return null
+  // Its songs as the library has them now: a file renamed since is lent by
+  // its new name. And the line it is shared from this time, if one.
+  const latest = await object.fetch(
+    'https://share/songs',
+    post({ sub, songs: body.songs, line: body.line }),
+  )
+  await latest.body?.cancel()
+  if (!latest.ok) return null
   if (!before.ended) {
     // Its sender opening it: the link as it is, nothing counted.
     return object.fetch(
@@ -108,7 +119,6 @@ async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Re
       post({ key: before.key, sub, name: null, visitor: null }),
     )
   }
-  if (before.ended.why !== 'idle' && before.ended.why !== 'limit') return null
   const renewed = await object.fetch('https://share/act', post({ sub, action: { type: 'renew' } }))
   if (!renewed.ok) {
     await renewed.body?.cancel()
@@ -119,36 +129,10 @@ async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Re
   return renewed
 }
 
-async function forget(ctx: Context, side: Side, sub: string, id: string): Promise<void> {
-  const ids = await linkIds(ctx, side, sub)
-  if (!ids.includes(id)) return
-  await ctx.env.KV.put(indexKey(side, sub), JSON.stringify(ids.filter(other => other !== id)))
-}
-
 export function shareObject(ctx: Context, id: string): DurableObjectStub {
   const namespace = ctx.env.SHARES
   if (!namespace) throw notFound('this doorman keeps no share links')
   return namespace.get(namespace.idFromName(id))
-}
-
-function post(body: unknown): RequestInit {
-  return {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  }
-}
-
-/** The object's answer, the doorman's way: JSON, never cached, its headers changeable. */
-async function relayed(response: Response): Promise<Response> {
-  if (response.status === 204) return new Response(null, { status: 204 })
-  return json(await response.json(), response.status)
-}
-
-/** The session the request brings, when it brings one. A token that is no good is said so. */
-async function optionalSession(ctx: Context): Promise<Session | null> {
-  if (!bearerToken(ctx.request)) return null
-  return requireSession(ctx)
 }
 
 /** What a signed-in person is called on a link's page: the first of their account's name. */
@@ -177,7 +161,7 @@ export async function share(ctx: Context): Promise<Response> {
       throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your bucket first')
     }
     const same = await sameKey(session.sub, body)
-    const before = await sharedBefore(ctx, session.sub, same)
+    const before = await sharedBefore(ctx, session.sub, same, body)
     if (before) return relayed(before)
     const id = secureHex(8)
     const made = await shareObject(ctx, id).fetch(
@@ -185,7 +169,7 @@ export async function share(ctx: Context): Promise<Response> {
       post({ ...body, id, sub: session.sub, picture: facePicture(session) }),
     )
     if (made.ok) {
-      await remember(ctx, 'out', session.sub, id)
+      await linkIndex(ctx, 'out', session.sub).remember(id)
       await ctx.env.KV.put(same, id, { expirationTtl: SAME_TTL_SECONDS })
     }
     return relayed(made)
@@ -214,9 +198,8 @@ export async function share(ctx: Context): Promise<Response> {
         visitor: ctx.url.searchParams.get('v'),
       }),
     )
-    if (opened.ok && session) {
-      const body = YoursSchema.safeParse(await opened.clone().json())
-      if (body.success && !body.data.yours) await remember(ctx, 'in', session.sub, id.data)
+    if (opened.ok && session && opened.headers.get(YOURS_HEADER) === 'no') {
+      await linkIndex(ctx, 'in', session.sub).remember(id.data)
     }
     return relayed(opened)
   }
@@ -229,12 +212,10 @@ export async function share(ctx: Context): Promise<Response> {
     const query = new URLSearchParams({ k: key, entry, part })
     const lent = await object.fetch(`https://share/file?${query.toString()}`)
     if (!lent.ok) return relayed(lent)
-    const file = ShareFileSchema.parse(await lent.json())
-    const target = await ctx.accounts.bucket(file.sub)
-    if (!target) throw notFound('whoever sent it has no bucket connected any more')
+    const file = BucketFileSchema.parse(await lent.json())
     let response: Response
     try {
-      response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+      response = await readLent(ctx, file, method, 'whoever sent it')
     } catch (error) {
       // The song left its sender's library: the link says so from now on.
       if (part === 'audio' && error instanceof DoormanError && error.status === 404) {
@@ -245,14 +226,16 @@ export async function share(ctx: Context): Promise<Response> {
       throw error
     }
     if (part === 'audio' && method === 'GET' && response.ok) {
+      // Written down after the answer, as a read is counted (tally.ts): the
+      // song starts playing without waiting on the link's own storage.
       const range = ctx.request.headers.get('range')
-      await object
-        .fetch('https://share/played', post({ entry, fromStart: fromStart(range) }))
-        .then(answer => answer.body?.cancel())
+      ctx.waitUntil(
+        object
+          .fetch('https://share/played', post({ entry, fromStart: fromStart(range) }))
+          .then(answer => answer.body?.cancel()),
+      )
     }
-    // As a room's files are (rooms.ts): the web app's audio element asks with credentials.
-    response.headers.set('access-control-allow-credentials', 'true')
-    return response
+    return lentAnswer(response)
   }
 
   if (action === 'ask' && entry === undefined) {
@@ -272,8 +255,22 @@ export async function share(ctx: Context): Promise<Response> {
     const body = await readJson(ctx.request, ShareActionSchema)
     const done = await object.fetch('https://share/act', post({ sub: session.sub, action: body }))
     if (body.type === 'forget' && done.ok) {
-      await forget(ctx, 'out', session.sub, id.data)
-      await forget(ctx, 'in', session.sub, id.data)
+      await linkIndex(ctx, 'out', session.sub).forget(id.data)
+      await linkIndex(ctx, 'in', session.sub).forget(id.data)
+    }
+    if (body.type === 'renew' && done.ok) {
+      // Its new month starts now: the way back to it lasts as long as the link can.
+      const renewed = ShareLinkSchema.parse(await done.clone().json())
+      const same = await sameKey(session.sub, {
+        kind: renewed.kind,
+        name: renewed.name,
+        songs: renewed.entries.map(each => each.song),
+      })
+      const other = ShareIdSchema.safeParse(await ctx.env.KV.get(same))
+      if (other.success && other.data !== renewed.id) {
+        await forgetIfUnused(ctx, session.sub, other.data)
+      }
+      await ctx.env.KV.put(same, renewed.id, { expirationTtl: SAME_TTL_SECONDS })
     }
     return relayed(done)
   }
@@ -281,23 +278,42 @@ export async function share(ctx: Context): Promise<Response> {
   throw notFound()
 }
 
-/** A hundred songs, each a few hundred bytes of names and keys. */
-const CREATE_MAX_BYTES = 256 * 1024
-
-/** `GET /v1/share` and `/v1/share/received`: your links, newest first. */
-async function list(ctx: Context, session: Session, side: Side): Promise<Response> {
-  const summaries: ShareSummary[] = []
-  for (const id of await linkIds(ctx, side, session.sub)) {
-    const answer = await shareObject(ctx, id).fetch(
-      `https://share/summary?sub=${encodeURIComponent(session.sub)}`,
-    )
-    if (answer.ok) summaries.push(await answer.json())
-    else {
-      await answer.body?.cancel()
-      // Forgotten, or taken off: off the list.
-      if (answer.status === 403 || answer.status === 404) await forget(ctx, side, session.sub, id)
-    }
+/**
+ * An older link shared again while a newer one of the same songs and name
+ * plays: the newer one, made once the older ended, goes, so one link is
+ * left for the same songs — when nobody has opened or played it yet. One
+ * someone has is theirs to keep, and stays.
+ */
+async function forgetIfUnused(ctx: Context, sub: string, id: string): Promise<void> {
+  const object = shareObject(ctx, id)
+  const answer = await object.fetch(`https://share/summary?sub=${encodeURIComponent(sub)}`)
+  if (!answer.ok) {
+    await answer.body?.cancel()
+    return
   }
+  const newer = ShareSummarySchema.parse(await answer.json())
+  const unused = newer.plays === 0 && newer.opened.length === 0 && newer.guests === 0
+  if (!newer.yours || newer.ended || !unused) return
+  const gone = await object.fetch('https://share/act', post({ sub, action: { type: 'forget' } }))
+  await gone.body?.cancel()
+  if (gone.ok) await linkIndex(ctx, 'out', sub).forget(id)
+}
+
+/**
+ * A link holds every song it is made of, so this is no count of songs but a
+ * guard on what one request may make the Worker hold: a song is under a
+ * kilobyte of names and keys, so a whole library of ten thousand fits.
+ */
+const CREATE_MAX_BYTES = 8 * 1024 * 1024
+
+/**
+ * `GET /v1/share` and `/v1/share/received`: your links, newest first.
+ * Forgotten, or taken off: off the list.
+ */
+async function list(ctx: Context, session: Session, side: Side): Promise<Response> {
+  const summaries = await summariesOf<ShareSummary>(linkIndex(ctx, side, session.sub), id =>
+    shareObject(ctx, id).fetch(`https://share/summary?sub=${encodeURIComponent(session.sub)}`),
+  )
   summaries.sort((a, b) => b.createdAt - a.createdAt)
   return json(summaries)
 }

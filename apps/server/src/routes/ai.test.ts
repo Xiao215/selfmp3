@@ -9,8 +9,8 @@ import { loadConfig, type ServingConfig } from '../config.js'
 import { createContainer, type Container } from '../container.js'
 
 /**
- * Settings › Smart features: a feature turned off is refused before anything
- * reaches the model. The model is a real endpoint on a free port that counts
+ * Settings › Smart features: turned off, every smart feature is refused before
+ * anything reaches the model. The model is a real endpoint on a free port that counts
  * what it is asked, so "nothing left the library" is measured, not assumed.
  */
 describe('smart features turned off in Settings', () => {
@@ -33,14 +33,22 @@ describe('smart features turned off in Settings', () => {
   let thinkingMs = 0
   /** What the model says about an import's names. */
   let importReply: unknown[] = []
+  /** What Ask's agent answers, in words and with no tool called. */
+  const agentReply = { say: null, cards: [{ kind: 'words', text: 'Nothing to change.' }] }
 
   beforeAll(async () => {
     model = http.createServer(async (request, response) => {
       asked++
       let body = ''
       for await (const chunk of request) body += String(chunk)
-      const task = (JSON.parse(body) as { response_format: { json_schema: { name: string } } })
-        .response_format.json_schema.name
+      const sent = JSON.parse(body) as {
+        response_format: { json_schema?: { name: string } }
+        messages: { content: string }[]
+      }
+      // The schema's name, or for JSON asked as text, the name its prompt gives it.
+      const task =
+        sent.response_format.json_schema?.name ??
+        /JSON Schema \("([^"]+)"\)/.exec(sent.messages[0]?.content ?? '')?.[1]
       await new Promise(resolve => setTimeout(resolve, thinkingMs))
       response.writeHead(200, { 'Content-Type': 'application/json' })
       if (task === 'import-names') {
@@ -48,23 +56,7 @@ describe('smart features turned off in Settings', () => {
         response.end(JSON.stringify({ choices: [{ message: { content } }] }))
         return
       }
-      const content = JSON.stringify({
-        action: 'tidy',
-        filters: null,
-        songs: null,
-        playback: null,
-        find: null,
-        stats: null,
-        playlists: null,
-        playlistSongs: null,
-        library: null,
-        tidy: { what: 'checkup', lookUp: false },
-        remember: null,
-        getMusic: null,
-        open: null,
-        say: null,
-        try: null,
-      })
+      const content = JSON.stringify(agentReply)
       response.end(JSON.stringify({ choices: [{ message: { content } }] }))
     })
     await new Promise<void>(resolve => model.listen(0, '127.0.0.1', resolve))
@@ -106,15 +98,8 @@ describe('smart features turned off in Settings', () => {
       body: body === undefined ? undefined : JSON.stringify(body),
     })
 
-  it('refuses each feature that is off, and asks the model nothing', async () => {
-    container.settings.update({
-      smartAsk: false,
-      smartTidy: false,
-      smartTags: false,
-      smartWritten: false,
-      smartMetadata: false,
-      smartImport: false,
-    })
+  it('refuses every feature while smart features are off, and asks the model nothing', async () => {
+    container.settings.update({ smartFeatures: false })
     for (const [method, url, body] of [
       ['POST', '/api/ai/ask', { text: 'check my song names' }],
       ['POST', '/api/ai/describe', { text: 'calm piano', understanding: null }],
@@ -129,30 +114,16 @@ describe('smart features turned off in Settings', () => {
       expect(((await response.json()) as { code: string }).code).toBe('ai_disabled')
     }
     expect(asked).toBe(0)
-  })
-
-  it('lets Ask through but not into Tidy up while Tidy up is off', async () => {
-    container.settings.update({ smartAsk: true, smartTidy: false })
-    const response = await call('POST', '/api/ai/ask', { text: 'check my song names' })
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      kind: 'none',
-      say: 'Tidy up is turned off in Settings › Smart features.',
-      try: [],
-    })
-    // The router was asked; the names pass was not.
-    expect(asked).toBe(1)
+    container.settings.update({ smartFeatures: true })
   })
 
   it('goes on with an Ask whose connection closed, and keeps its answer under the ticket', async () => {
-    container.settings.update({ smartAsk: true, smartTidy: false })
     thinkingMs = 300
     const ticket = 'phone-went-away-1'
     const hangUp = new AbortController()
     const asking = fetch(`${origin}/api/ai/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.authToken}` },
-      // Words of its own: the router's answer to the last ones is remembered.
       body: JSON.stringify({ text: 'check my album names', ticket }),
       signal: hangUp.signal,
     })
@@ -172,12 +143,11 @@ describe('smart features turned off in Settings', () => {
     expect(progress).toMatchObject({
       done: true,
       failed: null,
-      answer: { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' },
+      answer: { say: null, cards: [{ kind: 'explore', say: 'Nothing to change.' }] },
     })
   })
 
   it('reads an import’s names, and keeps only the words the rows already had', async () => {
-    container.settings.update({ smartImport: true })
     importReply = [
       // The artist out of the title, the channel's name let go of.
       { n: 1, title: 'アイドル', artist: 'YOASOBI', album: '', why: 'Artist was in the title' },

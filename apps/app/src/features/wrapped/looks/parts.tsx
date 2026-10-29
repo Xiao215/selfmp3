@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { hueFromString } from '@selfmp3/shared'
@@ -15,6 +15,16 @@ export interface LookProps {
   readonly art: (songId: number) => string | null | undefined
   /** A tag's hue, from the library; a name the library no longer has is given one. */
   readonly tagHue: (tag: string) => number | undefined
+}
+
+/**
+ * A look's words. A look is a picture, laid out once at its board's size and
+ * scaled whole (`Scaled`), so its words keep the board's size whatever the
+ * system's text size is: grown, they ran out of their boxes and cut its
+ * numbers (AM1). Bigger text makes the page around it bigger, not the print.
+ */
+export function LookText(props: ComponentProps<typeof Text>): ReactNode {
+  return <Text {...props} allowFontScaling={false} />
 }
 
 /**
@@ -55,9 +65,9 @@ export function PrintedTag({
       ]}
     >
       <View style={[styles.dot, { backgroundColor: dot }]} />
-      <Text style={[styles.tagText, { color: ink, fontSize: size }]} numberOfLines={1}>
+      <LookText style={[styles.tagText, { color: ink, fontSize: size }]} numberOfLines={1}>
         {name}
-      </Text>
+      </LookText>
     </View>
   )
 }

@@ -30,20 +30,18 @@ function dotStyle(hue: number): CSSProperties {
 
 export function TagChip({
   tag,
-  state,
+  on,
   onToggle,
 }: {
   tag: Tag
-  /** `fixed` is a tag the server adds to every import: on, and not a choice. */
-  state: 'fixed' | 'on' | 'off'
-  onToggle?: () => void
+  on: boolean
+  onToggle: () => void
 }): ReactNode {
   return (
     <button
       type="button"
       className="chip"
-      aria-pressed={state !== 'off'}
-      disabled={state === 'fixed' || !onToggle}
+      aria-pressed={on}
       onClick={onToggle}
       style={dotStyle(tag.hue)}
     >

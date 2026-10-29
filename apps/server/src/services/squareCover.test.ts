@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { squareCover } from './squareCover.js'
+import { COVER_MAX_SIDE, CoverTooBig, squareCover } from './squareCover.js'
 
 const RED = { r: 220, g: 30, b: 40 }
 const BLACK = { r: 0, g: 0, b: 0 }
@@ -80,10 +80,55 @@ describe('squareCover', () => {
     expect(await sizeOf(out.data)).toEqual({ width: 720, height: 720 })
   })
 
-  it('keeps a PNG a PNG', async () => {
-    const out = await squareCover(await picture(400, 200, RED, undefined, 'png'), '.png')
-    expect(out.extension).toBe('.png')
-    expect((await sharp(out.data).metadata()).format).toBe('png')
-    expect(await sizeOf(out.data)).toEqual({ width: 200, height: 200 })
+  it('keeps a PNG as a JPEG, square or not', async () => {
+    const wide = await squareCover(await picture(400, 200, RED, undefined, 'png'), '.png')
+    expect(wide.extension).toBe('.jpg')
+    expect((await sharp(wide.data).metadata()).format).toBe('jpeg')
+    expect(await sizeOf(wide.data)).toEqual({ width: 200, height: 200 })
+
+    const square = await squareCover(await picture(300, 300, RED, undefined, 'png'), '.png')
+    expect(square.extension).toBe('.jpg')
+    expect((await sharp(square.data).metadata()).format).toBe('jpeg')
+    expect(isRed(await pixel(square.data, 150, 150))).toBe(true)
+  })
+
+  it('puts a see-through cover on black', async () => {
+    const clear = await sharp({
+      create: { width: 64, height: 64, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .webp()
+      .toBuffer()
+    const out = await squareCover(clear, '.webp')
+    expect(out.extension).toBe('.jpg')
+    expect(await pixel(out.data, 32, 32)).toEqual([0, 0, 0])
+  })
+})
+
+/**
+ * A cover's size, held to what a cover needs. An 800 KB PNG 16383 pixels on
+ * a side cost the server 1.6 GB to read, and a giant square JPEG was kept as
+ * it came, for every device to decode.
+ */
+describe('a cover too big', () => {
+  it('makes a square JPEG over the kept size smaller', async () => {
+    const big = await picture(3000, 3000, RED)
+    const { data, extension } = await squareCover(big, '.jpg')
+    expect(extension).toBe('.jpg')
+    expect(await sizeOf(data)).toEqual({ width: COVER_MAX_SIDE, height: COVER_MAX_SIDE })
+  })
+
+  it('crops a big wide picture to a square no bigger than kept', async () => {
+    const { data } = await squareCover(await picture(3200, 2400, RED), '.jpg')
+    expect(await sizeOf(data)).toEqual({ width: COVER_MAX_SIDE, height: COVER_MAX_SIDE })
+  })
+
+  it('refuses one with more pixels than a cover may have, without reading it', async () => {
+    // A small PNG that says it is huge: one colour compresses to almost nothing.
+    const bomb = await sharp({
+      create: { width: 4200, height: 4200, channels: 3, background: BLACK },
+    })
+      .png({ compressionLevel: 9 })
+      .toBuffer()
+    await expect(squareCover(bomb, '.png')).rejects.toBeInstanceOf(CoverTooBig)
   })
 })

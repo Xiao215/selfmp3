@@ -2,15 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { EMPTY_SMART_RULES, playlistRules, type Playlist, type SmartRules } from '@selfmp3/shared'
 
 import {
+  addedToPlaylist,
   copyName,
+  emptyPlaylists,
   listedPlaylists,
+  mosaicCovers,
   newPlaylist,
   playlistHeadLine,
   playlistsSubline,
   playlistsToAddTo,
   playlistTileLine,
   relativeDay,
-  restoredOrder,
   sortPlaylists,
 } from './playlists.model'
 
@@ -82,6 +84,14 @@ describe('the lines a playlist is described by', () => {
     expect(playlistTileLine(made, NOW)).toBe('1 song · Tuesday')
   })
 
+  it('says a playlist is live and what it fills from, joined with & when a song needs all of them', () => {
+    const fills = playlist('Night', { songCount: 6 })
+    expect(playlistTileLine(fills, NOW, ['night', 'calm'])).toBe('Live · night, calm · 6 songs')
+    expect(playlistTileLine(fills, NOW, ['night', 'calm'], 'all')).toBe(
+      'Live · night & calm · 6 songs',
+    )
+  })
+
   it('gives the page its songs, length and last play, and leaves out a play that never was', () => {
     expect(playlistHeadLine(5, 1080, server(new Date(2026, 8, 17, 21)), NOW)).toBe(
       '5 songs · 18 min · played yesterday',
@@ -89,10 +99,14 @@ describe('the lines a playlist is described by', () => {
     expect(playlistHeadLine(1, 180, null, NOW)).toBe('1 song · 3 min')
   })
 
-  it('says how many are listed and in what order', () => {
-    expect(playlistsSubline(4, 'recent')).toBe('4 playlists · last played first')
-    expect(playlistsSubline(1, 'name')).toBe('1 playlist · A–Z')
-    expect(playlistsSubline(2, 'added')).toBe('2 playlists · newest first')
+  it('says what a playlist that fills itself fills from', () => {
+    const live = playlist('Long walks', { songCount: 76 })
+    expect(playlistTileLine(live, NOW, ['night', 'focus'])).toBe('Live · night, focus · 76 songs')
+  })
+
+  it('says how many are listed, and leaves the order to the dropdown', () => {
+    expect(playlistsSubline(4)).toBe('4 playlists')
+    expect(playlistsSubline(1)).toBe('1 playlist')
   })
 })
 
@@ -175,20 +189,69 @@ describe('what the playlists page lists', () => {
   })
 })
 
+describe('the playlists left empty, which the sidebar alone lists', () => {
+  it('every empty one, of either kind, by name', () => {
+    const empty = emptyPlaylists([
+      playlist('Filled', { songCount: 3 }),
+      playlist('Zebra'),
+      playlist('Matches nothing', { kind: 'live', rules: EMPTY_SMART_RULES }),
+    ])
+    expect(names(empty)).toEqual(['Matches nothing', 'Zebra'])
+  })
+})
+
 describe('the playlists a song can be added to', () => {
   it('leaves out live playlists, and lists the one played last first', () => {
     const rules: SmartRules = EMPTY_SMART_RULES
     const choices = playlistsToAddTo([
-      playlist('Alpha'),
-      playlist('Long songs', { kind: 'live', rules, lastPlayedAt: '2026-09-13 10:00:00' }),
-      playlist('Zulu', { lastPlayedAt: '2026-09-12 10:00:00' }),
+      playlist('Alpha', { songCount: 1 }),
+      playlist('Long songs', {
+        kind: 'live',
+        rules,
+        songCount: 9,
+        lastPlayedAt: '2026-09-13 10:00:00',
+      }),
+      playlist('Zulu', { songCount: 1, lastPlayedAt: '2026-09-12 10:00:00' }),
     ])
     expect(names(choices)).toEqual(['Zulu', 'Alpha'])
   })
 
   it('leaves out the playlist it was opened from', () => {
-    const here = playlist('Here')
-    expect(names(playlistsToAddTo([playlist('Alpha'), here], here.id))).toEqual(['Alpha'])
+    const here = playlist('Here', { songCount: 1 })
+    expect(names(playlistsToAddTo([playlist('Alpha', { songCount: 1 }), here], here.id))).toEqual([
+      'Alpha',
+    ])
+  })
+
+  it('leaves out an empty playlist, which no other page lists', () => {
+    const choices = playlistsToAddTo([
+      playlist('Filled', { songCount: 2 }),
+      playlist('Emptied', { lastPlayedAt: '2026-09-13 10:00:00' }),
+    ])
+    expect(names(choices)).toEqual(['Filled'])
+  })
+})
+
+describe('what adding to a playlist says', () => {
+  it('counts the songs added', () => {
+    expect(addedToPlaylist('Evening', 2, 5, 7)).toEqual({
+      over: 'Added to Evening',
+      say: '2 songs',
+    })
+  })
+
+  it('says a song already there was not added again', () => {
+    expect(addedToPlaylist('Evening', 1, 5, 5)).toEqual({
+      over: 'Already in Evening',
+      say: '1 song',
+    })
+  })
+
+  it('counts only the new ones when some were there', () => {
+    expect(addedToPlaylist('Evening', 2, 5, 6)).toEqual({
+      over: 'Added to Evening',
+      say: '1 song · 1 already there',
+    })
   })
 })
 
@@ -218,13 +281,93 @@ describe('making a playlist', () => {
   })
 })
 
-describe('restoredOrder', () => {
-  it('puts removed songs back in their places', () => {
-    expect(restoredOrder([1, 2, 3, 4, 5], [1, 3, 5, 2, 4])).toEqual([1, 2, 3, 4, 5])
+describe('the covers a mosaic is made of', () => {
+  const tone = (l: number) => ({ hue: 0, chroma: 0.1, palette: [{ l, c: 0.1, h: 20, share: 1 }] })
+  const song = (id: number, l: number | null, album = '') => ({
+    id,
+    album,
+    coverTone: l === null ? null : tone(l),
+  })
+  const all = () => true
+
+  it('takes four different pictures, passing over the same art again', () => {
+    // Three discs with one picture, then three more songs.
+    const songs = [
+      song(1, 0.5),
+      song(2, 0.5),
+      song(3, 0.5),
+      song(4, 0.3),
+      song(5, 0.6),
+      song(6, 0.7),
+    ]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 4, 5, 6])
   })
 
-  it('keeps a song added since at the end, and one removed since out', () => {
-    expect(restoredOrder([1, 2, 3], [2, 3, 9, 1])).toEqual([1, 2, 3, 9])
-    expect(restoredOrder([1, 2, 3], [1, 2])).toEqual([1, 2])
+  it('knows the same art encoded again for another file', () => {
+    // Two of the dev library's Genshin discs: the same cover, read a hair apart and in another order.
+    const disc = (id: number, swatches: [number, number, number, number][]) => ({
+      id,
+      album: '',
+      coverTone: {
+        hue: 23,
+        chroma: 0.1,
+        palette: swatches.map(([l, c, h, share]) => ({ l, c, h, share })),
+      },
+    })
+    const one = disc(1, [
+      [0.703, 0.105, 28.98, 0.28],
+      [0.627, 0.094, 13.97, 0.2],
+      [0.462, 0.027, 338.4, 0.15],
+      [0.532, 0.034, 0.4, 0.15],
+    ])
+    const two = disc(2, [
+      [0.702, 0.105, 28.87, 0.28],
+      [0.627, 0.094, 13.7, 0.2],
+      [0.532, 0.034, 359.99, 0.15],
+      [0.462, 0.027, 338.2, 0.15],
+    ])
+    const songs = [one, two, song(3, 0.3), song(4, 0.6), song(5, 0.8)]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 3, 4, 5])
+  })
+
+  it('takes one cover from an album, whose covers can be cropped apart', () => {
+    const songs = [
+      song(1, 0.5, 'Magic Lantern'),
+      song(2, 0.55, 'Magic Lantern'),
+      song(3, 0.3),
+      song(4, 0.7),
+      song(5, 0.9),
+    ]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 3, 4, 5])
+  })
+
+  it('counts a cover not read yet as its own', () => {
+    const songs = [song(1, null), song(2, null), song(3, 0.5), song(4, 0.6)]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 2, 3, 4])
+  })
+
+  it('looks past a long run of one picture, asking only of new ones', () => {
+    // Forty tracks of one soundtrack, then three other pictures, then more.
+    const songs = [
+      ...Array.from({ length: 40 }, (_, i) => song(i + 1, 0.5, 'Stellar Moments')),
+      song(41, 0.3),
+      song(42, 0.7),
+      song(43, 0.9),
+      song(44, 0.1),
+    ]
+    const asked: number[] = []
+    const covers = mosaicCovers(songs, s => {
+      asked.push(s.id)
+      return true
+    })
+    expect(covers.map(s => s.id)).toEqual([1, 41, 42, 43])
+    expect(asked).toEqual([1, 41, 42, 43])
+  })
+
+  it('shows the first cover alone when fewer than four pictures differ', () => {
+    const songs = [song(1, 0.5), song(2, 0.5), song(3, 0.5), song(4, 0.6)]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1])
+    expect(mosaicCovers(songs, s => s.id === 4).map(s => s.id)).toEqual([4])
+    expect(mosaicCovers(songs, () => false).map(s => s.id)).toEqual([1])
   })
 })

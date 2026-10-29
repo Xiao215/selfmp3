@@ -52,6 +52,8 @@ export const MOVE_MS = {
   place: 340,
   /** The cover shrinking while paused (`M1`, 5); it grows back on the spring. */
   breath: 400,
+  /** A paused cover's slow breath once it has shrunk, each way, in and out (I2). */
+  restBreath: 2400,
   /** The play glyph turning into pause, and back (`M1`, 2): half out, half in. */
   swap: 180,
   /** A computer's Now Playing settling in, and lifting away before the route changes (`M3`, 2). */
@@ -61,8 +63,6 @@ export const MOVE_MS = {
   stageVisual: 240,
   /** The cover and the words gliding between Stage and Focus. */
   stageMove: 520,
-  /** A share link's big cover shrinking into the words' row as its song plays, and back. */
-  shareWords: 420,
   /** The sidebar fading out as Now Playing arrives over it, and back. */
   sidebar: 160,
   /** How long the sidebar waits before coming back where the stack slides Now Playing away itself. */
@@ -70,6 +70,14 @@ export const MOVE_MS = {
   /** The stage's chrome going while nothing moves, and coming back the moment a pointer does. */
   idleOut: 400,
   idleIn: 100,
+  /**
+   * A panel coming out of the control that opened it — a menu, the tag picker
+   * — on the overshoot, so it starts at once and settles into place; it goes
+   * back in over `motion.base`.
+   */
+  panel: 220,
+  /** A tag chip snapping in among a song's tags as the tag is added, on the overshoot (I2). */
+  chipIn: 260,
   /** A hover caption fading up, and away. */
   tooltip: 120,
   /** How long the pointer rests on a control before its caption appears. */
@@ -99,11 +107,18 @@ export const MOVE_MS = {
   longPress: 450,
   /** The least time a spinner stays once shown, so a short wait never flickers one. */
   busyHold: 300,
+  /** How long a page waits before drawing its loading shapes, so a quick answer never flashes them. */
+  skeletonWait: 300,
+  /** One pass of the light across loading shapes: slow, so it reads as waiting rather than urgency. */
+  skeletonSweep: 1800,
   /** Covers flying from what was played into the Up next button, each this far behind the one before. */
   flight: 360,
   flightStagger: 40,
   /** The Up next button swelling once as they land. */
   landing: 90,
+  /** The heart popping as a song is liked (squash, overshoot, home), and its ring going out (O1). */
+  likePop: 450,
+  likeRing: 600,
 } as const
 
 /**
@@ -161,10 +176,11 @@ export const PRESS = { control: 0.96, row: 0.985 } as const
  * The opacities a press and a state are drawn with, one set for the app:
  * `pressed`, bare ink under the finger (`Press` `feedback="dim"`);
  * `disabled`, anything that cannot be pressed now; `dim`, what is there but
- * not live — a song that cannot play here, a step still to come. A pressed
- * veil (`feedback="wash"`) is a colour, the palette's `veilPressed`.
+ * not live — a song that cannot play here, a step still to come; `resting`,
+ * a song set aside for now, which still plays when pressed. A pressed veil
+ * (`feedback="wash"`) is a colour, the palette's `veilPressed`.
  */
-export const OPACITY = { pressed: 0.6, disabled: 0.4, dim: 0.55 } as const
+export const OPACITY = { pressed: 0.6, disabled: 0.4, dim: 0.55, resting: 0.72 } as const
 
 /**
  * A curve that runs a little past its end and settles back: Penner's "back

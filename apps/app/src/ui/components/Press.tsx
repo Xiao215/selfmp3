@@ -1,8 +1,9 @@
 import { forwardRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import {
   Animated,
   Pressable,
+  type GestureResponderEvent,
   type View,
   type PressableProps,
   type PressableStateCallbackType,
@@ -12,6 +13,8 @@ import {
 import { StyleSheet } from 'react-native-unistyles'
 import { OPACITY, PRESS } from '../motion.model'
 import { usePressScale } from '../motion'
+import { ariaFor, spacePresses } from '../pressA11y.model'
+import { browserKeys } from '../../ports/browserKeys'
 
 /**
  * The one Pressable (docs/ui-mock `M1`, 1). Whatever it is answers the finger
@@ -33,6 +36,10 @@ import { usePressScale } from '../motion'
  * measures its items by it) — the Pressable inside is always at 0, 0 of it.
  * A wash or a dim has no wrapper: the Pressable is laid out as it would be
  * on its own.
+ *
+ * In a browser it also says its state and value to screen readers, which
+ * react-native-web leaves unsaid (`pressA11y.model.ts`), and Space works a
+ * switch, a radio, a tab or a menu's item as Enter does.
  *
  * A tap lets go here, not on Pressable's word. Pressable runs `onPress` at
  * once but lets go of `pressed` (and calls `onPressOut`) on a timer, up to
@@ -64,10 +71,30 @@ export const Press = forwardRef<View, PressProps>(function Press(
   const seen = (state: PressableStateCallbackType): PressableStateCallbackType =>
     released && state.pressed ? { ...state, pressed: false } : state
   const look = feedback === 'wash' ? styles.wash : feedback === 'dim' ? styles.dim : null
+  const role = (rest.role ?? rest.accessibilityRole) as string | undefined
+  const web = browserKeys
+    ? {
+        ...ariaFor(role, rest.accessibilityState ?? undefined, rest.accessibilityValue),
+        ...(onPress && spacePresses(role)
+          ? {
+              onKeyDown: (event: WebKeyEvent) => {
+                rest.onKeyDown?.(event)
+                if (event.key !== ' ' || event.target !== event.currentTarget) return
+                event.preventDefault()
+                if (event.repeat || rest.disabled) return
+                setReleased(true)
+                onPress(event as unknown as GestureResponderEvent)
+              },
+            }
+          : null),
+      }
+    : null
   const pressable = (
     <Pressable
       ref={ref}
+      {...web}
       {...rest}
+      {...(web?.onKeyDown ? { onKeyDown: web.onKeyDown } : null)}
       onLayout={sinks ? undefined : onLayout}
       style={
         typeof style === 'function' || look
@@ -107,7 +134,12 @@ export const Press = forwardRef<View, PressProps>(function Press(
   )
 })
 
+/** A browser's key event, as react-native-web hands it to `onKeyDown`. */
+type WebKeyEvent = KeyboardEvent<Element>
+
 interface PressProps extends PressableProps {
+  /** A browser's own key event, which react-native-web passes on. */
+  onKeyDown?: (event: WebKeyEvent) => void
   /** How it answers a press: sinks (the default), a veil over it, or its ink fading. */
   feedback?: 'sink' | 'wash' | 'dim'
   /** How far a sink goes: a control (the default) or a row. */

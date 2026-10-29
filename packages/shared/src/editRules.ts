@@ -1,5 +1,6 @@
 import { hueFromString } from './format.js'
 import type { EditRefusal, PlaylistKind } from './schemas/playlist.js'
+import type { SmartRules } from './schemas/smart.js'
 import { sameTagName } from './sync.js'
 
 /**
@@ -86,9 +87,38 @@ export function tagNamed<T extends { readonly name: string }>(
   return tags.find(tag => sameTagName(tag.name, name)) ?? null
 }
 
-/** A new tag's colour: the one asked for, or one its name always gives. */
-export function newTagHue(name: string, hue: number | undefined): number {
-  return hue ?? hueFromString(name.toLowerCase())
+/**
+ * The hues a tag is offered: thirteen around the wheel, skipping the muddy
+ * stretch between yellow and green where chips stop looking like different
+ * colours from each other.
+ */
+export const TAG_HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as const
+
+/** How far apart two hues are, the short way round the wheel. */
+function hueGap(a: number, b: number): number {
+  const d = Math.abs((((a - b) % 360) + 360) % 360)
+  return Math.min(d, 360 - d)
+}
+
+/**
+ * A new tag's colour: the one asked for, or else the offered hue farthest
+ * from every hue `inUse` (X5, 2026-10-25: "calm" came out the red "live"
+ * already was, when its name alone chose). Among hues as far, the one
+ * nearest the hue its name gives, so the same library and name always give
+ * the same colour.
+ */
+export function newTagHue(name: string, hue: number | undefined, inUse: readonly number[]): number {
+  if (hue !== undefined) return hue
+  const own = hueFromString(name.toLowerCase())
+  if (inUse.length === 0) return own
+  const room = (candidate: number): number =>
+    Math.min(...inUse.map(used => hueGap(candidate, used)))
+  let best: number = TAG_HUES[0]
+  for (const candidate of TAG_HUES) {
+    const more = room(candidate) - room(best)
+    if (more > 0 || (more === 0 && hueGap(candidate, own) < hueGap(best, own))) best = candidate
+  }
+  return best
 }
 
 /** Why tag `id` cannot be called `name`: another tag already is. Null when it can. */
@@ -105,6 +135,17 @@ export function tagRenameProblem(
 }
 
 /**
+ * A song's tags after a change: the ones it had, with `add` put on and
+ * `remove` taken off. A tag edit says only what it changes, never the whole
+ * set — a whole set worked out on one device took off whatever another device
+ * had put on meanwhile (a picker left open, an edit made offline).
+ */
+export function tagsAfter<T>(had: readonly T[], add: readonly T[], remove: readonly T[]): T[] {
+  const gone = new Set(remove)
+  return [...new Set([...had, ...add])].filter(tag => !gone.has(tag))
+}
+
+/**
  * A song's tags set all at once, as the tags that go on and the ones that come
  * off — which are what each answerer stamps, or records, one by one.
  */
@@ -117,14 +158,33 @@ export function tagFlips<T>(had: readonly T[], wanted: readonly T[]): { on: T[];
   }
 }
 
+// --- Removing tags ----------------------------------------------------------------
+
+/**
+ * Whether a live playlist's rules name this tag, so that deleting it changes
+ * the playlist: it keeps the songs it shows and stops following.
+ *
+ * Left alone, a rule about a tag nobody can see or remove made "has" playlists
+ * empty (and so hidden) and "does not have" ones the whole library. Taking
+ * just that rule out is no better whenever there are others: under "all" a
+ * dropped rule widens the playlist ("has chill and not loved" became every
+ * song not loved), under "any" it narrows it. Either way the playlist would
+ * silently show other songs, so it keeps the ones it has instead.
+ */
+export function followsTag(rules: SmartRules, tagId: number): boolean {
+  return rules.rules.some(rule => rule.field === 'tag' && rule.tagId === tagId)
+}
+
 // --- Removing songs --------------------------------------------------------------
 
 /**
  * The tags that removing these songs leaves with none: those whose every song
  * is among them. They go with the songs, everywhere — as a change of their
- * own in the log, so every device and the server lose exactly these — rather
- * than linger at 0 in every sidebar. A tag that had no songs to begin with is
- * not among them: one just made, here or on another device, is yours to fill.
+ * own in the log (`tagEmptied`), so every device and the server lose exactly
+ * these — rather than linger at 0 in every sidebar. A tag that had no songs to
+ * begin with is not among them: one just made, here or on another device, is
+ * yours to fill. Nor is one another device fills meanwhile: `tagEmptied`
+ * leaves a tag that a song has, and gives it back to a song tagged later.
  */
 export function tagsEmptiedBy(
   tags: readonly { readonly id: number; readonly songCount: number }[],

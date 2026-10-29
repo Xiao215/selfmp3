@@ -15,10 +15,11 @@ import {
   type QueueChange,
   type ServerConnection,
 } from '@selfmp3/client'
-import { apiFor } from '../../api/client'
+import { apiFor, apiWithin } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { library as cloudLibrary } from '../../replica'
 import { useSongsLanding } from './useSongsLanding'
+import { useServerLibrary } from './useServerLibrary'
 import { noServer, viaKey } from '../../connection/via'
 
 /**
@@ -42,8 +43,21 @@ import { noServer, viaKey } from '../../connection/via'
  * with a look at the bucket in front of the answer where the library is the
  * bucket's, and the server's library too where the screen is pointed at one.
  */
+/**
+ * How long a look-up may take: a YouTube mix, several links or a long list
+ * keep the server at it for half a minute and more, and a look-up given up
+ * on is its work thrown away. The names the model offers for a review's rows
+ * wait as long: a long list is one long question.
+ */
+const LOOK_UP_MS = 120_000
+
 interface ImportSource {
   readonly api: ReturnType<typeof apiFor>
+  /** `api`, waiting as long as a look-up takes: a link's songs, a search, songs found by name, better names. */
+  readonly lookUp: Pick<
+    ReturnType<typeof apiFor>,
+    'importPreview' | 'importSearch' | 'importFind' | 'importNames'
+  >
   readonly library: Library | undefined
   /** Make a tag in the library whose tags this screen offers, and show it there. */
   readonly createTag: (name: string) => Promise<Tag>
@@ -73,6 +87,10 @@ export function useImportSource(
     () => (baseUrl === undefined ? null : apiFor({ baseUrl, token })),
     [baseUrl, token],
   )
+  const lookUp = useMemo(
+    () => (baseUrl === undefined ? apiWithin(LOOK_UP_MS) : apiFor({ baseUrl, token }, LOOK_UP_MS)),
+    [baseUrl, token],
+  )
   const keys = useMemo(
     () => ({
       library: viaKey(baseUrl, 'library'),
@@ -84,12 +102,7 @@ export function useImportSource(
   )
   const queryClient = useQueryClient()
 
-  const serverLibrary = useQuery({
-    queryKey: keys.library,
-    queryFn: () => (server ? server.library() : noServer()),
-    enabled: server !== null,
-    staleTime: STALE.halfMinute,
-  })
+  const serverLibrary = useServerLibrary(server, baseUrl)
   const serverQueue = useQuery({
     queryKey: keys.queue,
     queryFn: () => (server ? server.importQueue() : noServer()),
@@ -120,16 +133,6 @@ export function useImportSource(
   const ownHistory = useImportHistory(server === null && history)
   const ownTools = useImportTools(server === null)
   const createHere = useCreateTag()
-  // Steady between renders: the picker rebuilds its list around this.
-  const createOnServer = useCallback(
-    async (name: string): Promise<Tag> => {
-      if (!server) return noServer()
-      const tag = await server.createTag({ name })
-      await queryClient.invalidateQueries({ queryKey: keys.library })
-      return tag
-    },
-    [server, queryClient, keys.library],
-  )
   // `mutateAsync` is the same function between renders; the object around it is not.
   const makeHere = createHere.mutateAsync
   const createOnDevice = useCallback((name: string): Promise<Tag> => makeHere({ name }), [makeHere])
@@ -161,8 +164,9 @@ export function useImportSource(
   if (server) {
     return {
       api: server,
-      library: serverLibrary.data,
-      createTag: createOnServer,
+      lookUp,
+      library: serverLibrary.library,
+      createTag: serverLibrary.createTag,
       tools: serverTools.data,
       refetchTools: serverTools.refetch,
       queue,
@@ -174,6 +178,7 @@ export function useImportSource(
   }
   return {
     api: clientApi(),
+    lookUp,
     library: ownLibrary.data,
     createTag: createOnDevice,
     tools: ownTools.data,

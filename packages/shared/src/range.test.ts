@@ -40,8 +40,9 @@ describe('parseRange', () => {
     expect(parseRange('bytes=2000-3000', SIZE)).toBe('unsatisfiable')
   })
 
-  it('rejects an inverted range', () => {
-    expect(parseRange('bytes=500-100', SIZE)).toBe('unsatisfiable')
+  // Not a range at all (RFC 9110 §14.2), so the whole file rather than a 416.
+  it('ignores an inverted range', () => {
+    expect(parseRange('bytes=500-100', SIZE)).toBeNull()
   })
 
   it('rejects a zero-length suffix', () => {
@@ -96,6 +97,16 @@ describe('answerRange', () => {
     expect(answer.length).toBe(100)
     expect(answer.headers['Content-Range']).toBe('bytes 100-199/1000')
     expect(answer.headers['Content-Length']).toBe('100')
+  })
+
+  it('sends the whole file when If-Range names another version of it', () => {
+    const range = { ...base, rangeHeader: 'bytes=0-99' }
+    expect(answerRange({ ...range, ifRange: '"nope"' }).status).toBe(200)
+    expect(answerRange({ ...range, ifRange: 'W/"abc"' }).status).toBe(200)
+    expect(answerRange({ ...range, ifRange: 'Mon, 14 Sep 2026 07:00:00 GMT' }).status).toBe(200)
+    expect(answerRange({ ...range, ifRange: 'not a date' }).status).toBe(200)
+    expect(answerRange({ ...range, ifRange: '"abc"' }).status).toBe(206)
+    expect(answerRange({ ...range, ifRange: 'Mon, 14 Sep 2026 08:00:00 GMT' }).status).toBe(206)
   })
 
   it('answers the open-ended range every media element opens with', () => {

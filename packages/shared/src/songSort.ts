@@ -53,6 +53,17 @@ export function sortSongs(
 const collator = new Intl.Collator()
 const text = (a: string, b: string): number => collator.compare(a, b)
 
+const natural = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+
+/**
+ * Names in the order a person reads them: "manytag-2" before "manytag-10",
+ * and "chill" beside "Chill". For a song's tags; titles keep `text`'s order,
+ * where a number leading a title is part of its words.
+ */
+export function naturalOrder(a: string, b: string): number {
+  return natural.compare(a, b)
+}
+
 /** Songs by one field, before the direction is applied. */
 function compare(a: Song, b: Song, field: SongSortField): number {
   switch (field) {

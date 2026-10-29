@@ -7,15 +7,15 @@ import { radius, usePlaylistSongIds } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongsById } from '../../ui/songsById'
-import { Cover } from '../../ui/components/Cover'
+import { Cover, CoverEdge } from '../../ui/components/Cover'
 import { ListMusic, Live } from '../../ui/components/Icons'
-import { isLive } from './playlists.model'
+import { isLive, mosaicCovers } from './playlists.model'
 
 /**
- * A playlist's cover: the covers of its first songs.
+ * A playlist's cover: the covers of its songs, from the top.
  *
  * Music is found by its artwork everywhere else in the app, so a playlist is
- * too — four covers in a square when four of its songs have art, the first
+ * too — four covers in a square when four of its songs have different art, the first
  * cover alone when fewer do, and the kind's icon when it has no songs yet.
  * Nothing to choose or keep up to date: it changes as the playlist does.
  *
@@ -42,13 +42,11 @@ export function PlaylistCover({
 
   const songIds = given ?? data?.songIds
   const covers = useMemo(() => {
-    const songs = (songIds ?? []).slice(0, 24).flatMap(id => {
+    const songs = (songIds ?? []).flatMap(id => {
       const song = byId.get(id)
       return song ? [song] : []
     })
-    const withArt = songs.filter(song => artFor(song) !== null)
-    if (withArt.length >= 4) return withArt.slice(0, 4)
-    return (withArt.length > 0 ? withArt : songs).slice(0, 1)
+    return mosaicCovers(songs, song => artFor(song) !== null)
   }, [byId, songIds, artFor])
 
   // Held, not rebuilt: a tag list or a playlist grid draws one of these per
@@ -80,6 +78,8 @@ export function PlaylistCover({
       {covers.map(song => (
         <Tile key={song.id} song={song} uri={artFor(song)} half={covers.length === 4} />
       ))}
+      {/* One edge round the mosaic, not one round each of its cells. */}
+      <CoverEdge radius={coverRadius(size)} />
     </View>
   )
 }

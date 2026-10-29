@@ -42,11 +42,15 @@ export function CopiesReview({
   result,
   height,
   onClose,
+  card = false,
   onKeys,
 }: {
   result: CopiesResult
   height: number
-  onClose?: () => void
+  /** Done with: what was deleted, or that nothing changed. */
+  onClose?: (outcome?: string) => void
+  /** Ask's card (`Review`). */
+  card?: boolean
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
   const server = useSmartServer()
@@ -78,6 +82,7 @@ export function CopiesReview({
   return (
     <>
       <Review
+        card={card}
         changes={here}
         sectionOf={each => each.change.why}
         head={`${plural(here.length, 'song is', 'songs are')} in your library twice`}
@@ -116,12 +121,17 @@ export function CopiesReview({
         }}
         keyWord="delete"
         onApply={(approved, leftOut) =>
-          new Promise<boolean>(answer => {
+          new Promise<boolean | string>(answer => {
             const copies = approved
               .map(each => ({ keep: each.keep, extra: extraOf(each, leftOut) }))
               .filter(each => each.extra.length > 0)
+            const count = copies.reduce((sum, each) => sum + each.extra.length, 0)
             if (copies.length === 0) answer(false)
-            else setFolding({ copies, answer })
+            else
+              setFolding({
+                copies,
+                answer: done => answer(done && `Deleted ${plural(count, 'copy', 'copies')}`),
+              })
           })
         }
         height={height}
@@ -188,8 +198,14 @@ function FoldCopies({
     const back = (): void => void client.invalidateQueries({ queryKey: queryKeys.library })
     showPendingToast(
       one
-        ? 'Deleted the extra copy; its plays and tags are on the one kept'
-        : `Deleted ${count} extra copies; their plays and tags are on the ones kept`,
+        ? {
+            say: 'Deleted the extra copy',
+            under: 'Its plays and tags are on the one kept.',
+          }
+        : {
+            say: `Deleted ${count} extra copies`,
+            under: 'Their plays and tags are on the ones kept.',
+          },
       async () => {
         void dropDownloads(ids)
         player.forgetSongs(ids)
@@ -209,6 +225,7 @@ function FoldCopies({
         tone: 'good',
         failed: one ? 'Couldn’t delete it' : 'Couldn’t delete them',
         undone: back,
+        songs: copies.map(each => each.keep).slice(-3),
       },
     )
   }

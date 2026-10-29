@@ -15,14 +15,15 @@ import { Devices, Moon } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { SongActionItems } from './SongActionItems'
-import { useSleepTimerStatus } from './SleepMenu'
+import { SleepItem } from './SleepMenu'
 import { TagPicker } from './TagPicker'
 import type { PopoverAnchor } from '../rightClick'
 
 /**
  * The phone's Now Playing ends its menu with a short "This player" group — the
  * sleep timer and the devices — because the page has no other door to them. A
- * computer has both on the player bar, so its stage passes none.
+ * computer has both on the player bar, so its stage passes none. The phone's
+ * page has no ⓘ either, so its menu keeps Song details.
  */
 interface PlayerDoors {
   readonly onSleep: () => void
@@ -37,7 +38,8 @@ interface PlayerDoors {
  *
  * Opened on Now Playing (`context="nowPlaying"`), on a phone or a computer
  * alike, it leaves out what that page already shows — the heart, the tags,
- * Tags and Song details — and Add to Up next, since the song is playing.
+ * Tags, and on a computer Song details (its Details tab) — and Add to Up
+ * next, since the song is playing.
  *
  * A friend's song in a room (`isRoomTrackId`) is not in your library: it
  * cannot be liked, tagged, listed, kept, looked up or deleted, so the menu
@@ -137,6 +139,8 @@ export function SongMenu({
         onClose={onClose}
         anchorRef={anchorRef}
         width={300}
+        role="menu"
+        label={song?.title}
         testID="song-menu"
       >
         {items}
@@ -233,6 +237,7 @@ function Items({
         songs={[song]}
         playlist={playlist}
         nowPlaying={onNowPlaying}
+        detailsInMenu={extras !== undefined}
         flyFrom={anchorRef}
         onClose={onClose}
         onTags={onTags}
@@ -256,23 +261,6 @@ function Items({
         }
       />
     </>
-  )
-}
-
-/**
- * The sleep timer's row, saying how long is left; its own component so only
- * a menu that shows it ticks with the timer.
- */
-function SleepItem({ icon, onPress }: { icon: ReactNode; onPress: () => void }): ReactNode {
-  const { left } = useSleepTimerStatus()
-  return (
-    <SheetItem
-      icon={icon}
-      label="Sleep timer"
-      detail={left ?? 'Off'}
-      active={left !== null}
-      onPress={onPress}
-    />
   )
 }
 

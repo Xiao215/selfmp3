@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { IdSchema, NameSchema, OptionalTextSchema } from './common.js'
+import { BULK_IDS_MAX, IdSchema, NameSchema, OptionalTextSchema } from './common.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
 import { DAY_MS } from '../math.js'
 
@@ -30,6 +30,19 @@ export const CoverToneSchema = z.object({
   palette: z.array(CoverSwatchSchema).min(1).max(8),
 })
 export type CoverTone = z.infer<typeof CoverToneSchema>
+
+/**
+ * Who handed a song over, when it came from someone rather than a link you
+ * found yourself: a friend's song in a room, or one from a share link, brought
+ * home with Get it. The song's page says "from Mia, in a room". Null for
+ * everything else, whose source link (or none) says where it came from.
+ */
+export const CameWithSchema = z.object({
+  kind: z.enum(['room', 'link']),
+  /** The friend's name as the room or the link showed it. */
+  from: z.string().trim().min(1).max(40),
+})
+export type CameWith = z.infer<typeof CameWithSchema>
 
 /**
  * A song as the API returns it.
@@ -71,6 +84,18 @@ export const SongSchema = z.object({
   instrumental: z.boolean(),
   playCount: z.number().int().nonnegative(),
   loved: z.boolean(),
+  /**
+   * When it was last liked (SQLite UTC time), from the stamp its love carries
+   * (docs/SYNC.md); null when it is not liked, or was liked before stamps.
+   * Liked lists newest first by it.
+   */
+  lovedAt: z.string().nullable(),
+  /**
+   * Resting until then (docs/features/lists.md, "Resting songs"): Shuffle, a
+   * list played whole, Ask's picks, Forgotten gems and Keep going pass over
+   * it, and a tap still plays it. ISO time; null, or a time gone by, is awake.
+   */
+  restUntil: z.string().nullable(),
   sourceUrl: z.string().nullable(),
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),
@@ -94,6 +119,8 @@ export const SongFieldsSchema = z.object({
   loved: z.boolean(),
   /** Mark or unmark a song as having no words, so no lyrics are looked up. */
   instrumental: z.boolean(),
+  /** Rest a song until then, or wake it with null (`SongSchema.restUntil`). */
+  restUntil: z.string().datetime().nullable(),
 })
 export type SongFields = z.infer<typeof SongFieldsSchema>
 
@@ -105,10 +132,19 @@ export const SongPatchSchema = SongFieldsSchema.partial().refine(
 )
 export type SongPatch = z.infer<typeof SongPatchSchema>
 
-export const SetSongTagsSchema = z.object({
-  tagIds: z.array(IdSchema).max(100),
-})
-export type SetSongTags = z.infer<typeof SetSongTagsSchema>
+/**
+ * Tags on and off one song: only what changed (`tagsAfter`), so the tags
+ * another device put on meanwhile stay.
+ */
+export const ChangeSongTagsSchema = z
+  .object({
+    add: z.array(IdSchema).max(100),
+    remove: z.array(IdSchema).max(100),
+  })
+  .refine(change => change.add.length + change.remove.length > 0, {
+    message: 'no tags to change',
+  })
+export type ChangeSongTags = z.infer<typeof ChangeSongTagsSchema>
 
 /**
  * Remove many songs from the library in one request.
@@ -118,7 +154,7 @@ export type SetSongTags = z.infer<typeof SetSongTagsSchema>
  * "keep the file" — the server keeps no copy to keep.
  */
 export const BulkDeleteSongsSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
 })
 export type BulkDeleteSongs = z.infer<typeof BulkDeleteSongsSchema>
 
@@ -156,7 +192,10 @@ export const BulkDeleteFailureSchema = z.object({
 export type BulkDeleteFailure = z.infer<typeof BulkDeleteFailureSchema>
 
 export const BulkDeleteResultSchema = z.object({
-  /** Rows actually removed from the library. */
+  /**
+   * Songs no longer in the library: removed now, or gone already — a delete
+   * asked again after its answer was lost has nothing left to fail at.
+   */
   removed: z.number().int().nonnegative(),
   failed: z.array(BulkDeleteFailureSchema),
 })
@@ -164,7 +203,7 @@ export type BulkDeleteResult = z.infer<typeof BulkDeleteResultSchema>
 
 /** Love or unlove many songs at once, so the UI needs one request, not N. */
 export const BulkLovedSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
   loved: z.boolean(),
 })
 export type BulkLoved = z.infer<typeof BulkLovedSchema>

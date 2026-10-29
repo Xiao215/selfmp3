@@ -1,22 +1,18 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { radius, type, space } from '@selfmp3/client'
 import { TagChipRow } from '../../ui/components/TagChooser'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagSearchList } from '../../ui/components/TagPicker'
-import { Press } from '../../ui/components/Press'
-import { smallTitle } from '../../ui/surfaces'
 
 /**
  * The tags an import arrives with, which is all an import can add: it never
- * offers a playlist (`S3`, Import). Two faces of the one choice, held in the
- * draft (importDraft.ts): "Tag it [night drive ▾] as it arrives" on the Import
- * page (`P29`), and "Tag them" with chips on the review (`P30`, `C14`).
+ * offers a playlist (`S3`, Import). Chosen at review, held in the draft
+ * (importDraft.ts): "Tag them" with chips (`P30`, `C14`). The Import page's
+ * own "Tag it … as it arrives" went (J1, 2026-10-25): tags are chosen where
+ * the songs can be seen.
  *
- * Both open the tag picker a song uses, which makes a tag on the spot and asks
+ * It opens the tag picker a song uses, which makes a tag on the spot and asks
  * first when the name is an artist's (`useArtistNudge`). The tags are the ones
  * the import is going to (importSource.ts), list and new tag alike, so a tag
  * ticked or made here is one the import can name.
@@ -42,58 +38,9 @@ function TagSheet({
   return (
     <Sheet open={open} onClose={onClose} title="Tag these songs" titleTone="label">
       {open ? (
-        <TagSearchList
-          selected={selected}
-          onChange={onChange}
-          onLeave={onClose}
-          from={from}
-          autoFocus
-        />
+        <TagSearchList selected={selected} onChange={onChange} onLeave={onClose} from={from} />
       ) : null}
     </Sheet>
-  )
-}
-
-/** `P29`: "Tag it [night drive ▾] as it arrives", the choice read back in one pill. */
-export function TagItPill({
-  tags,
-  createTag,
-  selected,
-  onChange,
-}: {
-  tags: readonly Tag[]
-  createTag: (name: string) => Promise<Tag>
-  selected: ReadonlySet<number>
-  onChange: (next: ReadonlySet<number>) => void
-}): ReactNode {
-  const [open, setOpen] = useState(false)
-  const names = tags.filter(tag => selected.has(tag.id)).map(tag => tag.name)
-  const shown = names.length === 0 ? 'no tag' : names.join(', ')
-  return (
-    <View style={styles.sentence}>
-      <Text style={styles.words}>Tag it</Text>
-      <Press
-        onPress={() => setOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel={`Tag it: ${shown}. Change`}
-        style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
-        testID="import-tag-it"
-      >
-        <Text style={styles.pillText} numberOfLines={1}>
-          {shown}
-        </Text>
-        <Text style={styles.caret}>▾</Text>
-      </Press>
-      <Text style={styles.words}>as it arrives</Text>
-      <TagSheet
-        open={open}
-        onClose={() => setOpen(false)}
-        tags={tags}
-        createTag={createTag}
-        selected={selected}
-        onChange={onChange}
-      />
-    </View>
   )
 }
 
@@ -145,25 +92,3 @@ export function TagThem({
     </TagChipRow>
   )
 }
-
-const styles = StyleSheet.create(theme => ({
-  sentence: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
-  words: { color: theme.colors.textSecondary, fontSize: type.sub },
-  // A control on the ground: the control's fill, no edge.
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.tight,
-    maxWidth: 240,
-    minHeight: 30,
-    paddingHorizontal: space.snug,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-  },
-  pressed: { backgroundColor: theme.colors.surface3 },
-  pillText: {
-    flexShrink: 1,
-    ...smallTitle(theme.colors),
-  },
-  caret: { color: theme.colors.textMuted, fontSize: type.small },
-}))

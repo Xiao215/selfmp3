@@ -3,13 +3,14 @@ import type { ReactNode, RefObject } from 'react'
 import type { View } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { Playlist } from '@selfmp3/shared'
-import { failureText, useCreatePlaylist, useDeletePlaylist, useLibrary } from '@selfmp3/client'
+import { useCreatePlaylist, useDeletePlaylist, useLibrary } from '@selfmp3/client'
 import type { Selection } from '../../selection/useSelection'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { Copy, Pencil, Trash } from '../../ui/components/Icons'
 import type { MenuItem } from '../../ui/components/MoreMenu'
 import { useListActions } from '../../ui/components/useListActions'
-import { showToast } from '../../ui/toast'
+import { showFailure, showToast } from '../../ui/toast'
+import { PlaylistCover } from './PlaylistCover'
 import { copyName, isLive, newPlaylist } from './playlists.model'
 
 /**
@@ -65,7 +66,7 @@ export function usePlaylistMenu(
       showToast(`Made “${created.name}”`, 'good')
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id) } })
     } catch (caught) {
-      showToast(failureText(`Couldn’t copy “${playlist.name}”`, caught), 'error')
+      showFailure(`Couldn’t copy “${playlist.name}”`, caught)
     }
   }
 
@@ -133,9 +134,11 @@ export function DeletePlaylistDialog({
   return (
     <ConfirmDialog
       open={playlist !== null}
-      title={`Delete the playlist “${named?.name ?? 'Playlist'}”?`}
+      title="Delete this playlist?"
+      name={named?.name ?? 'Playlist'}
+      picture={named ? <PlaylistCover playlist={named} size={52} /> : null}
       body="Your songs are kept."
-      confirmLabel="Delete playlist"
+      confirmLabel="Delete"
       danger
       onCancel={onClose}
       onConfirm={() => {

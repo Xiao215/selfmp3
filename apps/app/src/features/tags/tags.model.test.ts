@@ -3,10 +3,11 @@ import type { Song, Tag } from '@selfmp3/shared'
 
 import { tagsMostPlayed } from '../tag/tag.model'
 import {
+  firstDrawn,
   leadSong,
   tagsHeadline,
   tagsLayout,
-  UNTAGGED_HINT,
+  tagsLayoutSize,
   waitingArtists,
   waitingLine,
 } from './tags.model'
@@ -39,8 +40,8 @@ const names = (entries: readonly { standing: { tag: Tag } }[]) =>
 describe('All tags', () => {
   it('says how many tags there are and in what order, and when there are none', () => {
     expect(tagsHeadline(0)).toBe('No tags yet')
-    expect(tagsHeadline(1)).toBe('1 tag · most played first')
-    expect(tagsHeadline(8)).toBe('8 tags · most played first')
+    expect(tagsHeadline(1)).toBe('1 tag')
+    expect(tagsHeadline(8)).toBe('8 tags')
   })
 })
 
@@ -87,11 +88,12 @@ describe('how All tags lays its tags out', () => {
     expect(names(tagsLayout(tagsMostPlayed([game, snow], twins)).main)).toEqual(['game', 'snow'])
   })
 
-  it('keeps tags with a song or two, and empty ones, for the end', () => {
+  it('keeps tags with a song or two for the end, and empty ones after them', () => {
     const songs = library({ 1: [4], 2: [4], 3: [4], 4: [5], 5: [5] })
-    const { main, justStarted } = tagsLayout(tagsMostPlayed([pop, tiny, empty], songs))
-    expect(names(main)).toEqual(['pop'])
-    expect(names(justStarted)).toEqual(['tiny', 'empty'])
+    const layout = tagsLayout(tagsMostPlayed([pop, tiny, empty], songs))
+    expect(names(layout.main)).toEqual(['pop'])
+    expect(names(layout.justStarted)).toEqual(['tiny'])
+    expect(names(layout.empty)).toEqual(['empty'])
   })
 
   it('leaves a one-song region inside its holder rather than at the end', () => {
@@ -99,6 +101,54 @@ describe('how All tags lays its tags out', () => {
     const { main, justStarted } = tagsLayout(tagsMostPlayed([game, snow], songs))
     expect(main[0]?.inside.map(s => s.tag.name)).toEqual(['snow'])
     expect(justStarted).toEqual([])
+  })
+})
+
+describe('how much of All tags is drawn at first', () => {
+  // Two holders, five one-song tags inside the first and one inside the
+  // second; a two-song tag on its own; an empty one.
+  const tags = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(id => tag(id, `t${id}`))
+  const songs = library({
+    1: [1, 3, 4, 5, 6, 7],
+    2: [1],
+    3: [1],
+    4: [2, 8],
+    5: [2],
+    6: [2],
+    7: [9],
+    8: [9],
+  })
+  const layout = tagsLayout(tagsMostPlayed(tags, songs))
+  const shape = (drawn: ReturnType<typeof firstDrawn>) =>
+    [drawn.main, drawn.justStarted, drawn.empty].map(run =>
+      run.map(entry => [entry.standing.tag.name, entry.inside.map(s => s.tag.name)]),
+    )
+
+  it('counts every tile and every chip under one', () => {
+    expect(shape(layout)).toEqual([
+      [
+        ['t1', ['t3', 't4', 't5', 't6', 't7']],
+        ['t2', ['t8']],
+      ],
+      [['t9', []]],
+      [['t10', []]],
+    ])
+    expect(tagsLayoutSize(layout)).toBe(10)
+  })
+
+  it('draws chips as it draws tiles, a holder’s first ones before the next tile', () => {
+    expect(shape(firstDrawn(layout, 0))).toEqual([[], [], []])
+    expect(shape(firstDrawn(layout, 3))).toEqual([[['t1', ['t3', 't4']]], [], []])
+    expect(shape(firstDrawn(layout, 7))).toEqual([
+      [
+        ['t1', ['t3', 't4', 't5', 't6', 't7']],
+        ['t2', []],
+      ],
+      [],
+      [],
+    ])
+    expect(shape(firstDrawn(layout, 10))).toEqual(shape(layout))
+    expect(shape(firstDrawn(layout, 99))).toEqual(shape(layout))
   })
 })
 
@@ -146,24 +196,22 @@ describe('who the untagged songs are by', () => {
 })
 
 describe('the untagged card’s line', () => {
-  const named = [
-    { name: '周杰倫', count: 73, song: {} as never },
-    { name: 'HOYO-MiX', count: 1204, song: {} as never },
-  ]
+  const artist = (name: string, count: number) => ({ name, count, song: {} as never })
 
-  it('names who the songs are by, and the rest', () => {
-    expect(waitingLine(named, 24, 'count')).toBe(
-      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX · and 24 more`,
-    )
-    expect(waitingLine(named, 24, 'others')).toBe(
-      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX · and others`,
-    )
-    expect(waitingLine(named, 0, 'others')).toBe(
-      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX`,
+  it('says whose they mostly are when one artist has half or more', () => {
+    expect(waitingLine([artist('Yorushika', 58), artist('ヨルシカ', 3)], 62)).toBe(
+      'Mostly Yorushika',
     )
   })
 
-  it('says what to do with nobody to name', () => {
-    expect(waitingLine([], 5, 'count')).toBe(UNTAGGED_HINT)
+  it('names the two with the most otherwise, and says there are others', () => {
+    expect(waitingLine([artist('周杰倫', 30), artist('HOYO-MiX', 20)], 70)).toBe(
+      '周杰倫, HOYO-MiX and others',
+    )
+    expect(waitingLine([artist('周杰倫', 31), artist('HOYO-MiX', 30)], 61)).toBe('Mostly 周杰倫')
+  })
+
+  it('says nothing with nobody to name', () => {
+    expect(waitingLine([], 5)).toBeNull()
   })
 })

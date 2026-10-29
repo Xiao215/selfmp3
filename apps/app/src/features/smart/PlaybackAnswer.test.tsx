@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native'
-import { EMPTY_QUEUE, type AskAnswer } from '@selfmp3/shared'
+import { EMPTY_QUEUE, type AskCard } from '@selfmp3/shared'
 
 import { PlaybackAnswer } from './PlaybackAnswer'
 
@@ -25,7 +25,7 @@ const mockSongs = new Map([
 ])
 jest.mock('../../ui/songsById', () => ({ useSongsById: () => mockSongs }))
 
-type Playback = Extract<AskAnswer, { kind: 'playback' }>
+type Playback = Extract<AskCard, { kind: 'playback' }>
 
 beforeEach(() => {
   for (const command of Object.values(mockCommands)) command.mockClear()

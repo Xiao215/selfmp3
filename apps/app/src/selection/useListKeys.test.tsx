@@ -6,6 +6,7 @@
 // ones React Native for web writes from a `SongRow`'s `dataSet`.
 import { renderHook } from '@testing-library/react-native'
 
+import { focusNextStop, useArrowsBetweenStops } from '../shell/focusNext.web'
 import { useHotkeys } from '../shell/useHotkeys.web'
 import { closeLayer, openLayer } from '../shell/layers'
 import { setTabbing, tabbing } from '../shell/tabbing'
@@ -98,6 +99,8 @@ describe('a song list’s keys', () => {
   }> {
     const toggle = jest.fn()
     const selectAll = jest.fn(() => songIds.length > 0)
+    const endsAt = (songId: number, step: 1 | -1): boolean =>
+      songIds.indexOf(songId) === (step === 1 ? songIds.length - 1 : 0)
     const inList = new Set(songIds)
     const undrawn = new Map<number, { row: Element; parent: Element }>()
     const reveal = jest.fn((songId: number) => {
@@ -108,7 +111,7 @@ describe('a song list’s keys', () => {
     })
     let listKey = ''
     const { unmount } = await renderHook(() => {
-      listKey = useListKeys({ toggle, selectAll, reveal })
+      listKey = useListKeys({ toggle, selectAll, reveal, endsAt })
     })
     const rows = drawRows(listKey, songIds)
     const undraw = (songId: number): void => {
@@ -133,14 +136,54 @@ describe('a song list’s keys', () => {
 
     press(rows[1]!, 'ArrowDown')
     expect(document.activeElement).toBe(rows[2])
-    // The last row stays the last.
-    press(rows[2]!, 'ArrowDown')
+    // Past the last row, and above the first, the arrow is the page's.
+    expect(press(rows[2]!, 'ArrowDown').prevented).toBe(false)
     expect(document.activeElement).toBe(rows[2])
 
     press(rows[2]!, 'ArrowUp')
     press(rows[1]!, 'ArrowUp')
     expect(document.activeElement).toBe(rows[0])
+    expect(press(rows[0]!, 'ArrowUp').prevented).toBe(false)
     await unmount()
+  })
+
+  it('goes on past either end of a list to the page’s other results (R2-m13)', async () => {
+    // jsdom lays nothing out: everything drawn counts as on screen.
+    const drawn = jest
+      .spyOn(Element.prototype, 'getClientRects')
+      .mockReturnValue([{}] as unknown as DOMRectList)
+    // Nor scrolls.
+    Element.prototype.scrollIntoView = jest.fn()
+    // Search with one song and Ask: a field, then the results — the song's
+    // list, then the Ask button.
+    const field = document.createElement('input')
+    document.body.append(field)
+    const above = jest.fn(() => field.focus())
+    const page = await renderHook(() => useArrowsBetweenStops('results', above))
+    const { rows, unmount } = await list([21])
+    const results = document.createElement('div')
+    results.id = 'results'
+    const ask = document.createElement('button')
+    ask.textContent = 'Ask'
+    results.append(rows[0]!.closest('[role="grid"]')!, ask)
+    document.body.append(results)
+
+    // ↓ from the field comes to the song, not past it: a row is a stop,
+    // though not Tab's.
+    expect(focusNextStop(field)).toBe(true)
+    expect(document.activeElement).toBe(rows[0])
+    press(rows[0]!, 'ArrowDown')
+    expect(document.activeElement).toBe(ask)
+    press(ask, 'ArrowUp')
+    expect(document.activeElement).toBe(rows[0])
+    press(rows[0]!, 'ArrowUp')
+    expect(above).toHaveBeenCalled()
+    expect(document.activeElement).toBe(field)
+
+    await unmount()
+    await page.unmount()
+    drawn.mockRestore()
+    delete (Element.prototype as Partial<Element>).scrollIntoView
   })
 
   it('ticks the row the keyboard is on with Space, once per press', async () => {

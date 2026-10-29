@@ -5,9 +5,11 @@ import {
   type Song,
   type Tag,
   artistKey,
-  libraryArtists,
+  findArtist,
+  joinedArtists,
   songArtistKeys,
   type Artist,
+  type ArtistJoinNames,
 } from '@selfmp3/shared'
 
 /**
@@ -39,23 +41,33 @@ export function placeSize(place: Place): number {
 
 /**
  * Every song any of the places holds, each once, newest first as Library
- * opens.
+ * opens; with `all`, only the songs every one of them holds (C1).
  */
-export function placeSongs<S extends Song>(places: readonly Place[], songs: readonly S[]): S[] {
+export function placeSongs<S extends Song>(
+  places: readonly Place[],
+  songs: readonly S[],
+  match: 'any' | 'all' = 'any',
+): S[] {
   if (places.length === 0) return []
   const tagIds = new Set<number>()
   const artistKeys = new Set<string>()
   for (const place of places) {
     if (place.kind === 'tag') tagIds.add(place.tag.id)
-    else artistKeys.add(place.artist.key)
+    else for (const key of place.artist.keys) artistKeys.add(key)
   }
-  return songs
-    .filter(
-      song =>
-        song.tagIds.some(id => tagIds.has(id)) ||
-        (artistKeys.size > 0 && songArtistKeys(song).some(key => artistKeys.has(key))),
-    )
-    .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || b.id - a.id)
+  const holds =
+    match === 'all'
+      ? (song: S): boolean => {
+          const keys = artistKeys.size > 0 ? songArtistKeys(song) : []
+          return (
+            [...tagIds].every(id => song.tagIds.includes(id)) &&
+            [...artistKeys].every(key => keys.includes(key))
+          )
+        }
+      : (song: S): boolean =>
+          song.tagIds.some(id => tagIds.has(id)) ||
+          (artistKeys.size > 0 && songArtistKeys(song).some(key => artistKeys.has(key)))
+  return songs.filter(holds).sort((a, b) => b.addedAt.localeCompare(a.addedAt) || b.id - a.id)
 }
 
 /** "12 songs · 46 min", under a place's name. */
@@ -79,7 +91,7 @@ export function untaggedSongs<T extends Pick<Song, 'id' | 'tagIds' | 'addedAt'>>
 
 /** "2 songs have no tag yet", on the card at the top of All tags. */
 export function untaggedCardTitle(count: number): string {
-  return `${plural(count, 'song has', 'songs have')} no tag yet`
+  return `${plural(count, 'song', 'songs')} without a tag`
 }
 
 export interface TagStanding {
@@ -164,10 +176,13 @@ export function noTagsLine(): string {
  * The artist a new tag's name would shadow (`P11`): making a tag called
  * exactly what the songs already call an artist first offers the artist.
  */
-export function artistNamed(songs: readonly Song[], name: string): Artist | null {
-  const key = artistKey(name)
-  if (!key) return null
-  return libraryArtists(songs).find(artist => artist.key === key) ?? null
+export function artistNamed(
+  songs: readonly Song[],
+  names: ArtistJoinNames,
+  name: string,
+): Artist | null {
+  if (!artistKey(name)) return null
+  return findArtist(joinedArtists(songs, names), name) ?? null
 }
 
 /** One row of the Add sheet's list: a heading, or a place to turn on. */
@@ -191,12 +206,14 @@ export function addSheetRows(input: {
   const query = input.query.trim()
   if (input.list === 'artists') {
     const artists = query
-      ? fuzzyRank(query, input.artists, artist => artist.name).map(match => match.item)
+      ? fuzzyRank(query, input.artists, artist => artist.name, { scattered: true }).map(
+          match => match.item,
+        )
       : [...input.artists].sort((a, b) => a.name.localeCompare(b.name))
     return artists.map(artist => ({ kind: 'place', place: { kind: 'artist', artist } }))
   }
   if (query) {
-    return fuzzyRank(query, input.tags, tag => tag.name).map(match => ({
+    return fuzzyRank(query, input.tags, tag => tag.name, { scattered: true }).map(match => ({
       kind: 'place' as const,
       place: { kind: 'tag' as const, tag: match.item },
     }))

@@ -5,6 +5,7 @@ import { PlaylistKindSchema } from './playlist.js'
 import { SongFieldsSchema } from './song.js'
 import { DAY_MS } from '../math.js'
 import { TagNameSchema } from './tag.js'
+import { ArtistNamesSchema } from './artist.js'
 
 /**
  * The change log (docs/SYNC.md): what a device did, as it travels.
@@ -88,6 +89,15 @@ export const TagEditedSchema = z.object({
 
 export const TagRemovedSchema = z.object({ type: z.literal('tagRemoved'), ...at })
 
+/**
+ * The tag's last songs were removed, so it goes with them — unless a song has
+ * it by the time this is applied. Nobody asked for this the way `tagRemoved`
+ * is asked for: another device may be filling the tag that very moment, so a
+ * tag gone this way is kept aside (the snapshot's `emptiedTags`) and comes
+ * back when a song is tagged with it, whenever that change arrives.
+ */
+export const TagEmptiedSchema = z.object({ type: z.literal('tagEmptied'), ...at })
+
 export const PlaylistFieldsSchema = z.object({
   name: NameSchema,
   description: z.string().trim().max(500),
@@ -162,6 +172,17 @@ export const ImportRequestedSchema = z.object({
   playlistUid: UidSchema.nullable().default(null),
 })
 
+/**
+ * The names an artist also goes by, all of them as they are now. An artist
+ * has no uid — it is what the songs say — so it is named by `artistKey`.
+ */
+export const ArtistNamedSchema = z.object({
+  type: z.literal('artistNamed'),
+  hlc: HlcSchema,
+  artist: z.string().min(1).max(500),
+  names: ArtistNamesSchema,
+})
+
 /** Asked for, then thought better of, before the server got to it. */
 export const ImportCancelledSchema = z.object({ type: z.literal('importCancelled'), ...at })
 
@@ -174,6 +195,7 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   TagCreatedSchema,
   TagEditedSchema,
   TagRemovedSchema,
+  TagEmptiedSchema,
   PlaylistCreatedSchema,
   PlaylistEditedSchema,
   PlaylistRemovedSchema,
@@ -182,11 +204,19 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   PlaylistUnfollowedSchema,
   ImportRequestedSchema,
   ImportCancelledSchema,
+  ArtistNamedSchema,
 ])
 export type Change = z.infer<typeof ChangeSchema>
 
 /** Bumped when a log file changes in a way an older build cannot read. */
 export const LOG_FORMAT = 1
+
+/**
+ * The most changes one log file holds. A device sends a longer outbox — a
+ * phone offline for weeks of plays — as several files: one past this is not
+ * a log file at all, and stopped that device's changes for good.
+ */
+export const LOG_FILE_MAX_CHANGES = 10_000
 
 /**
  * `log/<device>/<seq>.json`: one batch of one device's changes.
@@ -201,7 +231,7 @@ export const LogFileSchema = z.object({
   device: CloudDeviceIdSchema,
   seq: z.number().int().positive(),
   writtenAt: z.string(),
-  changes: z.array(z.unknown()).max(10_000),
+  changes: z.array(z.unknown()).max(LOG_FILE_MAX_CHANGES),
 })
 
 export interface LogFile {

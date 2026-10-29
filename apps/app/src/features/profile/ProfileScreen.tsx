@@ -5,17 +5,15 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { Download, Settings, ShareOut, Sparkles } from '../../ui/components/Icons'
+import { BarChart, Download, Settings, ShareOut } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { NavRow } from '../../ui/components/NavRow'
 import { useAccount } from './useAccount'
-import { deviceKind } from '../../ports/device'
-import { card, label, pageFrame, serif, lineSub } from '../../ui/surfaces'
-import { devicePlace } from '../settings/settings.model'
+import { card, label, pageFrame, pageTitle, lineSub } from '../../ui/surfaces'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import {
   MONTH_CARD_TITLE,
@@ -34,21 +32,22 @@ import { sentLinksHint } from '../share/share.model'
 import { useSentLinks } from '../share/shareLinks'
 import { useMinute } from '../share/useMinute'
 import { SongLine } from '../../ui/components/SongLine'
-import { StatFigure } from '../../ui/components/StatFigure'
+import { StatFigure, StatFigures } from '../../ui/components/StatFigure'
+import { FIT_LINE } from '../../ui/textScale'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
-import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
+import { NOTHING_PLAYED_YET, SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
-  report: Sparkles,
+  stats: BarChart,
   links: ShareOut,
   settings: Settings,
 }
 
 /**
  * Profile (`P31`): the person and how big the library is, this month as one
- * card that opens Stats, then Import, Report, Links you shared and Settings
+ * card that opens Stats, then Import, Stats, Links you shared and Settings
  * (profile.model.ts).
  *
  * Behind the avatar on a phone's Home; a computer reaches it from the name row
@@ -75,12 +74,12 @@ function ProfilePage({
   loading: boolean
   via: ServerConnection | undefined
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { fromCloud } = useConnection()
   const { data: links } = useSentLinks()
+  const { data: library } = useLibrary()
   const now = useMinute()
   const rows = profileRows({
-    place: devicePlace(deviceKind()),
     linksHint: fromCloud ? sentLinksHint(links, now) : null,
   })
 
@@ -92,7 +91,12 @@ function ProfilePage({
       >
         <BackButton to="/" testID="profile-back" />
         <Person />
-        <Month card={monthCard(stats)} loading={loading} via={via} />
+        <Month
+          card={monthCard(stats)}
+          loading={loading}
+          empty={library?.songs.length === 0}
+          via={via}
+        />
         <View>
           {rows.map(row => (
             <Row key={row.id} row={row} />
@@ -124,7 +128,8 @@ function Person(): ReactNode {
     <View style={styles.person}>
       <Avatar account={account} size={AVATAR} />
       <View style={styles.personWords}>
-        <Text style={styles.name} accessibilityRole="header" numberOfLines={1}>
+        {/* Set smaller at the largest text sizes rather than cut to "Pro…" (AM1). */}
+        <Text style={styles.name} accessibilityRole="header" {...FIT_LINE}>
           {name}
         </Text>
         <Text style={styles.line} testID="profile-line">
@@ -143,10 +148,13 @@ function Person(): ReactNode {
 function Month({
   card: month,
   loading,
+  empty,
   via,
 }: {
   card: MonthCard | null
   loading: boolean
+  /** A library with no songs yet: nothing was ever out of reach, there is just nothing played. */
+  empty: boolean
   via: ServerConnection | undefined
 }): ReactNode {
   const router = useRouter()
@@ -156,7 +164,7 @@ function Month({
       onPress={() => router.push('/stats')}
       accessibilityRole="link"
       accessibilityLabel={monthCardSpoken(month)}
-      testID="profile-stats"
+      testID="profile-month"
       style={styles.month}
     >
       <View style={styles.monthHead}>
@@ -165,15 +173,17 @@ function Month({
       </View>
       {month ? (
         <>
-          <View style={styles.figures}>
+          <StatFigures>
             <StatFigure value={month.listened} unit={month.listenedUnit} caption="listened" />
-            <StatFigure value={month.plays} caption="plays" />
+            <StatFigure value={month.plays} caption={month.playsCaption} />
             <StatFigure value={month.streak} unit={month.streakUnit} caption="streak" />
-          </View>
+          </StatFigures>
           {month.onRepeat ? <OnRepeat month={month} via={via} /> : null}
         </>
       ) : (
-        <Text style={styles.line}>{loading ? 'Working it out…' : SHOWS_WHEN_REACHABLE}</Text>
+        <Text style={styles.line}>
+          {loading ? 'Working it out…' : empty ? NOTHING_PLAYED_YET : SHOWS_WHEN_REACHABLE}
+        </Text>
       )}
     </Press>
   )
@@ -224,13 +234,20 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: pageFrame(false),
   person: { flexDirection: 'row', alignItems: 'center', gap: space.roomy },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
-  name: serif(theme.colors, 'page'),
+  // The page's title, in the display face: the serif is for greetings and big numbers (N1).
+  name: pageTitle(theme.colors),
   line: lineSub(theme.colors),
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
   month: { ...card(theme.colors, radius.cardLg), padding: space.card, gap: space.roomy },
-  monthHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  // "Stats" goes under the title where large text leaves no room beside it.
+  monthHead: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    columnGap: space.md,
+  },
   monthTitle: label(theme.colors),
   monthLink: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
-  figures: { flexDirection: 'row', gap: space.md },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
 }))

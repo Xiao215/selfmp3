@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -10,22 +10,33 @@ import {
   useBulkTag,
   useCreateTag,
   useLibrary,
-  useSetSongTags,
+  useChangeSongTags,
   iconSize,
 } from '@selfmp3/client'
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
-import { Checkbox, CheckRow } from './Checkbox'
+import { CheckRow, TagCheck } from './Checkbox'
 import { Plus } from './Icons'
 import { usePanelDense } from './panel'
 import { Popover } from './Popover'
 import type { PopoverAnchor } from '../rightClick'
 import { Press } from './Press'
-import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
+import {
+  offeredTags,
+  settledTicks,
+  songPickerTicks,
+  songTagChange,
+  tagChanges,
+  tagsAcross,
+  undoTagChange,
+  withPendingTicks,
+  type Offered,
+  type PendingTick,
+} from './tagPicker.model'
 import { SearchField } from './SearchField'
 import { ScrollView } from './Scroll'
-import { TagDot } from './TagDot'
+import { useDrawnAhead } from '../useDrawnAhead'
 import { menuItem } from '../surfaces'
 
 /**
@@ -114,6 +125,7 @@ function PickerWindow({
       width={320}
       title={title}
       titleTone="label"
+      scrolls
       testID="tag-picker"
     >
       {children}
@@ -135,7 +147,6 @@ function SelectionPicker({
   const [shown, setShown] = useState(() => tagsAcross(songs))
   const latest = useRef(shown)
   const bulkTag = useBulkTag()
-  const wide = useLayoutValue(layout => layout.wide)
   return (
     <TagSearchList
       selected={shown.all}
@@ -160,43 +171,42 @@ function SelectionPicker({
         for (const tagId of remove) send(tagId, 'remove')
       }}
       onLeave={onLeave}
-      autoFocus={wide}
     />
   )
 }
 
 function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNode {
-  const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
-  const setSongTags = useSetSongTags()
-  const wide = useLayoutValue(layout => layout.wide)
-  // The last set the library took, for a tick that did not: the box goes back
-  // to what is true rather than showing a tag the song does not have.
-  const saved = useRef<ReadonlySet<number>>(selected)
-  // The newest tick. A failed one puts the boxes back only if nothing was
-  // ticked after it: a later tick sends the whole set again, and its own
-  // answer decides.
-  const newest = useRef(0)
+  const { data: library } = useLibrary()
+  const changeTags = useChangeSongTags()
+  // The last answer, for a song the library held does not have yet: the box
+  // shows what is true rather than what the picker opened with.
+  const [answered, setAnswered] = useState<readonly number[] | null>(null)
+  const held = library?.songs.find(each => each.id === song.id)?.tagIds ?? answered ?? song.tagIds
+  const [pending, setPending] = useState<ReadonlyMap<number, PendingTick>>(() => new Map())
+  const ticks = useRef(0)
+  const selected = useMemo(() => songPickerTicks(held, pending), [held, pending])
   return (
     <TagSearchList
       selected={selected}
       onChange={next => {
-        setSelected(next)
-        const tick = ++newest.current
-        // Each tick's own promise, not `mutate`'s callbacks: those are kept
-        // for the newest call only, so quick ticks would lose every answer but
-        // the last, and a failure would go back to the set the picker opened
-        // with — an empty box over a tag the song has.
-        setSongTags.mutateAsync({ songId: song.id, tagIds: [...next] }).then(
-          answer => {
-            saved.current = new Set(answer.tagIds)
-          },
-          () => {
-            if (newest.current === tick) setSelected(saved.current)
-          },
-        )
+        const change = songTagChange(selected, next)
+        if (change.add.length + change.remove.length === 0) return
+        const tick = ++ticks.current
+        setPending(current => withPendingTicks(current, change, tick))
+        // Each tick's own promise, not `mutate`'s callbacks: those are kept for
+        // the newest call only. Answered or refused, its tags go back to what
+        // the song says, unless a later tick has taken them since; the
+        // failure itself is said by the app's toast.
+        const settle = (): void =>
+          setPending(current => settledTicks(current, [...change.add, ...change.remove], tick))
+        changeTags
+          .mutateAsync({ songId: song.id, add: change.add, remove: change.remove })
+          .then(answer => {
+            setAnswered(answer.tagIds)
+            settle()
+          }, settle)
       }}
       onLeave={onLeave}
-      autoFocus={wide}
     />
   )
 }
@@ -221,12 +231,6 @@ interface TagSource {
   readonly create: (name: string) => Promise<Tag>
 }
 
-/** A tag in the list, and whether it is one of `from`'s yet — or only this device's. */
-interface Offered {
-  readonly tag: Tag
-  readonly there: boolean
-}
-
 /**
  * The picker itself, for tags on a song or tags for songs not yet here (an
  * import, a migration): search as you type, tick, and make a tag on the spot.
@@ -237,7 +241,6 @@ export function TagSearchList({
   mixed,
   onChange,
   onLeave,
-  autoFocus = false,
   from,
 }: {
   selected: ReadonlySet<number>
@@ -246,24 +249,17 @@ export function TagSearchList({
   onChange: (next: ReadonlySet<number>) => void
   /** Close whatever this is drawn in, as the nudge's "Open the artist" leaves for the artist. */
   onLeave?: () => void
-  autoFocus?: boolean
   /** Another library's tags, when the ticked ids are not this device's. */
   from?: TagSource
 }): ReactNode {
   const accent = useAccent()
   // In a pop-up with a mouse the rows are a menu's, not a finger's.
   const dense = usePanelDense()
+  // A computer types straight into the search. A phone opens on the list, and
+  // its keyboard comes up only when the field is tapped: most picks are a tick.
+  const wide = useLayoutValue(layout => layout.wide)
   const { data: library } = useLibrary()
-  const tags = useMemo<readonly Offered[]>(() => {
-    if (!from) return (library?.tags ?? []).map(tag => ({ tag, there: true }))
-    const named = new Set(from.tags.map(tag => tag.name.toLowerCase()))
-    return [
-      ...from.tags.map(tag => ({ tag, there: true })),
-      ...(library?.tags ?? [])
-        .filter(tag => !named.has(tag.name.toLowerCase()))
-        .map(tag => ({ tag, there: false })),
-    ]
-  }, [from, library?.tags])
+  const tags = useMemo(() => offeredTags(library?.tags ?? [], from?.tags), [from, library?.tags])
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const createHere = useCreateTag()
@@ -283,13 +279,24 @@ export function TagSearchList({
    * that has just ticked it.
    */
   const [openedWith] = useState(selected)
-  const ranked = useMemo(() => {
-    const matches = fuzzyRank(query, tags, each => each.tag.name)
-    if (query.trim()) return matches
-    const first = (match: (typeof matches)[number]): number =>
-      match.item.there && openedWith.has(match.item.tag.id) ? 0 : 1
-    return [...matches].sort((a, b) => first(a) - first(b))
-  }, [query, tags, openedWith])
+  /*
+   * Ranked a beat behind the typing, and drawn a screenful at a time: with
+   * five hundred tags every letter re-ranked and redrew every row before the
+   * field could show it (bug bash F171). Enter ranks what is typed now.
+   */
+  const shownQuery = useDeferredValue(query)
+  const rankFor = useCallback(
+    (text: string) => {
+      const matches = fuzzyRank(text, tags, each => each.tag.name, { scattered: true })
+      if (text.trim()) return matches
+      const first = (match: (typeof matches)[number]): number =>
+        match.item.there && openedWith.has(match.item.tag.id) ? 0 : 1
+      return [...matches].sort((a, b) => first(a) - first(b))
+    },
+    [tags, openedWith],
+  )
+  const ranked = useMemo(() => rankFor(shownQuery), [rankFor, shownQuery])
+  const { drawn, ...ahead } = useDrawnAhead(ranked.length, shownQuery)
   const hasExact = ranked.some(match => match.exact)
   const trimmed = query.trim()
 
@@ -333,7 +340,7 @@ export function TagSearchList({
     // With nothing typed there is no best match: an empty query ranks the whole
     // list, and submitting would silently tick its first entry.
     if (!trimmed) return
-    const best = ranked[0]
+    const best = (shownQuery === query ? ranked : rankFor(query))[0]
     if (best) {
       pick(best.item)
       setQuery('')
@@ -353,7 +360,7 @@ export function TagSearchList({
         placeholder="Search or create a tag…"
         autoCapitalize="none"
         autoCorrect={false}
-        autoFocus={autoFocus}
+        autoFocus={wide}
         // This field creates tags as well as searching them, so it stops where
         // a tag name stops.
         maxLength={TAG_NAME_MAX}
@@ -364,8 +371,9 @@ export function TagSearchList({
         style={styles.list}
         // A scroll through the list puts the keyboard away, so the rows it
         // covered are there to tap.
+        {...ahead}
       >
-        {ranked.map(({ item: offered }) => {
+        {ranked.slice(0, drawn).map(({ item: offered }) => {
           const { tag: item, there } = offered
           const on = there && selected.has(item.id)
           const partly = !on && there && mixed?.has(item.id) === true
@@ -387,9 +395,8 @@ export function TagSearchList({
                 setQuery('')
               }}
             >
-              <Checkbox checked={on} mixed={partly} />
-              <TagDot hue={item.hue} />
-              <Text style={styles.itemLabel} numberOfLines={1}>
+              <TagCheck hue={item.hue} checked={on} mixed={partly} />
+              <Text style={[styles.itemLabel, on && styles.itemLabelOn]} numberOfLines={1}>
                 {item.name}
               </Text>
               <Text style={styles.count}>{item.songCount}</Text>
@@ -401,7 +408,8 @@ export function TagSearchList({
         ) : null}
       </ScrollView>
 
-      {trimmed && !hasExact ? (
+      {/* Once the ranking has caught up with the typing, so it never offers a twin. */}
+      {trimmed && shownQuery.trim() === trimmed && !hasExact ? (
         <Press
           depth="row"
           style={({ pressed }) => [styles.item, styles.create, pressed && styles.itemPressed]}
@@ -443,6 +451,7 @@ const styles = StyleSheet.create(theme => ({
   item: menuItem,
   itemPressed: { backgroundColor: theme.colors.surface3 },
   itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body },
+  itemLabelOn: { fontWeight: '600' },
   count: { color: theme.colors.textMuted, fontSize: type.tiny },
   // Set apart from the list by room, not a rule.
   create: {

@@ -11,6 +11,8 @@ const base: CloudSnapshot = {
   tags: [],
   playlists: [],
   artists: [],
+  artistNames: [],
+  spellings: {},
   sound: null,
   server: {
     id: 'the-server',

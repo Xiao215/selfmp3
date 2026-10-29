@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
+import { formatLongDuration, plural, type AskCard } from '@selfmp3/shared'
 import { radius, space, type, iconSize } from '@selfmp3/client'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -16,32 +16,48 @@ import { AddingToRoom } from '../room/RoomPicks'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { keepAnswer, useKeptAnswer } from './answers.store'
-import { ChangeIt } from './ChangeIt'
-import { answerSongs } from './smart.model'
+import { answerSongs, describeNotes } from './smart.model'
 import { useSmartServer } from './useSmartServer'
+import { usePlayAsItComes, useSaveAnswer } from './useAnswerLead'
 import { Press } from '../../ui/components/Press'
 import { rowTitle, textColumn, lineSub } from '../../ui/surfaces'
 
 /**
- * Ask's answer when it is songs, as it sits in Search (docs/features/lists.md,
- * C1): one card. ▶ plays it straight away — Up next wears the question as its
+ * Ask's answer when it is songs, in its thread (docs/features/lists.md, C1):
+ * one card. ▶ plays it straight away — Up next wears the question as its
  * name, and Save is there once you know you like it. The card itself opens the
- * answer as a page, to look before listening. An answer about what plays
- * after this song (A8) leads with Play next instead. Asked while Search is
- * adding to a room (A2), it adds them to the room.
+ * list as a page, to look before listening. Ask's stage shows a reply that is
+ * one list as the list itself (`AnswerView`); this card is for one played
+ * next or added to a room, and for a list among a reply's other cards. An
+ * answer about what plays after this song (A8) leads with Play next instead.
+ * Asked while Search is adding to a room (A2), it adds them to the room.
+ *
+ * Among other cards it still does what the words led with: the reply's first
+ * list asked to play plays as it comes (`playNow`), and one asked to keep
+ * leads with Save. On a computer it opens beside the cards (`onOpenHere`),
+ * lit while it is the one open there, rather than as a page of its own.
  */
 export function SongsAnswerCard({
   answer,
   text,
   onPlayed,
   onOpen,
+  playNow = false,
+  onOpenHere,
+  open: isOpen = false,
 }: {
-  answer: Extract<AskAnswer, { kind: 'songs' }>
+  answer: Extract<AskCard, { kind: 'songs' }>
   text: string
   /** After Play or Play next: Search has done its job. */
   onPlayed: () => void
   /** Before the answer's page opens. */
   onOpen: () => void
+  /** Played as it comes: the first list of a reply asked to play. */
+  playNow?: boolean
+  /** Opens its list beside the reply's cards, instead of as a page. */
+  onOpenHere?: (keptId: string) => void
+  /** Its list is the one open beside the cards. */
+  open?: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
@@ -59,9 +75,18 @@ export function SongsAnswerCard({
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
   const next = answer.lead === 'next'
   const room = useContext(AddingToRoom)
+  usePlayAsItComes(id, ids, playNow && !room)
+  const { save, saving, saved } = useSaveAnswer(result, ids)
 
   if (ids.length === 0) {
-    return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
+    // Why there are none, when the answer says: a name it lacks, the songs
+    // that fit and none suited, or picks not on this device yet.
+    const why = describeNotes(result, 0).slice(1)
+    return (
+      <Text style={styles.line} testID="songs-answer-none">
+        {why.length > 0 ? why.join(' ') : 'No song of yours fits that. Try other words for it.'}
+      </Text>
+    )
   }
 
   const source: ListSource = {
@@ -71,77 +96,85 @@ export function SongsAnswerCard({
     answerId: id,
   }
   const open = (): void => {
+    if (onOpenHere) return onOpenHere(id)
     onOpen()
     router.push({ pathname: '/answer', params: { id } })
   }
 
-  // The card opens the page and the button plays: siblings, since a button
-  // cannot hold another one. Under it, the answer can be changed in words.
+  // The card opens the list and the button plays: siblings, since a button
+  // cannot hold another one. Ask's field changes it (B1).
   return (
-    <View style={styles.stack}>
-      <View style={styles.card}>
-        <Press
-          feedback="dim"
-          onPress={open}
-          accessibilityRole="button"
-          accessibilityLabel={`Open the ${plural(ids.length, 'song', 'songs')} picked for “${text}”`}
-          style={styles.opens}
-          testID="songs-answer-card"
-        >
-          <View ref={coverRef} collapsable={false}>
-            <PlaylistCover songIds={ids} size={56} />
-          </View>
-          <View style={styles.text}>
-            <Text style={styles.title} numberOfLines={1}>
-              {next ? 'Up next' : result.understanding.name}
-            </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {plural(ids.length, 'song', 'songs')} · {formatLongDuration(seconds)}
-            </Text>
-          </View>
-          <ChevronRight size={iconSize.field} color={theme.colors.textMuted} />
-        </Press>
-        {room ? (
-          <Button
-            label={`Add to ${room.title}`}
-            variant="primary"
-            onPress={() => void addSongsToRoom(ids, room.title).then(onPlayed)}
-            testID="songs-answer-room"
-          />
-        ) : next ? (
-          // Asked what plays after this song, it plays them next, and says so:
-          // "Add to Up next" puts songs at the end everywhere else (T-383).
-          <Button
-            label={SONG_ACTION_LABELS.playNext}
-            variant="primary"
-            onPress={() => {
-              fly(coverRef.current, ids)
-              player.playNext(ids)
-              onPlayed()
-            }}
-            testID="songs-answer-next"
-          />
-        ) : (
-          <PlayButton
-            label={`Play the songs picked for “${text}”`}
-            size={40}
-            icon={<Play color={theme.colors.onPrimary} />}
-            onPress={() => {
-              fly(coverRef.current, ids)
-              player.playFrom(ids, 0, { source })
-              onPlayed()
-            }}
-            testID="songs-answer-play"
-          />
-        )}
-      </View>
-      <ChangeIt answerId={id} />
+    <View style={[styles.card, isOpen && styles.cardOpen]}>
+      <Press
+        feedback="dim"
+        onPress={open}
+        accessibilityRole="button"
+        accessibilityState={onOpenHere ? { selected: isOpen } : undefined}
+        accessibilityLabel={`Open the ${plural(ids.length, 'song', 'songs')} picked for “${text}”`}
+        style={styles.opens}
+        testID="songs-answer-card"
+      >
+        <View ref={coverRef} collapsable={false}>
+          <PlaylistCover songIds={ids} size={56} />
+        </View>
+        <View style={styles.text}>
+          <Text style={styles.title} numberOfLines={1}>
+            {next ? 'Up next' : result.understanding.name}
+          </Text>
+          <Text style={styles.meta} numberOfLines={1}>
+            {plural(ids.length, 'song', 'songs')} · {formatLongDuration(seconds)}
+          </Text>
+        </View>
+        <ChevronRight size={iconSize.field} color={theme.colors.textMuted} />
+      </Press>
+      {room ? (
+        <Button
+          label={`Add to ${room.title}`}
+          variant="primary"
+          onPress={() => void addSongsToRoom(ids, room.title).then(onPlayed)}
+          testID="songs-answer-room"
+        />
+      ) : next ? (
+        // Asked what plays after this song, it plays them next, and says so:
+        // "Add to Up next" puts songs at the end everywhere else (T-383).
+        <Button
+          label={SONG_ACTION_LABELS.playNext}
+          variant="primary"
+          onPress={() => {
+            fly(coverRef.current, ids)
+            player.playNext(ids)
+            onPlayed()
+          }}
+          testID="songs-answer-next"
+        />
+      ) : answer.lead === 'save' ? (
+        // Asked to keep: the one Save, of exactly these songs, by the list's name.
+        <Button
+          label={saved !== null ? 'Saved' : saving ? 'Saving…' : 'Save'}
+          accessibilityLabel={`Save as “${result.understanding.name}”`}
+          variant="primary"
+          disabled={saving || saved !== null}
+          onPress={() => void save()}
+          testID="songs-answer-save"
+        />
+      ) : (
+        <PlayButton
+          label={`Play the songs picked for “${text}”`}
+          size={40}
+          icon={<Play color={theme.colors.onPrimary} />}
+          onPress={() => {
+            fly(coverRef.current, ids)
+            player.playFrom(ids, 0, { source, whole: true })
+            onPlayed()
+          }}
+          testID="songs-answer-play"
+        />
+      )}
     </View>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
-  stack: { gap: space.sm },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -150,6 +183,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
+  // Open beside the cards: lit as the log's line for the answer shown is.
+  cardOpen: { backgroundColor: theme.colors.accentPill },
   opens: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   text: textColumn,
   title: rowTitle(theme.colors),

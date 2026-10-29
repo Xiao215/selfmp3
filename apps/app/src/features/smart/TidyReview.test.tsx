@@ -16,6 +16,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
@@ -93,7 +94,7 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
     await fireEvent.press(apply)
     await settle()
   })
-  expect(currentToasts().at(-1)?.text).toBe('Fixed 1 song')
+  expect(currentToasts().at(-1)?.say).toBe('Fixed 1 song')
   expect(net.sent).toEqual([
     {
       at: 'POST /api/songs/bulk/edit',
@@ -107,7 +108,7 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
     pressToast('Undo')
     await settle()
   })
-  expect(currentToasts().at(-1)?.text).toBe('Put back 1 song')
+  expect(currentToasts().at(-1)?.say).toBe('Put back 1 song')
 
   // Exactly as before the fill: no album, no year, no cover.
   expect(net.sent.slice(2)).toEqual([
@@ -118,4 +119,112 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
     },
   ])
   expect(net.songs[0]).toMatchObject({ album: '', year: null, hasArt: false })
+})
+
+it('draws a change on one song with that song’s cover, as an opened change draws each', async () => {
+  fakeLibrary([
+    songOf(1, '盗作', { artist: 'Yorushika', album: 'Spell' }),
+    songOf(2, '又三郎', { artist: 'Yorushika', album: 'Wanderer' }),
+    songOf(3, '修羅', { artist: 'Yorushika', album: 'Wanderer' }),
+  ])
+  const rename = (key: string, songIds: number[]): TidyResult['changes'][number] => ({
+    key,
+    field: 'artist',
+    from: 'Yorushika',
+    to: 'ヨルシカ',
+    why: 'The name on 网易云',
+    by: 'rule',
+    songIds,
+  })
+  await drawReview(
+    <TidyReview
+      result={{ ...FILL, changes: [rename('one', [1]), rename('two', [2, 3])] }}
+      height={600}
+    />,
+  )
+
+  await screen.findAllByTestId('tidy-change')
+  // The letter tile of the one song's album; the two songs' stay folded away.
+  expect(screen.getByText('S')).toBeTruthy()
+  expect(screen.queryByText('W')).toBeNull()
+})
+
+it('as Ask’s card, shows a long review’s first few, puts the model’s words first, and says what Fix did', async () => {
+  fakeLibrary([1, 2, 3, 4, 5, 6, 7].map(id => songOf(id, `Song ${id}`)))
+  const title = (id: number): TidyResult['changes'][number] => ({
+    key: `title-${id}`,
+    field: 'title',
+    from: `Song ${id}`,
+    to: `歌 ${id}`,
+    why: 'The name on 网易云',
+    by: 'rule',
+    songIds: [id],
+  })
+  const closed: (string | undefined)[] = []
+  await drawReview(
+    <TidyReview
+      card
+      result={{
+        ...FILL,
+        changes: [1, 2, 3, 4, 5, 6, 7].map(title),
+        looked: 7,
+        reply: 'I used the names 网易云 lists.',
+        note: '2 songs were looked up on the web.',
+      }}
+      height={600}
+      onClose={outcome => closed.push(outcome)}
+    />,
+  )
+
+  // Three of seven in the card, the rest one press away.
+  expect(await screen.findAllByTestId('tidy-change')).toHaveLength(3)
+  expect(screen.getByTestId('tidy-all')).toBeTruthy()
+  // The model's words are the answer, not small print among the review's notes.
+  expect(screen.getByTestId('tidy-reply')).toBeTruthy()
+
+  await act(async () => {
+    await fireEvent.press(screen.getAllByTestId('tidy-apply')[0]!)
+    await settle()
+  })
+  expect(closed).toEqual(['Fixed 7 songs'])
+})
+
+it('as Ask’s card, lists a handful one line each, under a title that counts them (AD1)', async () => {
+  fakeLibrary([1, 2].map(id => songOf(id, `Song ${id}`)))
+  const title = (id: number): TidyResult['changes'][number] => ({
+    key: `title-${id}`,
+    field: 'title',
+    from: `Song ${id}`,
+    to: `歌 ${id}`,
+    why: 'The name on 网易云',
+    by: 'rule',
+    songIds: [id],
+  })
+  const closed: (string | undefined)[] = []
+  await drawReview(
+    <TidyReview
+      card
+      result={{ ...FILL, changes: [1, 2].map(title), looked: 2 }}
+      height={600}
+      onClose={outcome => closed.push(outcome)}
+    />,
+  )
+
+  expect(await screen.findAllByTestId('tidy-change')).toHaveLength(2)
+  expect(screen.getByText('2 things to fix')).toBeTruthy()
+  // No bands, no ticked count: a handful is just the handful.
+  expect(screen.queryByTestId('tidy-band-rule')).toBeNull()
+  expect(screen.queryByText(/ticked/)).toBeNull()
+  expect(screen.getAllByText('The name on 网易云')).toHaveLength(2)
+
+  // Leaving one out renames the button with it.
+  await act(async () => {
+    await fireEvent.press(screen.getAllByTestId('tidy-change')[1]!)
+  })
+  expect(screen.getByTestId('tidy-apply')).toHaveTextContent('Fix it')
+  await act(async () => {
+    await fireEvent.press(screen.getByTestId('tidy-apply'))
+    await settle()
+  })
+  expect(closed).toEqual(['Fixed 1 song'])
 })

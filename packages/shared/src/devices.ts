@@ -104,3 +104,29 @@ export function playbackStateChanged(a: PlaybackState | null, b: PlaybackState):
   const expected = b.playing ? (b.updatedAt - a.updatedAt) / 1000 : 0
   return Math.abs(b.position - a.position - expected) > 2
 }
+
+/** How much of a queue other devices are told: songs before the one playing, and after. */
+export const SHARED_QUEUE_BEHIND = 100
+export const SHARED_QUEUE_AHEAD = 400
+
+/**
+ * The part of a state's queue other devices are told about: the song playing
+ * with a hundred before it and four hundred after.
+ *
+ * Every device's state goes to every open stream, so a queue of the whole
+ * library — ten thousand ids, from Shuffle all — was sent to everyone on every
+ * heartbeat, megabytes a minute for three devices. A handoff wants what plays
+ * next, and five hundred songs is days of it. The index moves with the cut so
+ * it still points at the same song.
+ */
+export function sharedQueue(state: PlaybackState): PlaybackState {
+  const limit = SHARED_QUEUE_BEHIND + 1 + SHARED_QUEUE_AHEAD
+  if (state.queueIds.length <= limit) return state
+  const at = Math.max(0, state.queueIndex)
+  const start = Math.max(0, Math.min(at - SHARED_QUEUE_BEHIND, state.queueIds.length - limit))
+  return {
+    ...state,
+    queueIds: state.queueIds.slice(start, start + limit),
+    queueIndex: state.queueIndex < 0 ? -1 : state.queueIndex - start,
+  }
+}

@@ -1,10 +1,10 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the name and the description are edited in place, in the head's own type
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { plural, type Song, NameSchema } from '@selfmp3/shared'
+import { plural, type Song, NAME_MAX } from '@selfmp3/shared'
 import {
   space,
   useLibrary,
@@ -17,7 +17,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSelection } from '../../selection/useSelection'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { tip } from '../../ui/tip'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
@@ -25,8 +25,9 @@ import { Button } from '../../ui/components/Button'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
-import { PageLoading } from '../../ui/components/PageLoading'
-import { ListHead, listHeadText } from '../../ui/components/ListHead'
+import { SongRowsSkeleton } from '../../ui/components/Skeleton'
+import { useSongRowHeight } from '../../ui/components/SongRow'
+import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHead'
 import { ListMusic, Live, Plus } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
@@ -34,14 +35,16 @@ import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { FOLLOWS_LABEL, isLive, playlistHeadLine } from '../playlists/playlists.model'
+import { isLive, playlistHeadLine } from '../playlists/playlists.model'
 import { DeletePlaylistDialog, usePlaylistMenu } from '../playlists/playlistMenu'
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
-import { usePageBack } from '../../ui/useBackTo'
+import { goBack, usePageBack } from '../../ui/useBackTo'
+import { useHeroGrow } from '../../ui/useHeroGrow'
 import { Press } from '../../ui/components/Press'
 import { lineSub } from '../../ui/surfaces'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -71,7 +74,8 @@ import { lineSub } from '../../ui/surfaces'
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
+  const rowHeight = useSongRowHeight()
   const params = useLocalSearchParams<{ id: string; rename?: string; describe?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
@@ -85,7 +89,9 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const reorderPlaylist = useReorderPlaylist()
 
-  const heroRef = useRef<View>(null)
+  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`, I1).
+  const hero = useHeroGrow(wide)
+  const heroRef = hero.heroRef
   const [renaming, setRenaming] = useState(params.rename === '1')
   const [draftName, setDraftName] = useState<string | null>(null)
   const [describing, setDescribing] = useState(params.describe === '1')
@@ -179,39 +185,38 @@ export function PlaylistDetailScreen(): ReactNode {
 
   const titles = (
     <>
-      <View style={listHeadText.kind}>
-        {live ? <Live size={iconSize.small} tone="textSecondary" /> : null}
-        <Text style={listHeadText.kindText}>
-          {live ? `Playlist · ${FOLLOWS_LABEL}` : 'Playlist'}
-        </Text>
+      {/* No PLAYLIST over the name, and no mark by it: the line below says Live. */}
+      <View style={listHeadText.nameRow}>
+        {renaming ? (
+          <TextInput
+            {...NO_AUTOFILL}
+            style={[listHeadText.name, styles.nameInput]}
+            value={draftName ?? playlist?.name ?? ''}
+            onChangeText={setDraftName}
+            onSubmitEditing={saveName}
+            onBlur={saveName}
+            selectTextOnFocus
+            autoFocus
+            maxLength={NAME_MAX}
+            accessibilityLabel="Playlist name"
+          />
+        ) : (
+          <Press
+            feedback="dim"
+            style={listHeadText.nameShrink}
+            onPress={() => setRenaming(true)}
+            disabled={!finePointer || !playlist}
+            accessibilityRole="header"
+            {...(finePointer ? tip('Rename') : {})}
+          >
+            {/* The press around it is the header, and says so. */}
+            <ListHeadName name={name} header={false} />
+          </Press>
+        )}
       </View>
-      {renaming ? (
-        <TextInput
-          style={[listHeadText.name, styles.nameInput]}
-          value={draftName ?? playlist?.name ?? ''}
-          onChangeText={setDraftName}
-          onSubmitEditing={saveName}
-          onBlur={saveName}
-          selectTextOnFocus
-          autoFocus
-          maxLength={NameSchema.maxLength ?? undefined}
-          accessibilityLabel="Playlist name"
-        />
-      ) : (
-        <Press
-          feedback="dim"
-          onPress={() => setRenaming(true)}
-          disabled={!finePointer || !playlist}
-          accessibilityRole="header"
-          {...(finePointer ? tip('Rename') : {})}
-        >
-          <Text style={listHeadText.name} numberOfLines={2}>
-            {name}
-          </Text>
-        </Press>
-      )}
       {describing ? (
         <TextInput
+          {...NO_AUTOFILL}
           style={[styles.description, styles.descriptionInput]}
           value={draftDescription ?? playlist?.description ?? ''}
           onChangeText={setDraftDescription}
@@ -228,6 +233,7 @@ export function PlaylistDetailScreen(): ReactNode {
         </Text>
       ) : null}
       <Text style={listHeadText.summary}>
+        {live ? 'Live · ' : ''}
         {playlistHeadLine(count, seconds, playlist?.lastPlayedAt ?? null, new Date())}
       </Text>
     </>
@@ -261,19 +267,23 @@ export function PlaylistDetailScreen(): ReactNode {
         light={light.color}
         art={leadArt}
         heroRef={heroRef}
+        heroStyle={hero.heroStyle}
+        onHeroLayout={hero.onHeroLayout}
         topBar={
-          // A computer's ⋯ is with the actions; its ‹ only for a playlist
-          // opened from inside a page, not from the sidebar.
-          wide ? (
-            pageBackShown ? (
-              <BackButton to="/playlists" />
-            ) : null
-          ) : (
-            <>
-              <BackButton to="/playlists" />
-              {moreButton}
-            </>
-          )
+          // The ⋯ in the corner, as on a tag's, an artist's and a combined
+          // page (P11 A); a computer's ‹ only for a playlist opened from
+          // inside a page, not from the sidebar.
+          <>
+            {!wide || pageBackShown ? (
+              <BackButton
+                to="/playlists"
+                onPress={() => hero.back(() => goBack(router, '/playlists'))}
+              />
+            ) : (
+              <View />
+            )}
+            {moreButton}
+          </>
         }
         cover={
           <PlaylistCover
@@ -302,7 +312,6 @@ export function PlaylistDetailScreen(): ReactNode {
                 testID="playlist-add-songs"
               />
             ) : null}
-            {wide ? moreButton : null}
           </>
         }
         wideOverrides={WIDE}
@@ -320,7 +329,7 @@ export function PlaylistDetailScreen(): ReactNode {
   // What stands where the songs would, when there are none (the list shows it
   // only then): loading, a server that is not answering, or an empty playlist.
   const empty = contents.isPending ? (
-    <PageLoading />
+    <SongRowsSkeleton rowHeight={rowHeight} rows={Math.min(playlist?.songCount ?? 6, 8)} />
   ) : contents.isError ? (
     // The list is the server's; the library knows only how long it is.
     <EmptyState
@@ -335,9 +344,9 @@ export function PlaylistDetailScreen(): ReactNode {
     <EmptyState
       icon={
         live ? (
-          <Live size={30} color={theme.colors.textMuted} />
+          <Live size={iconSize.large} color={theme.colors.textMuted} />
         ) : (
-          <ListMusic size={30} color={theme.colors.textMuted} />
+          <ListMusic size={iconSize.large} color={theme.colors.textMuted} />
         )
       }
       title={live ? 'No songs have these tags yet' : 'Nothing here yet'}
@@ -408,12 +417,15 @@ export function PlaylistDetailScreen(): ReactNode {
 }
 
 /**
- * A playlist's head on a computer keeps the hero on one row, its buttons
- * straight after the words rather than pushed to the far end.
+ * A playlist's head on a computer keeps its buttons straight after the words
+ * rather than pushed to the far end. Where the row cannot hold the name at a
+ * readable width beside them (a narrow window, or Up next open on a laptop),
+ * the buttons go under it instead: held on one row, the name was squeezed to
+ * nothing and the ⋯ went past the window's edge.
  */
 const WIDE = {
-  hero: { flexWrap: 'nowrap', gap: space.xl },
-  titles: { flexBasis: 'auto' },
+  hero: { flexWrap: 'wrap', gap: space.xl },
+  titles: { flexBasis: 260 },
   actions: { marginLeft: 0 },
 } as const
 
@@ -427,9 +439,12 @@ const styles = StyleSheet.create(theme => ({
   // this page. The head and the empty state take it themselves.
   content: { paddingBottom: space.xl },
   gutter: { paddingHorizontal: space.lg },
-  // A field in place of the name: the control surface, and no edge.
+  // A field in place of the name: the control surface, and no edge. A field
+  // draws its own line, so it takes none of the name's headroom (`heroTitle`).
   nameInput: {
-    paddingVertical: 2,
+    paddingTop: 2,
+    paddingBottom: 2,
+    marginTop: 0,
     paddingHorizontal: space.sm,
     borderRadius: radius.field,
     backgroundColor: theme.colors.surface2,

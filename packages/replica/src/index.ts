@@ -14,7 +14,21 @@
  */
 
 export { CloudRouteError } from './errors.js'
-export { bucketHold, holdBucket, onBucketHold, releaseBucket, type BucketHold } from './hold.js'
+export {
+  bucketHold,
+  bucketRefusals,
+  holdBucket,
+  lapseBucketHold,
+  onBucketHold,
+  releaseBucket,
+  type BucketHold,
+} from './hold.js'
+export {
+  doormanTrouble,
+  noteDoormanUnreachable,
+  onDoormanTrouble,
+  type DoormanTrouble,
+} from './reach.js'
 export {
   CloudServerViewSchema,
   ImportRequestListSchema,
@@ -25,6 +39,6 @@ export {
   type ImportRequestView,
 } from './schemas.js'
 export type { CloudPlatform, DeviceStore, TextCache } from './platform.js'
-export { createCloudSession, type CloudSession } from './session.js'
+export { createCloudSession, type CloudSession, type EndedSession } from './session.js'
 export { createCloudLibrary } from './library.js'
 export { SERVER_ONLY_ROUTES, createCloudRoutes } from './routes.js'

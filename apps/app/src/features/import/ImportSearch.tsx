@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { pageFrame, lineSub } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { PageHeader } from '../../ui/components/PageHeader'
@@ -22,6 +22,7 @@ import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
 import { Spinner } from '../../ui/components/Spinner'
+import { countUse } from '../usage/usage'
 
 /** How many of a search's songs show before "Show more", under the songs picked before it. */
 const FOUND_SHOWN = 12
@@ -49,7 +50,7 @@ export function ImportSearch({
   /** As ImportScreen's: the server this page was pointed at stopped answering. */
   onUnreachable?: () => void
 } = {}): ReactNode {
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const page = useImportPage(via, onUnreachable)
   const { source, draft, patchDraft, listen, backTo, failed } = page
   const key = page.draftKey
@@ -58,9 +59,9 @@ export function ImportSearch({
   /** The words in the field: what Import's box sent, or the search this page was left with. */
   const [words, setWords] = useState(() => params.q ?? search?.query ?? '')
   const query = words.trim() || null
-  const searching = useSongSearch(source.api, key, query, search?.query ?? null)
+  const searching = useSongSearch(source.lookUp, key, query, search?.query ?? null)
   // A 网易云 song it only previews, with no YouTube Music answer surely the same, is found as it shows.
-  const finder = useFindSongs(source.api, key, search?.review ?? null, 'search')
+  const finder = useFindSongs(source.lookUp, key, search?.review ?? null, 'search')
   /** "Show more" pressed for these words; new words start short again. */
   const [moreFor, setMoreFor] = useState<string | null>(null)
 
@@ -78,6 +79,7 @@ export function ImportSearch({
   const enqueue = useMutation({
     mutationFn: (current: Review) => enqueueImport(source.api, importRequest(current, tagIds)),
     onSuccess: () => {
+      countUse('import')
       // The songs are in the queue, which Import shows; the search is done, and so are its tags.
       void source.invalidateQueue()
       listen.close({ resume: false })
@@ -110,7 +112,7 @@ export function ImportSearch({
     <SafeAreaView style={styles.screen} edges={['top']}>
       <TapAway onPress={closeOpen} style={wide ? styles.headWide : styles.headPhone}>
         {/* As the review's head: the round ‹ back to Import, the name under it. */}
-        <PageHeader title="Search" back={{ to: '/import', testID: 'import-search-back' }} />
+        <PageHeader title="Find songs" back={{ to: '/import', testID: 'import-search-back' }} />
         <SearchField
           value={words}
           onChangeText={setWords}
@@ -123,13 +125,12 @@ export function ImportSearch({
           style={styles.field}
           testID="import-search-field"
         />
-        <Text style={styles.status} testID="import-search-status">
-          {query === null
-            ? 'Search YouTube Music and 网易云 for a song to import.'
-            : searching.searching
-              ? 'Searching YouTube Music and 网易云…'
-              : 'From YouTube Music and 网易云. Tick the songs to import.'}
-        </Text>
+        {/* The field says where it looks; a line under it said so again (J1). */}
+        {current && rows.length > kept ? (
+          <Text style={styles.status} testID="import-search-status">
+            Tick the songs to import.
+          </Text>
+        ) : null}
       </TapAway>
 
       <ScrollView
@@ -188,23 +189,26 @@ export function ImportSearch({
         </TapAway>
       </ScrollView>
 
-      <ImportFoot
-        error={page.error}
-        onDismissError={() => page.setError(null)}
-        finder={finder}
-        tags={tags}
-        createTag={source.createTag}
-        tagIds={tagIds}
-        onTags={next => patchDraft({ tagIds: next })}
-        count={picked}
-        finding={finding}
-        busy={enqueue.isPending}
-        onImport={() => {
-          if (search) enqueue.mutate(search.review)
-        }}
-        onGround={closeOpen}
-        testID="import-search-commit"
-      />
+      {/* Tag and Import once there is something to import (J1, 2026-10-25). */}
+      {picked > 0 || page.error || finder.error ? (
+        <ImportFoot
+          error={page.error}
+          onDismissError={() => page.setError(null)}
+          finder={finder}
+          tags={tags}
+          createTag={source.createTag}
+          tagIds={tagIds}
+          onTags={next => patchDraft({ tagIds: next })}
+          count={picked}
+          finding={finding}
+          busy={enqueue.isPending}
+          onImport={() => {
+            if (search) enqueue.mutate(search.review)
+          }}
+          onGround={closeOpen}
+          testID="import-search-commit"
+        />
+      ) : null}
     </SafeAreaView>
   )
 }

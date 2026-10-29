@@ -5,42 +5,39 @@ import { Animated, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import { failureText, motion, radius, space, type, iconSize } from '@selfmp3/client'
+import {
+  ASK_OBJECT_SONGS,
+  ASK_TEXT_MAX,
+  type AskTurnInput,
+  type DescribeResult,
+  type Understanding,
+} from '@selfmp3/shared'
 import { useAccent } from '../../ui/accent'
 import { ChevronRight, Sparkle } from '../../ui/components/Icons'
-import { useArrival, useFade } from '../../ui/motion'
+import { useFade } from '../../ui/motion'
 import { StopButton } from './StopButton'
 import { IconButton } from '../../ui/components/IconButton'
-import { changeAnswer, showAnswerStep, useKeptAnswer } from './answers.store'
+import { changeAnswer, shownOnServer, understandingOf, useKeptAnswer } from './answers.store'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from './useSmartServer'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
-import { OPACITY } from '../../ui/motion.model'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
 
 /**
  * "Change it" (docs/features/ai.md): an answer to Ask changed in your own
  * words — "10 首", "不要动漫的", "calmer" — rather than asked again from
- * nothing. Under the answer's card in Search and under its page's head.
+ * nothing, under the head of the answer's own page. The words are asked as a
+ * follow-up with the list on the screen, and the reply's list takes its place. In Ask itself the one
+ * field changes a list while it wears the list's chip (B1, 2026-10-26).
  *
  * One quiet field. While the change is worked on, the field itself says what
- * is happening, in the same place, so nothing jumps; when it lands, the words
- * you typed join the trail above it and the field is empty again, ready for
- * the next. The trail is every version, its names pressable: back to an
- * earlier one, or forward again. No suggested changes: what to say is yours.
+ * is happening, in the same place, so nothing jumps; when it lands, the list
+ * is the new one and the field is empty again, ready for the next. No
+ * suggested changes: what to say is yours.
  */
-export function ChangeIt({
-  answerId,
-  trail = true,
-  large = false,
-}: {
-  answerId: string
-  /** The versions before this one, pressable. Search shows them; the answer's page does not. */
-  trail?: boolean
-  /** The page's bar: the width of the head, and a size to match it. */
-  large?: boolean
-}): ReactNode {
+export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
   const server = useSmartServer()
   const answer = useKeptAnswer(answerId)
   const [said, setSaid] = useState('')
@@ -48,37 +45,40 @@ export function ChangeIt({
   // The change on its way, to be given up on: its request is dropped, and the server stops with it.
   const stopping = useRef<AbortController | null>(null)
   const input = useRef<TextInput>(null)
-  // How many versions there were when this was drawn, so only a new one arrives.
-  const [stepsAtStart] = useState(() => answer?.steps.length ?? 1)
 
   const change = useMutation({
     mutationFn: async (words: string) => {
       if (!server.api || !answer) throw noServerToAsk()
-      const shown = (answer.order ?? answer.result.picks.map(pick => pick.songId)).flatMap(id => {
-        // The order you set is in this device's ids; the picks are the server's.
-        const serverId = answer.order ? server.onServer(id) : id
-        return serverId === undefined ? [] : [serverId]
-      })
       const name = newTicket()
       setTicket(name)
       const controller = new AbortController()
       stopping.current = controller
-      return {
+      // Asked as a follow-up about this list, on the screen: Ask keeps the songs that still fit.
+      const reply = await server.api.ask(
         words,
-        result: await server.api.refineAnswer(
-          {
-            text: answer.text,
-            understanding: answer.result.understanding,
-            change: words,
-            shown,
-            ticket: name,
-          },
-          controller.signal,
-        ),
-      }
+        { playing: null, screen: CHANGED },
+        name,
+        [
+          changedTurn(
+            answer.text,
+            understandingOf(answer),
+            answer.result,
+            shownOnServer(answer, server.onServer),
+          ),
+        ],
+        controller.signal,
+      )
+      const songs = reply.cards.find(card => card.kind === 'songs')
+      if (songs?.kind === 'songs') return songs.describe
+      const said = reply.cards.flatMap(card =>
+        card.kind === 'explore' ? [card.say] : card.kind === 'clarify' ? [card.question] : [],
+      )
+      throw new Error(
+        [reply.say, ...said].filter(Boolean).join(' ') || 'That didn’t change the songs.',
+      )
     },
-    onSuccess: ({ words, result }) => {
-      changeAnswer(answerId, words, result)
+    onSuccess: result => {
+      changeAnswer(answerId, result)
       setSaid('')
       // A browser takes the focus off a field on Enter; the next change is likely.
       input.current?.focus()
@@ -106,22 +106,6 @@ export function ChangeIt({
 
   return (
     <View style={styles.body} testID="change-it">
-      {trail && answer.steps.length > 1 ? (
-        <View style={styles.trail} accessibilityRole="list" accessibilityLabel="Versions">
-          {answer.steps.map((step, index) => (
-            <TrailStep
-              key={index}
-              first={index === 0}
-              label={step.said ?? step.result.understanding.name}
-              current={index === answer.at}
-              later={index > answer.at}
-              fresh={index >= stepsAtStart && index === answer.steps.length - 1}
-              onPress={() => showAnswerStep(answerId, index)}
-            />
-          ))}
-        </View>
-      ) : null}
-
       <ChangeField
         value={said}
         onChangeText={setSaid}
@@ -130,10 +114,9 @@ export function ChangeIt({
         working={working}
         doing={doing}
         words={change.variables ?? ''}
-        placeholder={large ? 'Change these songs…' : 'Change it…'}
+        placeholder="Change these songs…"
         label="Change this answer"
         sendLabel="Change it"
-        large={large}
         inputRef={input}
         testID="change-it"
       />
@@ -144,14 +127,45 @@ export function ChangeIt({
   )
 }
 
+/** The handle the list being changed goes as: the one turn before the change. */
+const CHANGED = 't1.1'
+
+/**
+ * The list on the page as the turn a change follows: what was asked, and the
+ * songs shown, by the server's ids in their order, with what the list was
+ * made from, so the songs that still fit stay where they are.
+ */
+function changedTurn(
+  asked: string,
+  understanding: Understanding,
+  result: DescribeResult,
+  shown: readonly number[],
+): AskTurnInput {
+  const why = new Map(result.picks.map(pick => [pick.songId, pick.why]))
+  const songIds = shown.slice(0, ASK_OBJECT_SONGS)
+  return {
+    asked: asked.slice(0, ASK_TEXT_MAX),
+    answered: `Showed ${songIds.length} songs (“${understanding.name}”)`,
+    objects: [
+      {
+        handle: CHANGED,
+        kind: 'songs',
+        label: understanding.name,
+        songIds,
+        why: songIds.map(id => (why.get(id) ?? null)?.slice(0, 140) ?? null),
+        understanding,
+      },
+    ],
+  }
+}
+
 /**
  * The field a change is said in: one line with a send button that appears
  * once there are words, and while the change is worked on, what is happening
  * in the same place, so nothing jumps; with `onStop`, the send button's place
- * holds a Stop while it does. "Change it" under a song answer and
- * the follow-up under every other answer (`AskAnswer`) are this field.
+ * holds a Stop while it does. Under the head of an answer's page.
  */
-export function ChangeField({
+function ChangeField({
   value,
   onChangeText,
   onSend,
@@ -162,7 +176,6 @@ export function ChangeField({
   placeholder,
   label,
   sendLabel = 'Send',
-  large = false,
   inputRef,
   testID,
 }: {
@@ -180,8 +193,6 @@ export function ChangeField({
   /** What a screen reader calls the field, and its send button. */
   label: string
   sendLabel?: string
-  /** The page's bar: the width of the head, and a size to match it. */
-  large?: boolean
   inputRef?: RefObject<TextInput | null>
   testID: string
 }): ReactNode {
@@ -205,17 +216,14 @@ export function ChangeField({
     <View
       style={[
         styles.field,
-        large && styles.fieldLarge,
         focused && !working && { borderColor: accent.accent },
         working && styles.fieldWorking,
       ]}
     >
-      <Animated.View
-        style={[styles.layer, large && styles.layerLarge, fieldStyle]}
-        pointerEvents={working ? 'none' : 'auto'}
-      >
-        <Sparkle size={large ? iconSize.button : iconSize.small} />
+      <Animated.View style={[styles.layer, fieldStyle]} pointerEvents={working ? 'none' : 'auto'}>
+        <Sparkle size={iconSize.button} />
         <TextInput
+          {...NO_AUTOFILL}
           ref={inputRef}
           value={value}
           onChangeText={onChangeText}
@@ -229,13 +237,13 @@ export function ChangeField({
           blurOnSubmit={false}
           accessibilityLabel={label}
           testID={`${testID}-input`}
-          style={[styles.input, large && styles.inputLarge]}
+          style={styles.input}
         />
         <Animated.View style={sendStyle} pointerEvents={value.trim() ? 'auto' : 'none'}>
           <IconButton
             label={sendLabel}
             filled="accent"
-            size={large ? 36 : 28}
+            size={36}
             onPress={onSend}
             testID={`${testID}-send`}
           >
@@ -244,7 +252,7 @@ export function ChangeField({
         </Animated.View>
       </Animated.View>
       <Animated.View
-        style={[styles.layer, large && styles.layerLarge, !onStop && styles.workLayer, workStyle]}
+        style={[styles.layer, !onStop && styles.workLayer, workStyle]}
         pointerEvents={working ? 'box-none' : 'none'}
         accessibilityLiveRegion="polite"
         aria-hidden={!working}
@@ -258,7 +266,7 @@ export function ChangeField({
         </Text>
         {onStop ? (
           <View style={styles.stop}>
-            <StopButton onPress={onStop} size={large ? 36 : 28} testID={`${testID}-stop`} />
+            <StopButton onPress={onStop} size={36} testID={`${testID}-stop`} />
           </View>
         ) : null}
       </Animated.View>
@@ -266,81 +274,15 @@ export function ChangeField({
   )
 }
 
-/** One version in the trail: the answer's name first, then what each change said. */
-export function TrailStep({
-  first,
-  label,
-  current,
-  later,
-  fresh,
-  onPress,
-}: {
-  first: boolean
-  label: string
-  current: boolean
-  /** After the one showing: there to go forward to again. */
-  later: boolean
-  /** Just made: it arrives, the rest are simply there. */
-  fresh: boolean
-  onPress: () => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const arrival = useArrival(0, fresh)
-  return (
-    <Animated.View style={[styles.step, arrival]}>
-      {first ? (
-        <Sparkle size={iconSize.tiny} color={theme.colors.textMuted} />
-      ) : (
-        <Text style={styles.arrow}>→</Text>
-      )}
-      <Press
-        feedback="dim"
-        onPress={onPress}
-        disabled={current}
-        accessibilityRole="button"
-        accessibilityState={{ selected: current }}
-        accessibilityLabel={current ? `${label}, showing` : `Back to ${label}`}
-      >
-        <Text
-          style={[styles.stepText, current && styles.stepCurrent, later && styles.stepLater]}
-          numberOfLines={1}
-        >
-          {label}
-        </Text>
-      </Press>
-    </Animated.View>
-  )
-}
-
-const FIELD_HEIGHT = 40
-
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.sm },
-  trail: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: space.tight,
-    rowGap: space.xs,
-  },
-  step: { flexDirection: 'row', alignItems: 'center', gap: space.tight, maxWidth: '100%' },
-  arrow: { color: theme.colors.textMuted, fontSize: type.small },
-  stepText: { color: theme.colors.textMuted, fontSize: type.small, maxWidth: 220 },
-  stepCurrent: { color: theme.colors.textPrimary, fontWeight: '600' },
-  stepLater: { opacity: OPACITY.dim },
   field: {
-    height: FIELD_HEIGHT,
+    height: 52,
     borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface3,
+    backgroundColor: theme.colors.surface1,
     borderWidth: 1,
     borderColor: theme.colors.surface3,
   },
-  fieldLarge: {
-    height: 52,
-    backgroundColor: theme.colors.surface1,
-    borderColor: theme.colors.surface3,
-  },
-  inputLarge: { fontSize: type.body },
   fieldWorking: { backgroundColor: theme.colors.surface2, borderColor: theme.colors.surface2 },
   layer: {
     position: 'absolute',
@@ -350,11 +292,10 @@ const styles = StyleSheet.create(theme => ({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.sm,
-    paddingLeft: space.roomy,
-    paddingRight: space.tight,
+    gap: space.snug,
+    paddingLeft: 18,
+    paddingRight: space.sm,
   },
-  layerLarge: { paddingLeft: 18, paddingRight: space.sm, gap: space.snug },
   workLayer: { paddingRight: 18 },
   stop: { marginLeft: 'auto' },
   input: {

@@ -5,9 +5,11 @@ import { freshState, messageOf, type ThrottleState } from '@selfmp3/shared'
 import type { Config } from './config.js'
 import type { Logger } from './logger.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
-import { MetadataLookupService } from './services/lookup.js'
+import { MUSICBRAINZ_PACE_MS, MetadataLookupService } from './services/lookup.js'
+import { RateLimiter } from './services/rateLimiter.js'
 import { RomanizationService } from './services/romanization.js'
 import type { YtThrottleService, ThrottleStore } from './services/ytThrottle.js'
+import { ServerMetrics } from './services/metrics.js'
 import { SoundModelHost } from './sound/sound.js'
 import { Gate } from './util/gate.js'
 
@@ -21,7 +23,8 @@ import { Gate } from './util/gate.js'
  *
  * - the listening model, which is 600 MB loaded;
  * - the Japanese dictionary, loaded once and kept;
- * - metadata lookup, whose MusicBrainz pace is per address;
+ * - MusicBrainz's pace, which is per address: the metadata lookup and the
+ *   names artists also go by both ask it;
  * - YouTube's pace, which is per address too: two libraries each keeping
  *   within the budget would together be twice over it, and the block that
  *   follows is the machine's;
@@ -38,13 +41,17 @@ export interface SharedServices {
   readonly soundModel: SoundModelHost
   readonly romanization: RomanizationService
   readonly lookup: MetadataLookupService
+  /** One request a second to MusicBrainz, from everything on the machine that asks it. */
+  readonly musicBrainzPace: RateLimiter
   /** Null: each library keeps its own pace, in its own database. */
   readonly throttle: YtThrottleService | null
   readonly keepAwake: KeepAwakeService
   readonly analysisGate: Gate
   /** Which server this is: `CloudServerSchema.id`, and `/api/health`'s `serverId`. */
   readonly serverId: string
-  /** Let go of what is held for the machine: the model, the stay-awake. */
+  /** What the owner's admin page shows, kept beside hub.json (services/metrics.ts). */
+  readonly metrics: ServerMetrics
+  /** Let go of what is held for the machine: the model, the stay-awake, the counts. */
   close(): Promise<void>
 }
 
@@ -55,17 +62,24 @@ export function createShared(
 ): SharedServices {
   const soundModel = new SoundModelHost({ config, logger })
   const keepAwake = createKeepAwake(logger)
+  const metrics = new ServerMetrics(config.dataDir, undefined, error => {
+    logger.warn('could not count for the admin page', { message: messageOf(error) })
+  })
+  const musicBrainzPace = new RateLimiter(MUSICBRAINZ_PACE_MS)
   return {
     soundModel,
     romanization: new RomanizationService(logger),
-    lookup: new MetadataLookupService(logger),
+    lookup: new MetadataLookupService(logger, undefined, undefined, musicBrainzPace),
+    musicBrainzPace,
     throttle,
     keepAwake,
     analysisGate: new Gate(1),
     serverId: serverIdOf(config),
+    metrics,
     close: async () => {
       keepAwake.stop()
       await soundModel.close()
+      metrics.close()
     },
   }
 }

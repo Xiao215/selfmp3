@@ -11,7 +11,7 @@ import {
   type CloudSnapshot,
 } from '@selfmp3/shared'
 
-export const extensionDist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
+const extensionDist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
 
 export interface LaunchedExtension {
   readonly context: BrowserContext
@@ -71,7 +71,13 @@ export async function signInFromCopy(
   const session = {
     doormanUrl: DEFAULT_DOORMAN_URL,
     token: 'not-a-real-session',
-    me: { email: SIGNED_IN_AS, name: 'You', picture: null, storage: null },
+    me: {
+      account: '0123456789abcdef0123456789abcdef',
+      email: SIGNED_IN_AS,
+      name: 'You',
+      picture: null,
+      storage: null,
+    },
   }
   const snapshot: CloudSnapshot | null = server && {
     format: CLOUD_FORMAT,
@@ -82,6 +88,9 @@ export async function signInFromCopy(
     tags: [],
     playlists: [],
     artists: [],
+    artistNames: [],
+    spellings: {},
+    coverPacks: [],
     sound: null,
     server,
   }

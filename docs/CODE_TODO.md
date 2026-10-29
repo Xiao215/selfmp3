@@ -6,9 +6,11 @@ gates cannot see. Feature work that has not been built is in [FEATURE_TODO.md](F
 Four passes produced the numbered items so far: whole-repo audits on 2026-09-22 (T-001 to
 T-245), 2026-09-23 (T-300 to T-375) and 2026-10-07, and the "one copy of each thing" pass of
 2026-10-13 (T-376 to T-431, on `main` as 70d5be61). Every numbered item is done, and the
-commit messages say what each fix was, and what they left open has been done since. What is
-left here is the choices that look like leftovers but were made on purpose, so that the next
-pass does not report them again.
+commit messages say what each fix was, and what they left open has been done since. A fifth
+pass on 2026-10-24 went over what landed after 70d5be61 (rooms, share links, cover packs, one
+read for words, the hub, the admin page) without numbering, one commit per area. What is left
+here is the choices that look like leftovers but were made on purpose, so that the next pass
+does not report them again.
 
 ## Rules the passes worked to
 
@@ -50,7 +52,10 @@ Severity: **H** = fix soon, user-visible or corrupting; **M** = worth a focused 
 
 ## Still open
 
-Nothing.
+Nothing. What the 2026-10-24 pass first left for the owner (old pictures, the optional
+`/v1/me` account, the sign-in counts, the privacy policy) was done the same day: data is
+migrated rather than accommodated, even when that means rewriting stored objects or a
+device's store, because the only data there is is the owner's.
 
 ## Looked at and kept on purpose
 
@@ -75,5 +80,14 @@ Nothing.
   (`coverStore.ts`) (T-414).
 - **`QueueSheet` stays out of the overlay host**, so song menus and the Undo toast land
   above it (T-417).
+- **Stored objects are upgraded as they are read, and written back**: a phone's kept
+  library (`upgradeKeptBase`, packages/replica), its remembered rooms (`upgradePastRooms`,
+  `features/room/room.model.ts`), and the doorman's shared playlists (`upgradeDoc`) and share
+  links (`upgradeSecrets`). Durable Objects and device stores cannot all be walked at once,
+  so each is migrated the first time it is opened; the schemas themselves keep no defaults.
+- **The unnamed-file sweep skips a round when an old snapshot does not read**
+  (`#namedBySnapshots`, `apps/server/src/services/cloudSync.ts`): an old device's snapshot
+  from before the snapshot's fields were settled ages out within 30 days, and nothing is
+  deleted meanwhile, which is the safe side.
 - **Settings keeps `Row` + `Toggle`** rather than `ToggleRow`: its rows put every kind of
   control at the end (T-428).

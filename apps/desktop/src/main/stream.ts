@@ -1,7 +1,5 @@
-import { createReadStream, type Stats } from 'node:fs'
 import { mkdir, open, readdir, rename, rm, stat, utimes, type FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Readable } from 'node:stream'
 
 import {
   BUCKET_CAP_CODE,
@@ -10,9 +8,8 @@ import {
   DOORMAN_PATHS,
   PLAYED_KEPT,
   STREAM_RELAYED_HEADERS,
+  UNANSWERED_HEADER,
   WAIT_AHEAD_BYTES,
-  answerRange,
-  fileEtag,
   isCloudFileKey,
   isHashNamedCloudKey,
   parseDoormanRefusal,
@@ -21,6 +18,7 @@ import {
 } from '@selfmp3/shared'
 import type { StreamSession } from '@selfmp3/desktop-bridge'
 
+import { answerFromDisk, fileStats } from './disk.js'
 import { contentTypeFor } from './paths.js'
 
 /**
@@ -54,10 +52,16 @@ import { contentTypeFor } from './paths.js'
  * doorman it names.
  */
 
-/** What answers the doorman's address: Electron's `net.fetch`, or a test's doorman. */
+/**
+ * What answers the doorman's address: Electron's `net.fetch`, or a test's
+ * doorman. Always asked with `cache: 'no-store'`: the `played` folder is this
+ * process's one copy of a song, and Chromium's HTTP cache keeping a second
+ * let a song go on playing after "Remove all" had cleared the folder, with
+ * the bucket capped and nothing counting the space it held.
+ */
 type Fetch = (
   url: string,
-  init: { method: string; headers: Headers; signal?: AbortSignal },
+  init: { method: string; headers: Headers; cache: 'no-store'; signal?: AbortSignal },
 ) => Promise<Response>
 
 interface StreamProxyOptions {
@@ -71,6 +75,8 @@ interface StreamProxyOptions {
 
 export interface StreamProxy {
   use(session: StreamSession): void
+  /** Ask the bucket again on the next request, though a refusal for the day is held: Try again. */
+  release(): void
   /**
    * The answer to a request for `key`. `allowOrigin` is the origin the CORS
    * pair names — the caller's to decide, as for a file on disk (`protocol.ts`).
@@ -83,6 +89,8 @@ interface Refusal {
   readonly status: number
   readonly body: string
   readonly contentRange: string | null
+  /** Nothing answered at all (`UNANSWERED_HEADER`): the player blames the connection, not the song. */
+  readonly unanswered?: boolean
 }
 
 /** How much of a song one read from the disk hands the player. */
@@ -106,6 +114,9 @@ export function createStreamProxy({
 
   /** Whole downloads under way, by file name in the folder. */
   const arriving = new Map<string, Arriving>()
+
+  /** When each song still arriving was last asked for: what it is kept as, once whole. */
+  const askedAt = new Map<string, number>()
 
   /** The kept songs by file name, and when each was last played; read from the folder once. */
   let kept: Promise<Map<string, number>> | null = null
@@ -135,10 +146,16 @@ export function createStreamProxy({
     await utimes(join(dir, name), at / 1000, at / 1000).catch(() => {})
   }
 
-  /** A whole song, kept: the newest, and the oldest past `PLAYED_KEPT` let go. */
+  /**
+   * A whole song, kept, and the oldest past `PLAYED_KEPT` let go. It is kept as
+   * played when it was last asked for, not when its last byte landed: a song
+   * another play overtook while it was arriving is the older of the two, and
+   * one asked for again in that time is the newer.
+   */
   async function keep(name: string): Promise<void> {
     const songs = await keptSongs()
-    songs.set(name, now())
+    songs.set(name, askedAt.get(name) ?? now())
+    askedAt.delete(name)
     const oldestFirst = [...songs].sort(([, a], [, b]) => a - b)
     for (const [old] of oldestFirst.slice(0, Math.max(0, songs.size - PLAYED_KEPT))) {
       songs.delete(old)
@@ -168,6 +185,7 @@ export function createStreamProxy({
       upstream = await fetch(`${current.doormanUrl}${DOORMAN_PATHS.file(key)}`, {
         method: init.method,
         headers,
+        cache: 'no-store',
         ...(init.signal ? { signal: init.signal } : {}),
       })
     } catch {
@@ -175,6 +193,7 @@ export function createStreamProxy({
         status: 503,
         body: 'This song is not on this device, and your storage cannot be reached.',
         contentRange: null,
+        unanswered: true,
       }
     }
     if (upstream.ok) return upstream
@@ -208,10 +227,8 @@ export function createStreamProxy({
       const value = upstream.headers.get(name)
       if (value !== null) headers.set(name, value)
     }
-    headers.set(
-      'Cache-Control',
-      upstream.status === 206 ? 'no-store' : 'private, max-age=31536000, immutable',
-    )
+    // Never held by the window either: the folder is the one copy (see `Fetch`).
+    headers.set('Cache-Control', 'no-store')
     return new Response(method === 'HEAD' ? null : upstream.body, {
       status: upstream.status,
       headers,
@@ -231,12 +248,13 @@ export function createStreamProxy({
     const stats = songs.has(name) ? await fileStats(path) : null
     if (stats !== null) {
       void touch(name)
-      return fromFile(request, path, stats)
+      return answerFromDisk(request, path, stats)
     }
     // Gone from under the note: the page cleared the folder, at sign-out or "Remove all".
     songs.delete(name)
     if (request.method === 'HEAD') return relay(request, key, current)
 
+    askedAt.set(name, now())
     let download = arriving.get(name)
     if (!download) {
       const started = new Arriving(
@@ -248,7 +266,10 @@ export function createStreamProxy({
       download = started
       arriving.set(name, started)
       void started.settled.finally(() => {
-        if (arriving.get(name) === started) arriving.delete(name)
+        if (arriving.get(name) !== started) return
+        arriving.delete(name)
+        // Kept by now, or stopped short: either way nothing more to keep it as.
+        askedAt.delete(name)
       })
     }
     const head = await download.head
@@ -276,6 +297,10 @@ export function createStreamProxy({
         arriving.clear()
       }
       session = next
+    },
+
+    release() {
+      capped = null
     },
 
     async serve(request, key, allowOrigin) {
@@ -468,37 +493,7 @@ class Arriving {
   }
 }
 
-/** A kept song, with `Range:` answered from the disk as a downloaded one is (`protocol.ts`). */
-function fromFile(request: Request, path: string, stats: Stats): Response {
-  const answer = answerRange({
-    rangeHeader: request.headers.get('Range') ?? undefined,
-    sizeBytes: stats.size,
-    mime: contentTypeFor(path),
-    etag: fileEtag(stats.size, stats.mtimeMs),
-    lastModified: stats.mtime,
-  })
-  const headers = new Headers(answer.headers)
-  if (request.method === 'HEAD' || answer.status === 416 || answer.length === 0) {
-    return new Response(null, { status: answer.status, headers })
-  }
-  return new Response(
-    Readable.toWeb(
-      createReadStream(path, { start: answer.start, end: answer.end }),
-    ) as ReadableStream,
-    { status: answer.status, headers },
-  )
-}
-
-async function fileStats(path: string): Promise<Stats | null> {
-  try {
-    const stats = await stat(path)
-    return stats.isFile() ? stats : null
-  } catch {
-    return null
-  }
-}
-
-function refused({ status, body, contentRange }: Refusal): Response {
+function refused({ status, body, contentRange, unanswered }: Refusal): Response {
   const answer = new Response(body === '' ? null : body, {
     status,
     headers: {
@@ -507,5 +502,6 @@ function refused({ status, body, contentRange }: Refusal): Response {
     },
   })
   if (contentRange) answer.headers.set('Content-Range', contentRange)
+  if (unanswered) answer.headers.set(UNANSWERED_HEADER, '1')
   return answer
 }

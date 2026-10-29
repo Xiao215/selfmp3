@@ -143,7 +143,7 @@ fi
 echo
 echo "${BOLD}All set.${RESET}"
 echo
-echo "  Open:        http://localhost:$PORT"
+echo "  Admin page:  http://localhost:$ADMIN_PORT   (this computer only)"
 echo "  Check:       ./scripts/doctor.sh"
 echo "  Import:      npm run cli -- import <url>"
 echo "  Your phone:  docs/INSTALL.md"

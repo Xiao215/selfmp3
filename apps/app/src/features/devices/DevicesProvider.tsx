@@ -18,6 +18,7 @@ import {
   type ServerEvent,
 } from '@selfmp3/shared'
 import {
+  ApiError,
   STALE,
   clientApi,
   handoffTarget,
@@ -34,10 +35,19 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { serverEvents } from '../../ports/events'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerSongIds } from '../../connection/useServerSongIds'
+import { refetchFailed } from '../../connection/refetchFailed'
 import { noServer } from '../../connection/via'
-import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
+import {
+  deviceKind,
+  getDeviceName,
+  presenceDeviceId,
+  presenceDeviceName,
+  setDeviceName,
+} from '../../ports/device'
 import { usePresenceServer } from './usePresenceServer'
 import { PresenceConnection } from './presenceConnection'
+import { useStreamWanted } from './useStreamWanted'
+import { showToast } from '../../ui/toast'
 
 /**
  * Presence and handoff.
@@ -107,11 +117,26 @@ interface DevicesContextValue {
   readonly canPlayOn: boolean
   /** Pull that device's queue and position over here, and stop it there. */
   readonly playHere: (device: Device) => void
-  /** Push this device's queue and position there, and stop here. */
-  readonly playOn: (device: Device) => void
+  /**
+   * Push this device's queue and position there, and stop here once it has
+   * them. A device that is not there any more is said so, and the music goes
+   * on here.
+   */
+  readonly playOn: (device: Device) => Promise<void>
 }
 
 const DevicesContext = createContext<DevicesContextValue | null>(null)
+
+/**
+ * How often a library that failed is asked for again while its server answers
+ * heartbeats. A server that answers those but not the library — a 503 while it
+ * starts, a proxy's error page, half an answer — was otherwise asked once and
+ * never again, and the screen said "can't reach" for good while it was fine.
+ */
+const RETRY_FAILED_MS = 30_000
+
+/** What a handoff that did not land says under why: the music never stopped. */
+const STILL_HERE = 'Still playing here.'
 
 export function useDeviceContext(): DevicesContextValue {
   const context = useContext(DevicesContext)
@@ -127,13 +152,15 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   const { fromCloud } = useConnection()
   const client = useQueryClient()
 
-  const [deviceId] = useState(getDeviceId)
+  // This tab's, in a browser with several open (`presenceDeviceId`).
+  const [deviceId] = useState(presenceDeviceId)
   const [kind] = useState(deviceKind)
   const [name, setName] = useState(getDeviceName)
   const [streamOpen, setStreamOpen] = useState(false)
 
   const presence = usePresenceServer({ playing: player.isPlaying, streaming: streamOpen })
   const server = presence.connection
+  const streamWanted = useStreamWanted(player.isPlaying)
 
   // Derived rather than stored: with no server there is nothing to be connected
   // to, and saying so in an effect would be a setState during one.
@@ -179,8 +206,42 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   }, [player])
 
   useEffect(() => {
-    identityRef.current = { deviceId, name, kind }
+    identityRef.current = { deviceId, name: presenceDeviceName(name), kind }
   }, [deviceId, name, kind])
+
+  const fromCloudRef = useRef(fromCloud)
+  useEffect(() => {
+    fromCloudRef.current = fromCloud
+  }, [fromCloud])
+
+  /*
+   * Whether the server is answering, as the heartbeats find it — for a device
+   * whose library is that server. An outage was otherwise noticed only by the
+   * library's next fetch, which comes on focus or on news from the stream, so
+   * the sidebar kept its green dot for a minute or more while nothing could be
+   * saved. A heartbeat that goes unanswered asks for the library again, whose
+   * failure is what the screens say; the first one answered after asks again
+   * for everything that failed meanwhile.
+   */
+  const answeringRef = useRef(true)
+  const retriedAtRef = useRef(0)
+  const heardBack = useCallback(
+    (answered: boolean): void => {
+      if (fromCloudRef.current) return
+      const was = answeringRef.current
+      answeringRef.current = answered
+      if (!answered) {
+        if (was) void client.invalidateQueries({ queryKey: queryKeys.library })
+        return
+      }
+      const now = Date.now()
+      if (!was || now - retriedAtRef.current >= RETRY_FAILED_MS) {
+        retriedAtRef.current = now
+        refetchFailed(client)
+      }
+    },
+    [client],
+  )
 
   useEffect(() => {
     apiRef.current = api
@@ -209,13 +270,17 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       if (!sending) return
       void sending
         .heartbeat({ ...identity, state: translateState(state, outboundRef.current) })
-        .then(list => client.setQueryData(devicesKey, list))
-        .catch(() => {
-          // The server is asleep, or this phone is on a train. The next beat will
-          // do; nothing here is worth surfacing.
+        .then(list => {
+          client.setQueryData(devicesKey, list)
+          heardBack(true)
+        })
+        .catch((error: unknown) => {
+          // The server is asleep, or this phone is on a train. The next beat
+          // will do; what the screens say is the library's (`heardBack`).
+          if (error instanceof ApiError && error.isUnanswered) heardBack(false)
         })
     },
-    [client, devicesKey],
+    [client, devicesKey, heardBack],
   )
 
   /*
@@ -261,6 +326,14 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     })
   }, [server, subscribeProgress, beat])
 
+  // A new name goes out at once, not at the next scheduled beat.
+  const namedRef = useRef(name)
+  useEffect(() => {
+    if (namedRef.current === name) return
+    namedRef.current = name
+    if (server) beat(snapshot(playerRef.current, playerRef.current.getPosition()))
+  }, [name, server, beat])
+
   useEffect(() => {
     if (!server) return undefined
     const timer = setInterval(
@@ -271,21 +344,22 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   }, [beat, server])
 
   /**
-   * Send a command, in the numbering the far side uses.
+   * Send a command, in the numbering the far side uses, and wait for the
+   * server to say it was delivered.
    *
    * False means it was not sent, and the only reason is that this device is
    * asking for a song the server has no number for — one it has never been
    * given, or one from before the two libraries were lined up. Guessing a
    * number there would start the wrong song somewhere else in the house.
+   * Rejects when the server could not deliver it: the device went away
+   * between the listing and the tap (`device_offline`), or the server did not
+   * answer.
    */
-  const send = useCallback((target: string, command: DeviceCommand): boolean => {
+  const send = useCallback(async (target: string, command: DeviceCommand): Promise<boolean> => {
     const sending = apiRef.current
     const translated = translateCommand(command, outboundRef.current)
     if (!sending || translated === null) return false
-    void sending.deviceCommand(target, translated).catch(() => {
-      // Target went away between the listing and the tap; the next device
-      // event corrects the list.
-    })
+    await sending.deviceCommand(target, translated)
     return true
   }, [])
 
@@ -293,7 +367,9 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // The library version the stream last said. Every new connection says it
   // first thing, and a phone in a pocket reconnects often: the same number
-  // again is nothing new, and refetching the whole library for it was.
+  // again is nothing new, and refetching the whole library for it was. The
+  // server starts each boot's numbers from its clock, so a restart never says
+  // a number this device saw before for a different library.
   const libraryVersion = useRef<number | null>(null)
   const onEvent = useCallback(
     (event: ServerEvent): void => {
@@ -306,6 +382,13 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           return
         case 'library':
           if (libraryVersion.current === event.version) return
+          // A playlist page open here holds its members apart from the library,
+          // and kept another device's adds and reorders off it until it was
+          // opened again. Not for the first number heard, as the app opens:
+          // every list on screen is being asked for then anyway.
+          if (libraryVersion.current !== null) {
+            void client.invalidateQueries({ queryKey: queryKeys.playlists })
+          }
           libraryVersion.current = event.version
           void client.invalidateQueries({ queryKey: queryKeys.library })
           // What automatic downloads keep follows the library.
@@ -317,14 +400,17 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   )
 
   useEffect(() => {
-    if (!server) return undefined
+    if (!server || !streamWanted) return undefined
     return serverEvents.open({
       url: mediaUrlFor(server).events(deviceId),
       onEvent,
-      onOpen: () => setStreamOpen(true),
+      onOpen: () => {
+        setStreamOpen(true)
+        heardBack(true)
+      },
       onClose: () => setStreamOpen(false),
     })
-  }, [server, deviceId, onEvent])
+  }, [server, streamWanted, deviceId, onEvent, heardBack])
 
   /*
    * One query, two ways of staying fresh: the stream writes into its cache
@@ -390,22 +476,42 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       const target = heard ? handoffTarget(device, heard, Date.now()) : null
       if (!target) return
       playerRef.current.playFrom([...target.queueIds], target.index, { position: target.position })
-      send(device.id, { type: 'pause' })
+      // A device gone since the listing has stopped already.
+      void send(device.id, { type: 'pause' }).catch(() => undefined)
     },
     [send, heard],
   )
 
   const playOn = useCallback(
-    (device: Device): void => {
+    async (device: Device): Promise<void> => {
       const state = snapshot(playerRef.current, playerRef.current.getPosition())
       if (state.songId === null) return
-      const sent = send(device.id, {
-        type: 'playSong',
-        songId: state.songId,
-        queueIds: [...state.queueIds],
-        queueIndex: Math.max(0, state.queueIndex),
-        position: state.position,
-      })
+      let sent: boolean
+      try {
+        sent = await send(device.id, {
+          type: 'playSong',
+          songId: state.songId,
+          queueIds: [...state.queueIds],
+          queueIndex: Math.max(0, state.queueIndex),
+          position: state.position,
+        })
+      } catch (caught) {
+        // Stopped here before the answer, a device that had just closed left
+        // nothing playing anywhere and said nothing (R3-M6). The list goes on
+        // showing a closed tab for as long as its last heartbeat is fresh.
+        //
+        // The whole name: on a list of several "Mac · Chrome" tabs, the one it was.
+        const name = device.name
+        if (
+          caught instanceof ApiError &&
+          (caught.code === 'device_offline' || caught.status === 404)
+        ) {
+          showToast({ say: name, over: 'Isn’t connected any more', under: STILL_HERE }, 'warn')
+        } else {
+          showToast({ say: `Couldn’t play on ${name}`, under: STILL_HERE }, 'error')
+        }
+        return
+      }
       // Nothing left there, so nothing stops here either.
       if (!sent) return
       if (playerRef.current.isPlaying) playerRef.current.toggle()

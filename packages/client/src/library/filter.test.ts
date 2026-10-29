@@ -1,4 +1,4 @@
-import { fuzzyRank, type Song } from '@selfmp3/shared'
+import { NO_NAMES, fuzzyRankNames, songSearchNames, type Song } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -104,7 +104,7 @@ describe('tag filtering', () => {
     expect(filterHeading(filter, TAGS)).toBe('chinese · chill')
   })
 
-  it('searches with prepared text in the order the plain ranking gives', () => {
+  it('searches with prepared names in the order the plain ranking gives', () => {
     const library = [
       song(1, 'Midnight Drive', []),
       song(2, 'Drive', []),
@@ -112,11 +112,32 @@ describe('tag filtering', () => {
       song(4, 'drive', []),
       song(5, 'Dr. Ive', []),
     ]
-    const text = (item: Song) => `${item.title} ${item.artist} ${item.album}`
     for (const query of ['', 'drive', 'dri', 'night', 'md', 'drvie', 'nothing']) {
-      const plain = fuzzyRank(query, library, text)
+      const plain = fuzzyRankNames(query, library, item => songSearchNames(item, NO_NAMES))
       expect(searchSongs(query, library), query).toEqual(plain)
     }
+  })
+
+  it('keeps a song’s prepared names through a refetch that kept the song and the names', () => {
+    let reads = 0
+    const kept = song(1, 'Drive', [])
+    const counted = Object.defineProperty({ ...kept }, 'title', {
+      get: () => {
+        reads += 1
+        return kept.title
+      },
+    })
+    const artistNames = {}
+    const spellings = {}
+    // Two libraries, as two fetches hand them back: new objects around the same records.
+    searchSongs('drive', [counted], { artistNames, spellings })
+    const once = reads
+    expect(once).toBeGreaterThan(0)
+    searchSongs('drive', [counted], { artistNames, spellings })
+    expect(reads).toBe(once)
+    // Other names are other spellings to search: the song is prepared again.
+    searchSongs('drive', [counted], { artistNames, spellings: {} })
+    expect(reads).toBeGreaterThan(once)
   })
 
   it('leaves out a tag that no longer exists', () => {

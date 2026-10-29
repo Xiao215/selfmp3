@@ -1,14 +1,20 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { linkIdentity, plural, type ImportJob, type RoomSong } from '@selfmp3/shared'
-import { failureText, queryKeys } from '@selfmp3/client'
+import { linkIdentity, plural, type CameWith, type ImportJob, type RoomSong } from '@selfmp3/shared'
+import { queryKeys } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { noServer, viaKey } from '../../connection/via'
 import { library as cloudLibrary } from '../../replica'
 import { useSongsLanding } from '../import/useSongsLanding'
 import { useServerDirect } from '../../connection/useServerDirect'
-import { showToast } from '../../ui/toast'
+import { showFailure, showToast } from '../../ui/toast'
+
+/** A song to get, and the friend it came from. */
+export interface GetSong {
+  readonly song: RoomSong
+  readonly cameWith: CameWith | null
+}
 
 /**
  * Get it (docs/features/listen-together.md, G1): a friend's song brought
@@ -26,8 +32,11 @@ export function useGetSongs(
   readonly reachable: boolean
   /** The source links asked for, while they import. */
   readonly getting: ReadonlySet<string>
-  /** Ask for these; true once the server has taken them. */
-  readonly get: (songs: readonly RoomSong[]) => Promise<boolean>
+  /**
+   * Ask for these; true once the server has taken them. Each says who it came
+   * from, which the song keeps (its page: "from Mia, in a room").
+   */
+  readonly get: (songs: readonly GetSong[]) => Promise<boolean>
   /** The latest import of the song from this link, while `watch` follows the queue. */
   readonly jobFor: (sourceUrl: string | null) => ImportJob | undefined
   /** Try a failed import again. */
@@ -77,28 +86,29 @@ export function useGetSongs(
       await api.retryImport(job.id)
       void queryClient.invalidateQueries({ queryKey: viaKey(connection?.baseUrl, 'queue') })
     } catch (error) {
-      showToast(failureText('Couldn’t try it again', error), 'error')
+      showFailure('Couldn’t try it again', error)
     }
   }
 
-  const get = async (songs: readonly RoomSong[]): Promise<boolean> => {
-    const wanted = songs.filter(song => song.sourceUrl !== null)
+  const get = async (asked: readonly GetSong[]): Promise<boolean> => {
+    const wanted = asked.filter(({ song }) => song.sourceUrl !== null)
     if (wanted.length === 0) return false
     if (server.state !== 'reachable') {
       showToast('Get it needs your library’s computer, and it can’t be reached from here', 'warn')
       return false
     }
-    const keys = wanted.map(song => song.sourceUrl ?? '')
+    const keys = wanted.map(({ song }) => song.sourceUrl ?? '')
     setGetting(before => new Set([...before, ...keys]))
     try {
       await apiFor(server.connection).importEnqueue({
-        items: wanted.map(song => ({
+        items: wanted.map(({ song, cameWith }) => ({
           url: song.sourceUrl ?? '',
           title: song.title,
           artist: song.artist,
           album: song.album,
           thumbnail: null,
           duration: song.duration,
+          ...(cameWith ? { cameWith } : {}),
         })),
         tagIds: [],
         playlistId: null,
@@ -110,7 +120,7 @@ export function useGetSongs(
       } else {
         showToast(
           wanted.length === 1
-            ? `Getting “${wanted[0]?.title ?? ''}”. It arrives in your library as it imports.`
+            ? `Getting “${wanted[0]?.song.title ?? ''}”. It arrives in your library as it imports.`
             : `Getting ${plural(wanted.length, 'song', 'songs')}. They arrive in your library as they import.`,
           'good',
         )
@@ -118,7 +128,7 @@ export function useGetSongs(
       return true
     } catch (error) {
       setGetting(before => new Set([...before].filter(key => !keys.includes(key))))
-      showToast(failureText('Couldn’t get that', error), 'error')
+      showFailure('Couldn’t get that', error)
       return false
     }
   }

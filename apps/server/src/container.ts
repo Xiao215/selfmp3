@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { ANALYSIS_VERSION } from '@selfmp3/shared'
+import { ANALYSIS_VERSION, joinedNames } from '@selfmp3/shared'
 import type { Config, ServingConfig } from './config.js'
 import { createLogger, type Logger } from './logger.js'
 import { createShared, type SharedServices } from './shared.js'
@@ -20,6 +20,8 @@ import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
 import { YouTubeMusicArtists } from './services/youtubeMusicArtist.js'
 import { ArtistBackdropService } from './services/artistBackdrops.js'
+import { ArtistNameLookup } from './services/artistNames.js'
+import { SpellingService } from './services/spellings.js'
 import { YouTubeMusicLists } from './services/youtubeMusicLists.js'
 import { NeteaseMusic } from './services/netease.js'
 import { SpotifyLists } from './services/spotify.js'
@@ -35,17 +37,18 @@ import { TagWriter } from './services/tagWriter.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import type { MetadataLookupService } from './services/lookup.js'
 import { smartFeaturesFor, type SmartFeatures } from './ai/smart.js'
-import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
 import type { KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
 import { MotionStore } from './services/motionStore.js'
 import type { RomanizationService } from './services/romanization.js'
-import { romanizedLines } from './services/romanizedLines.js'
+import { keepRomanizedFromBucket, romanizedLines } from './services/romanizedLines.js'
 import { publishedAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { SoundService } from './sound/sound.js'
+import { SoundMapService } from './sound/soundMap.js'
+import { SoundMapRepository } from './repositories/soundMap.js'
 import { CoverToneService } from './services/coverTones.js'
 import { PreviewCoverTones } from './services/previewCoverTone.js'
 import { DeviceRepository } from './repositories/devices.js'
@@ -54,6 +57,7 @@ import { EventHub } from './services/events.js'
 import { DeviceService } from './services/devices.js'
 import { CloudRepository } from './repositories/cloud.js'
 import { SyncRepository } from './repositories/sync.js'
+import { NamesRepository } from './repositories/names.js'
 import { CloudSyncService } from './services/cloudSync.js'
 import { KeptCloudFiles } from './bucket/kept.js'
 import { CloudAdopt } from './services/cloudAdopt.js'
@@ -64,7 +68,9 @@ import { previewFound } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { SongRemovalService } from './services/songRemoval.js'
 import { SongMerge } from './services/songMerge.js'
+import { TagRemoval } from './services/tagRemoval.js'
 import { PlaysArchive } from './services/playsArchive.js'
+import type { ServerMetrics } from './services/metrics.js'
 
 /**
  * Composition root.
@@ -84,6 +90,8 @@ export interface Container {
   readonly config: ServingConfig
   /** Which server this library is on (shared.ts `serverIdOf`): its snapshot and health say it. */
   readonly serverId: string
+  /** The server's counts for its owner's admin page, shared by every library here (services/metrics.ts). */
+  readonly metrics: ServerMetrics
   readonly logger: Logger
   readonly db: Db
   readonly storage: StorageDriver
@@ -117,7 +125,6 @@ export interface Container {
   readonly libraryWatcher: LibraryWatcherService
   readonly lookup: MetadataLookupService
   readonly smart: SmartFeatures
-  readonly fixCovers: FixCoversService
   readonly keepAwake: KeepAwakeService
   readonly lyricsCache: LyricsCache
   /** Each song's motion curve, written by analysis (services/motionStore.ts). */
@@ -128,13 +135,20 @@ export interface Container {
   readonly songRemoval: SongRemovalService
   /** A song held twice folded into the copy kept, before the copy is removed. */
   readonly songMerge: SongMerge
+  /** A tag deleted, and the playlists that follow it let go of it. */
+  readonly tagRemoval: TagRemoval
   /** What this server stamps its own edits with (docs/SYNC.md). */
   readonly clock: SyncClock
-  readonly analysis: AnalysisService
   /** How songs sound, as the listening model hears them (sound/sound.ts). */
   readonly sound: SoundService
+  /** Where every heard song sits on the sound map (sound/soundMap.ts). */
+  readonly soundMap: SoundMapService
   readonly devices: DeviceService
   readonly cloudSync: CloudSyncService
+  /** The names artists also go by, and names spelt in Latin letters: what search finds things by. */
+  readonly names: NamesRepository
+  /** Chinese and Japanese names spelt in Latin letters (services/spellings.ts). */
+  readonly spellings: SpellingService
   /** Stamps edits made here, so they combine with other devices' (docs/SYNC.md). */
   readonly edits: LocalEdits
   /** Links other devices asked this server to import. */
@@ -202,8 +216,10 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const tags = new TagRepository(db)
   const playlists = new PlaylistRepository(db)
   const settings = new SettingsRepository(db)
-  const stats = new StatsRepository(db)
-  const wrapped = new WrappedRepository(db)
+  const names = new NamesRepository(db)
+  const shownAs = (): ReadonlyMap<string, string> => joinedNames(songs.all(), names.joinNames())
+  const stats = new StatsRepository(db, shownAs)
+  const wrapped = new WrappedRepository(db, shownAs)
   const imports = new ImportRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
   const audioFeatures = new AudioFeaturesRepository(db)
@@ -212,8 +228,18 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     vectors: new SoundVectorsRepository(db),
     logger,
     host: shared.soundModel,
-    // Each song heard goes to the bucket's copy of the vectors; the sync is built below.
-    changed: () => cloudSync.soundChanged(),
+    // Each song heard goes to the bucket's copy of the vectors, and folds the
+    // sound map again; the sync is built below.
+    changed: () => {
+      cloudSync.soundChanged()
+      void soundMap.refresh()
+    },
+  })
+  const soundMap = new SoundMapService({
+    repo: new SoundMapRepository(db),
+    sound,
+    logger,
+    changed: () => cloudSync.kick(),
   })
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
@@ -223,13 +249,20 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const metadata = new MetadataService(storage, logger)
   const netease = new NeteaseMusic(logger)
   // The words come from the bucket once the sidecar has gone up and been let
-  // go; the sync is built below, so it is reached lazily.
+  // go, and their romaji with them; the sync and the cache are built below,
+  // so both are reached lazily.
   const lyrics: LyricsService = new LyricsService(
     storage,
     logger,
     fetch,
     new YouTubeMusicLyrics(logger),
-    songId => cloudSync.fetchLyrics(songId),
+    async songId => {
+      const words = await cloudSync.fetchLyrics(songId)
+      if (words?.romanized) {
+        await keepRomanizedFromBucket({ lyricsCache }, songId, words.text, words.romanized)
+      }
+      return words
+    },
     netease,
   )
   const covers = new CoverService(config, songs, logger)
@@ -237,9 +270,18 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   // One clock for everything this server stamps, named as it is in the bucket.
   const clock = new SyncClock({
     deviceId: () => cloudRepo.deviceId(),
-    latest: () => syncRepo.latestStamp(),
+    // An artist's names keep their stamp beside them, not among the others.
+    latest: () => latestStamp(syncRepo.latestStamp(), names.latestStamp()),
   })
   const edits = new LocalEdits({ db, sync: syncRepo, clock })
+  const tagRemoval = new TagRemoval({ db, tags, playlists, edits })
+  // A song held twice, folded into the copy kept: when this server is asked
+  // (`POST /api/songs/merge`), and when another device's log says so.
+  const songMerge = new SongMerge({
+    db,
+    sync: syncRepo,
+    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
+  })
   const ingest = new CloudIngest({
     db,
     songs,
@@ -249,15 +291,10 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     sync: syncRepo,
     cloud: cloudRepo,
     requests: importRequests,
+    names,
     clock,
     logger,
-    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
-  })
-  // A song held twice, folded into the copy kept when this server is asked (`POST /api/songs/merge`).
-  const songMerge = new SongMerge({
-    db,
-    sync: syncRepo,
-    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
+    merge: songMerge,
   })
 
   // Signing in to a bucket that already holds a library: take it on before
@@ -270,6 +307,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     features: audioFeatures,
     cloud: cloudRepo,
     sync: syncRepo,
+    names,
     storage,
     clock,
     logger,
@@ -282,7 +320,22 @@ export function createContainer(configured: Config, options: ContainerOptions = 
 
   // Before the sync, which puts every artist's picture in the bucket.
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
-  const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
+  const artistBackdrops = new ArtistBackdropService(
+    config,
+    songs,
+    names,
+    youtubeMusicArtists,
+    logger,
+  )
+  // Before the sync too: what search finds things by goes in every snapshot.
+  const spellings = new SpellingService({ names, songs, romanization, logger })
+  const artistNames = new ArtistNameLookup({
+    names,
+    songs,
+    deviceId: () => cloudRepo.deviceId(),
+    pace: shared.musicBrainzPace,
+    logger,
+  })
 
   const cloudSync = new CloudSyncService({
     cloud: cloudRepo,
@@ -306,6 +359,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     // later does not cost a download.
     analysed: songId =>
       audioFeatures.isAnalysed(songId, ANALYSIS_VERSION) && (!sound.canHear || sound.has(songId)),
+    coverToRead: songId => songs.isCoverToRead(songId),
     cloudDir: config.cloudDir ?? undefined,
     publishAnyway: config.publishAnyway,
     importRequests,
@@ -315,8 +369,11 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     // Each song's motion curve goes up beside its words, once analysis has made one.
     motion,
     artists: artistBackdrops,
+    names: { repo: names, spellings, lookup: artistNames },
     // Every song's sound vector goes up as one file, and comes back to a new server.
     sound,
+    // And where each song sits on the sound map, which devices draw.
+    soundMap,
     // Every play goes up too, a month a file, and comes back to a new server.
     plays: new PlaysArchive({ stats, sync: syncRepo, deviceId: () => cloudRepo.deviceId() }),
     // The token is the bucket's owner's already: whoever reads the snapshot
@@ -332,7 +389,14 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     }),
   })
 
-  let version = 1
+  // Where the version starts: the clock, not 1. It lives in memory, and
+  // starting each boot at 1 meant a tab that saw version 3 before a restart,
+  // and 3 again after it from two different edits, took the second for
+  // nothing new and showed the old library until a reload — and a restored
+  // backup could even read as the library it replaced. Milliseconds since the
+  // epoch are past any count the last boot reached, unless it bumped more than
+  // once a millisecond for its whole life.
+  let version = Date.now()
   let stopped = false
   let closed = false
   const bump = (): void => {
@@ -386,6 +450,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     cloud: cloudSync,
     keepAwake,
     tagWriter: new TagWriter({ logger }),
+    metrics: shared.metrics,
     logger,
   })
 
@@ -424,7 +489,15 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const songRemoval = new SongRemovalService({
     storage,
     songs,
-    tags,
+    tags: {
+      all: () => tags.all(),
+      // Kept aside, as a tag another device empties is: a device tagging a
+      // song with it meanwhile brings it back (`tagEmptied`, docs/SYNC.md).
+      delete: id => {
+        syncRepo.keepEmptiedTag(id)
+        tagRemoval.remove(id)
+      },
+    },
     cloud: cloudRepo,
     lyrics,
     covers,
@@ -439,7 +512,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     config,
     settings,
     scanner,
-    onChanged: bump,
     logger,
   })
 
@@ -449,6 +521,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     logger,
     songs,
     tags,
+    names,
     sound,
     stats,
     wrapped,
@@ -457,13 +530,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     settings,
     netease,
     lookup,
-  })
-  const fixCovers = new FixCoversService({
-    songs,
-    covers,
-    lookup,
-    logger,
-    onChange: bump,
+    metrics: shared.metrics,
   })
   const analysis = new AnalysisService({
     config,
@@ -501,7 +568,15 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     else analysis.kick()
   }
 
-  scanner.onScanComplete = () => analysis.kick()
+  // A sweep that changed something moves the version, whoever started it —
+  // the scanner too, coming back for files that were still arriving.
+  scanner.onScanComplete = result => {
+    if (result.added || result.updated) bump()
+    analysis.kick()
+  }
+  scanner.isLeaving = key => songRemoval.isLeaving(key)
+  scanner.bucketAudio = songId => cloudRepo.state(songId)?.audioKey ?? null
+  cloudSync.onCopyChanged = () => scanner.lookAgain()
 
   // Other devices' changes, applied during a cloud pass. The pass publishes
   // what they changed itself, so this only moves the version clients watch —
@@ -527,6 +602,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const container: Container = {
     config,
     serverId: shared.serverId,
+    metrics: shared.metrics,
     logger,
     db,
     storage,
@@ -547,6 +623,8 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     ytdlp,
     youtubeMusicArtists,
     artistBackdrops,
+    names,
+    spellings,
     youtubeMusicLists,
     netease,
     spotify,
@@ -557,7 +635,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     libraryWatcher,
     lookup,
     smart,
-    fixCovers,
     keepAwake,
     lyricsCache,
     motion,
@@ -565,9 +642,10 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     lyricsIndex,
     songRemoval,
     songMerge,
+    tagRemoval,
     clock,
-    analysis,
     sound,
+    soundMap,
     devices,
     cloudSync,
     edits,
@@ -580,11 +658,13 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     stop: () => {
       stopped = true
       libraryWatcher.stop()
+      scanner.stop()
       devices.stop()
       analysis.stop()
       coverTones.stop()
       importQueue.stop()
       cloudSync.stop()
+      soundMap.stop()
       // The model, and letting the machine sleep again even if a stream is
       // still winding down — when they are this library's alone. Shared,
       // they are the machine's to let go (hub/hub.ts).
@@ -602,4 +682,11 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   }
 
   return container
+}
+
+/** The later of two stamps, either of which may be missing. */
+function latestStamp(a: string | null, b: string | null): string | null {
+  if (a === null) return b
+  if (b === null) return a
+  return a > b ? a : b
 }

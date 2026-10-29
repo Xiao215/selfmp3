@@ -25,26 +25,41 @@ const PLAYING_CARD_HEIGHT = 68
  * the sheet's was a height, and its play button pressed flat.
  *
  * Given `onOpen`, the card (all but its end) opens Now Playing.
+ *
+ * The computer's rail draws it quieter (`foot`): no label, the title in the
+ * song's colour instead, and where the song has got as a thin line along the
+ * card's foot rather than a clock that pushed the artist out.
  */
 export function PlayingCard({
   song,
   label,
   line,
+  clock,
   playing,
   onOpen,
   badge,
+  foot,
   children,
   testID,
 }: {
   song: Song
-  label: string
-  /** Under the title: where the song has got, on the player's clock or a room's. */
+  /** Over the title; without one the title takes the song's colour. */
+  label?: string
+  /** Under the title: who it is by. */
   line: ReactNode
+  /**
+   * After the line, kept whole: where the song has got, on the player's clock
+   * or a room's. Said in the same line, its ellipsis took the one part of it
+   * that moves ("Yorushika · 0:04 of …" in the rail).
+   */
+  clock?: ReactNode
   /** The equaliser moves while it plays and rests while it does not. */
   playing: boolean
   onOpen?: () => void
   /** Over the cover's corner: who brought a room's song. */
   badge?: ReactNode
+  /** Along the card's foot, in the song's colour: how far it has played. */
+  foot?: (tint: string) => ReactNode
   /** At the card's end: play and pause, Skip. */
   children?: ReactNode
   /** On the part that opens Now Playing, where a flow finds the song playing. */
@@ -62,15 +77,26 @@ export function PlayingCard({
         {badge ? <View style={styles.badge}>{badge}</View> : null}
       </View>
       <View style={styles.text}>
-        <Text style={[styles.label, { color: tone.tint }]} numberOfLines={1}>
-          {label}
-        </Text>
-        <Text style={styles.title} numberOfLines={1}>
+        {label ? (
+          <Text style={[styles.label, { color: tone.tint }]} numberOfLines={1}>
+            {label}
+          </Text>
+        ) : null}
+        <Text style={[styles.title, !label && { color: tone.tint }]} numberOfLines={1}>
           {song.title}
         </Text>
-        <Text style={styles.line} numberOfLines={1}>
-          {line}
-        </Text>
+        <View style={styles.lineRow}>
+          <Text style={[styles.line, styles.lineShrinks]} numberOfLines={1}>
+            {line}
+          </Text>
+          {clock ? (
+            <Text style={[styles.line, styles.clock]} numberOfLines={1}>
+              {/* A no-break space: a text's leading space is dropped where it begins a box. */}
+              {'\u00a0· '}
+              {clock}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </>
   )
@@ -80,7 +106,7 @@ export function PlayingCard({
         <Pressable
           onPress={onOpen}
           accessibilityRole="button"
-          accessibilityLabel={`${label} ${song.title}. Open now playing`}
+          accessibilityLabel={`${label ?? 'Playing'} ${song.title}. Open now playing`}
           testID={testID}
           style={styles.main}
         >
@@ -92,6 +118,11 @@ export function PlayingCard({
         </View>
       )}
       {children}
+      {foot ? (
+        <View style={styles.foot} pointerEvents="none">
+          {foot(tone.tint)}
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -104,7 +135,9 @@ const styles = StyleSheet.create(theme => ({
     height: PLAYING_CARD_HEIGHT,
     paddingHorizontal: space.md,
     borderRadius: radius.mini,
+    overflow: 'hidden',
   },
+  foot: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3 },
   main: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   equalizer: {
     position: 'absolute',
@@ -122,6 +155,9 @@ const styles = StyleSheet.create(theme => ({
   text: textColumn,
   label: labelText(theme.colors),
   title: rowTitle(theme.colors),
+  lineRow: { flexDirection: 'row' },
+  lineShrinks: { flexShrink: 1 },
+  clock: { flexShrink: 0 },
   line: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,

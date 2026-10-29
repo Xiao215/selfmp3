@@ -5,6 +5,7 @@ import {
   emptyHint,
   emptyTitle,
   figure,
+  minuteWord,
   longerRanges,
   shareFileName,
   tryLabel,
@@ -33,6 +34,15 @@ const WRAPPED: Wrapped = WrappedSchema.parse({
 describe('wrapped', () => {
   it('leads with the minutes', () => {
     expect(figure(330.4)).toBe('330')
+  })
+
+  it('says a few seconds as under a minute, not none', () => {
+    expect(figure(0.1)).toBe('<1')
+    expect(figure(0)).toBe('0')
+    expect(minuteWord(0.1)).toBe('minute')
+    expect(minuteWord(1)).toBe('minute')
+    expect(minuteWord(0)).toBe('minutes')
+    expect(minuteWord(372)).toBe('minutes')
   })
 
   it('names a weekday, and a dash for one it does not know', () => {

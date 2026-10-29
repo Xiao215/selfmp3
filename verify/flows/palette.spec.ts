@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 
-import { appApi } from '../env.js'
 import {
   escaped,
+  libraryData,
   libraryReady,
   openLibrary,
   skipIfNoLibrary,
@@ -65,8 +65,8 @@ test.describe('command palette', () => {
   })
 
   /**
-   * One search, many doors (`P20`): on a computer Home's field, the sidebar's
-   * row and Library's field all open the same palette, and it finds artists
+   * One search, many doors (`P20`): on a computer the sidebar's row and
+   * Library's field both open the same palette, and it finds artists
    * and tags as well as songs.
    */
   test('every door opens the same search, and it finds an artist', async ({ page }, info) => {
@@ -74,7 +74,7 @@ test.describe('command palette', () => {
     const box = page.getByRole('combobox', { name: /Search songs, playlists and tags/ })
 
     await page.goto('/')
-    await page.getByTestId('home-search').click()
+    await page.getByTestId('nav-search').click()
     await expect(box).toBeVisible({ timeout: 30_000 })
     await page.keyboard.press('Escape')
     await expect(box).toBeHidden()
@@ -86,10 +86,8 @@ test.describe('command palette', () => {
     await expect(box).toBeVisible()
 
     // An artist the library holds, asked of the server, is found as an artist.
-    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
-      songs: { artist: string; missing: boolean }[]
-    }
-    const artist = library.songs.find(song => !song.missing && /^[\w ]+$/.test(song.artist))?.artist
+    const { songs } = await libraryData(page)
+    const artist = songs.find(song => /^[\w ]+$/.test(song.artist))?.artist
     test.skip(!artist, 'no song with a plain artist name to look for')
     await box.fill(artist!)
     await expect(page.getByText('Artists and tags', { exact: false }).first()).toBeVisible()

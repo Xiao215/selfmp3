@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { router } from 'expo-router'
 import {
   clientApi,
-  libraryIndex,
   publicServerBase,
   queryKeys,
   roomTrackId,
   shouldResync,
-  useLibrary,
   yoursOf,
 } from '@selfmp3/client'
 import {
@@ -16,7 +15,6 @@ import {
   packVector,
   soundCloseness,
   unpackVector,
-  type RoomSong,
   type RoomState,
 } from '@selfmp3/shared'
 import type { RoomPass } from '@selfmp3/client'
@@ -30,19 +28,26 @@ import {
   usePlayingSongId,
 } from '../../player/PlayerProvider'
 import { roomTrack, setRoomTracks } from '../../player/roomTracks'
+import { setRoomTransport } from '../../player/roomTransport'
 import { holdPictures, keepLent } from '../../offline/covers'
 import { lentCoverKey, rememberPastRoom, usePastRooms } from './pastRooms.store'
 import { lightTap } from '../../ports/haptics'
 import { showToast } from '../../ui/toast'
+import { ART } from '../../ui/components/ToastHost'
+import { RoomFaces } from './RoomFace'
+import { useLibraryIndex } from '../../ui/songsById'
 import {
   arrivals,
   entryOfTrack,
+  followerPress,
   freshWant,
   hostPlan,
   isHost,
   keepGoingPicks,
+  libraryPicks,
   namesOf,
   needsReport,
+  endedLine,
   pastRoomOf,
   positionNow,
   roomTracks,
@@ -59,6 +64,7 @@ import {
   takeRoomStartHint,
   useRoom,
 } from './room.store'
+import { sayRoomFailure } from './roomFailure'
 
 /**
  * The room this device is in, kept in step with its player
@@ -87,8 +93,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const { ranOut, queue } = usePlayer()
   const playingId = usePlayingSongId()
   const playing = usePlayerPlaying()
-  const { data: library } = useLibrary()
-  const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const index = useLibraryIndex()
   const host = state ? isHost(state) : false
 
   // A link plays through the host's server: looked for only by a host with a link to play.
@@ -139,7 +144,9 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     seen.current = { code: state.code, ids: new Set(state.members.map(member => member.id)) }
     if (came.length === 0) return
     lightTap()
-    showToast(`${namesOf(came.map(member => member.name))} joined`, 'info')
+    showToast(`${namesOf(came.map(member => member.name))} joined`, 'info', {
+      art: <RoomFaces people={came.slice(0, 3)} size={came.length === 1 ? ART : 32} />,
+    })
   }, [state])
 
   // Back into the room this device was in when the app last closed.
@@ -150,9 +157,24 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   // A room that ended: kept for Recently played, and the host's player let go of it.
   useEffect(
     () =>
-      onRoomEnded(ended => {
+      onRoomEnded((ended, how) => {
         const past = pastRoomOf(ended, Date.now())
         if (past) rememberPastRoom({ ...past, shared: keptAsOf(ended.code) })
+        // Leaving says so where it was pressed (RoomSheets); the room ending
+        // under you, or being taken out of it, is said here.
+        if (how !== 'left') {
+          showToast(endedLine(ended, how), 'info', {
+            actions: past
+              ? [
+                  {
+                    label: 'See what played',
+                    onPress: () =>
+                      router.push({ pathname: '/past-room/[code]', params: { code: ended.code } }),
+                  },
+                ]
+              : [],
+          })
+        }
         if (roomTrack(live.current.playingId ?? 0)) {
           commands.setUpcoming([])
           if (live.current.playing) commands.toggle()
@@ -235,6 +257,14 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
         commands.setUpcoming(plan.upcoming)
         commands.jumpTo(live.current.queueIndex + 1)
         return
+      case 'resume': {
+        const room = currentRoom()
+        commands.playFrom(plan.ids, 0, {
+          position: positionNow(state, room.offset, Date.now()),
+          autoplay: state.playing?.pausedAt === null,
+        })
+        return
+      }
       case 'none':
         return
     }
@@ -245,6 +275,9 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const report = useCallback(() => {
     const now = currentRoom()
     if (!now.state || !isHost(now.state) || reporting.current) return
+    // Nothing loaded yet (the app just opened): the plan takes the room's
+    // song up, and the room hears once it plays, not that nothing does.
+    if (live.current.playingId === null && now.state.playing) return
     const position = commands.getPosition()
     const entryId = entryOfTrack(now.state, live.current.playingId)
     const facts = { entryId, playing: live.current.playing, position }
@@ -285,10 +318,24 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     void (async () => {
       // By sound where the room knows how its songs sound; by turns alone otherwise.
       const closeness = await closenessTo(state, pass).catch(() => undefined)
-      const picks = keepGoingPicks(state, wanted, closeness ? { closeness } : {})
+      const picks = keepGoingPicks(
+        state,
+        wanted,
+        closeness ? { closeness: song => (song.audio ? closeness(song.audio.key) : null) } : {},
+      )
       for (const action of picks) await roomAct(action).catch(() => undefined)
+      // A young room has nothing of its own to bring back yet: the host's
+      // library keeps it going rather than letting it run dry.
+      if (picks.length >= wanted) return
+      const yours = libraryPicks(state, index.byAudio, wanted - picks.length, {
+        ...(closeness ? { closeness } : {}),
+      })
+      for (const id of yours) {
+        const song = cloudLibrary.cloudRoomSongNow(id)
+        if (song) await roomAct({ type: 'add', song }).catch(() => undefined)
+      }
     })()
-  }, [state, host, pass])
+  }, [state, host, pass, index])
 
   // How your own songs in the room sound, told to the room once each: what
   // the host's Autoplay ranks by. Read from your bucket's pack.
@@ -332,6 +379,20 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
 
   // --- everyone else, on everyone's phone ----------------------------------------
 
+  // A friend's own Previous, play/pause and Next: the room's, not this player's.
+  useEffect(() => {
+    setRoomTransport(step => {
+      const room = currentRoom().state
+      if (!room) return false
+      const press = followerPress(room, step, roomTrack(live.current.playingId ?? 0) !== undefined)
+      if (!press) return false
+      if ('say' in press) showToast(press.say, 'info')
+      else void roomAct({ type: press.act }).catch(sayRoomFailure)
+      return true
+    })
+    return () => setRoomTransport(null)
+  }, [])
+
   const follow = useCallback(() => {
     const now = currentRoom()
     const room = now.state
@@ -373,13 +434,15 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
 }
 
 /**
- * How near a song sounds to what the room just played, from the vectors the
- * room keeps; undefined when it has none for what played.
+ * How near a song, by its audio key, sounds to what the room just played:
+ * from the vectors the room keeps, and the host's own pack for the songs of
+ * its library the room has not heard (`libraryPicks`). Undefined when the
+ * room has none for what played.
  */
 async function closenessTo(
   state: RoomState,
   pass: RoomPass | null,
-): Promise<((song: RoomSong) => number | null) | undefined> {
+): Promise<((audioKey: string) => number | null) | undefined> {
   if (!pass) return undefined
   const kept = await roomApi.vectors(pass)
   const vectors = new Map<string, Int8Array>()
@@ -389,8 +452,13 @@ async function closenessTo(
   }
   const target = soundTarget(state, vectors)
   if (!target) return undefined
-  return song => {
-    const vector = song.audio ? vectors.get(song.audio.key) : undefined
+  const session = await cloudSession.loadSession().catch(() => null)
+  const pack = session ? await cloudLibrary.cloudSoundVectors(session).catch(() => null) : null
+  // Another model's vectors are not comparable with the room's.
+  const own = pack && pack.model === kept.model ? pack.vectors : null
+  return key => {
+    const mine = own?.get(key)
+    const vector = vectors.get(key) ?? (mine ? unpackVector(packVector(mine)) : null)
     return vector ? soundCloseness(vector, target) : null
   }
 }

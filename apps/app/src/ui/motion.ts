@@ -73,14 +73,19 @@ export { nativeDriver }
  * false for what the native driver cannot move — a width, a height — as it is
  * in `timing`; a value that moves both must be off the native driver for both,
  * since it cannot change drivers once it has been handed over.
+ *
+ * `onStopped` runs once the spring is over however it ended — come to rest,
+ * stopped by another move, or stopped because the last view wearing the
+ * value went away, which leaves the value where it was stopped.
  */
 export function spring(
   value: Animated.Value,
   toValue: number,
-  { native = nativeDriver }: { native?: boolean } = {},
+  { native = nativeDriver, onStopped }: { native?: boolean; onStopped?: () => void } = {},
 ): Animated.CompositeAnimation | null {
   if (reduced) {
     value.setValue(toValue)
+    onStopped?.()
     return null
   }
   const animation = Animated.spring(value, {
@@ -90,7 +95,7 @@ export function spring(
     mass: 1,
     useNativeDriver: native,
   })
-  animation.start()
+  animation.start(onStopped && (() => onStopped()))
   return animation
 }
 

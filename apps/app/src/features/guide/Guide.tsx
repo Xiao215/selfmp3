@@ -7,12 +7,13 @@ import { Defs, LinearGradient, Path, Rect, Stop, Svg } from 'react-native-svg'
 import { leading, motion, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { nativeDriver, useMotionReduced, usePresence } from '../../ui/motion'
 import { Music } from '../../ui/components/Icons'
 import { useSvgId } from '../../ui/useSvgId'
 import { holeAround, layerPath, placeWords, type Box } from './guide.model'
 import type { GuideHandle } from './useGuide'
+import { useGuideKeys } from './guideKeys'
 
 /**
  * What the touch acts out: a finger's circle, the way iOS draws one in a
@@ -148,7 +149,11 @@ const frames = {
  * layer with the spotlight cut round `guide.target`, the hand going through
  * the gesture, and the words. Any tap closes it, or moves to the next step;
  * that tap does nothing else, so the song under the spotlight does not start.
- * Escape closes it on a computer. Under Reduce Motion the hand holds still.
+ * It takes touches from its first frame, though it is still fading in (a view
+ * nearly see-through lets a touch through to the row under it on iOS), and
+ * once closed it takes them for nothing while it fades. Escape closes it on a
+ * computer, and while it is up the keys stay with it (`useGuideKeys`). Under
+ * Reduce Motion the hand holds still.
  */
 export function Guide({
   guide,
@@ -173,14 +178,16 @@ export function Guide({
   inline?: boolean
 }): ReactNode {
   const window = useWindowDimensions()
-  const { finePointer } = useLayout()
+  const { finePointer } = useLayoutFlags()
   const reduced = useMotionReduced()
   const { mounted, progress } = usePresence(guide.shown, motion.slow, motion.base)
   const [last, setLast] = useState<Box | null>(guide.box)
   if (guide.box !== null && guide.box !== last) setLast(guide.box)
   const host = useRef<View>(null)
+  const press = useRef<View>(null)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
 
+  // Each step starts its own round: moving on stops the last one (`useGuide`).
   useEffect(() => {
     if (!guide.shown || reduced) return undefined
     guide.demo.setValue(0)
@@ -197,13 +204,16 @@ export function Guide({
       round.stop()
       guide.demo.setValue(0)
     }
-  }, [guide.shown, guide.demo, reduced])
+  }, [guide.shown, guide.step, guide.demo, reduced])
 
   const close = (): void => {
+    // Fading out, it is over: a second tap went on to step 0 and began again.
+    if (!guide.shown) return
     if (guide.step + 1 < steps.length) guide.next(steps.length)
     else guide.dismiss()
   }
   useEscape(guide.shown, guide.dismiss, { layer: true })
+  useGuideKeys(guide.shown, press)
 
   const step = steps[Math.max(0, Math.min(guide.step, steps.length - 1))]
   let node: ReactNode = null
@@ -214,17 +224,22 @@ export function Guide({
     const words = placeWords(hole, screen)
     const spot = { x: target.x + target.width * at.x, y: target.y + target.height * at.y }
     node = (
-      <Animated.View
+      // Only what is drawn fades: the view that takes the touches is whole
+      // from the start.
+      <View
         ref={host}
-        style={[StyleSheet.absoluteFill, { opacity: progress }]}
+        style={StyleSheet.absoluteFill}
         onLayout={() =>
           host.current?.measureInWindow((x, y) => {
             if (x !== offset.x || y !== offset.y) setOffset({ x, y })
           })
         }
+        role="dialog"
+        aria-modal
         testID="guide"
       >
         <Pressable
+          ref={press}
           style={StyleSheet.absoluteFill}
           onPress={close}
           accessibilityRole="button"
@@ -235,46 +250,51 @@ export function Guide({
           accessibilityLiveRegion="polite"
           testID={`guide-${guide.name}`}
         >
-          <Svg width={screen.width} height={screen.height} style={StyleSheet.absoluteFill}>
-            <Path d={layerPath(screen, hole, radius)} fill={LAYER} fillRule="evenodd" />
-            <Rect
-              x={hole.x}
-              y={hole.y}
-              width={hole.width}
-              height={hole.height}
-              rx={radius}
-              fill="none"
-              stroke={INK}
-              strokeOpacity={0.75}
-              strokeWidth={1.5}
-              strokeDasharray="5 5"
-            />
-          </Svg>
-          <Gesture step={step} spot={spot} hole={hole} demo={guide.demo} pointer={finePointer} />
-          <View
-            style={[
-              styles.words,
-              words.kind === 'above'
-                ? { bottom: words.bottom, left: words.left, width: words.width }
-                : { top: words.top, left: words.left, width: words.width },
-              words.kind === 'beside' && { alignItems: 'flex-start' },
-            ]}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { opacity: progress }]}
             pointerEvents="none"
           >
-            <Text style={[styles.text, words.kind === 'beside' && styles.left]}>{step.text}</Text>
-            {step.sub ? (
-              <Text style={[styles.sub, words.kind === 'beside' && styles.left]}>{step.sub}</Text>
-            ) : null}
-            {steps.length > 1 ? (
-              <View style={styles.steps}>
-                {steps.map((_, index) => (
-                  <View key={index} style={[styles.dot, index === guide.step && styles.dotOn]} />
-                ))}
-              </View>
-            ) : null}
-          </View>
+            <Svg width={screen.width} height={screen.height} style={StyleSheet.absoluteFill}>
+              <Path d={layerPath(screen, hole, radius)} fill={LAYER} fillRule="evenodd" />
+              <Rect
+                x={hole.x}
+                y={hole.y}
+                width={hole.width}
+                height={hole.height}
+                rx={radius}
+                fill="none"
+                stroke={INK}
+                strokeOpacity={0.75}
+                strokeWidth={1.5}
+                strokeDasharray="5 5"
+              />
+            </Svg>
+            <Gesture step={step} spot={spot} hole={hole} demo={guide.demo} pointer={finePointer} />
+            <View
+              style={[
+                styles.words,
+                words.kind === 'above'
+                  ? { bottom: words.bottom, left: words.left, width: words.width }
+                  : { top: words.top, left: words.left, width: words.width },
+                words.kind === 'beside' && { alignItems: 'flex-start' },
+              ]}
+              pointerEvents="none"
+            >
+              <Text style={[styles.text, words.kind === 'beside' && styles.left]}>{step.text}</Text>
+              {step.sub ? (
+                <Text style={[styles.sub, words.kind === 'beside' && styles.left]}>{step.sub}</Text>
+              ) : null}
+              {steps.length > 1 ? (
+                <View style={styles.steps}>
+                  {steps.map((_, index) => (
+                    <View key={index} style={[styles.dot, index === guide.step && styles.dotOn]} />
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          </Animated.View>
         </Pressable>
-      </Animated.View>
+      </View>
     )
   }
   useOverlay(inline ? null : node, mounted && !inline)

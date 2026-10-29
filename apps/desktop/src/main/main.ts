@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { app, net } from 'electron'
+import { app, autoUpdater, net } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { EVENTS } from '@selfmp3/desktop-bridge'
 import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
@@ -38,6 +38,13 @@ const currentWindow = (): BrowserWindow | null => mainWindow
  * red button hides the window, and the only thing that may really close it is
  * the app going away. Without the flag, ⌘Q would hide the window and leave the
  * app running with no way to get it back except the Dock.
+ *
+ * Installing an update is the other way out, and it does not pass through
+ * `before-quit` in time: `quitAndInstall` closes the windows first and only
+ * then emits it, so the close handler saw an app that was not quitting, hid the
+ * window, and the update never went in. `before-quit-for-update` comes before
+ * the windows close: on a Mac, the one place a build installs its own updates,
+ * electron-updater hands the install to Electron's updater, which emits it.
  */
 let quitting = false
 const isQuitting = (): boolean => quitting
@@ -84,10 +91,13 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   // macOS delivers a URL to a running app this way, and to a cold one just
-  // after `ready`; everywhere else it is argv, above and below.
+  // after `ready`; everywhere else it is argv, above and below. A link is
+  // something to look at, so a window closed with the red button comes back
+  // for it; before `ready` the window is about to open anyway.
   app.on('open-url', (event, url) => {
     event.preventDefault()
     deepLinks.deliver(url)
+    if (app.isReady()) showWindow()
   })
 
   app
@@ -122,7 +132,7 @@ if (!app.requestSingleInstanceLock()) {
       openWindow()
 
       registerIpc({ info, window: currentWindow, stream })
-      buildMenu(currentWindow)
+      buildMenu(currentWindow, showWindow)
       startNowPlaying(currentWindow)
 
       deepLinks.deliver(deepLinkFromArgv(process.argv))
@@ -136,6 +146,9 @@ if (!app.requestSingleInstanceLock()) {
   app.on('activate', () => showWindow())
 
   app.on('before-quit', () => {
+    quitting = true
+  })
+  autoUpdater.on('before-quit-for-update', () => {
     quitting = true
   })
 

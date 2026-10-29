@@ -2,13 +2,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ClientStateProvider, type ServerConnection } from '@selfmp3/client'
-import type { CloudSession } from '@selfmp3/replica'
+import type { CloudSession, EndedSession } from '@selfmp3/replica'
 import { answerFromCloud, setServer } from '../api/client'
 import { forgetImportDraft } from '../features/import/importDraft'
 import { library as cloudLibrary, session as cloudSession } from '../replica'
 import { storageDue } from '../features/welcome/storage.model'
+import { networkModeFor } from '../offline/waitingEdits.model'
 import { clearConnection, loadConnection, saveConnection } from './storedConnection'
 import { useCloudLook } from './useCloudLook'
+import { useAskBucketBack, useAskDoormanBack } from './useDoormanTrouble'
 
 /**
  * Which server this phone talks to.
@@ -38,6 +40,12 @@ interface ConnectionContextValue {
   readonly disconnect: () => Promise<void>
   /** Leave the cloud: the session is ended elsewhere first; this forgets the bucket's library and asks again. */
   readonly signedOutOfCloud: () => void
+  /**
+   * Whose sign-in the doorman ended (`@selfmp3/replica`'s `EndedSession`),
+   * until the next sign-in: Welcome says so. This device's copy of their
+   * library, and the changes made here that never went up, are kept for it.
+   */
+  readonly sessionEnded: EndedSession | null
 }
 
 const ConnectionContext = createContext<ConnectionContextValue | null>(null)
@@ -47,9 +55,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [fromCloud, setFromCloud] = useState(false)
   const [needsStorage, setNeedsStorage] = useState(false)
+  const [sessionEnded, setSessionEnded] = useState<EndedSession | null>(null)
   const queryClient = useQueryClient()
   // Not before the bucket is connected: there is nothing in it to ask about.
   useCloudLook(fromCloud && !needsStorage)
+  useAskDoormanBack(fromCloud)
+  useAskBucketBack(fromCloud)
 
   /*
    * Forget everything cached for the previous server.
@@ -62,6 +73,15 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     queryClient.clear()
   }, [queryClient])
 
+  /** Answer from the bucket, or not — and so whether a request waits for the network. */
+  const answerFrom = useCallback(
+    (cloud: boolean) => {
+      networkModeFor(queryClient, cloud)
+      setFromCloud(cloud)
+    },
+    [queryClient],
+  )
+
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -69,11 +89,13 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       // bucket's, and no server has to be awake or even exist. A stored address
       // is a development build whose address was typed on Welcome instead, which is
       // how the simulator flows get a library without a Google account.
-      const [signedIn, stored] = await Promise.all([
+      const [signedIn, stored, ended] = await Promise.all([
         cloudSession.loadSession().catch(() => null),
         loadConnection().catch(() => null),
+        cloudSession.endedSession().catch(() => null),
       ])
       if (cancelled) return
+      if (!signedIn) setSessionEnded(ended)
       // Never both: an address typed before signing in is let go.
       if (signedIn && stored) void clearConnection().catch(() => undefined)
       const server = signedIn ? null : stored
@@ -83,7 +105,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       // outside the component tree, where there is nothing to read a context
       // from. This provider is its only writer.
       setServer(server)
-      setFromCloud(signedIn !== null)
+      answerFrom(signedIn !== null)
       setConnection(server)
       setStatus(signedIn || server ? 'ready' : 'missing')
       setNeedsStorage(storageDue(signedIn))
@@ -102,7 +124,29 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [answerFrom])
+
+  /*
+   * The doorman refusing the session — it ran out, was signed out
+   * everywhere, or the account came off the list — is a sign-out this device
+   * did not ask for. Until now it read as "Offline" for good: every look and
+   * every upload refused, and nothing leading back to Welcome. The library
+   * is let go of here as at a sign-out, but nothing kept is forgotten: signed
+   * in again as the same account, the changes made here still go up.
+   */
+  useEffect(
+    () =>
+      cloudSession.onSessionEnded(ended => {
+        answerFromCloud(false)
+        cloudLibrary.markCloudLibraryStale()
+        forgetCachedServer()
+        answerFrom(false)
+        setNeedsStorage(false)
+        setSessionEnded(ended)
+        setStatus('missing')
+      }),
+    [forgetCachedServer, answerFrom],
+  )
 
   /** Called once Google is done, so the app stops asking for a server. */
   const signedInToCloud = useCallback(
@@ -113,11 +157,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       setServer(null)
       setConnection(null)
       forgetCachedServer()
-      setFromCloud(true)
+      answerFrom(true)
       setNeedsStorage(storageDue(session ?? null))
+      setSessionEnded(null)
       setStatus('ready')
     },
-    [forgetCachedServer],
+    [forgetCachedServer, answerFrom],
   )
 
   const storageConnected = useCallback(() => {
@@ -139,12 +184,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       forgetCachedServer()
       // A review looked up on the last server names its tags; another server's are not those.
       if (connection !== null && connection.baseUrl !== next.baseUrl) forgetImportDraft('own')
-      setFromCloud(false)
+      answerFrom(false)
       await saveConnection(next)
       setConnection(next)
       setStatus('ready')
     },
-    [connection, forgetCachedServer],
+    [connection, forgetCachedServer, answerFrom],
   )
 
   const signedOutOfCloud = useCallback(() => {
@@ -152,10 +197,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     cloudLibrary.markCloudLibraryStale()
     forgetCachedServer()
     forgetImportDraft('cloud')
-    setFromCloud(false)
+    answerFrom(false)
     setNeedsStorage(false)
+    setSessionEnded(null)
     setStatus('missing')
-  }, [forgetCachedServer])
+  }, [forgetCachedServer, answerFrom])
 
   const disconnect = useCallback(async () => {
     await clearConnection()
@@ -178,6 +224,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       storageConnected,
       storageForgotten,
       signedOutOfCloud,
+      sessionEnded,
     }),
     [
       connection,
@@ -190,6 +237,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       storageConnected,
       storageForgotten,
       signedOutOfCloud,
+      sessionEnded,
     ],
   )
 

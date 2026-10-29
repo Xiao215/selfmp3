@@ -4,14 +4,17 @@ import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
-import { hitSlopFor, radius, space, type, useLibrary, iconSize, textStyle } from '@selfmp3/client'
+import { hitSlopFor, radius, space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayerCommands } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useOpenSearch } from '../../shell/palette'
-import { useLayout } from '../../shell/useLayout'
+import { useEscape } from '../../shell/useEscape'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { IconButton } from '../../ui/components/IconButton'
 import {
   ChevronRight,
@@ -34,23 +37,20 @@ import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/compon
 import { card, label, pageFrame, rowTitle, hint, textColumn } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
-import { artistLink } from '../tag/placeLinks'
+import { Menu } from '../../ui/components/MoreMenu'
 import { useOpenTag } from '../tag/useOpenTag'
-import {
-  noTagsLine,
-  tagLine,
-  tagsMostPlayed,
-  untaggedCardTitle,
-  type TagStanding,
-} from '../tag/tag.model'
+import { tagLine, tagsMostPlayed, untaggedCardTitle, type TagStanding } from '../tag/tag.model'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
 import { SLEEVE_ASPECT, TagSleeve } from './TagSleeve'
+import { handOffPlace } from '../../ui/coverHandoff'
 import {
+  firstDrawn,
   leadSong,
   tagsHeadline,
   tagsLayout,
+  tagsLayoutSize,
   UNTAGGED_HINT,
   waitingArtists,
   waitingLine,
@@ -59,17 +59,17 @@ import {
 } from './tags.model'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from './useNewTagForm'
+import { TagNameField, useNewTagForm } from './useNewTagForm'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useDrawnAhead } from '../../ui/useDrawnAhead'
 import { TagDot } from '../../ui/components/TagDot'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 220
 const GAP = 16
 const ROW_GAP = 24
-/** How many artists the untagged card names on a computer, and on a phone. */
+/** How many artists' covers the untagged card stands up. */
 const WAITING_SHOWN = 3
-const PHONE_WAITING_SHOWN = 2
 const NOTHING_WAITING = { artists: [], rest: 0 } as const
 
 type EditTag = (tag: Tag) => void
@@ -83,7 +83,8 @@ type HoldRef = (tagId: number, node: View | null) => void
  * A tile opens the tag's page. With a pointer, the tag's record slides out
  * and Play waits on its label, and a ⋯ and right-click open the tag's editor
  * (G, H); on a phone a tap opens and holding edits. A tag every one
- * of whose songs another tag carries is drawn inside that tag (E), and tags
+ * of whose songs another tag carries hangs off that tag's tile as a chip
+ * (AG1), and tags
  * with a song or two wait at the end (L), so the page opens on the ones in
  * use. Picking tags to combine is not here: a tag's page has Add for that.
  *
@@ -91,14 +92,28 @@ type HoldRef = (tagId: number, node: View | null) => void
  * are by and tags them one at a time while they play (K2).
  */
 export function TagsScreen(): ReactNode {
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const router = useRouter()
   const player = usePlayerCommands()
+  const playingTag = usePlayingTag()
   const { data: library } = useLibrary()
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
+  // The form put away from inside it — Escape, its × — gives focus back to the
+  // + that opened it: the form went with the focus in it, and left it on the page.
+  const newButton = useRef<View>(null)
+  const focusBack = useRef(false)
+  const closeNew = useCallback(() => {
+    focusBack.current = true
+    setAdding(false)
+  }, [])
+  useEffect(() => {
+    if (adding || !focusBack.current) return
+    focusBack.current = false
+    newButton.current?.focus()
+  }, [adding])
   const [suggesting, setSuggesting] = useState(false)
-  const switches = useSmartSwitches()
+  const smartOn = useSmartOn()
   const { columns, tileWidth } = useTileGrid({ minTile: TILE_MIN_WIDTH, gap: GAP })
   /*
    * The tile handlers are made once and take the tag they act on, so a render
@@ -114,17 +129,29 @@ export function TagsScreen(): ReactNode {
     if (node) rowRefs.current.set(tagId, node)
     else rowRefs.current.delete(tagId)
   }, [])
-  const openTag = useCallback((standing: TagStanding) => latest.current.open(standing.tag), [])
+  // A tile hands its sleeve's frame to the tag's page, whose head grows out of
+  // it (`useHeroGrow`, I1); a chip under a tile, too short to be one, does not.
+  const openTag = useCallback((standing: TagStanding) => {
+    const go = (): void => latest.current.open(standing.tag)
+    const node = rowRefs.current.get(standing.tag.id)
+    if (!node) {
+      go()
+      return
+    }
+    node.measureInWindow((x, y, width, height) => {
+      const side = Math.round(width / SLEEVE_ASPECT)
+      if (side > 0 && height >= side) handOffPlace({ x, y, width: side, height: side })
+      go()
+    })
+  }, [])
   const playTag = useCallback((standing: TagStanding) => {
     const ids = standing.songs.map(song => song.id)
     if (ids.length === 0) return
     noteTagUsed(standing.tag.id)
     latest.current.player.playFrom(ids, 0, {
       source: { kind: 'tag', tagId: standing.tag.id, name: standing.tag.name },
+      whole: true,
     })
-  }, [])
-  const openArtist = useCallback((name: string) => {
-    latest.current.router.navigate(artistLink(name))
   }, [])
   const [editing, setEditing] = useState<Tag | null>(null)
   // The editor is anchored to the tile that asked for it. One anchor for the
@@ -136,13 +163,22 @@ export function TagsScreen(): ReactNode {
     () => (library ? tagsMostPlayed(library.tags, library.songs) : []),
     [library],
   )
-  const layout = useMemo(() => tagsLayout(standings), [standings])
+  const laidOut = useMemo(() => tagsLayout(standings), [standings])
+  // A screenful or two of tiles and the chips under them, and more as the
+  // scroll nears the end.
+  const { drawn, ...ahead } = useDrawnAhead(tagsLayoutSize(laidOut))
+  const layout = useMemo(() => firstDrawn(laidOut, drawn), [laidOut, drawn])
   /*
    * A pointer has the ⋯ and right-click; a finger has only the hold, which
    * nothing on a tile says, so it is shown once on the first tile.
    */
-  const firstTagId = (layout.main[0] ?? layout.justStarted[0])?.standing.tag.id
-  const [lightTile, holdGuide] = useGuide('tag-hold', !finePointer && firstTagId !== undefined)
+  const firstTagId = (layout.main[0] ?? layout.justStarted[0] ?? layout.empty[0])?.standing.tag.id
+  // Not while the editor a hold opens is up: the guide came over it, and the
+  // finger letting go of the hold closed the guide unread.
+  const [lightTile, holdGuide] = useGuide(
+    'tag-hold',
+    !finePointer && firstTagId !== undefined && editing === null,
+  )
   useEffect(() => {
     lightTile(firstTagId === undefined ? null : (rowRefs.current.get(firstTagId) ?? null))
   })
@@ -153,13 +189,8 @@ export function TagsScreen(): ReactNode {
     [standings],
   )
   const waiting = useMemo(
-    () => (library ? waitingArtists(library.songs, WAITING_SHOWN) : NOTHING_WAITING),
+    () => (library ? waitingArtists(library.songs, WAITING_SHOWN, library) : NOTHING_WAITING),
     [library],
-  )
-  // A phone names fewer, so what its "and others" counts is the rest after those.
-  const phoneRest = useMemo(
-    () => (library && !wide ? waitingArtists(library.songs, PHONE_WAITING_SHOWN).rest : 0),
-    [library, wide],
   )
 
   // The one Search, on its Tags scope: the page on a phone, the palette over
@@ -178,8 +209,6 @@ export function TagsScreen(): ReactNode {
       gap={GAP}
       rowGap={ROW_GAP}
       keyOf={entry => entry.standing.tag.id}
-      // A tag that holds others stands with its panel beside it, a tile wide.
-      spanOf={entry => (entry.inside.length > 0 ? 2 : 1)}
       renderItem={entry => (
         <Entry
           entry={entry}
@@ -190,6 +219,7 @@ export function TagsScreen(): ReactNode {
           onOpen={openTag}
           onPlay={playTag}
           onEdit={edit}
+          spinning={entry.standing.tag.id === playingTag}
         />
       )}
     />
@@ -198,6 +228,7 @@ export function TagsScreen(): ReactNode {
   const actions = (
     <>
       <IconButton
+        ref={newButton}
         label="New tag"
         filled
         active={adding}
@@ -216,10 +247,12 @@ export function TagsScreen(): ReactNode {
     <SafeAreaView style={styles.screen} edges={['top']} testID="tags-screen">
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
+        {...ahead}
       >
         <PageHeader
           title="Tags"
-          subtitle={library ? tagsHeadline(tags.length) : undefined}
+          // With no tags the empty state below says so; the head says it once (Z1).
+          subtitle={library && tags.length > 0 ? tagsHeadline(tags.length) : undefined}
           back={{ to: '/', testID: 'tags-back' }}
           actions={actions}
         />
@@ -232,7 +265,7 @@ export function TagsScreen(): ReactNode {
               // its editor opens, on its tile.
               edit(tag)
             }}
-            onClose={() => setAdding(false)}
+            onClose={closeNew}
           />
         ) : null}
 
@@ -240,19 +273,32 @@ export function TagsScreen(): ReactNode {
           <UntaggedCard
             count={playAndTag.count}
             artists={waiting.artists}
-            rest={wide ? waiting.rest : phoneRest}
             wide={wide}
             onStart={playAndTag.start}
-            onSuggest={switches.tags ? () => setSuggesting(true) : undefined}
-            onArtist={openArtist}
+            onSuggest={smartOn ? () => setSuggesting(true) : undefined}
           />
         ) : null}
         <SuggestTagsSheet open={suggesting} onClose={() => setSuggesting(false)} />
 
         {!library ? (
-          <Text style={styles.hint}>Tags load with your library.</Text>
+          <TilesWaiting columns={columns} width={tileWidth} />
         ) : standings.length === 0 ? (
-          <Text style={styles.hint}>{noTagsLine()}</Text>
+          // The form above is already the way out while it is open.
+          adding ? null : (
+            <EmptyState
+              testID="tags-empty"
+              icon={<TagIcon size={30} tone="textMuted" />}
+              title="No tags yet"
+              line="Your own words for songs: night, gym, from 2014."
+            >
+              <Button
+                label="New tag"
+                icon={<Plus tone="textPrimary" />}
+                onPress={() => setAdding(true)}
+                testID="tags-empty-new"
+              />
+            </EmptyState>
+          )
         ) : (
           <View style={styles.runs}>
             {tileWidth > 0 ? (
@@ -262,10 +308,19 @@ export function TagsScreen(): ReactNode {
                   <>
                     {layout.main.length > 0 ? (
                       <Text style={styles.runLabel}>
-                        Just started <Text style={styles.runLabelSub}>a song or two so far</Text>
+                        Just started{' '}
+                        <Text style={styles.runLabelSub}>two songs or fewer so far</Text>
                       </Text>
                     ) : null}
                     {grid(layout.justStarted)}
+                  </>
+                ) : null}
+                {layout.empty.length > 0 ? (
+                  <>
+                    {layout.main.length + layout.justStarted.length > 0 ? (
+                      <Text style={styles.runLabel}>Nothing in them yet</Text>
+                    ) : null}
+                    {grid(layout.empty)}
                   </>
                 ) : null}
               </>
@@ -283,6 +338,29 @@ export function TagsScreen(): ReactNode {
         steps={[{ gesture: 'hold', text: 'Hold a tag to rename, recolour or delete it' }]}
       />
     </SafeAreaView>
+  )
+}
+
+/** A row of records' shapes, each with its name under it, while the library is on its way (AA1). */
+function TilesWaiting({ columns, width }: { columns: number; width: number }): ReactNode {
+  const cells = useMemo(() => Array.from({ length: columns }, (_, index) => index), [columns])
+  if (width === 0) return null
+  return (
+    <Skeleton label="Loading tags" testID="tags-loading">
+      <TileGrid
+        items={cells}
+        columns={columns}
+        gap={GAP}
+        keyOf={cell => cell}
+        renderItem={() => (
+          <View style={styles.tileWaiting}>
+            <Bone height={Math.round(width / SLEEVE_ASPECT)} radius={radius.cover} />
+            <Bone width="50%" height={14} radius={radius.pill} />
+            <Bone width="30%" height={10} radius={radius.pill} />
+          </View>
+        )}
+      />
+    </Skeleton>
   )
 }
 
@@ -305,6 +383,8 @@ function NewTag({
   // The field stays open and empty once a tag is made: tags arrive in
   // handfuls, and a second one should not cost another trip to the +.
   const form = useNewTagForm({ tags, onExisting })
+  // Escape puts the card away, as its × does, from the field as well.
+  useEscape(true, onClose)
 
   return (
     <View style={styles.newCard} testID="tags-new-form">
@@ -324,6 +404,7 @@ function NewTag({
         form={form}
         placeholder="chill, 中文, gym…"
         autoFocus
+        onEscape={onClose}
         testID="tags-new-name"
         action={
           <Button
@@ -340,8 +421,8 @@ function NewTag({
         <Text style={styles.fieldLabel}>Colour</Text>
         <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} />
       </View>
-      {form.failed ? (
-        <StatusLine>{NEW_TAG_FAILED}</StatusLine>
+      {form.failure ? (
+        <StatusLine>{form.failure}</StatusLine>
       ) : (
         <Text style={styles.newHint}>A word or two.</Text>
       )}
@@ -351,38 +432,33 @@ function NewTag({
 }
 
 /**
- * "111 songs have no tag yet", and who they are by (K2): the artists with the
- * most of them, newest cover first. On a computer each name opens that
- * artist's page, where Select all and Tag do a batch at once, and the button
- * tags them one at a time while they play. On a phone the whole card is that
- * button, with two names to say what is waiting.
- *
- * Suggest tags (A7, docs/features/ai.md) sits beside it: the same songs, a tag
- * proposed for each, taken a tag at a time.
+ * "62 songs without a tag", and in a word who they are by ("Mostly
+ * Yorushika"), over the newest of their covers; and one "Tag them", which
+ * offers the two ways to: Suggest tags (A7, docs/features/ai.md), the same
+ * songs with a tag proposed for each, and Tag while they play, one at a time
+ * (I1, 2026-10-25). On a phone the whole card is that button.
  */
 function UntaggedCard({
   count,
   artists,
-  rest,
   wide,
   onStart,
   onSuggest,
-  onArtist,
 }: {
   count: number
   artists: readonly WaitingArtist[]
-  /** The songs by none of the artists named. */
-  rest: number
   wide: boolean
   onStart: () => void
   /** Absent while Suggest tags is turned off in Settings › Smart features. */
   onSuggest?: () => void
-  onArtist: (name: string) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const art = useArt(COVER_STACK)
-  const named = wide ? artists : artists.slice(0, PHONE_WAITING_SHOWN)
   const title = untaggedCardTitle(count)
+  const line = waitingLine(artists, count)
+  const anchor = useRef<View>(null)
+  const [choosing, setChoosing] = useState(false)
+  // With Suggest tags off there is one way left, and the button takes it.
+  const tag = (): void => (onSuggest ? setChoosing(true) : onStart())
 
   const covers =
     artists.length > 0 ? (
@@ -403,74 +479,73 @@ function UntaggedCard({
         <TagIcon size={iconSize.medium} tone="textPrimary" />
       </View>
     )
-
-  // The same words a screen reader is given; a computer draws the names as links.
-  const line = waitingLine(named, rest, wide ? 'count' : 'others')
-  const who =
-    named.length === 0 || !wide ? (
-      line
-    ) : (
-      <>
-        {named.map((artist, index) => (
-          <Text key={artist.name}>
-            {index > 0 ? ' · ' : ''}
-            {artist.count.toLocaleString()} by{' '}
-            <Text
-              style={styles.artistLink}
-              onPress={() => onArtist(artist.name)}
-              accessibilityRole="link"
-              {...tip(`Open ${artist.name}`)}
-            >
-              {artist.name}
-            </Text>
-          </Text>
-        ))}
-        {rest > 0 ? ` · and ${rest.toLocaleString()} more` : ''}
-      </>
-    )
   const words = (
     <View style={styles.untaggedText}>
       <Text style={styles.untaggedTitle} numberOfLines={1}>
         {title}
       </Text>
-      <Text style={styles.untaggedSub} numberOfLines={1}>
-        {who}
-      </Text>
+      {line ? (
+        <Text style={styles.untaggedSub} numberOfLines={1}>
+          {line}
+        </Text>
+      ) : null}
     </View>
   )
-  const suggest = (variant: 'secondary' | 'text'): ReactNode =>
-    onSuggest ? (
-      <Button
-        label="Suggest tags"
-        icon={<Sparkle />}
-        variant={variant}
-        onPress={onSuggest}
-        testID="tags-untagged-suggest"
-      />
-    ) : null
+  const menu = (
+    <Menu
+      open={choosing}
+      onClose={() => setChoosing(false)}
+      anchorRef={anchor}
+      title={title}
+      testID="tags-untagged-menu"
+      items={[
+        ...(onSuggest
+          ? [
+              {
+                key: 'suggest',
+                label: 'Suggest tags',
+                icon: <Sparkle />,
+                onPress: onSuggest,
+                testID: 'tags-untagged-suggest',
+              },
+            ]
+          : []),
+        {
+          key: 'play',
+          label: 'Tag while they play',
+          icon: <TagIcon tone="textSecondary" />,
+          onPress: onStart,
+          testID: 'tags-untagged-start',
+        },
+      ]}
+    />
+  )
 
   if (wide) {
     return (
       <View style={styles.untagged} testID="tags-untagged">
         {covers}
         {words}
-        {suggest('secondary')}
-        <Button
-          label="Tag while they play"
-          icon={<TagIcon color={theme.colors.textPrimary} />}
-          onPress={onStart}
-          testID="tags-untagged-start"
-        />
+        <View ref={anchor} collapsable={false}>
+          <Button
+            label="Tag them"
+            icon={<Sparkle />}
+            onPress={tag}
+            active={choosing}
+            testID="tags-untagged-tag"
+          />
+        </View>
+        {menu}
       </View>
     )
   }
   return (
-    <View>
+    <View ref={anchor} collapsable={false}>
       <Press
         depth="row"
-        onPress={onStart}
+        onPress={tag}
         accessibilityRole="button"
-        accessibilityLabel={`${title}. ${line}`}
+        accessibilityLabel={line ? `${title}. ${line}` : title}
         accessibilityHint={UNTAGGED_HINT}
         testID="tags-untagged"
         style={styles.untagged}
@@ -479,13 +554,26 @@ function UntaggedCard({
         {words}
         <ChevronRight size={iconSize.item} tone="textMuted" />
       </Press>
-      {onSuggest ? <View style={styles.untaggedSuggest}>{suggest('text')}</View> : null}
+      {menu}
     </View>
   )
 }
 
-/** One tag in the grid: its tile, and, when it holds other tags, the panel listing them beside it. */
-function Entry({
+/**
+ * The tag playing right now, by id, while it plays: its record turns on its
+ * tile (I2). A pause, or anything but a single tag playing, is none.
+ */
+function usePlayingTag(): number | null {
+  const { source, isPlaying } = usePlayer()
+  return isPlaying && source?.kind === 'tag' ? source.tagId : null
+}
+
+/**
+ * One tag in the grid: its tile, and, when it holds other tags, a chip for
+ * each under it. Memoised, as its tile is: the page drawing its next tiles as
+ * it scrolls redrew every chip already drawn, hundreds of them (bug bash m50).
+ */
+const Entry = memo(function Entry({
   entry,
   order,
   width,
@@ -494,6 +582,7 @@ function Entry({
   onOpen,
   onPlay,
   onEdit,
+  spinning,
 }: {
   entry: TagEntry
   order: ReadonlyMap<number, number>
@@ -503,6 +592,8 @@ function Entry({
   onOpen: (standing: TagStanding) => void
   onPlay: (standing: TagStanding) => void
   onEdit: EditTag
+  /** This tag is what is playing: its record turns. */
+  spinning: boolean
 }): ReactNode {
   const { standing, inside } = entry
   const tile = (
@@ -515,24 +606,18 @@ function Entry({
       onOpen={onOpen}
       onPlay={onPlay}
       onEdit={onEdit}
+      spinning={spinning}
     />
   )
   if (inside.length === 0) return tile
   return (
-    <View style={styles.holder}>
+    // The tile's width, so a long name's chip is cut at the tile's edge.
+    <View style={{ width }}>
       {tile}
-      <InsidePanel
-        holder={standing}
-        inside={inside}
-        order={order}
-        width={width}
-        rowRef={rowRef}
-        onOpen={onOpen}
-        onEdit={onEdit}
-      />
+      <InsideChips inside={inside} order={order} rowRef={rowRef} onOpen={onOpen} onEdit={onEdit} />
     </View>
   )
-}
+})
 
 /**
  * One tag's tile: its record (`TagSleeve`), then its name and size. Memoised,
@@ -548,6 +633,7 @@ const TagTile = memo(function TagTile({
   onOpen,
   onPlay,
   onEdit,
+  spinning,
 }: {
   standing: TagStanding
   /** Its place in the most-played order. */
@@ -558,6 +644,7 @@ const TagTile = memo(function TagTile({
   onOpen: (standing: TagStanding) => void
   onPlay: (standing: TagStanding) => void
   onEdit: EditTag
+  spinning: boolean
 }): ReactNode {
   const { tag } = standing
   const lead = useMemo(() => leadSong(standing.songs), [standing.songs])
@@ -566,7 +653,16 @@ const TagTile = memo(function TagTile({
   return (
     <GridTile
       tileRef={node => rowRef(tag.id, node)}
-      cover={out => <TagSleeve song={lead} hue={tag.hue} name={tag.name} width={width} out={out} />}
+      cover={out => (
+        <TagSleeve
+          song={lead}
+          hue={tag.hue}
+          name={tag.name}
+          width={width}
+          out={out}
+          spinning={spinning}
+        />
+      )}
       look="display"
       titleLead={<TagDot hue={tag.hue} />}
       title={tag.name}
@@ -617,82 +713,56 @@ const TagTile = memo(function TagTile({
 })
 
 /**
- * What a holder holds (E), beside its tile and as tall as its record: each
- * inside tag as a row that opens it, holds or right-clicks to edit it, and
- * scrolls when there are more than fit. Under it, the one line that says why
- * they are here.
+ * What a holder holds (AG1): each tag whose songs are all in this one, as a
+ * small chip under the holder's tile — "Includes ● late night drives… (3)" — so
+ * it reads as part of the tag it is in rather than as a tag beside it. A chip
+ * opens its tag, and holding it or a right-click edits it, as a tile does.
  */
-function InsidePanel({
-  holder,
+function InsideChips({
   inside,
   order,
-  width,
   rowRef,
   onOpen,
   onEdit,
 }: {
-  holder: TagStanding
   inside: readonly TagStanding[]
   order: ReadonlyMap<number, number>
-  width: number
   rowRef: HoldRef
   onOpen: (standing: TagStanding) => void
   onEdit: EditTag
 }): ReactNode {
-  const height = Math.round(width / SLEEVE_ASPECT)
-  const compact = width < COMPACT_PANEL
-  const art = useArt(INSIDE_COVER)
   return (
-    <View style={{ width }}>
-      <View style={[styles.inside, compact && styles.insideCompact, { height }]}>
-        {compact ? null : <Text style={styles.insideLabel}>Inside it</Text>}
-        <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
-          {inside.map(standing => {
-            const { tag } = standing
-            const lead = leadSong(standing.songs)
-            const index = order.get(tag.id) ?? 0
-            return (
-              <View key={tag.id} ref={node => rowRef(tag.id, node)} collapsable={false}>
-                <Press
-                  feedback="wash"
-                  onPress={() => onOpen(standing)}
-                  onLongPress={() => onEdit(tag)}
-                  delayLongPress={MOVE_MS.hold}
-                  accessibilityRole="link"
-                  accessibilityLabel={`${tag.name}, ${tagLine(standing)}`}
-                  testID={`tags-row-${index}`}
-                  style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
-                    styles.insideRow,
-                    compact && styles.insideRowCompact,
-                    hovered && styles.insideRowOn,
-                  ]}
-                  {...rightClick(() => onEdit(tag))}
-                >
-                  <Cover
-                    uri={lead ? art(lead) : null}
-                    title={lead ? lead.album || lead.title : tag.name}
-                    size={compact ? 20 : INSIDE_COVER}
-                    radius={compact ? 5 : 7}
-                  />
-                  <TagDot hue={tag.hue} />
-                  <Text
-                    style={[styles.insideName, compact && styles.insideNameCompact]}
-                    numberOfLines={1}
-                  >
-                    {tag.name}
-                  </Text>
-                  <Text style={[styles.insideCount, compact && styles.insideCountCompact]}>
-                    {standing.songs.length.toLocaleString()}
-                  </Text>
-                </Press>
-              </View>
-            )
-          })}
-        </ScrollView>
-      </View>
-      <Text style={styles.insideNote} numberOfLines={2}>
-        Every song in these is also in {holder.tag.name}.
-      </Text>
+    <View style={styles.insideChips}>
+      {inside.map((standing, at) => {
+        const { tag } = standing
+        return (
+          <View
+            key={tag.id}
+            ref={node => rowRef(tag.id, node)}
+            collapsable={false}
+            style={styles.insideSlot}
+          >
+            <Press
+              feedback="dim"
+              onPress={() => onOpen(standing)}
+              onLongPress={() => onEdit(tag)}
+              delayLongPress={MOVE_MS.hold}
+              accessibilityRole="link"
+              accessibilityLabel={`${tag.name}, ${tagLine(standing)}, inside the tag above`}
+              testID={`tags-row-${order.get(tag.id) ?? 0}`}
+              style={styles.insideChip}
+              {...rightClick(() => onEdit(tag))}
+            >
+              {at === 0 ? <Text style={styles.insideLabel}>Includes</Text> : null}
+              <TagDot hue={tag.hue} size={7} />
+              <Text style={styles.insideName} numberOfLines={1}>
+                {tag.name}
+              </Text>
+              <Text style={styles.insideCount}>({standing.songs.length.toLocaleString()})</Text>
+            </Press>
+          </View>
+        )
+      })}
     </View>
   )
 }
@@ -701,17 +771,13 @@ function InsidePanel({
 const COVER_STACK = 40
 /** A tile's ⋯, round on its glass. */
 const MORE_BUTTON = 30
-/** The side of an inside tag's cover in a holder's panel. */
-const INSIDE_COVER = 30
-/** A holder's panel narrower than this (a phone's) drops its label and tightens its rows. */
-const COMPACT_PANEL = 200
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { gap: space.lg },
   contentNarrow: pageFrame(false),
   contentWide: { ...pageFrame(true), width: '100%' },
-  hint: { color: theme.colors.textMuted, ...textStyle('sub') },
+  tileWaiting: { gap: space.sm },
   newCard: { gap: space.sm, padding: space.md, ...card(theme.colors) },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: label(theme.colors),
@@ -738,19 +804,13 @@ const styles = StyleSheet.create(theme => ({
   stackCover: { borderRadius: 11, borderWidth: 2, borderColor: theme.colors.surface1 },
   stackOverlap: { marginLeft: -16 },
   untaggedText: textColumn,
-  untaggedSuggest: { flexDirection: 'row', justifyContent: 'flex-end' },
+  // Wraps rather than squeezing the words to nothing: under about 220 px for
+  // them, the buttons take a row of their own.
   untaggedTitle: rowTitle(theme.colors),
   untaggedSub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  artistLink: {
-    color: theme.colors.textPrimary,
-    fontWeight: '500',
-    textDecorationLine: 'underline',
-    textDecorationColor: theme.colors.borderStrong,
-  },
   runs: { gap: ROW_GAP },
   runLabel: { ...label(theme.colors), marginBottom: -space.sm },
   runLabelSub: { fontSize: type.small, fontWeight: '400', letterSpacing: 0, textTransform: 'none' },
-  holder: { flexDirection: 'row', gap: GAP },
   playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {
@@ -761,38 +821,33 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: theme.colors.glass,
   },
-  inside: {
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface1,
-    padding: space.md,
-    gap: space.xs,
+  insideChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.tight,
+    marginTop: space.sm,
   },
-  insideCompact: { padding: space.tight, gap: 0, justifyContent: 'center' },
-  insideLabel: { ...label(theme.colors), paddingHorizontal: space.xs, paddingBottom: 2 },
-  insideRow: {
+  // No wider than the tile: a long name is cut, and the chip stays its tag's.
+  insideSlot: { maxWidth: '100%' },
+  insideChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: space.tight,
     paddingVertical: space.xs,
-    paddingHorizontal: space.xs,
-    borderRadius: 10,
+    paddingHorizontal: space.snug,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
   },
-  insideRowCompact: { gap: 7, paddingVertical: 2 },
-  insideRowOn: { backgroundColor: theme.colors.surface2 },
+  insideLabel: { color: theme.colors.textMuted, fontSize: type.small },
   insideName: {
-    flex: 1,
-    minWidth: 0,
-    ...rowTitle(theme.colors),
+    flexShrink: 1,
+    color: theme.colors.textPrimary,
+    fontSize: type.sub,
+    fontWeight: '500',
   },
-  insideNameCompact: { fontSize: type.sub },
   insideCount: {
     color: theme.colors.textMuted,
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
-  },
-  insideCountCompact: { fontSize: type.tiny },
-  insideNote: {
-    marginTop: 11,
-    ...hint(theme.colors),
   },
 }))

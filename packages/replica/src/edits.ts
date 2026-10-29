@@ -1,4 +1,7 @@
 import {
+  findArtist,
+  followsTag,
+  libraryArtists,
   insertedAt,
   newTagHue,
   newUid,
@@ -6,14 +9,17 @@ import {
   playlistPatchProblem,
   playlistSongsProblem,
   tagFlips,
+  tagsAfter,
   tagNamed,
   tagRenameProblem,
   tagsEmptiedBy,
+  tidyArtistNames,
   toCloudRules,
   type Change,
   type CreatePlaylist,
   type Playlist,
   type PlayEvent,
+  type SetArtistNames,
   type Song,
   type SongPatch,
   type UpdatePlaylist,
@@ -105,14 +111,23 @@ export function loveSongs(ctx: EditContext, ids: readonly number[], loved: boole
   }))
 }
 
-/** A song's tags, all at once: the ones that go on, and the ones that come off. */
-export function setSongTags(ctx: EditContext, id: number, tagIds: readonly number[]): Change[] {
+/**
+ * Tags on and off one song: only what the change names, so a tag another
+ * device put on meanwhile stays (`tagsAfter`). Recorded as the ones that go
+ * on, and the ones that come off.
+ */
+export function changeSongTags(
+  ctx: EditContext,
+  id: number,
+  add: readonly number[],
+  remove: readonly number[],
+): Change[] {
   const current = song(ctx, id)
   const uid = songUid(ctx, id)
   // Tags that are gone are dropped quietly, as the server does for a stale phone.
   const { on, off } = tagFlips(
     current.tagIds,
-    tagIds.filter(tagId => ctx.view.uids.tags.has(tagId)),
+    tagsAfter(current.tagIds, add, remove).filter(tagId => ctx.view.uids.tags.has(tagId)),
   )
   const flips = [
     ...on.map(tagId => ({ tagId, on: true })),
@@ -146,7 +161,9 @@ export function tagSongs(
 
 /**
  * Out of the library, on every device — with each tag only these songs had,
- * as the server's own removal takes them (`tagsEmptiedBy`).
+ * as the server's own removal takes them (`tagsEmptiedBy`). Those go as
+ * `tagEmptied`, not `tagRemoved`: another device may be putting one on a song
+ * this one has not heard of, and then it stays.
  */
 export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
   const known = knownSongs(ctx, ids)
@@ -156,7 +173,8 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
   )
   return [
     ...known.map(([, uid]) => ({ type: 'songRemoved' as const, hlc: ctx.stamp(), uid })),
-    ...emptied.map(id => ({ type: 'tagRemoved' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
+    ...lettingGoOf(ctx, emptied, new Set(known.map(([, uid]) => uid))),
+    ...emptied.map(id => ({ type: 'tagEmptied' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
   ]
 }
 
@@ -165,10 +183,12 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
  * the shared rule moves each copy's tags, love, playlist places and plays to
  * it, here and on every device that replays the change, and the server moves
  * the copy's play history with it. A copy that is gone, or the kept song
- * itself, is left out; a kept song that is gone is refused.
+ * itself, is left out; a kept song that is gone makes nothing, which the
+ * route answers as nothing merged — as the server's `SongMerge.merge` does.
  */
 export function mergeSongs(ctx: EditContext, keep: number, ids: readonly number[]): Change[] {
-  const into = songUid(ctx, keep)
+  const into = ctx.view.uids.songs.get(keep)
+  if (!into) return []
   return knownSongs(ctx, ids)
     .filter(([id]) => id !== keep)
     .map(([, uid]) => ({ type: 'songMerged' as const, hlc: ctx.stamp(), uid, into }))
@@ -211,7 +231,19 @@ export function createTag(
   if (existing) return { changes: [], uid: tagUid(ctx, existing.id) }
   const uid = make(ctx)
   return {
-    changes: [{ type: 'tagCreated', hlc: ctx.stamp(), uid, name, hue: newTagHue(name, hue) }],
+    changes: [
+      {
+        type: 'tagCreated',
+        hlc: ctx.stamp(),
+        uid,
+        name,
+        hue: newTagHue(
+          name,
+          hue,
+          ctx.view.library.tags.map(tag => tag.hue),
+        ),
+      },
+    ],
     uid,
   }
 }
@@ -237,8 +269,24 @@ export function editTag(
   ]
 }
 
+/** The tag, after the playlists that follow it let go of it (`lettingGoOf`). */
 export function removeTag(ctx: EditContext, id: number): Change[] {
-  return [{ type: 'tagRemoved', hlc: ctx.stamp(), uid: tagUid(ctx, id) }]
+  const uid = tagUid(ctx, id)
+  return [...lettingGoOf(ctx, [id]), { type: 'tagRemoved', hlc: ctx.stamp(), uid }]
+}
+
+// --- Artists ---------------------------------------------------------------------
+
+/** The names an artist also goes by, all of them as they should be now. */
+export function nameArtist(
+  ctx: EditContext,
+  artist: string,
+  names: readonly string[],
+): { changes: Change[]; named: SetArtistNames } {
+  const found = findArtist(libraryArtists(ctx.view.library.songs), artist)
+  if (!found) throw notFound('artist')
+  const named = { artist: found.key, names: tidyArtistNames(found.name, names) }
+  return { changes: [{ type: 'artistNamed', hlc: ctx.stamp(), ...named }], named }
 }
 
 // --- Playlists -------------------------------------------------------------------
@@ -246,11 +294,41 @@ export function removeTag(ctx: EditContext, id: number): Change[] {
 const cloudRules = (ctx: EditContext, rules: NonNullable<CreatePlaylist['rules']>) =>
   toCloudRules(rules, id => ctx.view.uids.tags.get(id) ?? null)
 
+/**
+ * What deleting these tags does to the playlists that follow them, as the
+ * server's `TagRemoval` does (shared `followsTag`): each keeps the songs it
+ * shows — but for `gone`, songs removed in the same edit — and stops following.
+ */
+function lettingGoOf(
+  ctx: EditContext,
+  tagIds: readonly number[],
+  gone: ReadonlySet<string> = new Set(),
+): Change[] {
+  const changes: Change[] = []
+  for (const found of ctx.view.library.playlists) {
+    const uid = ctx.view.uids.playlists.get(found.id)
+    const rules = found.rules
+    if (found.kind !== 'live' || !rules || !uid) continue
+    if (!tagIds.some(tagId => followsTag(rules, tagId))) continue
+    changes.push({
+      type: 'playlistUnfollowed',
+      hlc: ctx.stamp(),
+      uid,
+      songUids: (ctx.view.playlistSongs[found.id] ?? [])
+        .map(songId => songUid(ctx, songId))
+        .filter(songUid => !gone.has(songUid)),
+    })
+  }
+  return changes
+}
+
 export function createPlaylist(
   ctx: EditContext,
   input: CreatePlaylist,
 ): { changes: Change[]; uid: string } {
   const uid = make(ctx)
+  // Its first songs with it, in the same record of changes, as the server makes them.
+  const first = input.kind === 'manual' ? knownSongs(ctx, input.songIds ?? []) : []
   return {
     changes: [
       {
@@ -263,6 +341,13 @@ export function createPlaylist(
         rules: input.kind === 'live' ? cloudRules(ctx, input.rules) : null,
         pinned: false,
       },
+      ...first.map(([, songUid]) => ({
+        type: 'playlistSong' as const,
+        hlc: ctx.stamp(),
+        uid,
+        songUid,
+        on: true,
+      })),
     ],
     uid,
   }

@@ -5,11 +5,13 @@ import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { plural } from '@selfmp3/shared'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, pageFrame, pageTitle, textColumn } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Cover } from '../../ui/components/Cover'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ImportFoot, useImportPage } from './ImportPage'
 import { enqueueImport } from './deviceImports'
@@ -32,6 +34,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
+import { countUse } from '../usage/usage'
 
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
@@ -63,7 +66,7 @@ export function ImportReview({
   /** As ImportScreen's: the server this page was pointed at stopped answering. */
   onUnreachable?: () => void
 } = {}): ReactNode {
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const page = useImportPage(via, onUnreachable)
   const { source, draft, patchDraft, listen, backTo, failed } = page
   const key = page.draftKey
@@ -71,9 +74,9 @@ export function ImportReview({
   // A kept review's "In library" is from when the link was looked up.
   useRefreshReview(source.api, key, reviewUrls(review))
   // Songs known only by name — a Spotify list, 网易云's VIP songs — are found as the review shows.
-  const finder = useFindSongs(source.api, key, review)
+  const finder = useFindSongs(source.lookUp, key, review)
   // A9: the model's names for the rows whose names look wrong, each offered under its row.
-  const suggestions = useImportNames(source.api, key, review)
+  const suggestions = useImportNames(source.lookUp, key, review)
   /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
   const [leaving, setLeaving] = useState(false)
 
@@ -94,6 +97,7 @@ export function ImportReview({
   const enqueue = useMutation({
     mutationFn: (current: Review) => enqueueImport(source.api, importRequest(current, tagIds)),
     onSuccess: () => {
+      countUse('import')
       // The songs are in the queue now, which Import shows under Currently importing.
       void source.invalidateQueue()
       leave({ imported: true })
@@ -172,6 +176,7 @@ export function ImportReview({
         testID="import-review"
       >
         <TapAway onPress={wide || open === null ? undefined : closeRow} style={styles.ground}>
+          {review.unread.length > 0 ? <UnreadLinks review={review} /> : null}
           {wide ? (
             <ReviewGridHead
               leading={<AllBox review={review} onChange={chooseAll} wide />}
@@ -227,6 +232,27 @@ export function ImportReview({
   )
 }
 
+/**
+ * Links pasted with the others that could not be read, each with why: the
+ * songs the others hold are still here to import.
+ */
+function UnreadLinks({ review }: { review: Review }): ReactNode {
+  return (
+    <NoticeCard
+      tone="warn"
+      title={`Couldn’t read ${plural(review.unread.length, 'link', 'links')}`}
+      style={styles.unread}
+      testID="import-unread"
+    >
+      {review.unread.map(link => (
+        <Text key={link.url} style={styles.unreadLine}>
+          <Text style={styles.unreadUrl}>{link.url}</Text> · {link.why}
+        </Text>
+      ))}
+    </NoticeCard>
+  )
+}
+
 /** The head's picture on a computer: four of the list's covers, or its one. */
 function Mosaic({ review }: { review: Review }): ReactNode {
   const covers = mosaicCovers(review)
@@ -271,6 +297,9 @@ const styles = StyleSheet.create(theme => ({
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
   nameWide: pageTitle(theme.colors),
   allPhone: { paddingTop: space.md },
+  unread: { marginTop: space.md },
+  unreadLine: { color: theme.colors.textSecondary, fontSize: type.sub },
+  unreadUrl: { color: theme.colors.textPrimary },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
 }))

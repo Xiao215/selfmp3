@@ -9,7 +9,6 @@ import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
 import {
-  fonts,
   isRoomTrackId,
   motion,
   radius,
@@ -20,10 +19,12 @@ import {
   coverSize,
   space,
 } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
-import { setStageExit } from '../../shell/stageExit'
+import { pressed } from '../../player/roomTransport'
+import { setStageExit, useStageLeaving } from '../../shell/stageExit'
 import { setStageArriving } from '../../shell/stageArrival'
 import { stackMoves } from '../../ports/stackMoves'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -37,17 +38,19 @@ import { ChevronDown, Collapse, Expand, Next } from '../../ui/components/Icons'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongAbout } from '../song/SongAbout'
+import { SongTogether } from '../song/SongTogether'
 import { songLink } from '../song/song.model'
 import {
   contextLine,
   parseMode,
   parseTab,
   stageGeometry,
+  TOOLS_CLEARANCE,
   upNextSeconds,
   type PageMode,
   type StageTab,
 } from './nowPlaying.model'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { PLAYER_BAR_HEIGHT } from '../../shell/PlayerBar'
 import { ease, motionMs, nativeDriver, timing, useFade, usePresence } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
@@ -59,11 +62,12 @@ import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
+import { useLineMenu } from './useLineMenu'
 import { useSongWords } from './useSongWords'
 import { ArtistLinks } from './ArtistLinks'
 import { putAway } from './leaveNowPlaying'
 import { EmptyNowPlaying } from './EmptyNowPlaying'
-import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
+import { canRomanize, RomanizeButton } from './LyricsTools'
 import { SongTagsLine } from './SongTagsLine'
 import { HEAD_LEFT } from './stageHead'
 import { lyricsStatusText } from './stageLyrics.model'
@@ -77,6 +81,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
 import { MoreButton } from '../../ui/components/MoreMenu'
+import { countUse } from '../usage/usage'
 
 /**
  * The page for the song that is playing, on a computer.
@@ -163,6 +168,9 @@ function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
   )
 }
 
+/** A plain style, not a sheet's: an `Svg` in a browser does not take a sheet's class. */
+const UNCLIPPED = { overflow: 'visible' } as const
+
 /** One palette's three blooms. */
 function GlowBlooms({ palette }: { palette: readonly Rgb[] }): ReactNode {
   const id = useSvgId('glow')
@@ -173,7 +181,9 @@ function GlowBlooms({ palette }: { palette: readonly Rgb[] }): ReactNode {
     { at: [0.93, 0.18], size: [0.28, 0.33], ink: ink(2), alpha: 0.5 },
   ] as const
   return (
-    <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 1 1">
+    // Unclipped, so the blooms that reach past the page's edges carry on under
+    // the bar instead of stopping at a straight line where it starts.
+    <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 1 1" style={UNCLIPPED}>
       <Defs>
         {blooms.map((bloom, index) => (
           <RadialGradient key={index} id={`${id}${index}`} cx="0.5" cy="0.5" r="0.5">
@@ -268,7 +278,7 @@ function Stage({
   const { theme } = useUnistyles()
   // Under an iPad's status bar, not behind it; a computer's window has none.
   const { top } = useSafeAreaInsets()
-  const { finePointer } = useLayout()
+  const { finePointer } = useLayoutFlags()
   const player = usePlayer()
   const router = useRouter()
   const artFor = useArt()
@@ -291,6 +301,9 @@ function Stage({
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
+  useEffect(() => {
+    if (shownTab === 'lyrics') countUse('lyrics')
+  }, [shownTab])
   // Only where a pointer can say it is still there: on a touch screen nothing
   // reports activity (`ports/activity`), so the bar went away and stayed away.
   const idle = useIdle(focus && finePointer)
@@ -368,6 +381,7 @@ function Stage({
   // The page runs on under the player bar (`stagePage`), so what it lays out
   // in is its own height less the bar's, whether the bar is showing or not.
   const height = (size?.height ?? window.height) - PLAYER_BAR_HEIGHT
+  const drawnAt = `${width}x${height}`
   const geometry = useMemo(() => stageGeometry(width, height, top), [width, height, top])
   // Nothing laid out moves between the modes: each piece is laid out where the
   // mode puts it and carried there (stageMove.model.ts says why).
@@ -382,8 +396,11 @@ function Stage({
   })
   const onEscape = useCallback(() => escape.current(), [])
   useEscape(true, onEscape)
+  const leaving = useStageLeaving()
 
   const words = lyrics.words
+  // A line held or right-clicked: Share from here, Play from here, Copy line.
+  const lineMenu = useLineMenu(song, words)
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
   // Only on its own tab: Details is text, and wants the calm ground.
@@ -444,12 +461,6 @@ function Stage({
   // Pushed over the page, as a tag or an artist is, so back comes to it again.
   const openSong = (): void => router.push(songLink(song.id))
 
-  // "Look for lyrics again" asks the lookup afresh, clearing the answer it
-  // saved that the song has none. Beside Visual and Details on the stage; in
-  // Focus, where the tabs are put away, at the top right where the romaji
-  // switch sits for a song with words.
-  const lookAgainPill = showVisual ? <FindLyricsButton onPress={lyrics.lookAgain} /> : null
-
   const tabList = (
     <Segmented
       tabs
@@ -468,6 +479,8 @@ function Stage({
 
   return (
     <Animated.View
+      // Going back down, it takes no touches (`stageExit.ts`).
+      pointerEvents={leaving ? 'none' : 'auto'}
       style={[
         styles.page,
         styles.stagePage,
@@ -486,13 +499,16 @@ function Stage({
     >
       {/* The cover's own colours as light behind everything. Sized by the page
           above the bar, as it always was; the light reaches past the edges so
-          it runs on under the bar for when Focus puts it away. */}
-      <View pointerEvents="none" style={[styles.fill, { bottom: PLAYER_BAR_HEIGHT }]}>
+          it runs on under the bar for when Focus puts it away. Both drawings
+          are keyed by the page's size: on iOS an Svg keeps the shapes it worked
+          out at its first size, so a turned iPad drew the old page's light and
+          shade with a hard edge where that page ended. */}
+      <View key={drawnAt} pointerEvents="none" style={[styles.fill, { bottom: PLAYER_BAR_HEIGHT }]}>
         <CoverGlow palette={palette} />
       </View>
       {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
       <Moving move={move} pose={m => ({ opacity: 1 - m })} pointerEvents="none" style={styles.fill}>
-        <Svg width="100%" height="100%">
+        <Svg key={drawnAt} width="100%" height="100%">
           <Defs>
             <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
               <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0.35} />
@@ -548,7 +564,7 @@ function Stage({
               : {
                   left: geometry.pad,
                   top: box.top + box.size + 24,
-                  width: Math.max(geometry.cover, 280),
+                  width: Math.max(geometry.column, 280),
                 },
           ]}
         >
@@ -637,6 +653,10 @@ function Stage({
               roman={words.roman}
               focus={focus}
               fontSize={focus ? geometry.focusLyric : geometry.lyric}
+              // Beside the cover the Romaji pill and the expand button share
+              // the words' right edge: long lines ran under them.
+              clearRight={!focus && tabsRow === null ? TOOLS_CLEARANCE : 0}
+              onLineMenu={lineMenu.onLineMenu}
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
@@ -646,15 +666,20 @@ function Stage({
           )
         ) : (
           <ScrollView contentContainerStyle={styles.about}>
-            <SongAbout
-              song={song}
-              plays
-              testID="now-playing-fix-metadata"
-              style={styles.aboutBody}
-            />
+            {/* You and the song first; what the file is, quietly, under it. */}
+            <View style={styles.aboutBody}>
+              <SongTogether song={song} />
+              <SongAbout
+                song={song}
+                plays={false}
+                sound={false}
+                testID="now-playing-fix-metadata"
+              />
+            </View>
           </ScrollView>
         )}
       </Moving>
+      {lineMenu.menu}
 
       <Animated.View style={[styles.head, { top }, chrome]}>
         <IconButton
@@ -676,14 +701,11 @@ function Stage({
         ) : (
           <>
             <Text style={styles.context} pointerEvents="none">
-              {contextLine(player.queue.shuffle, player.queue.index, player.queue.items.length)}
+              {contextLine(player.queue.index, player.queue.items.length)}
             </Text>
-            {geometry.stacked ? null : (
-              <>
-                {tabList}
-                {lookAgainPill}
-              </>
-            )}
+            {/* Nothing beside the tabs that only one of them has: it pushed
+                them along as they were switched. */}
+            {geometry.stacked ? null : tabList}
             {/* Last at the top right, where the song's page keeps its ⋯. A
                 friend's song in a room has nothing in it here: the page
                 already says whose it is, and the bar has the rest. */}
@@ -706,13 +728,6 @@ function Stage({
       {tabsRow !== null ? (
         <Animated.View style={[styles.tools, chrome, { top: tabsRow, left: geometry.pad }]}>
           {tabList}
-          {lookAgainPill}
-        </Animated.View>
-      ) : null}
-
-      {focus && lookAgainPill ? (
-        <Animated.View style={[styles.tools, chrome, { top: top + 12, right: 66 }]}>
-          {lookAgainPill}
         </Animated.View>
       ) : null}
 
@@ -842,7 +857,7 @@ function StageUpNext({
     <Animated.View style={[styles.upNextAt, { right, bottom }, lowered]}>
       <Press
         depth="row"
-        onPress={player.next}
+        onPress={() => pressed('next', player.next)}
         accessibilityRole="button"
         accessibilityLabel={`Skip to the next song: ${upNext.title}`}
         style={styles.upNext}
@@ -936,7 +951,7 @@ const styles = StyleSheet.create(theme => ({
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
   about: { paddingTop: space.md, paddingHorizontal: space.xs, paddingBottom: 40 },
-  aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
+  aboutBody: { maxWidth: 720, paddingHorizontal: 18, gap: 36 },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: space.tight },
   expandAt: { position: 'absolute', zIndex: 4 },
   expand: {

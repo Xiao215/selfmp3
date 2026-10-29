@@ -312,7 +312,10 @@ opens a tag by filtering Library.
   never-played last, by creation). Delete `pinnedPlaylists`, the pin button
   (`PlaylistDetailScreen.tsx:427`), the sidebar's pin handling and drop target for pins. An
   empty playlist is never listed; creating one goes straight into adding songs and the
-  playlist exists once it has one. Remove the download button and its two testIDs; keeping
+  playlist exists once it has one. Taking its last song out deletes it too, inside the same
+  Undo; one left empty anyway (emptied elsewhere, a live playlist matching nothing) is listed
+  in the sidebar alone, under the rest (bug bash R2-m12, Xiao 2026-10-25). Kept ones emptied
+  before that were deleted by server migration 58 (2026-10-26). Remove the download button and its two testIDs; keeping
   songs on the device is Settings › On this phone.
 
 This supersedes two earlier decisions that were agreed and never built: pinned playlists in

@@ -29,6 +29,7 @@ jest.mock('@selfmp3/client', () => ({
   useManifest: () => ({ data: undefined }),
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
   useBulkLoved: () => ({ mutate: jest.fn() }),
+  useRestSongs: () => ({ mutate: jest.fn(), mutateAsync: jest.fn() }),
   useCreatePlaylist: () => ({ mutateAsync: jest.fn() }),
 }))
 jest.mock('../../connection/ConnectionProvider', () => ({

@@ -4,7 +4,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
 import { radius, space, type, textStyle } from '@selfmp3/client'
 import { shownAddress } from '../../ports/pageAddress'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { ChevronLeft } from '../../ui/components/Icons'
@@ -47,7 +47,7 @@ export function NotFoundScreen(): ReactNode {
   const accent = useAccent()
   const router = useRouter()
   const pathname = usePathname()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const canGoBack = router.canGoBack()
 
   return (

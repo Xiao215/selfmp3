@@ -35,6 +35,7 @@ interface Row {
   readonly coverPalette: string | null
   readonly coverToneRev: number | null
   readonly sourceUrl: string | null
+  readonly cameWith: string | null
   readonly playCount: number
   readonly lastPlayedAt: string | null
 }
@@ -45,7 +46,6 @@ interface CloudRow {
   readonly lyrics_key: string | null
   readonly lyrics_size: number | null
   readonly lyrics_kind: string | null
-  readonly romanized_key: string | null
   readonly lyrics_sig: string
 }
 
@@ -108,6 +108,7 @@ export class SongMerge {
       this.#sync.setStamp('song', kept.uid, field, hlc)
     }
     if (kept.sourceUrl === null && extra.sourceUrl !== null) patch['source_url'] = extra.sourceUrl
+    if (kept.cameWith === null && extra.cameWith !== null) patch['came_with'] = extra.cameWith
 
     // The cover and the words, as the bucket has them, where the kept song has none.
     const keptCloud = this.#cloud(keptId)
@@ -133,12 +134,11 @@ export class SongMerge {
       if (keptCloud.lyrics_key === null && extraCloud.lyrics_key !== null) {
         db.prepare(
           `UPDATE cloud_songs SET lyrics_key = ?, lyrics_size = ?, lyrics_kind = ?,
-                  romanized_key = ?, lyrics_sig = ? WHERE song_id = ?`,
+                  lyrics_sig = ? WHERE song_id = ?`,
         ).run(
           extraCloud.lyrics_key,
           extraCloud.lyrics_size,
           extraCloud.lyrics_kind,
-          extraCloud.romanized_key,
           extraCloud.lyrics_sig,
           keptId,
         )
@@ -200,7 +200,7 @@ export class SongMerge {
           `SELECT id, uid, artist, album, album_artist AS albumArtist, year, track_no AS trackNo,
                   loved, has_art AS hasArt, art_ext AS artExt, art_rev AS artRev,
                   cover_hue AS coverHue, cover_chroma AS coverChroma, cover_palette AS coverPalette,
-                  cover_tone_rev AS coverToneRev, source_url AS sourceUrl,
+                  cover_tone_rev AS coverToneRev, source_url AS sourceUrl, came_with AS cameWith,
                   play_count AS playCount, last_played_at AS lastPlayedAt
              FROM songs WHERE id = ?`,
         )
@@ -220,7 +220,7 @@ export class SongMerge {
     return (
       this.#db
         .prepare<[number], CloudRow>(
-          `SELECT cover_key, cover_size, lyrics_key, lyrics_size, lyrics_kind, romanized_key, lyrics_sig
+          `SELECT cover_key, cover_size, lyrics_key, lyrics_size, lyrics_kind, lyrics_sig
              FROM cloud_songs WHERE song_id = ?`,
         )
         .get(songId) ?? null

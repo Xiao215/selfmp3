@@ -19,7 +19,10 @@ export const SONG_ACTION_LABELS = {
   addToUpNext: 'Add to Up next',
   playNext: 'Play next',
   playSimilar: 'Play similar songs',
+  showOnMap: 'Show on the map',
   share: 'Share link',
+  rest: 'Rest for a month',
+  wake: 'Wake up',
   details: 'Song details',
   removeFromPlaylist: 'Remove from this playlist',
   fixInfo: 'Fix song info…',
@@ -33,9 +36,12 @@ export type SongActionId =
   | 'addToPlaylist'
   | 'addToUpNext'
   | 'playSimilar'
+  | 'showOnMap'
   | 'share'
   | 'download'
   | 'removeDownload'
+  | 'rest'
+  | 'wake'
   | 'details'
   | 'removeFromPlaylist'
   | 'delete'
@@ -48,6 +54,8 @@ interface SongActionFacts {
   readonly loved: number
   /** How many of them are kept on this device. */
   readonly held: number
+  /** How many of them are resting (shared rest.ts). */
+  readonly resting: number
   /** An installed app, which keeps songs; a browser streams and keeps none. */
   readonly installed: boolean
   /** A friend's song in a room is among them: not in your library, so nothing the library does applies. */
@@ -56,6 +64,11 @@ interface SongActionFacts {
   readonly inPlaylist: boolean
   /** Opened on Now Playing, which shows the song's heart, tags and details itself, and is already playing it. */
   readonly nowPlaying: boolean
+  /**
+   * Now Playing has no door of its own to the song's page: the phone's, whose
+   * ⓘ gave its place to Up next (D1, 2026-10-25). Its menu offers Song details.
+   */
+  readonly detailsInMenu?: boolean
   /** What this device is called in "Remove from this phone". */
   readonly place: string
   /** Signed in with a bucket, which a share link lends from (docs/features/share-links.md). */
@@ -93,6 +106,8 @@ export function songActions(facts: SongActionFacts): readonly SongAction[] {
   // The song playing is already in Up next.
   if (!facts.nowPlaying) add('addToUpNext', SONG_ACTION_LABELS.addToUpNext, 'song')
   if (!many) add('playSimilar', SONG_ACTION_LABELS.playSimilar, 'song')
+  // Where it sits among the songs it sounds like (docs/features/sound-map.md).
+  if (!many) add('showOnMap', SONG_ACTION_LABELS.showOnMap, 'song')
   if (facts.shareable) add('share', SONG_ACTION_LABELS.share, 'song')
   // A browser streams; only an installed app keeps songs.
   if (facts.installed && held < count) {
@@ -105,10 +120,29 @@ export function songActions(facts: SongActionFacts): readonly SongAction[] {
       'song',
     )
   }
-  if (!many && !facts.nowPlaying) add('details', SONG_ACTION_LABELS.details, 'song')
+  // Resting (docs/features/lists.md): one song is one or the other; several
+  // can be put to rest and woken, as they can be liked.
+  const { resting } = facts
+  if (resting < count) add('rest', SONG_ACTION_LABELS.rest, 'song')
+  if (resting > 0) {
+    add(
+      'wake',
+      many ? `Wake up ${resting === count ? 'all' : resting}` : SONG_ACTION_LABELS.wake,
+      'song',
+    )
+  }
+  if (!many && (!facts.nowPlaying || facts.detailsInMenu)) {
+    add('details', SONG_ACTION_LABELS.details, 'song')
+  }
 
   if (facts.inPlaylist) add('removeFromPlaylist', SONG_ACTION_LABELS.removeFromPlaylist, 'list')
 
   add('delete', many ? `Delete ${count} songs from library…` : 'Delete from library…', 'remove')
   return actions
+}
+
+/** What a resting song says of itself: "Resting until 25 Nov". */
+export function restingUntil(until: string): string {
+  const day = new Date(until).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  return `Resting until ${day}`
 }

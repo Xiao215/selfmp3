@@ -2,6 +2,9 @@ import {
   messageOf,
   extractUrls,
   isNeteaseUrl,
+  isYouTubeUrl,
+  linklessLines,
+  lookUpFailure,
   spotifyLink,
   youtubeChannel,
   youtubeMusicAlbum,
@@ -12,6 +15,8 @@ import {
   type ImportPreview,
   type ImportPreviewItem,
   type Playlist,
+  type Song,
+  type UnreadLink,
   linkIdentity,
 } from '@selfmp3/shared'
 import { HttpError } from '../http/errors.js'
@@ -26,7 +31,7 @@ import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
 import type { SongList, YouTubeMusicLists } from './youtubeMusicLists.js'
 import type { NeteaseMusic, NeteaseTrack } from './netease.js'
 import type { SpotifyLists } from './spotify.js'
-import { parseTrackList, type ListedTrack } from './trackLists.js'
+import { parseTrackList, swapped, type ListedTrack } from './trackLists.js'
 import type { YouTubeMatcher } from './youtubeMatch.js'
 
 type PreviewDeps = {
@@ -107,6 +112,22 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   const urls = extractUrls(text)
   if (urls.length === 0) return previewList(deps, text)
 
+  // Every link at once, each on its own: one that cannot be read is said
+  // under the others' songs rather than in place of them.
+  const probes = await Promise.allSettled(urls.map(url => probeLink(deps, url)))
+  const unread: UnreadLink[] = []
+  probes.forEach((probe, at) => {
+    if (probe.status === 'rejected') unread.push({ url: urls[at]!, why: unreadWhy(probe.reason) })
+  })
+  // Song names pasted with the links are looked for by name, as a list of them is.
+  const names = linklessLines(text)
+  const listed = names.length > 0 ? parseTrackList(names.join('\n')).tracks : []
+  // Nothing else to offer: the one reason is the answer.
+  const first = probes[0]
+  if (unread.length === urls.length && listed.length === 0 && first?.status === 'rejected') {
+    throw first.reason
+  }
+
   /*
    * What is already here, so the UI can grey out duplicates: by the link, the
    * fuzzy name and the length (`alreadyHave`), not an exact `artist::title`,
@@ -121,8 +142,9 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
   let playlistTitle: string | null = null
   let from: ImportFrom | null = null
 
-  for (const url of urls) {
-    const probed = await probeLink(deps, url)
+  for (const probe of probes) {
+    if (probe.status === 'rejected') continue
+    const probed = probe.value
     from ??= probed.from
     if (probed.kind === 'playlist') {
       kind = 'playlist'
@@ -136,9 +158,34 @@ export async function buildImportPreview(deps: PreviewDeps, text: string): Promi
       })
     }
   }
+  for (const track of listed) items.push(listedItem(track, library, waiting))
 
-  if (urls.length > 1) kind = 'playlist'
-  return { kind, playlistTitle, items, from: from ?? 'youtube' }
+  if (urls.length + listed.length > 1) kind = 'playlist'
+  // Links and names together are a list of songs from more than one place.
+  if (listed.length > 0) from = 'list'
+  return { kind, playlistTitle, items, from: from ?? 'youtube', unread }
+}
+
+/** Why a link could not be read, as the server worded it; anything else is only that it could not. */
+function unreadWhy(caught: unknown): string {
+  return caught instanceof HttpError ? caught.message : lookUpFailure(messageOf(caught))
+}
+
+/**
+ * A song known by its name, as a review row. "Title - Artist" and "Artist -
+ * Title" read the same to a list of one or two (`parseTrackList`), so a song
+ * the library has the other way round is that song.
+ */
+function listedItem(
+  track: ListedTrack,
+  library: ReturnType<typeof libraryIndex<Song>>,
+  waiting: (song: { id: number }) => boolean,
+): ImportPreviewItem {
+  const reversed = track.artist ? swapped(track) : null
+  const own = alreadyHave(track, library)
+  const ownReversed = own || !reversed ? null : alreadyHave(reversed, library)
+  const read = ownReversed && reversed ? reversed : track
+  return { ...byName(read), ...have(own ?? ownReversed, waiting), inQueue: false }
 }
 
 /**
@@ -158,11 +205,8 @@ function previewList(deps: PreviewDeps, text: string): ImportPreview {
     kind: list.tracks.length === 1 ? 'single' : 'playlist',
     playlistTitle: list.playlistName,
     from: 'list',
-    items: list.tracks.map(track => ({
-      ...byName(track),
-      ...have(alreadyHave(track, library), waiting),
-      inQueue: false,
-    })),
+    items: list.tracks.map(track => listedItem(track, library, waiting)),
+    unread: [],
   }
 }
 
@@ -199,6 +243,7 @@ export async function findLooking<T extends ImportPreviewItem>(
     return match
       ? {
           ...item,
+          ...(match.reversed ? { title: item.artist, artist: item.title } : {}),
           url: match.url,
           source: 'youtube',
           thumbnail: item.thumbnail ?? match.thumbnail,
@@ -275,6 +320,11 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
       tracks: list.tracks.map(track => byName(track)),
       from: 'spotify',
     }
+  }
+  if (!isYouTubeUrl(url)) {
+    throw HttpError.unprocessable(
+      'Paste a link from YouTube, YouTube Music, 网易云音乐 or Spotify, or a list of songs.',
+    )
   }
   return { ...(await probeYouTube(deps, url)), from: 'youtube' }
 }
@@ -396,10 +446,10 @@ async function probeWithYtDlp(
   url: string,
 ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
   // A link yt-dlp cannot read is the caller's problem to fix (wrong link,
-  // private, not signed in), not a server fault — so 422 with the reason,
-  // rather than a 500 that hides it behind "internal error".
+  // private, not signed in), not a server fault — so 422 with the reason in
+  // words, rather than a 500 that hides it behind "internal error".
   return deps.ytdlp.probe(url).catch((error: unknown) => {
-    throw HttpError.unprocessable(messageOf(error))
+    throw HttpError.unprocessable(lookUpFailure(messageOf(error)))
   })
 }
 

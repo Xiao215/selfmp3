@@ -17,8 +17,8 @@ import { debounce, type Debounced } from './debounce.js'
  * build step. chokidar's extra machinery — polling fallbacks, glob matching,
  * `awaitWriteFinish` — solves problems this app does not have: the scanner is
  * already incremental (a file whose mtime is unchanged is skipped) and
- * idempotent, so a file still being copied is simply picked up again by the
- * next debounced scan once it stops changing.
+ * idempotent, and leaves a file still being copied until it stops changing,
+ * coming back for it by itself.
  *
  * It follows `watchLibrary` as it is each time `apply` is called, so turning it
  * on or off takes effect without a restart. There is no sweep on a timer: the
@@ -49,7 +49,6 @@ export class LibraryWatcherService {
   readonly #config: Config
   readonly #settings: SettingsRepository
   readonly #scanner: ScannerService
-  readonly #onChanged: () => void
   readonly #logger: Logger
   readonly #rescan: Debounced
 
@@ -60,14 +59,11 @@ export class LibraryWatcherService {
     config: Config
     settings: SettingsRepository
     scanner: ScannerService
-    /** Called after a scan that changed something, to bump the library version. */
-    onChanged: () => void
     logger: Logger
   }) {
     this.#config = deps.config
     this.#settings = deps.settings
     this.#scanner = deps.scanner
-    this.#onChanged = deps.onChanged
     this.#logger = deps.logger.child('watch')
     this.#rescan = debounce(() => this.#scan(), QUIET_MS, MAX_WAIT_MS)
   }
@@ -133,9 +129,9 @@ export class LibraryWatcherService {
     void this.#scanner
       .scan()
       .then(result => {
+        // The version moves with the sweep (`ScannerService.onScanComplete`).
         if (result.added || result.updated) {
           this.#logger.info('inbox changed', { added: result.added, updated: result.updated })
-          this.#onChanged()
         }
       })
       .catch((error: unknown) => {

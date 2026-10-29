@@ -17,6 +17,7 @@ import { LyricsIndexService } from './lyricsIndex.js'
 import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
 import { MotionStore } from './motionStore.js'
+import { ScannerService } from './scanner.js'
 import { SongRemovalService } from './songRemoval.js'
 
 /**
@@ -83,6 +84,22 @@ describe('SongRemovalService', () => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
+  const row = {
+    artist: '',
+    album: '',
+    albumArtist: '',
+    trackNo: null,
+    year: null,
+    duration: 180,
+    sizeBytes: 5,
+    mime: 'audio/mp4',
+    mtimeMs: 1_700_000_000_000,
+    hasArt: false,
+    artExt: null,
+    lyricsKind: 'synced' as const,
+    sourceUrl: null,
+  }
+
   /** A song in its own folder, with a sidecar beside it, as an import lays one out. */
   const addSong = (name: string): { id: number; key: string } => {
     const key = `${name}/${name}.m4a`
@@ -90,23 +107,7 @@ describe('SongRemovalService', () => {
     fs.mkdirSync(folder, { recursive: true })
     fs.writeFileSync(path.join(folder, `${name}.m4a`), 'audio')
     fs.writeFileSync(path.join(folder, `${name}.lrc`), '[00:01.00] la')
-    const id = songs.insert({
-      path: key,
-      title: name,
-      artist: '',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 180,
-      sizeBytes: 5,
-      mime: 'audio/mp4',
-      mtimeMs: 1_700_000_000_000,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'synced',
-      sourceUrl: null,
-    })
+    const id = songs.insert({ ...row, path: key, title: name })
     return { id, key }
   }
 
@@ -131,7 +132,6 @@ describe('SongRemovalService', () => {
       lyricsKey: null,
       lyricsSize: null,
       lyricsKind: null,
-      romanizedKey: null,
       lyricsSig: 'tags-5-1700000000000',
       motionKey: null,
       motionSig: 'none',
@@ -152,7 +152,7 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([one.id])
 
-      expect(result).toEqual({ removed: [one.id], failed: [] })
+      expect(result).toEqual({ removed: [one.id], alreadyGone: [], failed: [] })
       expect(tags.all().map(tag => tag.name)).toEqual(['loud', 'new'])
       expect(songs.byId(two.id)).not.toBeNull()
       expect(changes).toBe(1)
@@ -163,7 +163,7 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([id])
 
-      expect(result).toEqual({ removed: [id], failed: [] })
+      expect(result).toEqual({ removed: [id], alreadyGone: [], failed: [] })
       expect(onDisk(key)).toBe(false)
       expect(onDisk('A - One/A - One.lrc')).toBe(false)
       expect(onDisk('A - One')).toBe(false)
@@ -220,27 +220,164 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([id])
 
-      expect(result).toEqual({ removed: [id], failed: [] })
+      expect(result).toEqual({ removed: [id], alreadyGone: [], failed: [] })
       expect(songs.byId(id)).toBeNull()
       expect(onDisk('A - One')).toBe(false)
     })
 
-    it('reports ids it does not know without changing anything', async () => {
+    it('counts ids it does not know as gone already, without changing anything', async () => {
       const { id } = addSong('A - One')
 
       const result = await removal.remove([id, 999])
 
       expect(result.removed).toEqual([id])
-      expect(result.failed).toEqual([
-        { songId: 999, reason: 'no song with id 999', removed: false },
-      ])
+      expect(result.alreadyGone).toEqual([999])
+      expect(result.failed).toEqual([])
       expect(changes).toBe(1)
 
-      expect(await removal.remove([999])).toEqual({
-        removed: [],
-        failed: [{ songId: 999, reason: 'no song with id 999', removed: false }],
-      })
+      // Asked again, as after an answer that was lost: nothing failed.
+      expect(await removal.remove([id])).toEqual({ removed: [], alreadyGone: [id], failed: [] })
       expect(changes).toBe(1)
+    })
+  })
+
+  describe('in batches', () => {
+    it('lets the event loop run between batches of a big removal', async () => {
+      // Rows only, already uploaded: what matters here is the database.
+      const ids = Array.from({ length: 101 }, (_, i) =>
+        songs.insert({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` }),
+      )
+      // Each batch leaves a callback for the loop's next turn; by the next
+      // batch it must have run.
+      let turns = 0
+      const seen: number[] = []
+      const deleteMany = songs.deleteMany.bind(songs)
+      songs.deleteMany = batch => {
+        seen.push(turns)
+        setImmediate(() => turns++)
+        return deleteMany(batch)
+      }
+
+      const result = await removal.remove(ids)
+
+      expect(result.removed).toHaveLength(101)
+      expect(seen).toEqual([0, 1, 2])
+      expect(songs.count()).toBe(0)
+      expect(changes).toBe(1)
+    }, 30_000)
+
+    it('takes the rows at once and calls a copy still being deleted leaving', async () => {
+      const { id, key } = addSong('A - One')
+
+      const taken = removal.take([id])
+
+      expect(songs.byId(id)).toBeNull()
+      expect(removal.isLeaving(key)).toBe(true)
+      expect(await removal.settle(taken)).toEqual({ removed: [id], alreadyGone: [], failed: [] })
+      expect(removal.isLeaving(key)).toBe(false)
+      expect(onDisk(key)).toBe(false)
+    })
+  })
+
+  /*
+   * The rows go first and the copies one by one after them, so a server killed
+   * in between — a power cut, a crash, the OOM killer — leaves copies of songs
+   * that are gone. The next start's sweep made new songs of them, 26 to 29 of
+   * 30 a time (bug bash R3-M8).
+   */
+  describe('killed before the copies went', () => {
+    /** The same database, as the next start opens it: nothing held in memory survives. */
+    const restart = () => {
+      const logger = createLogger('silent')
+      const storage = new LocalStorageDriver(path.join(root, 'library'))
+      const lyrics = new LyricsService(storage, logger, () => Promise.reject(new Error('offline')))
+      const config = { dataDir } as Config
+      const next = new SongRemovalService({
+        storage,
+        songs,
+        tags,
+        cloud,
+        lyrics,
+        covers: new CoverService(config, songs, logger),
+        lyricsCache: new LyricsCache(config, logger),
+        motion: new MotionStore(config, logger),
+        lyricsIndex: new LyricsIndexService({
+          songs,
+          search,
+          lyrics,
+          metadata: new MetadataService(storage, logger),
+          logger,
+        }),
+        onChange: () => undefined,
+        logger,
+      })
+      // Every copy reads as a song: what keeps one out is that it is leaving.
+      const metadata = {
+        read: (key: string) =>
+          Promise.resolve({
+            ...row,
+            title: key,
+            picture: null,
+            embeddedLyrics: null,
+          }),
+      }
+      const scanner = new ScannerService({
+        storage,
+        songs,
+        metadata: metadata as never,
+        lyrics,
+        covers: { save: () => Promise.resolve() } as never,
+        logger,
+        settleMs: 0,
+      })
+      scanner.isLeaving = key => next.isLeaving(key)
+      return { removal: next, scanner }
+    }
+
+    it('still knows the copies are leaving, so a sweep makes no song of them', async () => {
+      const one = addSong('A - One')
+      const two = addSong('B - Two')
+      removal.take([one.id, two.id])
+
+      const after = restart()
+
+      expect(after.removal.isLeaving(one.key)).toBe(true)
+      expect(await after.scanner.scan()).toMatchObject({ added: 0 })
+      expect(songs.count()).toBe(0)
+    })
+
+    it('deletes them at the next start, after which the names are free again', async () => {
+      const one = addSong('A - One')
+      await lyricsCache.write(one.id, 'romaji', 'abcd', { lines: [] })
+      removal.take([one.id])
+
+      const after = restart()
+      await after.removal.finishLeaving()
+
+      expect(onDisk('A - One')).toBe(false)
+      expect(cacheFolder(one.id)).toBe(false)
+      expect(after.removal.isLeaving(one.key)).toBe(false)
+    })
+
+    it('leaves a file a new song has taken the name of since', async () => {
+      const one = addSong('A - One')
+      removal.take([one.id])
+      const again = songs.insert({ ...row, path: one.key, title: 'A - One' })
+
+      await restart().removal.finishLeaving()
+
+      expect(onDisk(one.key)).toBe(true)
+      expect(songs.byId(again)?.path).toBe(one.key)
+    })
+
+    it('remembers a copy another device’s removal left, until it is tidied', async () => {
+      const one = addSong('A - One')
+      // The cloud pass takes the row inside its own transaction, then tidies.
+      songs.delete(one.id)
+
+      expect(restart().removal.isLeaving(one.key)).toBe(true)
+      await removal.tidyAfter([{ id: one.id, path: one.key }])
+      expect(removal.isLeaving(one.key)).toBe(false)
     })
   })
 

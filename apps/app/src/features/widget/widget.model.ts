@@ -1,6 +1,7 @@
 import type { Song, Tag } from '@selfmp3/shared'
 import { DEEP_LINK_SCHEME, artistOr } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
+import { placeParam } from '../tag/placeLinks'
 
 /**
  * The home-screen widget's data (docs/ui-mock `P28`), without the widget.
@@ -56,7 +57,7 @@ export interface WidgetSnapshot {
 
 /** `selfmp3://tag/<name>?play=1`: the app opens the tag and starts it. */
 export function tagPlayLink(name: string): string {
-  return `${DEEP_LINK_SCHEME}://tag/${encodeURIComponent(name)}?play=1`
+  return `${DEEP_LINK_SCHEME}://tag/${encodeURIComponent(placeParam(name))}?play=1`
 }
 
 const NOW_PLAYING_LINK = `${DEEP_LINK_SCHEME}://now-playing`

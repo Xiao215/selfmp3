@@ -1,5 +1,13 @@
-import { CoverSwatchSchema, LyricsKindSchema } from '@selfmp3/shared'
-import type { CoverSwatch, CoverTone, LyricsKind, Song, AudioFeatures, Tag } from '@selfmp3/shared'
+import { CameWithSchema, CoverSwatchSchema, LyricsKindSchema, lovedAt } from '@selfmp3/shared'
+import type {
+  CameWith,
+  CoverSwatch,
+  CoverTone,
+  LyricsKind,
+  Song,
+  AudioFeatures,
+  Tag,
+} from '@selfmp3/shared'
 
 /**
  * The shape of rows as SQLite actually returns them, and the mappers that turn
@@ -36,12 +44,16 @@ export interface SongRow {
   instrumental: number
   play_count: number
   loved: number
+  /** ISO time a resting song wakes, or null (shared rest.ts). */
+  rest_until: string | null
   source_url: string | null
   last_played_at: string | null
   added_at: string
   updated_at: string
   /** Present only on the joined library query: "1,4,7" or null. */
   tag_ids?: string | null
+  /** The stamp on the song's love (`sync_stamps`), on the joined library query. */
+  loved_hlc?: string | null
   /** From the LEFT JOIN on song_audio_features; all null when not analysed yet. */
   feat_bpm?: number | null
   feat_energy?: number | null
@@ -146,6 +158,8 @@ export function toSong(row: SongRow): Song {
     instrumental: row.instrumental === 1,
     playCount: row.play_count,
     loved: row.loved === 1,
+    lovedAt: lovedAt(row.loved === 1, row.loved_hlc),
+    restUntil: row.rest_until,
     sourceUrl: row.source_url,
     lastPlayedAt: row.last_played_at,
     addedAt: row.added_at,
@@ -200,5 +214,16 @@ export function toTag(row: TagRow): Tag {
     name: row.name,
     hue: row.hue,
     songCount: row.song_count ?? 0,
+  }
+}
+
+/** A `came_with` column (jobs and songs alike), read back; anything malformed is none. */
+export function readCameWith(value: string | null): CameWith | null {
+  if (value === null) return null
+  try {
+    const parsed = CameWithSchema.safeParse(JSON.parse(value))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
   }
 }

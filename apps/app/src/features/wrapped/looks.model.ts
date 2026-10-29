@@ -13,7 +13,7 @@ import {
 } from '@selfmp3/shared'
 import { darkPalette, lightPalette, tagColors } from '@selfmp3/client'
 import { formatHour, playsLabel } from '../stats/stats.model'
-import { figure, weekdayName } from './wrapped.model'
+import { figure, minuteWord, weekdayName } from './wrapped.model'
 
 /**
  * The month as a page (docs/ui-mock `P33`–`P37`, `C16`), without the screen.
@@ -154,9 +154,10 @@ export function timesWord(count: number): string {
   return COUNT_WORDS[count] ?? `${count.toLocaleString()} times`
 }
 
-/** "372 minutes" ("1 minute"). */
+/** "372 minutes" ("1 minute", "under a minute"). */
 function minutesPhrase(minutes: number): string {
   const whole = Math.round(minutes)
+  if (whole === 0 && minutes > 0) return 'under a minute'
   return plural(whole, 'minute', 'minutes')
 }
 
@@ -166,6 +167,7 @@ export function clockHour(hour: number): string {
 }
 
 const days = (count: number): string => plural(count, 'day', 'days')
+const playsWord = (count: number): string => (count === 1 ? 'play' : 'plays')
 
 /**
  * "14 times, 6 of them on one Saturday": how the number one was played, and
@@ -271,11 +273,13 @@ interface CalendarGrid {
  * One cell per day while a month's worth fits in six rows of seven. Longer
  * windows fold into weeks, then months, then years, so the grid stays one
  * picture: a year of days is fifty-three rows, which is not a calendar but a
- * scroll.
+ * scroll. Months are six across and larger than days or weeks, so five rows
+ * of them is all the page holds above its figure: a sixth pushed the last
+ * line off the bottom.
  */
 const MAX_DAYS = 42
 const MAX_WEEKS = 42
-const MAX_MONTHS = 36
+const MAX_MONTHS = 30
 
 export function calendarGrid(input: LookInput): CalendarGrid {
   const { first, count } = windowDays(input)
@@ -313,9 +317,9 @@ export function calendarGrid(input: LookInput): CalendarGrid {
   }
 
   const longest = Math.max(0, ...[...buckets.values()].map(bucket => bucket.minutes))
-  const cells: (CalendarCell | null)[] = [...buckets].map(([key, bucket]) => ({
+  const cells: (CalendarCell | null)[] = [...buckets].map(([key, bucket], index) => ({
     key,
-    label: cellLabel(unit, key),
+    label: cellLabel(unit, key, index === 0),
     minutes: bucket.minutes,
     share: longest > 0 ? bucket.minutes / longest : 0,
     songId: bucket.songId,
@@ -338,10 +342,15 @@ function mondayOf(date: string): string {
   return fromUtc(toUtc(date) - ((weekdayOf(date) + 6) % 7) * DAY_MS)
 }
 
-function cellLabel(unit: CalendarGrid['unit'], key: string): string {
+/** A month says its year where one starts, and on the first cell: "Dec '23", "Jan '24", "Feb". */
+function cellLabel(unit: CalendarGrid['unit'], key: string, first: boolean): string {
   if (unit === 'day') return String(Number(key.slice(8, 10)))
   if (unit === 'week') return shortDay(key)
-  if (unit === 'month') return MONTHS[Number(key.slice(5, 7)) - 1] ?? key
+  if (unit === 'month') {
+    const month = Number(key.slice(5, 7))
+    const name = MONTHS[month - 1] ?? key
+    return first || month === 1 ? `${name} '${key.slice(2, 4)}` : name
+  }
   return key
 }
 
@@ -390,14 +399,14 @@ interface PaperLook {
 
 export function paperLook({ wrapped }: LookInput): PaperLook {
   const when = timeOfDay(wrapped.peakHour?.hour)
-  const unit = Math.round(wrapped.totals.minutes) === 1 ? 'minute' : 'minutes'
+  const unit = minuteWord(wrapped.totals.minutes)
   return {
     head: `self.mp3 · ${periodTitle(wrapped.range)}`,
     figure: figure(wrapped.totals.minutes),
     figureLine: when ? `${unit}, mostly ${when}` : unit,
     onRepeat: numberOne(wrapped),
     figures: [
-      { value: wrapped.totals.plays.toLocaleString(), label: 'plays' },
+      { value: wrapped.totals.plays.toLocaleString(), label: playsWord(wrapped.totals.plays) },
       { value: days(wrapped.longestStreakDays), label: 'longest streak' },
       { value: wrapped.peakHour ? formatHour(wrapped.peakHour.hour) : '—', label: 'peak hour' },
     ],
@@ -490,10 +499,10 @@ export function wallLook(input: LookInput): WallLook {
     tiles,
     title: periodTitle(wrapped.range),
     figure: figure(wrapped.totals.minutes),
-    line: `minutes ${across}${when ? `, mostly ${when}` : ''}`,
+    line: `${minuteWord(wrapped.totals.minutes)} ${across}${when ? `, mostly ${when}` : ''}`,
     figures: [
-      { value: wrapped.totals.plays.toLocaleString(), label: 'plays' },
-      { value: String(wrapped.longestStreakDays), label: 'day streak' },
+      { value: wrapped.totals.plays.toLocaleString(), label: playsWord(wrapped.totals.plays) },
+      { value: wrapped.longestStreakDays.toLocaleString(), label: 'day streak' },
       ...(top ? [{ value: top.title, label: `×${top.plays}` }] : []),
     ],
     foot: `self.mp3 · ${windowDays(input).last.slice(0, 4)}`,
@@ -514,8 +523,9 @@ interface CalendarLook {
 export function calendarLook(input: LookInput): CalendarLook {
   const { wrapped } = input
   const grid = calendarGrid(input)
-  const unit = Math.round(wrapped.totals.minutes) === 1 ? 'minute' : 'minutes'
-  const streak = wrapped.longestStreakDays > 1 ? ` · ${wrapped.longestStreakDays} in a row` : ''
+  const unit = minuteWord(wrapped.totals.minutes)
+  const streak =
+    wrapped.longestStreakDays > 1 ? ` · ${wrapped.longestStreakDays.toLocaleString()} in a row` : ''
   return {
     title: periodTitle(wrapped.range),
     grid,
@@ -580,7 +590,10 @@ export function wordsSize(segments: readonly WordsSegment[]): number {
 export function wordsLook(input: LookInput): WordsLook {
   const { wrapped } = input
   const segments = wordsSentence(wrapped)
-  const streak = wrapped.longestStreakDays > 1 ? ` · a ${wrapped.longestStreakDays} day streak` : ''
+  const streak =
+    wrapped.longestStreakDays > 1
+      ? ` · a ${wrapped.longestStreakDays.toLocaleString()} day streak`
+      : ''
   return {
     head: `self.mp3 · ${periodTitle(wrapped.range)}`,
     segments,

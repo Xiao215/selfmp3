@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>self.mp3 admin</title>
+    <!-- The app's own icon (apps/app/public/icons), kept equal by admin/app.test.ts. -->
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&display=swap"
+    />
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <!-- The owner's admin page (docs/features/admin.md); admin.js draws it. -->
+    <div class="shell">
+      <nav class="rail" aria-label="Admin">
+        <a class="brand" href="/data">
+          <!-- The app's BrandMark (apps/app/src/ui/components/BrandMark.tsx). -->
+          <svg viewBox="0 0 512 512" aria-hidden="true">
+            <path d="M186 168 L370 130 L370 190 L186 228 Z" />
+            <rect x="186" y="168" width="26" height="180" rx="13" />
+            <rect x="344" y="130" width="26" height="180" rx="13" />
+            <ellipse cx="152" cy="348" rx="52" ry="39" transform="rotate(-22 152 348)" />
+            <ellipse cx="310" cy="310" rx="52" ry="39" transform="rotate(-22 310 310)" />
+          </svg>
+          <span class="word">self.mp3</span><span class="tag">admin</span>
+        </a>
+        <div class="nav">
+          <!-- The app's BarChart and People icons (apps/app/src/ui/components/Icons.tsx). -->
+          <a href="/data" data-tab="data">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+            </svg>
+            <span>Data</span>
+          </a>
+          <a href="/people" data-tab="people">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="9" cy="8" r="3.5" />
+              <path d="M2.5 20c.6-3.6 3.3-6 6.5-6s5.9 2.4 6.5 6" />
+              <circle cx="17" cy="9" r="2.6" />
+              <path d="M17.5 14c2.3.3 3.7 2.4 4 5" />
+            </svg>
+            <span>People</span>
+          </a>
+          <a href="/iphones" data-tab="iphones">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+              <path d="M10.5 18.5h3" />
+            </svg>
+            <span>iPhones</span>
+          </a>
+        </div>
+      </nav>
+      <main class="page" id="page" aria-live="polite"></main>
+    </div>
+    <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script type="module" src="/admin.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["SongStreamModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.songstream.SongStreamModule"]
+  }
+}

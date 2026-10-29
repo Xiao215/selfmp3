@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CLOUD_FILES_KEY as FILES_KEY,
+  LOG_FILE_MAX_CHANGES,
   formatHlc,
   isCloudFileKey,
   isLookedAtCloudKey,
   logFile,
   logKey,
+  readLogFile,
   type Change,
   type CloudSnapshot,
 } from '@selfmp3/shared'
@@ -27,7 +29,13 @@ import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './pla
 
 const DOORMAN = 'https://doorman.test'
 const TOKEN = 'tok'.padEnd(32, '0')
-const ME = { email: 'a@b.c', name: null, picture: null, storage: null }
+const ME = {
+  account: '0123456789abcdef0123456789abcdef',
+  email: 'a@b.c',
+  name: null,
+  picture: null,
+  storage: null,
+}
 const SESSION: CloudSession = { doormanUrl: DOORMAN, token: TOKEN, me: ME }
 
 /** A store that serialises like a real one, and can count its writes. */
@@ -72,6 +80,7 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
   /** Every file read asked of the doorman, in order. */
   const reads: string[] = []
   let refuseReads = false
+  let refuseSession = false
   let offline = false
   /** Every request made of the doorman while offline, which never arrives. */
   let unreached = 0
@@ -85,6 +94,17 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
       return Promise.reject(new Error('The Internet connection appears to be offline.'))
     }
     const path = url.slice(DOORMAN.length)
+    if (refuseSession) {
+      return Promise.resolve({
+        ok: false,
+        status: 401,
+        headers: { get: () => null },
+        json: () => Promise.resolve({ error: 'sign in first', code: 'unauthorized' }),
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: 'sign in first', code: 'unauthorized' })),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      })
+    }
     const reply = (
       status: number,
       body: unknown,
@@ -174,6 +194,10 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
     failNextPutWith: (status: number) => {
       failNextPut = status
     },
+    /** The doorman has ended the session: everything is refused as signed out. */
+    refuseSession: (refuse: boolean) => {
+      refuseSession = refuse
+    },
   }
 }
 
@@ -229,65 +253,51 @@ describe('lyrics', () => {
     const library = createCloudLibrary(platform, createCloudSession(platform))
 
     await store.write(FILES_KEY, {
-      7: {
-        audio: 'audio/7.m4a',
-        cover: null,
-        lyrics: 'lyrics/7.lrc',
-        lyricsKind: 'plain',
-        romanized: null,
-      },
+      7: { audio: 'audio/7.m4a', cover: null, lyrics: 'lyrics/7.words', lyricsKind: 'plain' },
     })
-    bucket.files.set('lyrics/7.lrc', 'la la la')
+    bucket.files.set('lyrics/7.words', { text: 'la la la', romanized: null })
 
-    // The fake bucket answers in JSON, so the text is the JSON of what it holds.
     await expect(library.cloudLyrics(SESSION, 7)).resolves.toEqual({
-      text: JSON.stringify('la la la'),
+      text: 'la la la',
       kind: 'plain',
       romanized: null,
     })
   })
 
   /*
-   * Romaji is made on the server, which has the dictionaries, and goes up beside
-   * the words. A device signed in to the cloud reads it the way it reads the
-   * words, so its lyrics answer is the same one the server itself gives.
+   * Romaji is made on the server, which has the dictionaries, and goes up in
+   * the words' own file. A device signed in to the cloud reads both with one
+   * call to the bucket, so its lyrics answer is the same one the server
+   * itself gives, for one of the bucket's day of reads rather than two.
    */
-  it('brings the romanized lines back with the words', async () => {
+  it('brings the romanized lines back with the words, in one read', async () => {
     const made = build()
     await made.store.write(FILES_KEY, {
-      9: {
-        audio: 'audio/9.m4a',
-        cover: null,
-        lyrics: 'lyrics/9.lrc',
-        lyricsKind: 'synced',
-        romanized: 'lyrics/9.json',
-      },
+      9: { audio: 'audio/9.m4a', cover: null, lyrics: 'lyrics/9.words', lyricsKind: 'synced' },
     })
-    made.bucket.files.set('lyrics/9.lrc', '[00:01.00]夜に駆ける')
-    // The fake bucket answers every file as JSON of what it holds: this one is the list itself.
-    made.bucket.files.set('lyrics/9.json', ['yoru ni kakeru'])
+    made.bucket.files.set('lyrics/9.words', {
+      text: '[00:01.00]夜に駆ける',
+      romanized: ['yoru ni kakeru'],
+    })
 
     const found = await made.library.cloudLyrics(SESSION, 9)
 
-    expect(found?.kind).toBe('synced')
-    expect(found?.romanized).toEqual(['yoru ni kakeru'])
+    expect(found).toEqual({
+      text: '[00:01.00]夜に駆ける',
+      kind: 'synced',
+      romanized: ['yoru ni kakeru'],
+    })
+    expect(made.bucket.reads).toEqual(['lyrics/9.words'])
   })
 
-  it('answers no romanized lines when the file is not a list of lines', async () => {
+  it('answers no words when the file is not a words file', async () => {
     const made = build()
     await made.store.write(FILES_KEY, {
-      9: {
-        audio: 'audio/9.m4a',
-        cover: null,
-        lyrics: 'lyrics/9.lrc',
-        lyricsKind: 'synced',
-        romanized: 'lyrics/9.json',
-      },
+      9: { audio: 'audio/9.m4a', cover: null, lyrics: 'lyrics/9.words', lyricsKind: 'synced' },
     })
-    made.bucket.files.set('lyrics/9.lrc', 'words')
-    made.bucket.files.set('lyrics/9.json', { not: 'lines' })
+    made.bucket.files.set('lyrics/9.words', ['not', 'words'])
 
-    expect((await made.library.cloudLyrics(SESSION, 9))?.romanized).toBeNull()
+    expect(await made.library.cloudLyrics(SESSION, 9)).toBeNull()
   })
 })
 
@@ -302,7 +312,6 @@ describe('motion curves', () => {
         cover: null,
         lyrics: null,
         lyricsKind: null,
-        romanized: null,
         // Left out entirely, as a library kept by an older build has it.
         ...(motion === undefined ? {} : { motion }),
       },
@@ -393,6 +402,32 @@ describe('the outbox', () => {
     expect(made.library.pendingCloudChanges()).toBeGreaterThan(0)
   })
 
+  // R3-M1: the foot said "All saved", then "Saving…" with a green dot, while
+  // the bucket refused every write: a doorman answering for itself cleared it.
+  it('says its edits are stuck while sending them fails, and not once one goes up', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'waiting', undefined).changes,
+      answer: () => undefined,
+    }))
+    expect(made.library.cloudChangesStuck()).toBe(false)
+
+    made.bucket.failNextPutWith(502)
+    await made.library.flushCloudChanges()
+    // The doorman answering a look for itself says nothing of the writes.
+    made.library.markCloudLibraryStale()
+    await made.library.loadCloudLibrary(SESSION)
+    expect(made.library.pendingCloudChanges()).toBe(1)
+    expect(made.library.cloudChangesStuck()).toBe(true)
+
+    await made.library.flushCloudChanges()
+    expect(made.library.pendingCloudChanges()).toBe(0)
+    expect(made.library.cloudChangesStuck()).toBe(false)
+  })
+
   it('stops trying when the doorman says the session is gone', async () => {
     // 401 and 409 are not worth retrying: signing in again is what fixes them,
     // and a retry loop against them is just noise.
@@ -406,6 +441,157 @@ describe('the outbox', () => {
     }))
     made.bucket.failNextPutWith(401)
     await expect(made.library.flushCloudChanges()).resolves.toBeUndefined()
+  })
+})
+
+describe('a long outbox', () => {
+  it('goes up as several files, none longer than a log file may be', async () => {
+    // A phone offline for weeks of plays sent them all as one file, which no
+    // device or server would read, and nothing of that phone counted again.
+    const made = build()
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'hue', undefined).changes,
+      answer: () => undefined,
+    }))
+    await made.library.flushCloudChanges()
+    made.bucket.puts.length = 0
+    // One tag's colour, changed and changed again: as many changes as there
+    // were plays, for none of a library's weight.
+    await made.library.recordChanges(SESSION, ctx => {
+      const id = ctx.view.library.tags[0]?.id ?? 0
+      return {
+        changes: Array.from({ length: LOG_FILE_MAX_CHANGES }, (_, index) =>
+          edits.editTag(ctx, id, { hue: index % 360 }),
+        ).flat(),
+        answer: () => undefined,
+      }
+    })
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.editTag(ctx, ctx.view.library.tags[0]?.id ?? 0, { hue: 7 }),
+      answer: () => undefined,
+    }))
+    await made.library.flushCloudChanges()
+
+    const sizes = made.bucket.puts.map(put => (put.body as { changes: unknown[] }).changes.length)
+    expect(sizes).toEqual([LOG_FILE_MAX_CHANGES, 1])
+    for (const put of made.bucket.puts) expect(readLogFile(put.body).ok).toBe(true)
+    expect(made.library.pendingCloudChanges()).toBe(0)
+  })
+})
+
+describe('two tabs of one browser', () => {
+  afterEach(() => vi.useRealTimers())
+
+  /** Everything queued on promises, done: the library's network is promises all the way. */
+  const settle = async (): Promise<void> => {
+    for (let round = 0; round < 5; round++) await new Promise(resolve => setImmediate(resolve))
+  }
+
+  it('sends the edit a tab closed straight after left in the outbox they share', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const store = memoryStore()
+    const bucket = fakeBucket()
+    // A BroadcastChannel: what one tab says, every other tab hears.
+    const tabs: (() => void)[][] = []
+    const tab = (reach: () => boolean) => {
+      const hears: (() => void)[] = []
+      tabs.push(hears)
+      const platform: CloudPlatform = {
+        ...platformFor(bucket, store),
+        fetch: (url, init) =>
+          reach() ? bucket.fetch(url, init) : Promise.reject(new TypeError('Failed to fetch')),
+        outboxNews: {
+          tell: () => {
+            for (const other of tabs) if (other !== hears) for (const run of other) run()
+          },
+          hear: run => hears.push(run),
+        },
+      }
+      const session = createCloudSession(platform)
+      return { session, library: createCloudLibrary(platform, session) }
+    }
+    let firstOpen = true
+    const first = tab(() => firstOpen)
+    const second = tab(() => true)
+    await first.session.saveSession(SESSION)
+    await first.library.loadCloudLibrary(SESSION)
+    await second.library.loadCloudLibrary(SESSION)
+
+    await first.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'left behind', undefined).changes,
+      answer: () => undefined,
+    }))
+    // Closed a moment later: it never sends anything again.
+    firstOpen = false
+    await settle()
+
+    // The tab still open shows the edit at once…
+    const shown = await second.library.peekCloudLibrary(SESSION)
+    expect(shown.library.tags.map(tag => tag.name)).toContain('left behind')
+    // …and sends it once the tab that made it would have.
+    await vi.advanceTimersByTimeAsync(9_000)
+    await settle()
+    expect(bucket.puts).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(1_000)
+    await settle()
+    expect(bucket.puts).toHaveLength(1)
+    expect(JSON.stringify(bucket.puts[0]?.body)).toContain('left behind')
+  })
+})
+
+describe('a session the doorman ended', () => {
+  // R3-M4: a session ended elsewhere read as "Can't reach your library", and
+  // Try again asked the doorman again, to be refused again.
+  it('is signed out when opening the library is refused, with the copy here or without', async () => {
+    for (const kept of [false, true]) {
+      const store = memoryStore()
+      const made = build(store)
+      await signedIn(made)
+      if (kept) {
+        await made.library.loadCloudLibrary(SESSION)
+        later(6 * 60_000)
+      }
+      made.bucket.refuseSession(true)
+      const opened = build(store, made.bucket)
+      const heard: unknown[] = []
+      opened.session.onSessionEnded(ended => heard.push(ended))
+      await opened.library.loadCloudLibrary(SESSION).catch(() => undefined)
+      // What sends the app back to Welcome, saying who was signed out.
+      await vi.waitFor(() => expect(heard).toEqual([{ account: ME.account, email: ME.email }]))
+      expect(await opened.session.loadSession()).toBeNull()
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the changes not sent yet, and sends them once the same account is back', async () => {
+    const store = memoryStore()
+    const made = build(store)
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'unsent', undefined).changes,
+      answer: () => undefined,
+    }))
+
+    made.bucket.refuseSession(true)
+    await made.library.flushCloudChanges()
+    expect(await made.session.loadSession()).toBeNull()
+    expect(await made.session.endedSession()).toEqual({ account: ME.account, email: ME.email })
+
+    // Opened again, signed out: nothing open, and the outbox is still counted.
+    const reopened = build(store, made.bucket)
+    expect(reopened.library.pendingCloudChanges()).toBe(0)
+    expect(await reopened.library.keptCloudChanges()).toBe(1)
+
+    made.bucket.refuseSession(false)
+    await reopened.session.saveSession(SESSION)
+    await reopened.library.loadCloudLibrary(SESSION)
+    await reopened.library.flushCloudChanges()
+    expect(made.bucket.puts.map(put => JSON.stringify(put.body))).toEqual([
+      expect.stringContaining('unsent'),
+    ])
   })
 })
 
@@ -508,16 +694,35 @@ describe('opening', () => {
   })
 
   it('brings a copy kept before the snapshot’s shape settled up to it, without the bucket', async () => {
-    // A copy kept before every song named its motion curve and every snapshot
-    // its artists and sound. Thrown away, it had to be read again — and on a
+    // A copy kept before every song named its motion curve and its rest, and every snapshot
+    // its artists, sound, artists' other names, spellings and cover packs, and
+    // its server's id. Thrown away, it had to be read again — and on a
     // day the bucket refuses reads that left a phone with no library at all,
     // its downloads on the disk (2026-10-08). It is upgraded and kept instead.
     const store = memoryStore()
-    const { artists: _artists, sound: _sound, upTo: _upTo, ...older } = SNAPSHOT
+    const {
+      artists: _artists,
+      sound: _sound,
+      upTo: _upTo,
+      artistNames: _names,
+      spellings: _spellings,
+      coverPacks: _packs,
+      ...older
+    } = SNAPSHOT
+    const unnamed = { addresses: ['http://music.example.com'], token: 'library-token' }
     const songs = older.songs.map(
-      ({ motion: _motion, audioFeatures: _features, coverTone: _tone, ...song }) => song,
+      ({
+        motion: _motion,
+        audioFeatures: _features,
+        coverTone: _tone,
+        restUntil: _rest,
+        ...song
+      }) => song,
     )
-    store.data.set('cloud-base', { key: SNAPSHOT_KEY, snapshot: { ...older, songs } })
+    store.data.set('cloud-base', {
+      key: SNAPSHOT_KEY,
+      snapshot: { ...older, songs, server: unnamed },
+    })
     const made = build(store)
     await signedIn(made)
     made.bucket.refuseReads(true)
@@ -527,7 +732,15 @@ describe('opening', () => {
     expect(made.bucket.reads).toEqual([])
     expect(store.data.get('cloud-base')).toEqual({
       key: SNAPSHOT_KEY,
-      snapshot: { ...SNAPSHOT, upTo: {}, artists: [], sound: null },
+      snapshot: {
+        ...SNAPSHOT,
+        upTo: {},
+        artists: [],
+        artistNames: [],
+        spellings: {},
+        coverPacks: [],
+        sound: null,
+      },
     })
   })
 
@@ -654,6 +867,7 @@ const SNAPSHOT: CloudSnapshot = {
       motion: null,
       instrumental: false,
       loved: false,
+      restUntil: null,
       playCount: 0,
       lastPlayedAt: null,
       addedAt: '2026-09-01 10:00:00',
@@ -665,6 +879,9 @@ const SNAPSHOT: CloudSnapshot = {
   tags: [],
   playlists: [],
   artists: [],
+  artistNames: [],
+  spellings: {},
+  coverPacks: [],
   sound: null,
 }
 
@@ -901,6 +1118,24 @@ describe('what looking costs the bucket', () => {
     expect(view.library.tags.map(tag => tag.name)).toEqual(['from elsewhere'])
   })
 
+  // R3-M10: the last look was "in the future", so no look was ever due again.
+  it('looks again after this device’s clock is put back', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    later(-60 * 60_000)
+    await tagFromElsewhere(made.bucket, 'from elsewhere')
+    const heard = new Promise<void>(resolve => {
+      made.library.onCloudLibraryChanged(resolve)
+    })
+    later(61_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await heard
+    const view = await made.library.loadCloudLibrary(SESSION)
+    expect(view.library.tags.map(tag => tag.name)).toEqual(['from elsewhere'])
+  })
+
   it('does not list for its own uploads', async () => {
     const made = build(memoryStore(), fakeBucket({ counting: true }))
     await signedIn(made)
@@ -985,11 +1220,53 @@ describe('what looking costs the bucket', () => {
     expect(bucket.asked()).toBe(asked)
   })
 
+  /*
+   * R2-M9: whether reads are back can only be learnt by reading — the library's
+   * own look only lists, which Backblaze caps apart — so the app asks one byte.
+   */
+  it('asks one read to learn whether reads are back, held again or let go by its answer', async () => {
+    const { bucketHold, bucketRefusals, lapseBucketHold, releaseBucket } = await import('./hold.js')
+    const made = build(memoryStore())
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    await made.library.loadCloudLibrary(SESSION)
+    const audio = SNAPSHOT.songs[0]!.audio.key
+    try {
+      made.bucket.refuseReads(true)
+      await made.library.askBucketRead(SESSION)
+      expect(made.bucket.reads.at(-1)).toBe(audio)
+      expect(bucketHold('read')).toMatchObject({ refusals: 1 })
+
+      // Asked while the hold still stands, which a read otherwise never is,
+      // and refused again: held for longer.
+      const asked = made.bucket.reads.length
+      await made.library.askBucketRead(SESSION)
+      expect(made.bucket.reads).toHaveLength(asked + 1)
+      expect(bucketHold('read')).toMatchObject({ refusals: 2 })
+      lapseBucketHold()
+      await made.library.askBucketRead(SESSION)
+      expect(bucketHold('read')).toMatchObject({ refusals: 3 })
+
+      made.bucket.refuseReads(false)
+      await made.library.askBucketRead(SESSION)
+      expect(made.bucket.reads.at(-1)).toBe(audio)
+      expect(bucketHold('read')).toBeNull()
+      expect(bucketRefusals('read')).toBe(0)
+    } finally {
+      releaseBucket()
+    }
+  })
+
   it('lists once, and reads nothing it is held from, while the bucket refuses reads', async () => {
-    const { releaseBucket } = await import('./hold.js')
+    const { holdBucket, lapseBucketHold, releaseBucket } = await import('./hold.js')
     const made = build(memoryStore(), fakeBucket({ counting: true }))
     await signedIn(made)
     await made.library.loadCloudLibrary(SESSION)
+    // Refused four times in a row already today, so the next hold outlasts these looks.
+    for (let refused = 0; refused < 4; refused++) {
+      holdBucket('used up', 'read', 0)
+      lapseBucketHold()
+    }
 
     // A new snapshot goes up — and the day's reads are spent.
     await tagFromElsewhere(made.bucket, 'never mind')

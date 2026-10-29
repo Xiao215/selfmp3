@@ -60,6 +60,7 @@ const KIND_OF: Partial<Record<DoormanErrorCode, CloudError['kind']>> = {
   // The doorman's own word for a used-up cap, so a pass stops at the first
   // refusal rather than trying every song against it.
   [DOORMAN_ERROR.bucketCapExceeded]: 'cap',
+  [DOORMAN_ERROR.bucketBusy]: 'busy',
 }
 
 /** The few refusals said here in words of this server's, because what to do is done here. */

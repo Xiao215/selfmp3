@@ -26,7 +26,7 @@ import { followedTagIds, withFollowedTags } from './follows.model'
  * a length, a play count — is still followed: a chip edit changes only the
  * tag rules (`withFollowedTags`) and keeps the rest as it was.
  *
- * **Stop filling** keeps every song. That is the whole reason this can be a
+ * **Stop adding** keeps every song. That is the whole reason this can be a
  * switch rather than a kind of playlist chosen up front: it is reversible in
  * the direction that matters, and nothing is lost by trying it.
  */
@@ -41,13 +41,20 @@ export function FollowsRow({
   const stop = useStopFollowing()
   const [choosing, setChoosing] = useState(false)
 
-  const tagIds = followedTagIds(playlist.rules)
+  /*
+   * The tags as last chosen here, until the library has the answer. The rules
+   * go to the server whole, so a second tap worked out from the playlist as it
+   * was before the first one's answer sent the first one's tag back off.
+   */
+  const [sent, setSent] = useState<readonly number[] | null>(null)
+  const tagIds = sent && update.isPending ? sent : followedTagIds(playlist.rules)
   const chosen = tagsWithIds(tagIds, tags)
 
   const setTags = (next: readonly number[]): void => {
     // The last tag cannot go: a playlist following nothing is empty, which
     // looks exactly like something having gone wrong. Stop following instead.
     if (next.length === 0) return
+    setSent(next)
     update.mutate({ id: playlist.id, patch: { rules: withFollowedTags(playlist.rules, next) } })
   }
 
@@ -56,7 +63,15 @@ export function FollowsRow({
 
   return (
     <TagChipRow
-      lead="Fills from"
+      // Songs need every tag when the rules ask for all of them (C1).
+      lead={
+        chosen.length === 0
+          ? // Rules the chips cannot draw — a length, a play count — and no tag yet.
+            'Keeps itself filled'
+          : playlist.rules.match === 'all' && chosen.length > 1
+            ? 'Keeps itself filled with songs tagged all of'
+            : 'Keeps itself filled with songs tagged'
+      }
       tags={chosen}
       // The last tag stays: following nothing, it would empty (`setTags`).
       onRemove={chosen.length > 1 ? tag => toggle(tag.id) : undefined}
@@ -73,8 +88,8 @@ export function FollowsRow({
       <Button
         size="small"
         variant="text"
-        label={stop.isPending ? 'Stopping…' : 'Stop filling'}
-        accessibilityLabel="Stop filling from these tags, keeping every song"
+        label={stop.isPending ? 'Stopping…' : 'Stop adding'}
+        accessibilityLabel="Stop adding songs from these tags, keeping every song"
         busy={stop.isPending}
         onPress={() => {
           stop.mutate(playlist.id, {

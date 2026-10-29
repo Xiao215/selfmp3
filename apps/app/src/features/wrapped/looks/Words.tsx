@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { darkPalette, fonts, withAlpha } from '@selfmp3/client'
+import { darkPalette, withAlpha } from '@selfmp3/client'
+import { fonts } from '../../../ports/fonts'
 import { Cover } from '../../../ui/components/Cover'
 import { lookInk, wordsLook } from '../looks.model'
-import { PrintedTag, type LookProps } from './parts'
+import { PrintedTag, type LookProps, LookText } from './parts'
 
 /** `P37`'s page. */
 export const WORDS_SIZE = { width: 480, height: 720 } as const
@@ -20,8 +21,8 @@ export function WordsLook({ input, hue, art, tagHue }: LookProps): ReactNode {
   const top = input.wrapped.topSongs[0]
   return (
     <View style={[styles.page, { backgroundColor: ink.ground }]}>
-      <Text style={[styles.head, { color: ink.accent }]}>{look.head}</Text>
-      <Text
+      <LookText style={[styles.head, { color: ink.accent }]}>{look.head}</LookText>
+      <LookText
         style={[
           styles.sentence,
           { color: ink.ink, fontSize: look.size, lineHeight: Math.round(look.size * 1.04) },
@@ -29,18 +30,18 @@ export function WordsLook({ input, hue, art, tagHue }: LookProps): ReactNode {
       >
         {look.segments.map((segment, i) =>
           segment.em ? (
-            <Text key={i} style={[styles.em, { color: ink.accent }]}>
+            <LookText key={i} style={[styles.em, { color: ink.accent }]}>
               {segment.text}
-            </Text>
+            </LookText>
           ) : (
             segment.text
           ),
         )}
-      </Text>
+      </LookText>
 
       <View style={styles.foot}>
         <View style={styles.facts}>
-          <Text style={[styles.factLine, { color: ink.second }]}>{look.foot}</Text>
+          <LookText style={[styles.factLine, { color: ink.second }]}>{look.foot}</LookText>
           {look.tags.length > 0 ? (
             <View style={styles.tags}>
               {look.tags.map(tag => (

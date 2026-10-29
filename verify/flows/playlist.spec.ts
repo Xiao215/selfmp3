@@ -163,7 +163,7 @@ test.describe('a song taken out of a playlist', () => {
     await page.getByRole('button', { name: `More actions for ${title}` }).click()
     await page.getByRole('menuitem', { name: 'Remove from this playlist' }).click()
 
-    await expect(page.getByText(`Removed “${title}” from ${name}`)).toBeVisible()
+    await expect(page.getByText(`Removed from ${name}`)).toBeVisible()
     await expect.poll(async () => (await order(page)).includes(title)).toBe(false)
 
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
@@ -236,7 +236,8 @@ test.describe('a playlist', () => {
     const name = `Flow — new ${Date.now()}`
     const start = async (): Promise<void> => {
       await page.goto('/playlists')
-      await page.getByTestId('playlists-new').click()
+      // The New tile is the page's one way in (I1).
+      await page.getByTestId('playlists-new-tile').click()
       // The kind first (L2), then the name, then picking its songs.
       await page.getByTestId('new-playlist-pick').click()
       await page.getByTestId('new-playlist-field').fill(name)
@@ -270,7 +271,7 @@ test.describe('a playlist', () => {
     try {
       await page.goto('/playlists')
       // Loaded: the line under the title has counted them, or found none.
-      await expect(page.getByText(/ playlists? · |None of your own yet/)).toBeVisible({
+      await expect(page.getByText(/^\d+ playlists?$|None of your own yet/)).toBeVisible({
         timeout: 30_000,
       })
       // The grid's tiles, not the sidebar, which is not this page.

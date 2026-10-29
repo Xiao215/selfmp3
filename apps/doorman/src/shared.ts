@@ -20,6 +20,7 @@ import {
   type SharedPlaylist,
 } from '@selfmp3/shared'
 import { z } from 'zod'
+import { answer, refusalAnswer } from './doRelay.js'
 import { secureHex } from './encoding.js'
 import { keyOf } from './room.js'
 
@@ -113,18 +114,6 @@ const SHARED_REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>>
   invalid: DOORMAN_ERROR.sharedInvalid,
 }
 
-const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
-  forbidden: 403,
-  missing: 404,
-  full: 409,
-  ended: 410,
-  invalid: 400,
-}
-
-function answer(status: number, code: DoormanErrorCode, error: string): Response {
-  return Response.json({ error, code }, { status })
-}
-
 export class Shared {
   readonly #runtime: SharedRuntime
   readonly #newId: () => string
@@ -155,6 +144,11 @@ export class Shared {
           return await this.#act(ActSchema.parse(await request.json()))
         case 'GET /lend':
           return await this.#lend(SubSchema.parse(url.searchParams.get('sub')))
+        case 'GET /lends':
+          return await this.#lends(
+            SubSchema.parse(url.searchParams.get('sub')),
+            z.string().min(1).parse(url.searchParams.get('audio')),
+          )
         case 'GET /file':
           return await this.#file(url)
         default:
@@ -328,6 +322,24 @@ export class Shared {
     return Response.json(body)
   }
 
+  /**
+   * Whether a room may still lend a song it took from here: `sub` is still
+   * one of its people, and still has that song (by its audio) in it. Taking a
+   * song out, or leaving, stops it from the next read on.
+   */
+  async #lends(sub: string, audio: string): Promise<Response> {
+    const found = await this.#found(sub)
+    if (found instanceof Response) {
+      return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
+    }
+    const held = found.doc.entries.some(
+      entry => entry.owner === found.member && entry.song.audio?.key === audio,
+    )
+    if (!held)
+      return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
+    return new Response(null, { status: 204 })
+  }
+
   /** `GET /file?t=&entry=&part=`: whose bucket, and which key, for one of its people. */
   async #file(url: URL): Promise<Response> {
     const doc = await this.#doc()
@@ -369,13 +381,16 @@ export class Shared {
   }
 
   #refusal(refused: RoomRefusal): Response {
-    return answer(STATUS[refused.refused], SHARED_REFUSED[refused.refused], refused.message)
+    return refusalAnswer(refused, SHARED_REFUSED)
   }
 
   async #doc(): Promise<SharedDoc | null> {
     const stored = await this.#runtime.storage.get<unknown>('doc')
-    const parsed = SharedDocSchema.safeParse(stored)
-    return parsed.success ? parsed.data : null
+    const upgraded = upgradeDoc(stored)
+    const parsed = SharedDocSchema.safeParse(upgraded)
+    if (!parsed.success) return null
+    if (upgraded !== stored) await this.#runtime.storage.put('doc', parsed.data)
+    return parsed.data
   }
 
   async #secrets(): Promise<Secrets | null> {
@@ -386,6 +401,28 @@ export class Shared {
     await this.#runtime.storage.put('doc', doc)
     await this.#runtime.storage.put('secrets', secrets)
   }
+}
+
+/**
+ * A playlist as it was kept before faces had pictures, brought up to now: the
+ * people in it then have none. Data, not a second reading of the schema:
+ * `#doc` writes the upgrade back, so a playlist is upgraded once, the first
+ * time it is read. Anything else is handed on as it is, for the schema to say.
+ */
+function upgradeDoc(stored: unknown): unknown {
+  if (!isRecord(stored) || !Array.isArray(stored['members'])) return stored
+  const members: unknown[] = stored['members']
+  if (members.every(member => !isRecord(member) || 'picture' in member)) return stored
+  return {
+    ...stored,
+    members: members.map(member =>
+      isRecord(member) && !('picture' in member) ? { ...member, picture: null } : member,
+    ),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

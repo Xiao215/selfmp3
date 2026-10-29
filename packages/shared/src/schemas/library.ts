@@ -3,6 +3,7 @@ import { IdSchema } from './common.js'
 import { SongSchema } from './song.js'
 import { TagSchema } from './tag.js'
 import { PlaylistSchema } from './playlist.js'
+import { ArtistNamesSchema } from './artist.js'
 
 /**
  * The whole library in one response.
@@ -16,6 +17,16 @@ export const LibrarySchema = z.object({
   songs: z.array(SongSchema),
   tags: z.array(TagSchema),
   playlists: z.array(PlaylistSchema),
+  /** The names each artist also goes by, by `artistKey`: what search finds them by besides their own. */
+  artistNames: z.record(z.string(), ArtistNamesSchema),
+  /**
+   * The artists whose other names are MusicBrainz's as it found them, which
+   * nobody has saved since, by `artistKey`. They find songs like any other
+   * names, but join no artists until somebody says so (packages/shared/src/artistJoins.ts).
+   */
+  artistNamesFound: z.array(z.string()),
+  /** Chinese and Japanese titles, artists and albums in Latin letters: as written → each way it is spelt. */
+  spellings: z.record(z.string(), z.array(z.string())),
   /** Bumped whenever anything changes, so clients can skip redundant work. */
   version: z.number().int().nonnegative(),
   generatedAt: z.string(),
@@ -44,6 +55,13 @@ export const PlaylistSongsSchema = z.object({
   songIds: z.array(IdSchema),
 })
 export type PlaylistSongs = z.infer<typeof PlaylistSongsSchema>
+
+/**
+ * Every playlist's songs at once, for a device keeping them all alongside:
+ * one request where one a playlist was 622 at launch.
+ */
+export const AllPlaylistSongsSchema = z.object({ playlists: z.array(PlaylistSongsSchema) })
+export type AllPlaylistSongs = z.infer<typeof AllPlaylistSongsSchema>
 
 /** Small payload a device polls to decide whether a full sync is needed. */
 export const SyncManifestSchema = z.object({
@@ -79,6 +97,16 @@ export const SimilarSongsSchema = z.object({
   songs: z.array(SongSchema),
 })
 export type SimilarSongs = z.infer<typeof SimilarSongsSchema>
+
+/**
+ * `/api/sound-map`: every heard song's place on the sound map
+ * (docs/features/sound-map.md), 0–1 across and down. A song not heard yet
+ * has no place and is left out.
+ */
+export const SoundMapSchema = z.object({
+  places: z.array(z.object({ id: IdSchema, x: z.number(), y: z.number() })),
+})
+export type SoundMap = z.infer<typeof SoundMapSchema>
 
 /** `/api/songs/:id/similar?limit=`: how many neighbours, whoever answers. */
 export const SimilarQuerySchema = z.object({

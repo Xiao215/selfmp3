@@ -1,8 +1,6 @@
 import { Router } from 'express'
-import { z } from 'zod'
 import {
   SyncManifestQuerySchema,
-  type AnalysisStatus,
   type Library,
   type LibraryVersion,
   type ScanResult,
@@ -19,9 +17,9 @@ import { route } from '../http/route.js'
  * play being counted — would look like a new library to anything that keys on
  * it, and the phone's keep-alongside pass (useKeepAlongside) would walk every
  * song and playlist again for nothing. The version moves on every edit that
- * changes what the library holds; a restart starts the version again, and the
- * first answer after it gets a new time, so two different libraries never
- * share a stamp.
+ * changes what the library holds, and starts each boot from the clock, so the
+ * first answer after a restart gets a new time and two different libraries
+ * never share a stamp.
  */
 export function answeredAt(
   version: () => number,
@@ -36,12 +34,55 @@ export function answeredAt(
 }
 
 /**
+ * An answer built and written out once for each `key`, and handed out as
+ * written until the key moves.
+ *
+ * The library is the whole of it — 2.5 MB for 5,000 songs — and building it
+ * holds the event loop: every tab and device refetches it on each version
+ * bump and on focus, and on a busy machine those builds kept /api/health
+ * past the app's 3 s "can't reach" (R3-m6). The key is what the answer is
+ * made from, so a kept one is not stale.
+ */
+function keptAnswer(key: () => string, build: () => unknown): () => string {
+  let kept: { key: string; body: string } | null = null
+  return () => {
+    const current = key()
+    if (kept?.key !== current) kept = { key: current, body: JSON.stringify(build()) }
+    return kept.body
+  }
+}
+
+/**
  * Library-wide endpoints: the full snapshot, rescanning, and the sync manifest
  * the phone uses to work out what it still needs to download.
  */
 export function libraryRoutes(container: Container): Router {
   const router = Router()
   const generatedAt = answeredAt(() => container.libraryVersion())
+  /*
+   * Every row the library answer is read from is in this database, and this
+   * connection is its only writer: its count of changed rows moves with any
+   * write, a play or a background pass that bumps no version included. The
+   * minute is in the key too: a live playlist of what was played in the last
+   * week counts against the clock, and moves with no write at all.
+   */
+  const changedRows = container.db.prepare('SELECT total_changes()').pluck()
+  const library = keptAnswer(
+    () =>
+      `${container.libraryVersion()}:${String(changedRows.get())}:${Math.floor(Date.now() / 60_000)}`,
+    (): Library => {
+      const songs = container.songs.all()
+      return {
+        songs,
+        tags: container.tags.all(),
+        playlists: container.playlists.all(),
+        ...container.names.joinNames(),
+        spellings: container.spellings.current(songs),
+        version: container.libraryVersion(),
+        generatedAt: generatedAt(),
+      }
+    },
+  )
 
   /**
    * The whole library in one payload.
@@ -52,14 +93,8 @@ export function libraryRoutes(container: Container): Router {
    */
   router.get(
     '/library',
-    route({}, (): Library => {
-      return {
-        songs: container.songs.all(),
-        tags: container.tags.all(),
-        playlists: container.playlists.all(),
-        version: container.libraryVersion(),
-        generatedAt: generatedAt(),
-      }
+    route({}, ({ res }) => {
+      res.type('json').send(library())
     }),
   )
 
@@ -77,29 +112,9 @@ export function libraryRoutes(container: Container): Router {
     '/library/scan',
     route({}, async (): Promise<ScanResult> => {
       const result = await container.scanner.scan()
-      if (result.added > 0 || result.updated > 0) container.bumpLibraryVersion()
       void container.lyricsIndex.backfill()
       return result
     }),
-  )
-
-  /**
-   * Audio analysis: start (or resume) analysing whatever is missing features.
-   *
-   * `force` throws existing results away first. The work happens in the
-   * background; poll the GET for progress.
-   */
-  router.post(
-    '/library/analyze',
-    route(
-      { body: z.object({ force: z.boolean().default(false) }).default({}) },
-      ({ body }): AnalysisStatus => container.analysis.start(body.force),
-    ),
-  )
-
-  router.get(
-    '/library/analyze',
-    route({}, (): AnalysisStatus => container.analysis.status()),
   )
 
   /**

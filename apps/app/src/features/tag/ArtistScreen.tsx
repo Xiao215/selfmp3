@@ -1,31 +1,70 @@
-import { useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import type { View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import { useBulkTag, useCreateTag, useLibrary, iconSize } from '@selfmp3/client'
-import { Tag as TagIcon } from '../../ui/components/Icons'
+import { Pencil, Tag as TagIcon } from '../../ui/components/Icons'
 import type { MenuItem } from '../../ui/components/MoreMenu'
 import { showToast } from '../../ui/toast'
 import { useOpenTag } from './useOpenTag'
-import { PlaceMissing } from './PlaceMissing'
+import { PlaceMissing, PlaceWaiting } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
+import { ArtistNamesEditor } from './ArtistNamesEditor'
 import { existingTag } from './tag.model'
-import { plural, findArtist, type Artist } from '@selfmp3/shared'
+import { SameArtistCard } from './SameArtistCard'
+import { plural, findArtist, joinedArtists, sameArtistAsk, type Artist } from '@selfmp3/shared'
 
 /**
  * An artist's page, `/artist/<name>` (docs/ui-mock `P10`): the tag page with
  * a figure where the dot would be. An artist is what the songs say, so it
  * cannot be renamed or deleted here; after what every list's ⋯ offers, its
- * own is the one bridge there is, "Make a tag from this artist" (`P11`).
+ * own are the one bridge there is, "Make a tag from this artist" (`P11`), and
+ * the other names search finds the artist by.
+ *
+ * An artist joined to another by its other names (shared artistJoins.ts) is
+ * that artist's page, under its name, whichever spelling the address has; a
+ * smaller artist that may be a bigger one asks (`SameArtistCard`).
  */
 export function ArtistScreen(): ReactNode {
   const { name } = useLocalSearchParams<{ name: string }>()
   const { data: library } = useLibrary()
-  const artist = (library ? findArtist(library.songs, name ?? '') : null) ?? null
+  const artist =
+    (library ? findArtist(joinedArtists(library.songs, library), name ?? '') : null) ?? null
+  const ask = useMemo(
+    () => (library && artist ? sameArtistAsk(library.songs, library, artist) : null),
+    [library, artist],
+  )
   const makeTag = useMakeTag(artist)
+  const [naming, setNaming] = useState(false)
+  // The names editor opens over the same ⋯.
+  const anchor = useRef<View>(null)
 
-  if (!library) return null
+  if (!library) return <PlaceWaiting />
   if (!artist) return <PlaceMissing kind="artist" name={name ?? ''} />
-  return <PlacePage key={artist.key} places={[{ kind: 'artist', artist }]} menuItems={[makeTag]} />
+  return (
+    <>
+      <PlacePage
+        key={artist.key}
+        places={[{ kind: 'artist', artist }]}
+        notice={ask ? <SameArtistCard ask={ask} /> : undefined}
+        menuAnchor={anchor}
+        menuItems={[
+          makeTag,
+          {
+            key: 'other-names',
+            label: 'Other names…',
+            icon: <Pencil size={iconSize.item} tone="textSecondary" />,
+            onPress: () => setNaming(true),
+          },
+        ]}
+      />
+      <ArtistNamesEditor
+        artist={naming ? artist : null}
+        anchorRef={anchor}
+        onClose={() => setNaming(false)}
+      />
+    </>
+  )
 }
 
 /**
@@ -53,7 +92,10 @@ function useMakeTag(artist: Artist | null): MenuItem {
       const tag = await createTag.mutateAsync({ name: artist.name })
       await bulkTag.mutateAsync({ songIds: [...artist.songIds], tagId: tag.id, action: 'add' })
       const count = artist.songIds.length
-      showToast(`Made the tag “${tag.name}” from ${plural(count, 'song', 'songs')}`, 'good')
+      showToast(
+        { over: `Made a tag from ${plural(count, 'song', 'songs')}`, say: tag.name },
+        'good',
+      )
       openTag(tag)
     } catch {
       // The mutations say what failed themselves.

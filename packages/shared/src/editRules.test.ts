@@ -84,9 +84,22 @@ describe('tags', () => {
     expect(tagRenameProblem(tags, 1, undefined)).toBeNull()
   })
 
-  it('take the colour asked for, or the one their name always gives', () => {
-    expect(newTagHue('Chill', 40)).toBe(40)
-    expect(newTagHue('Chill', undefined)).toBe(hueFromString('chill'))
+  it('take the colour asked for, or the one farthest from the colours in use', () => {
+    expect(newTagHue('Chill', 40, [40])).toBe(40)
+    // The first tag: its name's own colour.
+    expect(newTagHue('Chill', undefined, [])).toBe(hueFromString('chill'))
+    // Two reds taken: the blue across the wheel from them.
+    expect(newTagHue('calm', undefined, [0, 22])).toBe(192)
+    // Never a hue already in use while one is free.
+    const used = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290]
+    expect(newTagHue('calm', undefined, used)).toBe(318)
+  })
+
+  it('give a name the same colour in the same library, the nearest of the farthest', () => {
+    // 0 is taken: 168 and 192 are about as far, and the name picks between them.
+    const hue = newTagHue('calm', undefined, [0])
+    expect(hue).toBe(newTagHue('calm', undefined, [0]))
+    expect([168, 192]).toContain(hue)
   })
 
   it('set on a song all at once are the ones that go on and the ones that come off', () => {

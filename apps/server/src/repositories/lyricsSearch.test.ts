@@ -17,6 +17,7 @@ function makeDb(): Database.Database {
   const db = new Database(':memory:')
   db.exec(`
     CREATE TABLE songs (id INTEGER PRIMARY KEY, missing INTEGER NOT NULL DEFAULT 0,
+                        title TEXT NOT NULL DEFAULT '', artist TEXT NOT NULL DEFAULT '',
                         lyrics_kind TEXT NOT NULL DEFAULT 'none');
     CREATE VIRTUAL TABLE lyrics_fts USING fts5(
       song_id UNINDEXED, line_no UNINDEXED, line UNINDEXED, tokens,
@@ -94,6 +95,37 @@ describe('LyricsSearchRepository', () => {
     expect(repo.search('nothing here')).toEqual([])
     // A single Han character that appears in two songs still yields one row each.
     expect(repo.search('風').length).toBe(1)
+  })
+
+  it('finds a chorus once per song, where it is first sung', () => {
+    const db = makeDb()
+    db.exec(`INSERT INTO songs (id, title, artist, lyrics_kind) VALUES
+      (1, '夜に駆ける', 'YOASOBI', 'synced'), (2, '群青', 'YOASOBI', 'synced')`)
+    const repo = new LyricsSearchRepository(db)
+    repo.replace(1, 'h1', [
+      '沈むように溶けてゆくように',
+      '明けない夜に落ちてゆく前に',
+      '明けない夜に零れた涙も',
+      '沈むように溶けてゆくように',
+    ])
+    repo.replace(2, 'h2', ['ああ いつもの様に'])
+
+    expect(repo.search('沈むように')).toEqual([{ song_id: 1, line: '沈むように溶けてゆくように' }])
+    // The later line ranks better (it is shorter); the first sung is the one shown.
+    expect(repo.search('明けない夜に')).toEqual([
+      { song_id: 1, line: '明けない夜に落ちてゆく前に' },
+    ])
+  })
+
+  it('finds two copies of one song once, and two songs that share a line twice', () => {
+    const db = makeDb()
+    db.exec(`INSERT INTO songs (id, title, artist, lyrics_kind) VALUES
+      (1, '夜に駆ける', 'YOASOBI', 'synced'), (3, '夜に駆ける', 'yoasobi', 'synced'),
+      (4, 'Cover', 'Someone', 'synced')`)
+    const repo = new LyricsSearchRepository(db)
+    for (const id of [1, 3, 4]) repo.replace(id, `h${id}`, ['沈むように溶けてゆくように'])
+
+    expect(repo.search('溶けて').map(row => row.song_id)).toEqual([1, 4])
   })
 
   it('tracks what was indexed and what is still missing', () => {

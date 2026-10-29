@@ -37,9 +37,9 @@ export class AudioFeaturesRepository {
     this.#upsert = db.prepare(`
       INSERT INTO song_audio_features (
         song_id, bpm, energy, loudness_lufs, key, camelot, danceability, analyzed_at, version
-      ) VALUES (
-        @songId, @bpm, @energy, @loudnessLufs, @key, @camelot, @danceability, datetime('now'), @version
       )
+      SELECT @songId, @bpm, @energy, @loudnessLufs, @key, @camelot, @danceability, datetime('now'), @version
+       WHERE EXISTS (SELECT 1 FROM songs WHERE id = @songId)
       ON CONFLICT (song_id) DO UPDATE SET
         bpm           = excluded.bpm,
         energy        = excluded.energy,
@@ -87,8 +87,12 @@ export class AudioFeaturesRepository {
     return row ? toAudioFeatures(row) : null
   }
 
-  upsert(songId: number, features: NewFeatures): void {
-    this.#upsert.run({ songId, ...features })
+  /**
+   * Whether it was written: not for a song removed while it was being
+   * analysed, which used to fail the foreign key and end the analysis loop.
+   */
+  upsert(songId: number, features: NewFeatures): boolean {
+    return this.#upsert.run({ songId, ...features }).changes > 0
   }
 
   /**

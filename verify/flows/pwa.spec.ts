@@ -50,19 +50,20 @@ test.describe('the installable web app', () => {
     })
     expect(new URL(scope).pathname).toBe('/')
 
-    // The worker controls a page it did not load; the next load is its.
-    await page.reload()
-    await expect
-      .poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null), {
-        timeout: 20_000,
-      })
-      .toBe(true)
+    // Straight after the first visit, with no second load: the page that
+    // loaded the bundle was not the worker's, so the worker keeps it itself
+    // as it installs (sw.ts, `keepShell`). Kept lazily, the first offline
+    // open was a blank page.
     await expect
       .poll(
         () =>
           page.evaluate(async () => {
-            const names = await caches.keys()
-            return names.some(name => name.startsWith('selfmp3-shell-'))
+            for (const name of await caches.keys()) {
+              if (!name.startsWith('selfmp3-shell-')) continue
+              const kept = await (await caches.open(name)).keys()
+              if (kept.some(request => request.url.includes('/_expo/'))) return true
+            }
+            return false
           }),
         { timeout: 20_000 },
       )

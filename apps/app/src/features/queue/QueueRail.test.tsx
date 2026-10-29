@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { QueueState, Song } from '@selfmp3/shared'
 
 import { OverlayProvider } from '../../shell/Overlay'
+import { currentToasts, dismissToast } from '../../ui/toast'
 import { closeQueueSheet, isQueueSheetOpen, openQueueSheet } from './queueSheet.store'
 import { QueueRail } from './QueueRail'
 
@@ -87,11 +88,13 @@ jest.mock('../../offline/DownloadsProvider', () => ({
     state: { index: { version: 1, entries: {} } },
     installed: false,
     streamBlocked: false,
+    playedIds: new Set(),
   }),
 }))
 jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))
 jest.mock('expo-router', () => ({
   useRouter: () => ({ navigate: () => undefined, push: () => undefined }),
+  usePathname: () => '/library',
 }))
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
@@ -102,6 +105,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: true, dense: true, compact: false, finePointer: true, width: 1400 }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 1400, height: 900, scale: 2, fontScale: 1 }),
@@ -132,14 +136,17 @@ describe('the Up next rail', () => {
     jest.clearAllMocks()
     openQueueSheet()
   })
-  afterEach(() => closeQueueSheet())
+  afterEach(() => {
+    closeQueueSheet()
+    for (const toast of currentToasts()) dismissToast(toast.id)
+  })
 
   it('clears the rest, as the phone’s sheet does, and lists what played', async () => {
     mockSet({ current: song(2), queue: queue([1, 2, 3], 1), ranOut: false })
     await draw()
 
     expect(screen.getByRole('button', { name: 'Playing Song 2. Open now playing' })).toBeTruthy()
-    expect(screen.getByText('Next · 1 song · 4 min')).toBeTruthy()
+    expect(screen.getByText(/1 song · 4 min/)).toBeTruthy()
     expect(screen.getByText('Played')).toBeTruthy()
 
     await fireEvent.press(screen.getByTestId('queue-clear-rest'))
@@ -152,7 +159,32 @@ describe('the Up next rail', () => {
 
     expect(screen.getByRole('button', { name: 'Played Song 2. Open now playing' })).toBeTruthy()
     expect(screen.getByText('That was the only song')).toBeTruthy()
-    expect(screen.getByTestId('queue-clear-rest')).toBeDisabled()
+    // Nothing follows it, so there is no rest to clear.
+    expect(screen.queryByTestId('queue-clear-rest')).toBeNull()
+  })
+
+  it('has nothing to clear when every other song has played', async () => {
+    // Offered, it took only the played history; over "Nothing next" it is not drawn (w23).
+    mockSet({ current: song(2), queue: queue([1, 2], 1), ranOut: false })
+    await draw()
+    expect(screen.getByText('Nothing next', { exact: false })).toBeTruthy()
+    expect(screen.queryByTestId('queue-clear-rest')).toBeNull()
+  })
+
+  it('takes its Undo away once another song has started, rather than offering one that does nothing', async () => {
+    mockSet({ current: song(2), queue: queue([1, 2, 3, 4], 1), ranOut: false })
+    await draw()
+    await fireEvent.press(screen.getByTestId('queue-clear-rest'))
+    const cleared = (): boolean =>
+      currentToasts().some(toast => toast.over === 'Cleared from Up next')
+    expect(cleared()).toBe(true)
+
+    // The same song still playing, it can still be undone.
+    await act(async () => mockSet({ current: song(2), queue: queue([2, 9], 0), ranOut: false }))
+    expect(cleared()).toBe(true)
+
+    await act(async () => mockSet({ current: song(9), queue: queue([2, 9], 1), ranOut: false }))
+    expect(cleared()).toBe(false)
   })
 
   it('puts itself away when nothing is left, rather than coming back with the next song', async () => {

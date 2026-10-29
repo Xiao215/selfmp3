@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { HueSchema, IdSchema } from './common.js'
+import { BULK_IDS_MAX, HueSchema, IdSchema, tidyText } from './common.js'
 
 /**
  * Tags are the primary way the library is organised — they replace folders,
@@ -21,13 +21,15 @@ export type Tag = z.infer<typeof TagSchema>
  */
 export const TAG_NAME_MAX = 30
 
-/** Tag names are compared case-insensitively, so we normalise whitespace too. */
+/**
+ * Tag names are compared case-insensitively, so we normalise whitespace too,
+ * and tidy them as every name is (`tidyText`): two tags that look the same
+ * are one, and one that looks like nothing is refused.
+ */
 export const TagNameSchema = z
   .string()
-  .trim()
-  .min(1)
-  .max(TAG_NAME_MAX)
-  .transform(s => s.replace(/\s+/g, ' '))
+  .transform(s => tidyText(s).replace(/\s+/g, ' '))
+  .pipe(z.string().min(1).max(TAG_NAME_MAX))
 
 export const CreateTagSchema = z.object({
   name: TagNameSchema,
@@ -43,7 +45,7 @@ export type RenameTag = z.infer<typeof RenameTagSchema>
 
 /** Apply or remove one tag across many songs at once. */
 export const BulkTagSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
   tagId: IdSchema,
   action: z.enum(['add', 'remove']),
 })

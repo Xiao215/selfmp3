@@ -3,7 +3,7 @@ import { useMutation, type UseMutationResult } from '@tanstack/react-query'
 import type { MetadataSuggestion } from '@selfmp3/shared'
 import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from '../smart/useSmartServer'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 
 interface Suggesting {
   /** The switch in Settings › Smart features: off, the card is not drawn. */
@@ -26,7 +26,7 @@ interface Suggesting {
  * `askFor` is the song's id in the server's numbering, as the dialog has it.
  */
 export function useMetadataSuggestion(askFor: number): Suggesting {
-  const switches = useSmartSwitches()
+  const on = useSmartOn()
   const server = useSmartServer()
   const waiting = useRef<AbortController | null>(null)
   useEffect(() => () => waiting.current?.abort(), [])
@@ -43,5 +43,5 @@ export function useMetadataSuggestion(askFor: number): Suggesting {
     },
   })
 
-  return { on: switches.metadata, ask }
+  return { on, ask }
 }

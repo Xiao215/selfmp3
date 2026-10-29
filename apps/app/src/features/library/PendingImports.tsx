@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { space, type, useCloudImports, useLibrary, coverSize } from '@selfmp3/client'
-import { Cover } from '../../ui/components/Cover'
+import { ImportCover } from '../import/ImportCover'
 import { useLayoutValue } from '../../shell/useLayout'
 import { pendingImports } from './pendingImports.model'
 import { OPACITY } from '../../ui/motion.model'
@@ -16,7 +16,6 @@ import { textColumn } from '../../ui/surfaces'
  * are: waiting, downloading, almost ready, or why they failed.
  */
 export function PendingImports(): ReactNode {
-  const { theme } = useUnistyles()
   const { data } = useCloudImports()
   const library = useLibrary()
   // The size of the library's own rows below, so the two line up.
@@ -35,21 +34,20 @@ export function PendingImports(): ReactNode {
     <View style={styles.list} accessibilityLabel="Songs on their way" testID="pending-imports">
       {rows.map(row => (
         <View key={row.uid} style={styles.row} testID={`pending-import-${row.uid}`}>
-          <View style={styles.faded}>
-            <Cover
-              uri={row.thumbnail}
-              title={row.title}
-              size={wide ? coverSize.rowDense : coverSize.row}
-            />
-          </View>
+          <ImportCover
+            uri={row.thumbnail}
+            title={row.title}
+            size={wide ? coverSize.rowDense : coverSize.row}
+            failed={row.failed}
+            untitled={row.untitled}
+            dim
+          />
           <View style={[styles.text, styles.faded]}>
             <Text style={styles.title} numberOfLines={1}>
               {row.title}
             </Text>
-            <Text
-              style={[styles.status, row.failed && { color: theme.colors.danger }]}
-              numberOfLines={2}
-            >
+            {/* A failure's reason in the same quiet words: its red is the dot (AB1). */}
+            <Text style={styles.status} numberOfLines={2}>
               {row.status}
             </Text>
           </View>

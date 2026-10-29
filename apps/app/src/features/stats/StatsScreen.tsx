@@ -1,24 +1,36 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Text, View } from 'react-native'
+import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
-import type { Song, Stats, Tag } from '@selfmp3/shared'
-import { motion, radius, type, useLibrary, type ServerConnection, space } from '@selfmp3/client'
-import { useContentWidth } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import Svg, { Path } from 'react-native-svg'
+import { joinedKeys, type Song, type Stats, type Tag } from '@selfmp3/shared'
+import {
+  motion,
+  radius,
+  type,
+  useLibrary,
+  type ServerConnection,
+  space,
+  deepWash,
+  withAlpha,
+} from '@selfmp3/client'
+import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
 import { Segmented } from '../../ui/components/Segmented'
 import { useFade } from '../../ui/motion'
-import { card, label, serif, rowTitle } from '../../ui/surfaces'
+import { card, figureLabel, serif, rowTitle } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { songLink } from '../song/song.model'
 import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
 import { useArtistPicture } from '../tag/useArtistPicture'
+import { backdropVeil } from '../nowPlaying/nowPlaying.model'
+import { useShownScheme } from '../../ui/theme/unistyles'
 import { StatsFrame } from './StatsFrame'
 import { useStatsFor, useStatsSongs } from './statsSource'
 import {
@@ -35,15 +47,19 @@ import {
   type RankKind,
   type StatsPeriod,
 } from './stats.model'
-import { useSvgId } from '../../ui/useSvgId'
+import { Button } from '../../ui/components/Button'
 import { EmptyState } from '../../ui/components/EmptyState'
-import { PageLoading } from '../../ui/components/PageLoading'
+import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
+import { FIT_FIGURE, useLargeText } from '../../ui/textScale'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
+
+/** More squares than a month's, and the strip closes its gaps up. */
+const STRIP_TIGHT = 31
 
 /**
  * Stats (`P32`, `C15`): Listened, Peak hour and Streak as cards, each one big
@@ -56,14 +72,17 @@ const SPARK = { width: 120, height: 56 }
  */
 export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode {
   const [period, setPeriod] = useState<StatsPeriod>('month')
-  const { data: stats, isLoading } = useStatsFor(via, statsRangeFor(period))
+  const { data: stats, isLoading, refetch } = useStatsFor(via, statsRangeFor(period))
 
   return (
     <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
       {isLoading && !stats ? (
-        <PageLoading line="Working it out…" />
+        <CardsWaiting />
       ) : !stats ? (
-        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE} />
+        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE}>
+          {/* It asks again by itself once the library answers; this is for now. */}
+          <Button label="Try again" onPress={refetch} />
+        </EmptyState>
       ) : stats.totals.plays === 0 ? (
         <EmptyState
           title="Nothing to show yet"
@@ -80,26 +99,81 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
 }
 
 /**
- * The three cards. A computer lays them in one row, Listened twice as wide; a
- * phone gives Listened the width and puts the other two side by side under it.
+ * The cards' shapes while the numbers are worked out (AA1), laid out as the
+ * cards will be, and the first few ranked lines under them.
+ */
+function CardsWaiting(): ReactNode {
+  const { wide } = useLayoutFlags()
+  const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
+  const height = wide ? 190 : WAITING_CARD
+  const listened = <Bone height={height} radius={radius.cardLg} />
+  const small = (
+    <View style={styles.cardRow}>
+      <View style={styles.oneCol}>
+        <Bone height={height} radius={radius.cardLg} />
+      </View>
+      <View style={styles.oneCol}>
+        <Bone height={height} radius={radius.cardLg} />
+      </View>
+    </View>
+  )
+  return (
+    <Skeleton label="Working it out" testID="stats-loading" style={styles.waiting}>
+      {row ? (
+        <View style={styles.cardRow}>
+          <View style={styles.twoCols}>{listened}</View>
+          <View style={[styles.oneCol, styles.waitingPair]}>{small}</View>
+        </View>
+      ) : (
+        <>
+          {listened}
+          {small}
+        </>
+      )}
+      {WAITING_LINES.map(width => (
+        <View key={width} style={styles.waitingLine}>
+          <Bone width={40} height={40} radius={radius.coverSm} />
+          <Bone width={width} height={12} radius={radius.pill} />
+        </View>
+      ))}
+    </Skeleton>
+  )
+}
+
+/** A phone's card while it waits, about as tall as its words and picture. */
+const WAITING_CARD = 150
+/** The ranked lines' names while they wait. */
+const WAITING_LINES = ['46%', '38%', '52%'] as const
+
+/**
+ * The three cards. A page column with the room lays them in one row, Listened
+ * twice as wide; a phone, or a computer's column the sidebar and Up next have
+ * narrowed, gives Listened the width and puts the other two side by side under
+ * it. Measured on the column, not the window: at 820, or with the rail open
+ * at 1100, a row left Listened's number 64 px beside its line and cut it to "1 …".
  */
 function Cards({ stats }: { stats: Stats }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
+  const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
+  // On a very wide page the line runs across the card from the words, rather
+  // than sitting at the card's far end 1000 px from its number (P1 C).
+  const fill = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.wideFill)
   const listened = useMemo(() => listenedCard(stats), [stats])
   const peak = useMemo(() => peakCard(stats.hourly), [stats])
-  // Today is read once per answer: the dots move on when the numbers do.
+  // Today is read once per answer: the squares move on when the numbers do.
   const streak = useMemo(() => streakCard(stats, new Date()), [stats])
+  const large = useLargeText()
 
   const listenedView = (
     <View style={[styles.card, styles.listened, wide && styles.cardWide]} testID="stats-listened">
-      <View style={styles.listenedWords}>
+      <View style={[styles.listenedWords, fill && styles.listenedWordsHug]}>
         <Text style={styles.cardLabel}>Listened</Text>
-        <Text style={styles.bigNumber} numberOfLines={1}>
+        <Text style={styles.bigNumber} {...FIT_FIGURE}>
           {listened.value}
         </Text>
         <Text style={styles.cardLine}>{listened.line}</Text>
       </View>
-      <Spark values={listened.trend} />
+      <Spark values={listened.trend} fill={fill} />
     </View>
   )
 
@@ -126,7 +200,9 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
         ))}
       </View>
       <View style={styles.cardFoot}>
-        <Text style={styles.midNumber}>{peak.value ?? '—'}</Text>
+        <Text style={styles.midNumber} {...FIT_FIGURE}>
+          {peak.value ?? '—'}
+        </Text>
         {peak.words ? <Text style={styles.cardNote}>{peak.words}</Text> : null}
       </View>
     </View>
@@ -140,27 +216,48 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
       testID="stats-streak"
     >
       <Text style={styles.cardLabel}>Streak</Text>
-      <View style={styles.dots}>
-        {streak.dots.map(dot => (
-          <View
-            key={dot.date}
-            style={[
-              styles.dot,
-              dot.played && styles.dotPlayed,
-              // Today is white whichever it is: where the run stands now.
-              dot.today && styles.dotToday,
-            ]}
-          />
-        ))}
+      {/* The window as one strip: the run in the accent, other days with music
+          filled, today ringed, and where it starts and ends under its ends. */}
+      <View>
+        <View style={[styles.strip, streak.squares.length > STRIP_TIGHT && styles.stripTight]}>
+          {streak.squares.map(square => (
+            <View
+              key={square.date}
+              style={[
+                styles.square,
+                square.played && styles.squarePlayed,
+                square.inRun && styles.squareRun,
+                square.today && styles.squareToday,
+              ]}
+            />
+          ))}
+        </View>
+        <View style={styles.stripEnds}>
+          <Text style={styles.stripEnd}>{streak.from}</Text>
+          <Text style={styles.stripEnd}>today</Text>
+        </View>
       </View>
       <View style={styles.cardFoot}>
-        <Text style={styles.midNumber}>{streak.value}</Text>
+        <Text style={styles.midNumber} {...FIT_FIGURE}>
+          {streak.value}
+        </Text>
         {streak.line ? <Text style={styles.cardNote}>{streak.line}</Text> : null}
       </View>
     </View>
   )
 
-  if (wide) {
+  // At the largest text sizes each card takes the width, so its number is not
+  // shrunk to half a card's (AM1).
+  if (large) {
+    return (
+      <>
+        {listenedView}
+        {peakView}
+        {streakView}
+      </>
+    )
+  }
+  if (row) {
     return (
       <View style={styles.cardRow}>
         <View style={styles.twoCols}>{listenedView}</View>
@@ -180,22 +277,35 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
   )
 }
 
-/** Minutes per day as one accent stroke. Decoration beside the number, so unread. */
-function Spark({ values }: { values: readonly number[] }): ReactNode {
+/**
+ * Minutes per day as one accent stroke. Decoration beside the number, so
+ * unread. `fill` draws it across the room the words leave, as wide as that is.
+ */
+function Spark({ values, fill = false }: { values: readonly number[]; fill?: boolean }): ReactNode {
   const { theme } = useUnistyles()
+  const [room, setRoom] = useState(0)
   if (values.length < 2) return null
+  const width = fill ? room : SPARK.width
   return (
-    <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Svg width={SPARK.width} height={SPARK.height} viewBox={`0 0 ${SPARK.width} ${SPARK.height}`}>
-        <Path
-          d={sparkPath(values, SPARK.width, SPARK.height)}
-          fill="none"
-          stroke={theme.colors.accent}
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </Svg>
+    <View
+      aria-hidden
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={fill ? styles.sparkFill : null}
+      onLayout={fill ? event => setRoom(Math.floor(event.nativeEvent.layout.width)) : undefined}
+    >
+      {width > 0 ? (
+        <Svg width={width} height={SPARK.height} viewBox={`0 0 ${width} ${SPARK.height}`}>
+          <Path
+            d={sparkPath(values, width, SPARK.height)}
+            fill="none"
+            stroke={theme.colors.accent}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      ) : null}
     </View>
   )
 }
@@ -251,7 +361,12 @@ function RankedList({
       .map(top => songFor(top.songId))
       .filter((song): song is Song => song !== undefined)
     for (const row of rows) {
-      const song = artistCoverSong(row.name, played, library?.songs ?? [])
+      const song = artistCoverSong(
+        row.name,
+        played,
+        library?.songs ?? [],
+        library ? joinedKeys(library.songs, library, row.name) : undefined,
+      )
       if (song) covers.set(row.key, song)
     }
     return covers
@@ -291,10 +406,11 @@ function RankedList({
 }
 
 /**
- * The most-played artist, as a portrait rather than a line (Xiao chose F,
- * 2026-10-01): their banner across the column with the name on it, the way
- * their own page opens. Without a banner it is lit by the cover they wear in
- * the lines below.
+ * The most-played artist, as a card rather than a line: their round picture
+ * beside the rank (Xiao chose A, 2026-10-24), and behind it the cover they
+ * are most played for, blurred, in its colour (A1, 2026-10-25). Their own
+ * picture is not the light: it may be a logo on black (HOYO-MiX), which
+ * blurs to nothing. Without a picture the cover stands beside the rank too.
  */
 function ArtistLead({
   row,
@@ -307,13 +423,18 @@ function ArtistLead({
 }): ReactNode {
   const router = useRouter()
   const artFor = useArt()
+  const backdropFor = useArt(ROW_COVER_SIZE)
   const picture = useArtistPicture(row.known ? row.name : null)
-  // Nothing while the picture is on its way, so a cover does not flash up
-  // before the banner that replaces it.
-  const art = picture === undefined ? null : (picture?.banner ?? (cover ? artFor(cover) : null))
+  // On its way while the picture is, so a cover does not flash up before the
+  // picture that replaces it.
+  const art =
+    picture === undefined ? undefined : (picture?.portrait ?? (cover ? artFor(cover) : null))
   return (
     <LeadCard
       art={art}
+      backdrop={cover ? backdropFor(cover) : null}
+      tone={cover?.coverTone ?? null}
+      round
       rank={row.rank}
       name={row.name}
       note={`${row.trailing} · most played`}
@@ -340,9 +461,13 @@ function SongLead({
 }): ReactNode {
   const router = useRouter()
   const artFor = useArt()
+  const backdropFor = useArt(ROW_COVER_SIZE)
   return (
     <LeadCard
       art={song ? artFor(song) : null}
+      backdrop={song ? backdropFor(song) : null}
+      tone={song?.coverTone ?? null}
+      round={false}
       rank={row.rank}
       name={row.name}
       note={row.artist ? `${row.trailing} · ${row.artist}` : row.trailing}
@@ -353,13 +478,22 @@ function SongLead({
   )
 }
 
+/** The picture beside first place's rank: the card's height less room above and below. */
+const LEAD_PICTURE = 84
+
 /**
- * First place as a card: a picture to the right, faded into the card under
- * the serif rank and the name. Without a picture it is the card's raised
- * tone. The bar is left out: the first one is always full.
+ * First place as a card: the serif rank, the picture sharp beside it and the
+ * name, over a cover blurred to fill the card and veiled in that cover's own
+ * colour taken deep (`deepWash`), so the words read on any cover and a pale
+ * one stays its colour rather than going grey. Without a cover it is the
+ * card's raised tone and the picture's letter tile. The bar is left out: the
+ * first one is always full.
  */
 function LeadCard({
   art,
+  backdrop,
+  tone,
+  round,
   rank,
   name,
   note,
@@ -368,6 +502,10 @@ function LeadCard({
   testID,
 }: {
   art: string | null | undefined
+  /** A cover, small: blurred, a 128 looks the same and costs far less on iOS. */
+  backdrop: string | null | undefined
+  tone: Song['coverTone']
+  round: boolean
   rank: number
   name: string
   note: string
@@ -376,9 +514,14 @@ function LeadCard({
   testID: string
 }): ReactNode {
   const { theme } = useUnistyles()
+  const scheme = useShownScheme()
   const [loaded, setLoaded] = useState<string | null>(null)
-  const shown = useFade(art !== null && loaded === art, motion.base, motion.base)
-  const shade = useSvgId('statslead')
+  const shown = useFade(!!backdrop && loaded === backdrop, motion.base, motion.base)
+  // Thicker over a cover close to the text, as Now Playing's; in the cover's
+  // colour it stays that colour however thick. A cover not yet read is veiled
+  // in the card's own tone, as thickly as a pale one would need.
+  const veil = backdropVeil(tone, scheme, tone ? 0.6 : 0.8)
+  const veilColor = tone ? deepWash(tone, scheme) : theme.colors.surface3
 
   return (
     <Press
@@ -390,39 +533,27 @@ function LeadCard({
       testID={testID}
       style={styles.lead}
     >
-      {/*
-       * The picture keeps to the right and fades into the card under the
-       * words. A banner's subject sits in its middle, a face or, for
-       * HOYO-MiX, a logo spelling the name; drawn across the whole card,
-       * the name would be written over it.
-       */}
-      {art ? (
-        <Animated.View style={[styles.leadArt, { opacity: shown }]}>
-          <Animated.Image
-            source={{ uri: art }}
-            style={styles.leadPicture}
+      {backdrop ? (
+        <Animated.View pointerEvents="none" style={[styles.leadLight, { opacity: shown }]}>
+          <Image
+            source={{ uri: backdrop }}
+            style={styles.leadBlur}
             resizeMode="cover"
-            onLoad={() => setLoaded(art)}
+            blurRadius={40}
+            onLoad={() => setLoaded(backdrop)}
             accessibilityIgnoresInvertColors
           />
-          <Svg
-            width="100%"
-            height="100%"
-            preserveAspectRatio="none"
-            style={StyleSheet.absoluteFill}
-          >
-            <Defs>
-              <LinearGradient id={shade} x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={theme.colors.surface3} stopOpacity={1} />
-                <Stop offset="0.6" stopColor={theme.colors.surface3} stopOpacity={0} />
-              </LinearGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${shade})`} />
-          </Svg>
+          <View style={[styles.leadLight, { backgroundColor: withAlpha(veilColor, veil) }]} />
         </Animated.View>
       ) : null}
       <View style={styles.leadWords}>
         <Text style={styles.leadRank}>{rank}</Text>
+        <Cover
+          uri={art}
+          title={name}
+          size={LEAD_PICTURE}
+          radius={round ? LEAD_PICTURE / 2 : undefined}
+        />
         <View style={styles.leadNames}>
           <Text style={styles.leadName} numberOfLines={1}>
             {name}
@@ -504,8 +635,8 @@ function RankedLine({
     ) : row.kind === 'artist' ? (
       <RankedArtistFace name={row.name} known={row.known} cover={cover} />
     ) : (
-      <View style={styles.tagSquare}>
-        <TagDot hue={tag?.hue} size={10} />
+      <View style={styles.tagMark}>
+        <TagDot hue={tag?.hue} size={9} />
       </View>
     )
 
@@ -551,6 +682,10 @@ const styles = StyleSheet.create(theme => ({
   card: { ...card(theme.colors, radius.cardLg), padding: space.card },
   cardWide: { height: 190, paddingHorizontal: 20 },
   cardRow: { flexDirection: 'row', gap: space.md },
+  waiting: { gap: space.md },
+  // The two small cards' shapes beside Listened's take two columns between them.
+  waitingPair: { flex: 2 },
+  waitingLine: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   twoCols: { flex: 2, minWidth: 0 },
   oneCol: { flex: 1, minWidth: 0 },
   listened: {
@@ -562,23 +697,40 @@ const styles = StyleSheet.create(theme => ({
   // The words take the card's room before the spark does: squeezed, the number
   // was ellipsised to "2…", which is not a number.
   listenedWords: { gap: space.xs, flex: 1, minWidth: 0 },
-  cardLabel: label(theme.colors),
+  listenedWordsHug: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
+  sparkFill: { flex: 1, height: SPARK.height, marginLeft: space.gutterWide },
+  cardLabel: figureLabel(theme.colors),
   // Big numbers are the serif, which has one weight (`S2`), on the scale's
   // line height, which has room for its tall figures.
   bigNumber: serif(theme.colors),
   cardLine: { color: theme.colors.textSecondary, fontSize: type.sub },
-  small: { height: 150, padding: space.lg, justifyContent: 'space-between' },
+  // At least this tall, and taller where large text needs it: a set height cut
+  // the streak's number in half.
+  small: { minHeight: 150, padding: space.lg, justifyContent: 'space-between' },
   hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },
   hoursWide: { height: 60 },
   // An hour with plays is the raised tone; the busiest is the accent.
   hour: { flex: 1, borderRadius: 2, backgroundColor: theme.colors.surface3 },
   hourPeak: { backgroundColor: theme.colors.accent },
-  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.surface3 },
-  dotPlayed: { backgroundColor: theme.colors.accent },
-  dotToday: { backgroundColor: theme.colors.textPrimary },
+  strip: { flexDirection: 'row', gap: 2 },
+  // A year's 52 weeks: the gaps would take more room than the squares.
+  stripTight: { gap: 1 },
+  square: {
+    flex: 1,
+    aspectRatio: 1,
+    maxHeight: 22,
+    borderRadius: 2,
+    backgroundColor: theme.colors.surface3,
+  },
+  squarePlayed: { backgroundColor: theme.colors.textMuted },
+  squareRun: { backgroundColor: theme.colors.accent },
+  // A ring round today, whichever it is: where the run stands now.
+  squareToday: { borderWidth: 1.5, borderColor: theme.colors.textPrimary },
+  stripEnds: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.tight },
+  stripEnd: { color: theme.colors.textMuted, fontSize: type.tiny },
   cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: space.sm },
-  midNumber: serif(theme.colors, 'page'),
+  // Shrinks to fit the card's width (`FIT_FIGURE`), so it may not grow past it.
+  midNumber: { ...serif(theme.colors, 'page'), flexShrink: 1, maxWidth: '100%' },
   cardNote: { color: theme.colors.textSecondary, fontSize: type.small },
   ranked: {
     paddingTop: space.roomy,
@@ -603,32 +755,25 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: space.tight,
     borderRadius: radius.card,
     overflow: 'hidden',
-    justifyContent: 'flex-end',
-    backgroundColor: theme.colors.surface3,
-  },
-  leadArt: { position: 'absolute', top: 0, bottom: 0, right: 0, left: '38%' },
-  // Dimmed, so a long name running onto a white banner still reads.
-  leadPicture: { width: '100%', height: '100%', opacity: 0.8 },
-  leadWords: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: space.snug,
-    paddingHorizontal: space.roomy,
-    paddingBottom: space.md,
-  },
-  // The serif's figures stand taller than their own size (bigNumber above).
-  leadRank: { ...serif(theme.colors), color: theme.colors.accent },
-  leadNames: { flex: 1, minWidth: 0, paddingBottom: space.xs },
-  leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
-  leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
-  tagSquare: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.cover,
-    alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.surface3,
   },
+  leadLight: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+  // Drawn past the card's edges, where a blur thins out toward nothing.
+  leadBlur: { position: 'absolute', top: -40, bottom: -40, left: -40, right: -40 },
+  leadWords: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingLeft: space.roomy,
+    paddingRight: space.lg,
+  },
+  leadRank: serif(theme.colors),
+  leadNames: { flex: 1, minWidth: 0 },
+  leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
+  leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
+  // A tag's own dot and nothing round it, as everywhere else it stands for a tag.
+  tagMark: { width: 12, alignItems: 'center' },
   lineBody: { flex: 1, minWidth: 0, gap: 5 },
   lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   // The name takes what is left and ellipsises; the figure beside it never

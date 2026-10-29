@@ -13,17 +13,22 @@ import {
   fileNameSchema,
   fileTextSchema,
   headersSchema,
+  packSlicesSchema,
   loginItemOpenSchema,
+  menuStateSchema,
   secretKeySchema,
   secretValueSchema,
   streamSessionSchema,
   transferIdSchema,
+  windowGroundSchema,
   type DesktopInfo,
 } from '@selfmp3/desktop-bridge'
 
 import * as files from './files.js'
 import * as updates from './updates.js'
 
+import { setWindowGround } from './ground.js'
+import { setMenuState } from './menu.js'
 import { setPlaybackState } from './nowPlaying.js'
 import { encryptionAvailable, secretStore } from './secrets.js'
 import type { StreamProxy } from './stream.js'
@@ -112,6 +117,16 @@ export function registerIpc({
         headersSchema.optional().parse(headers),
       ),
   )
+  ipcMain.handle(
+    CHANNELS.filesUnpackTo,
+    (_event, kind: unknown, url: unknown, headers: unknown, slices: unknown) =>
+      files.unpackTo(
+        fileKindSchema.parse(kind),
+        externalUrlSchema.parse(url),
+        headersSchema.parse(headers),
+        packSlicesSchema.parse(slices),
+      ),
+  )
   ipcMain.handle(CHANNELS.filesWrite, (_event, kind: unknown, name: unknown, text: unknown) =>
     files.writeText(
       fileKindSchema.parse(kind),
@@ -132,6 +147,9 @@ export function registerIpc({
 
   ipcMain.handle(CHANNELS.bucketUse, (_event, session: unknown) => {
     stream.use(streamSessionSchema.parse(session))
+  })
+  ipcMain.handle(CHANNELS.bucketRelease, () => {
+    stream.release()
   })
 
   ipcMain.handle(CHANNELS.openExternal, async (_event, url: unknown) => {
@@ -158,5 +176,11 @@ export function registerIpc({
 
   ipcMain.handle(CHANNELS.setPlaybackState, (_event, state: unknown) => {
     setPlaybackState(dockPlaybackStateSchema.parse(state), window_)
+  })
+  ipcMain.handle(CHANNELS.setMenuState, (_event, state: unknown) => {
+    setMenuState(menuStateSchema.parse(state))
+  })
+  ipcMain.handle(CHANNELS.setWindowGround, (_event, colour: unknown) => {
+    setWindowGround(window_(), windowGroundSchema.parse(colour))
   })
 }

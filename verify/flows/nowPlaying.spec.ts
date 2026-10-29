@@ -34,7 +34,8 @@ test.describe('now playing', () => {
     await expect(page.getByRole('tab', { name: 'Queue' })).toHaveCount(0)
 
     await page.getByRole('tab', { name: 'Details' }).click()
-    await expect(page.getByText(/^sound$/i).first()).toBeVisible()
+    // How it sounds is a strip of tiles now, the first of them Tempo (F1).
+    await expect(page.getByText(/^tempo$/i).first()).toBeVisible()
 
     // Only the words, from the page's own button, and back to the full page.
     await page.getByRole('tab', { name: /Lyrics|Visual/ }).click()
@@ -49,7 +50,7 @@ test.describe('now playing', () => {
   })
 
   test('the title opens the song’s own page', async ({ page }, info) => {
-    test.skip(info.project.name === 'phone', 'a phone opens it from ⓘ, below')
+    test.skip(info.project.name === 'phone', 'a phone opens it from ⋯, below')
     await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)
@@ -84,7 +85,7 @@ test.describe('now playing', () => {
     await expect(bar).toBeVisible()
   })
 
-  test('a phone’s page: no tabs, the buttons by the title, the words view, and ⓘ to the song', async ({
+  test('a phone’s page: no tabs, Up next on top, the words view, and ⋯ to the song', async ({
     page,
   }, info) => {
     test.skip(info.project.name !== 'phone', 'the phone page')
@@ -94,12 +95,15 @@ test.describe('now playing', () => {
     await playSong(page, songRows(page).first())
 
     await page.getByRole('button', { name: /^Open now playing: / }).click()
-    await expect(page.getByTestId('now-playing-info')).toBeVisible()
-    await expect(page.getByRole('tab')).toHaveCount(0)
-
-    // Up next and ⋯ beside the title; no Lyrics or Sleep button: the cover opens
-    // the words, and the sleep timer is under ⋯.
     await expect(page.getByTestId('now-playing-queue')).toBeVisible()
+    await expect(page.getByTestId('now-playing-info')).toHaveCount(0)
+    await expect(page.getByRole('tab')).toHaveCount(0)
+    // No "Now playing" eyebrow: the head's middle says where the music came
+    // from when Up next knows, and a row of Library played alone is from nowhere.
+    await expect(page.getByText('Now playing', { exact: true })).toHaveCount(0)
+
+    // Up next at the head's right, ⋯ beside the title; no Lyrics or Sleep
+    // button: the cover opens the words, and the sleep timer is under ⋯.
     await expect(page.getByTestId('now-playing-more')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Lyrics', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Sleep', exact: true })).toHaveCount(0)
@@ -120,10 +124,10 @@ test.describe('now playing', () => {
     await expect(menu.getByRole('menuitem', { name: /^Add to playlist/ })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Devices' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Delete from library…' })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: 'Song details' })).toHaveCount(0)
+    await expect(menu.getByRole('menuitem', { name: 'Song details' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Add to Up next' })).toHaveCount(0)
 
-    // A timer set from there is in the header, in place of "Now playing".
+    // A timer set from there is in the header, in place of where it came from.
     await menu.getByRole('menuitem', { name: /^Sleep timer/ }).click()
     await page.getByRole('menuitem', { name: '15 minutes' }).click()
     await expect(page.getByTestId('now-playing-sleep')).toContainText('Stops in 15 min')
@@ -131,8 +135,9 @@ test.describe('now playing', () => {
     await page.getByRole('menuitem', { name: 'Off' }).click()
     await expect(page.getByTestId('now-playing-sleep')).toHaveCount(0)
 
-    // ⓘ puts the page away and opens the song's own.
-    await page.getByTestId('now-playing-info').click()
+    // Song details puts the page away and opens the song's own.
+    await page.getByTestId('now-playing-more').click()
+    await page.getByTestId('song-menu').getByRole('menuitem', { name: 'Song details' }).click()
     await expect(page).toHaveURL(/\/song\/\d+$/)
     await expect(page.getByTestId('song-screen')).toBeVisible()
   })

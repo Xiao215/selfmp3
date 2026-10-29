@@ -27,7 +27,7 @@ import type { Hub } from './hub.js'
  * health check, which a monitor asks without one.
  */
 export function createHubApp(hub: Hub): Express {
-  const app = frame(hub.config, hub.logger)
+  const app = frame(hub.config, hub.logger, hub.shared.metrics)
   app.use('/api', hubRoutes(hub))
   app.use('/api', (req: Request, res: Response, next: NextFunction): void => {
     const workspace = hub.resolve(req)

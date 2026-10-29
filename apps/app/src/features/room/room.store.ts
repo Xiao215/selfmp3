@@ -17,11 +17,11 @@ import {
 } from '@selfmp3/client'
 import { doormanUrl } from '../../ports/doormanUrl'
 import { prefs } from '../../ports/prefs'
-import { markGuideSeen } from '../guide/guideMemory'
 import { isHost } from './room.model'
 import { connectionKind } from '../../offline/connectionKind'
 import { showToast } from '../../ui/toast'
 import { session as cloudSession } from '../../replica'
+import { countUse } from '../usage/usage'
 
 /**
  * The room this device is in, if any (docs/features/listen-together.md): its
@@ -69,11 +69,46 @@ export const roomApi = createRoomApi(doormanUrl, plainFetch)
 
 let view: RoomView = { pass: readPass(), state: null, offset: 0, link: 'offline' }
 const listeners = new Set<() => void>()
-const endedListeners = new Set<(state: RoomState) => void>()
+/**
+ * How a room ended for this device: it left (or, as host, ended it), the host
+ * ended it (or it sat idle), or the host took this device out of it.
+ */
+export type RoomEnd = 'left' | 'ended' | 'removed'
+
+const endedListeners = new Set<(state: RoomState, how: RoomEnd) => void>()
 
 function set(next: Partial<RoomView>): void {
   view = { ...view, ...next }
   for (const listener of listeners) listener()
+}
+
+/**
+ * Take a state the doorman sent for the room `pass` let this device into, if
+ * this device is still in that room and the state is not older than the one
+ * already held. An action's answer and the socket race each other: a change
+ * someone else made can come down the socket before the answer to an earlier
+ * one, and the answer must not put the room back as it was. Every state is
+ * stamped with the doorman's clock as it was sent (`serverTime`), which only
+ * moves forward from one change to the next.
+ */
+function takeState(pass: RoomPass, state: RoomState): void {
+  if (view.pass !== pass) return
+  if (view.state && state.serverTime < view.state.serverTime) return
+  set({ state })
+}
+
+/**
+ * The room is over, if it is still the one `pass` let this device into: an
+ * answer or a timer that started for one room never finishes the next one,
+ * nor a room already left.
+ */
+function finishIfStill(pass: RoomPass, how: RoomEnd): void {
+  if (view.pass === pass) finish(how)
+}
+
+/** How a refusal that says the room is over for this member came about. */
+function endOf(error: DoormanError): RoomEnd {
+  return error.code === DOORMAN_ERROR.roomLeft ? 'removed' : 'ended'
 }
 
 function readPass(): RoomPass | null {
@@ -113,7 +148,7 @@ export function useRoom(): RoomView {
 }
 
 /** Hear when a room this device was in ends, with how it ended: what Recently played keeps. */
-export function onRoomEnded(listener: (state: RoomState) => void): () => void {
+export function onRoomEnded(listener: (state: RoomState, how: RoomEnd) => void): () => void {
   endedListeners.add(listener)
   return () => endedListeners.delete(listener)
 }
@@ -226,7 +261,7 @@ export function connectRoom(): void {
     if (!message.success) return
     switch (message.data.type) {
       case 'state':
-        set({ state: message.data.state })
+        takeState(pass, message.data.state)
         return
       case 'pong': {
         const sentAt = pingsSent.get(message.data.id)
@@ -243,11 +278,13 @@ export function connectRoom(): void {
         set({ offset: clockOffset(samples) })
         return
       }
-      case 'gone':
+      case 'gone': {
         // The final state follows the word, when the room ended; wait a beat
         // for it so the room is remembered as it finished.
-        setTimeout(() => finish(), 300)
+        const how = message.data.reason
+        setTimeout(() => finishIfStill(pass, how), 300)
         return
+      }
     }
   }
   // Closed, or a ping that went unanswered: the line is down either way.
@@ -278,11 +315,13 @@ export function connectRoom(): void {
       if (!current) return
       roomApi.state(current).then(
         state => {
-          set({ state })
+          if (view.pass !== current) return
+          takeState(current, state)
           connectRoom()
         },
         (error: unknown) => {
-          if (error instanceof DoormanError && error.gone) finish()
+          if (view.pass !== current) return
+          if (error instanceof DoormanError && error.gone) finish(endOf(error))
           else connectRoom()
         },
       )
@@ -293,10 +332,10 @@ export function connectRoom(): void {
 }
 
 /** The room is over for this device: remember it, and let it go. */
-function finish(): void {
+function finish(how: RoomEnd): void {
   const last = view.state
   forgetRoom()
-  if (last) for (const listener of endedListeners) listener(last)
+  if (last) for (const listener of endedListeners) listener(last, how)
 }
 
 /** Out of the room here, without telling it: what Leave does once the room has heard. */
@@ -311,8 +350,6 @@ function forgetRoom(): void {
 
 function enter(pass: RoomPass, state: RoomState): void {
   prefs.set(PASS_KEY, JSON.stringify(pass))
-  // Been in a room: Home's card that points at Listen together is done.
-  markGuideSeen('together-card')
   samples = []
   set({ pass, state, offset: 0 })
   connectRoom()
@@ -329,7 +366,10 @@ function enter(pass: RoomPass, state: RoomState): void {
 async function sayIfMobileData(state: RoomState): Promise<void> {
   if (state.mode !== 'everyone' && !isHost(state)) return
   if ((await connectionKind()) === 'cellular') {
-    showToast('You’re on mobile data. A room streams every song, about 5 MB each.')
+    showToast({
+      say: 'You’re on mobile data',
+      under: 'A room streams every song, about 5 MB each.',
+    })
   }
 }
 
@@ -389,11 +429,28 @@ async function sessionToken(): Promise<string | null> {
   return signedIn?.token ?? null
 }
 
+/**
+ * One room at a time: the room this device was in hears it leave, once the
+ * next one has let it in. A code that turns out dead (an ended room, an old
+ * invite) is refused before anything is given up.
+ */
+async function leaveFor(code: string): Promise<void> {
+  const pass = view.pass
+  const ending = view.state
+  if (!pass || pass.code === code) return
+  await roomApi.act(pass, { type: 'leave' }, null).catch(() => undefined)
+  if (view.pass !== pass) return
+  closeSocket()
+  if (ending) for (const listener of endedListeners) listener(ending, 'left')
+}
+
 /** Open a room: needs this device signed in. */
 export async function startRoom(input: RoomCreate): Promise<RoomState> {
   const token = await sessionToken()
   if (!token) throw new DoormanError(401, DOORMAN_ERROR.unauthorized, 'sign in to open a room')
   const joined = await roomApi.create(token, input)
+  countUse('room')
+  await leaveFor(joined.code)
   enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
   return joined.state
 }
@@ -401,6 +458,7 @@ export async function startRoom(input: RoomCreate): Promise<RoomState> {
 /** Join with a code: as a friend who can bring songs when signed in, else as a guest. */
 export async function joinRoom(code: string, name: string): Promise<RoomState> {
   const joined = await roomApi.join(code, name, await sessionToken())
+  await leaveFor(joined.code)
   enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
   return joined.state
 }
@@ -415,10 +473,10 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
       action,
       action.type === 'add' ? await sessionToken() : null,
     )
-    if (view.pass === pass) set({ state })
+    takeState(pass, state)
     return state
   } catch (error) {
-    if (error instanceof DoormanError && error.gone) finish()
+    if (error instanceof DoormanError && error.gone) finishIfStill(pass, endOf(error))
     throw error
   }
 }
@@ -428,5 +486,5 @@ export async function leaveRoom(): Promise<void> {
   const ending = view.state
   await roomAct({ type: 'leave' }).catch(() => undefined)
   forgetRoom()
-  if (ending) for (const listener of endedListeners) listener(ending)
+  if (ending) for (const listener of endedListeners) listener(ending, 'left')
 }

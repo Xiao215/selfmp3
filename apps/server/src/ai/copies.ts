@@ -1,8 +1,13 @@
 import { z } from 'zod/v4'
 import {
+  artistKey,
   formatDuration,
+  namesFor,
+  NO_JOINS,
   plural,
   splitArtists,
+  withoutTranslation,
+  type ArtistJoinNames,
   type CopiesResult,
   type Song,
   type TidyCopy,
@@ -17,17 +22,20 @@ import { withoutVideoWords } from './tidy.js'
  * once, each extra copy offered for deleting. Nothing here writes.
  *
  * Code finds the songs that might be one recording: the same title once a
- * video's words ("(Official Music Video)") are set aside, an artist in
- * common and about the same length; or, between songs the listening model
+ * video's words ("(Official Music Video)") and an English translation after
+ * it ("恋風 - Koikaze") are set aside, an artist in common — or two names one
+ * artist goes by (Lilas, 幾田りら) — and about the same length; or, between songs the listening model
  * has heard, the same length and the same sound whatever they are called. A
  * title with words the other lacks — "(Live)", "(Bayan)", "(II)" — is
  * another version until the sound says otherwise: shown "Liyue" and "Liyue
  * (Bayan)" on one album and nothing else, the model called them copies
  * (tried 2026-10-14). Either way only songs on one
- * album, or with none: one recording kept on two albums — a theme on two
- * soundtracks, a song and its best-of — is kept on purpose, and the model,
- * shown two that sound the same, called them copies (tried 2026-10-14), so
- * that is a rule in code. Many of the rest are not copies either — a live
+ * album, or with none, or a single and the album that took it in (within
+ * 2 s): one recording kept on two albums — a theme on two soundtracks, a
+ * song and its best-of — is kept on purpose, and the model, shown two that
+ * sound the same, called them copies (tried 2026-10-14), so that is a rule
+ * in code. A single is an album named as its song: released alone first,
+ * then on the album, it is the same release twice rather than a choice. Many of the rest are not copies either — a live
  * take, an arrangement, a second part — and code cannot tell those apart, so
  * the model is shown each group with everything known about its songs and
  * says which of them are one recording. Only songs with nothing between them
@@ -38,10 +46,12 @@ import { withoutVideoWords } from './tidy.js'
  * others loses as little as can be.
  */
 
-const VERSION = 1
+const VERSION = 2
 
 /** How far apart in seconds two songs may be and still be one recording. */
 const SAME_LENGTH_S = 3
+/** A single and an album's song: as long as each other within this. */
+const SINGLE_LENGTH_S = 2
 /** For songs named differently: as long as each other to the second. */
 const SOUND_LENGTH_S = 1
 /** How close two songs must sound, 0–1, to be looked at though their names differ. */
@@ -59,6 +69,8 @@ interface CopiesDeps {
   readonly llm: Llm
   readonly songs: () => Song[]
   readonly sound?: SoundCloseness
+  /** Artists' other names: two names one artist goes by meet as one. */
+  readonly artistNames?: () => ArtistJoinNames
   readonly remembered?: Remembered
 }
 
@@ -80,27 +92,44 @@ const COPIES_SYSTEM = `You find songs someone has in their own music library mor
 - A copy is extra only when deleting it loses nothing the person would miss: the same recording under names that differ at most in how they are written. Songs that are different recordings, versions or parts of a piece are songs in their own right however alike their names and lengths, and so is a song kept on purpose on more than one release. Judge each group from what the table says and what you know of the music.
 - Leave a group out when its songs are not copies, or when you are not sure. Never use a number that is not shown.`
 
-/** A title as it is compared: a video's words set aside, letters and digits only. */
+/** A title as it is compared: a video's words and a translation after it set aside, letters and digits only. */
 export function titleKey(title: string): string {
-  return bare(withoutVideoWords(title))
+  return bare(withoutTranslation(withoutVideoWords(title)))
 }
 
-/** Whether two credits have a name in common, or one of them names nobody. */
-function artistsMeet(a: Song, b: Song): boolean {
-  const left = splitArtists(a.artist).map(bare).filter(Boolean)
-  const right = new Set(splitArtists(b.artist).map(bare).filter(Boolean))
+/**
+ * Whether two credits have a name in common, or one of them names nobody. A
+ * name stands for the other names it goes by too, saved or found.
+ */
+function artistsMeet(a: Song, b: Song, joins: ArtistJoinNames): boolean {
+  const names = (song: Song): string[] =>
+    splitArtists(song.artist).flatMap(name => [
+      bare(name),
+      ...namesFor(joins.artistNames, artistKey(name)).map(bare),
+    ])
+  const left = names(a).filter(Boolean)
+  const right = new Set(names(b).filter(Boolean))
   return left.length === 0 || right.size === 0 || left.some(name => right.has(name))
 }
 
 const closeLength = (a: Song, b: Song, seconds: number): boolean =>
   a.duration > 0 && b.duration > 0 && Math.abs(a.duration - b.duration) <= seconds
 
-/** The albums named among some songs, each once; a song with none names none. */
-const albumsOf = (songs: readonly Song[]): Set<string> =>
-  new Set(songs.map(song => bare(song.album)).filter(Boolean))
+/** Whether a song's album is its single: an album named as the song itself. */
+const onSingle = (song: Song): boolean =>
+  song.album !== '' && titleKey(song.album) === titleKey(song.title)
 
-/** Whether two songs could be one copy and another: on one album, or one of them on none. */
-const oneAlbum = (a: Song, b: Song): boolean => albumsOf([a, b]).size < 2
+/** The albums named among some songs, each once; a song with none, or on its single, names none. */
+const albumsOf = (songs: readonly Song[]): Set<string> =>
+  new Set(songs.flatMap(song => (onSingle(song) ? [] : [bare(song.album)])).filter(Boolean))
+
+/**
+ * Whether two songs could be one copy and another: on one album, or one of
+ * them on none, or one on its single and as long as the other within 2 s.
+ */
+const oneAlbum = (a: Song, b: Song): boolean =>
+  new Set([a, b].map(song => bare(song.album)).filter(Boolean)).size < 2 ||
+  (albumsOf([a, b]).size < 2 && closeLength(a, b, SINGLE_LENGTH_S))
 
 /**
  * The songs that might be one recording, as groups: by name and length, and
@@ -111,6 +140,7 @@ export function candidateGroups(
   songs: readonly Song[],
   among: ReadonlySet<number>,
   sound?: SoundCloseness,
+  joins: ArtistJoinNames = NO_JOINS,
 ): { groups: Song[][]; closeness: Map<string, number> } {
   // Songs joined into groups, each pointing towards its group's first.
   const parent = new Map<number, number>()
@@ -140,7 +170,7 @@ export function candidateGroups(
       for (let j = i + 1; j < same.length; j++) {
         const a = same[i]!
         const b = same[j]!
-        if (artistsMeet(a, b) && oneAlbum(a, b) && closeLength(a, b, SAME_LENGTH_S)) {
+        if (artistsMeet(a, b, joins) && oneAlbum(a, b) && closeLength(a, b, SAME_LENGTH_S)) {
           join(a.id, b.id)
         }
       }
@@ -259,6 +289,7 @@ export async function findCopies(
     songs,
     new Set(among.map(song => song.id)),
     deps.sound,
+    deps.artistNames?.(),
   )
   const copies: TidyCopy[] = []
   const notes: string[] = []
@@ -331,7 +362,7 @@ function judged(batch: readonly Song[][], reply: z.infer<typeof CopiesOut>): Tid
         const song = group[n - 1]
         return song && !used.has(song.id) ? [song] : []
       })
-      // Two albums met through a song on none: kept on purpose, whatever the model says.
+      // Two albums met through a song on none or a single: kept on purpose, whatever the model says.
       if (songs.length < 2 || albumsOf(songs).size > 1) continue
       for (const song of songs) used.add(song.id)
       out.push(copyOf(songs, answer.why.trim() || 'One recording, twice', 'model'))

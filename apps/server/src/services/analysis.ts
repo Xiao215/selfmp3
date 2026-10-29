@@ -212,21 +212,9 @@ export class AnalysisService {
       this.#kickedWhileRunning = true
       return
     }
-    void this.#drain()
-  }
-
-  /**
-   * (Re)analyse everything. With `force`, existing results are thrown away
-   * first — for when the algorithm changes, or the numbers just look wrong.
-   */
-  start(force = false): AnalysisStatus {
-    if (force) {
-      this.#audioFeatures.deleteAll()
-    }
-    this.#done = 0
-    this.#failed = 0
-    this.kick()
-    return this.status()
+    this.#drain().catch((error: unknown) => {
+      this.#logger.error('analysis stopped', { message: messageOf(error) })
+    })
   }
 
   /** The file changed underneath a song; its features and its curve are stale. */
@@ -284,6 +272,8 @@ export class AnalysisService {
           this.#current = null
           // Failed because it was stopped, as likely as not: nothing to record.
           if (this.#stopped) break
+          // Removed while it was being analysed, its file with it: not a failure.
+          if (!this.#songs.byId(song.id)) continue
           if (error instanceof DownloadsSpentError || error instanceof NotFetchedError) {
             if (this.#passOver(song, error)) continue
             break
@@ -399,7 +389,7 @@ export class AnalysisService {
       if (motion) await this.#motion.write(songId, motion.value)
       else await this.#motion.delete(songId)
 
-      this.#audioFeatures.upsert(songId, {
+      const written = this.#audioFeatures.upsert(songId, {
         bpm: features.bpm,
         energy: features.energy,
         loudnessLufs: loudness,
@@ -408,6 +398,11 @@ export class AnalysisService {
         danceability: features.danceability,
         version: ANALYSIS_VERSION,
       })
+      // Removed while it was being analysed: its curve would outlive it.
+      if (!written) {
+        await this.#motion.delete(songId)
+        return
+      }
 
       // Heard now, while the file is here: later it may be in the bucket only,
       // and hearing it then would be a second download. So the model is made

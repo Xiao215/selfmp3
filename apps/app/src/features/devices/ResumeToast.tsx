@@ -1,31 +1,65 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { Circle, Svg } from 'react-native-svg'
-import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
+import { artistOr, pickResumeState, type Device, type Song } from '@selfmp3/shared'
 import {
   handoffTarget,
-  serverTime,
+  hitSlopFor,
+  iconSize,
   radius,
+  serverTime,
   shortDeviceName,
+  space,
   type,
   useLibrary,
-  space,
-  iconSize,
 } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
-import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
-import { floating } from '../../ui/surfaces'
-import { useDeviceContext } from './DevicesProvider'
+import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
+import { Cover } from '../../ui/components/Cover'
+import { Play, X } from '../../ui/components/Icons'
+import { PlayButton } from '../../ui/components/Button'
 import { Press } from '../../ui/components/Press'
+import { useLayoutValue } from '../../shell/useLayout'
+import { useFade } from '../../ui/motion'
+import { MOVE_MS } from '../../ui/motion.model'
+import { ART, ToastButton, ToastCard } from '../../ui/components/ToastHost'
+import { useDeviceContext } from './DevicesProvider'
 
-/** How long the offer stays before it goes by itself. */
+/** How long the offer stays as a toast before it goes by itself. */
 const RESUME_TOAST_MS = 12_000
+
+interface Offer {
+  readonly device: Device
+  readonly at: number
+}
+
+/*
+ * The offer, once decided: one for the app, read by whichever of the two
+ * draws it. A phone shows it as a toast above the tab bar; a computer as a
+ * card at the foot of the sidebar (AE1), where it covers nothing.
+ */
+let current: Offer | null = null
+const listeners = new Set<() => void>()
+function setOffer(next: Offer | null): void {
+  if (next === current) return
+  current = next
+  for (const listener of listeners) listener()
+}
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+const snapshot = (): Offer | null => current
 
 /**
  * "Continue where you left off on your phone".
@@ -37,22 +71,30 @@ const RESUME_TOAST_MS = 12_000
  * what every music app gets shouted at for.
  *
  * It does not outstay the question. Playing anything here answers it, so it
- * goes the moment playback starts; left alone it goes after twelve seconds,
- * with a thin ring around its ✕ running down so that is not a surprise.
+ * goes the moment playback starts. On a phone it is drawn as a message is
+ * (`ToastCard`): the song's cover, where it was playing over its title, and a
+ * play button; left alone it goes after twelve seconds, with the ring round
+ * its ✕ running down so that is not a surprise. On a computer the toast sat
+ * over the list's columns until it went (AE1), so there it waits in the
+ * sidebar instead (`ResumeCard`) until something plays or it is dismissed,
+ * and this draws nothing.
+ *
+ * Mounted once, in the shell: this is where the offer is decided.
  */
 export function ResumeToast(): ReactNode {
   const { theme } = useUnistyles()
   const { deviceId, devices, heard } = useDeviceContext()
   const player = usePlayer()
   const library = useLibrary()
-  const accent = useAccent()
-  const { finePointer, width, wide } = useLayout()
   const memory = usePlaybackMemoryState()
-  const [candidate, setCandidate] = useState<Device | null>(null)
-  const [hovered, setHovered] = useState(false)
-  // Playing here is an answer. Adjusted during render, so it never draws a
-  // frame beside the song that just started.
-  if (candidate && player.isPlaying) setCandidate(null)
+  const wide = useLayoutValue(layout => layout.wide)
+  const resume = useResumeOffer()
+  const offer = useSyncExternalStore(subscribe, snapshot, snapshot)
+  // Playing here is an answer.
+  const playing = player.isPlaying
+  useLayoutEffect(() => {
+    if (playing) setOffer(null)
+  }, [playing])
 
   // A launch-time decision: re-deciding as devices come and go would pop a
   // toast up an hour into a session.
@@ -89,128 +131,161 @@ export function ResumeToast(): ReactNode {
       if (!picked) return
       if (picked.state.songId === (now.current?.id ?? null)) return
       if (!songs.some(song => song.id === picked.state.songId)) return
-      setCandidate(picked)
+      setOffer({ device: picked, at: Date.now() })
     }, 0)
     return () => clearTimeout(timer)
   }, [devices, heard, library.data, deviceId, memory])
 
+  // Only the toast runs out: the sidebar's card covers nothing, and waits.
   useEffect(() => {
-    if (!candidate) return undefined
-    const timer = setTimeout(() => setCandidate(null), RESUME_TOAST_MS)
+    if (!offer || wide) return undefined
+    const timer = setTimeout(() => setOffer(null), offer.at + RESUME_TOAST_MS - Date.now())
     return () => clearTimeout(timer)
-  }, [candidate])
+  }, [offer, wide])
 
-  const song = candidate
-    ? library.data?.songs.find(item => item.id === candidate.state.songId)
-    : undefined
-  if (!candidate || !song) return null
-
+  if (!resume || !offer || wide) return null
+  const { song, from } = resume
   return (
-    // Never wider than the window's room for it: in an iPad's Slide Over, 320
-    // wide, it would run past both edges (docs/ui-mock `T08`).
-    <View style={[styles.toast, { maxWidth: Math.min(460, width - 32) }]} role="status">
-      <Press
-        feedback="wash"
-        onPress={() => {
-          const target = heard ? handoffTarget(candidate, heard, Date.now()) : null
-          setCandidate(null)
-          if (!target) return
-          player.playFrom([...target.queueIds], target.index, {
-            shuffle: candidate.state.shuffle,
-            position: target.position,
-            autoplay: false,
-          })
-        }}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
-        accessibilityRole="button"
-        accessibilityLabel={`Continue ${song.title} by ${artistOr(song.artist)}, from ${shortDeviceName(candidate.name)}`}
-        style={[styles.main, !finePointer && styles.mainTouch, hovered && styles.mainHovered]}
+    <View style={styles.slot} pointerEvents="box-none">
+      <ToastCard
+        tone="info"
+        words={{ over: `Continue from ${from}`, say: song.title }}
+        art={<Cover uri={resume.art} title={song.title} size={ART} />}
+        timed={{ since: offer.at, ms: RESUME_TOAST_MS }}
+        onDismiss={resume.decline}
       >
-        {/* The song's title gets the room: on a phone it would be cut to "第七夜 …"
-            behind the artist and the device. The device is said on a computer,
-            which has room for it, and read out everywhere. */}
-        <Text style={[styles.label, { color: accent.accent }]}>Continue</Text>
-        <Text style={styles.song} numberOfLines={1}>
-          {song.title}
-        </Text>
-        {wide ? (
-          <Text style={styles.from} numberOfLines={1}>
-            from {shortDeviceName(candidate.name)}
-          </Text>
-        ) : null}
-      </Press>
-      <View>
-        <IconButton onPress={() => setCandidate(null)} label="Dismiss" size={finePointer ? 32 : 40}>
-          <X size={iconSize.button} color={theme.colors.textMuted} />
-        </IconButton>
-        <CountdownRing size={finePointer ? 32 : 40} color={theme.colors.textMuted} />
-      </View>
+        <ToastButton label={resume.label} tone="info" filled onPress={resume.take}>
+          <Play size={16} color={theme.colors.onPrimary} />
+        </ToastButton>
+      </ToastCard>
     </View>
   )
 }
 
 /**
- * The time the offer has left, as a ring around its ✕ that empties clockwise.
- * Mounted with the offer, so its clock starts when the toast appears.
+ * The offer on a computer (AE1): a small card at the foot of the sidebar,
+ * above the person — the song's cover, "From Mac" over its title, and a play
+ * button; the ✕ waits for the pointer, as a sidebar row's ⋯ does. Gone once
+ * anything plays.
  */
-function CountdownRing({ size, color }: { size: number; color: string }): ReactNode {
-  const [startedAt] = useState(() => Date.now())
-  const [now, setNow] = useState(startedAt)
-  useEffect(() => {
-    // A quarter of a second is smooth enough for a ring this thin.
-    const timer = setInterval(() => setNow(Date.now()), 250)
-    return () => clearInterval(timer)
-  }, [])
-  const left = Math.max(0, 1 - (now - startedAt) / RESUME_TOAST_MS)
-  const radius = size / 2 - 2
-  const circumference = 2 * Math.PI * radius
+export function ResumeCard(): ReactNode {
+  const { theme } = useUnistyles()
+  const resume = useResumeOffer()
+  const finePointer = useLayoutValue(layout => layout.finePointer)
+  const [hovered, setHovered] = useState(false)
+  // Tabbed to, it shows as it does under the pointer.
+  const [focused, setFocused] = useState(false)
+  const close = useFade(!finePointer || hovered || focused, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
+  if (!resume) return null
+  const { song, from } = resume
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <Svg width={size} height={size}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeOpacity={0.55}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={circumference * (1 - left)}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
+    <View
+      style={styles.card}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      testID="sidebar-resume"
+    >
+      <Cover uri={resume.art} title={song.album || song.title} size={CARD_ART} />
+      <View style={styles.cardWords}>
+        <Text style={styles.cardFrom} numberOfLines={1}>
+          From {from}
+        </Text>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {song.title}
+        </Text>
+      </View>
+      <PlayButton
+        size={CARD_PLAY}
+        label={resume.label}
+        icon={<Play size={14} color={theme.colors.onPrimary} />}
+        onPress={resume.take}
+        testID="sidebar-resume-play"
+      />
+      <Animated.View style={[styles.close, { opacity: close }]}>
+        <Press
+          feedback="dim"
+          onPress={resume.decline}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          accessibilityRole="button"
+          accessibilityLabel={`Don't continue from ${from}`}
+          hitSlop={hitSlopFor(CLOSE)}
+          style={styles.closeButton}
+          testID="sidebar-resume-dismiss"
+        >
+          <X size={iconSize.tiny} tone="textSecondary" />
+        </Press>
+      </Animated.View>
     </View>
   )
 }
 
+/** The offer as either place draws it: the song, where it played, and what taking it does. */
+function useResumeOffer(): {
+  song: Song
+  from: string
+  art: string | null | undefined
+  label: string
+  take: () => void
+  decline: () => void
+} | null {
+  const { heard } = useDeviceContext()
+  const player = usePlayer()
+  const library = useLibrary()
+  const artFor = useArt(ROW_COVER_SIZE)
+  const offer = useSyncExternalStore(subscribe, snapshot, snapshot)
+  const decline = useCallback(() => setOffer(null), [])
+  const candidate = offer?.device
+  const song = candidate
+    ? library.data?.songs.find(item => item.id === candidate.state.songId)
+    : undefined
+  if (!candidate || !song) return null
+  const from = shortDeviceName(candidate.name)
+  return {
+    song,
+    from,
+    art: artFor(song),
+    label: `Continue ${song.title} by ${artistOr(song.artist)}, from ${from}`,
+    decline,
+    take: () => {
+      const target = heard ? handoffTarget(candidate, heard, Date.now()) : null
+      setOffer(null)
+      if (!target) return
+      player.playFrom([...target.queueIds], target.index, {
+        shuffle: candidate.state.shuffle,
+        position: target.position,
+        autoplay: false,
+      })
+    },
+  }
+}
+
+/** The card's cover and play button, and the ✕ in its corner. */
+const CARD_ART = 38
+const CARD_PLAY = 30
+const CLOSE = 20
+
 const styles = StyleSheet.create(theme => ({
-  toast: {
+  slot: { width: '100%', alignItems: 'center' },
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.tight,
-    paddingVertical: 5,
-    paddingLeft: 5,
-    paddingRight: 7,
-    borderRadius: radius.pill,
+    gap: space.snug,
+    padding: space.snug,
+    borderRadius: radius.row,
     backgroundColor: theme.colors.surface2,
-    ...floating(theme.colors),
+    marginBottom: space.sm,
   },
-  main: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: space.sm,
-    minWidth: 0,
-    flexShrink: 1,
-    paddingVertical: 7,
-    paddingHorizontal: space.md,
+  cardWords: { flex: 1, minWidth: 0, gap: 1 },
+  cardFrom: { color: theme.colors.textMuted, fontSize: type.small },
+  cardTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  close: { position: 'absolute', top: -6, right: -6 },
+  closeButton: {
+    width: CLOSE,
+    height: CLOSE,
     borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface3,
   },
-  mainTouch: { paddingVertical: space.snug },
-  mainHovered: { backgroundColor: theme.colors.surface3 },
-  label: { fontSize: type.sub, fontWeight: '600' },
-  song: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  from: { color: theme.colors.textMuted, fontSize: type.tiny, flexShrink: 2, minWidth: 0 },
 }))

@@ -10,7 +10,7 @@ import { api } from '../api/client'
  * a look is due, and how much one costs (`@selfmp3/replica`'s FRESH_MS) —
  * asking the doorman's change counter is free, and listing the bucket is not.
  */
-const ASK_EVERY_MS = 60_000
+const ASK_EVERY_MS = 20_000
 
 /**
  * Ask the cloud library its version now and then, which looks at the bucket
@@ -26,10 +26,19 @@ const ASK_EVERY_MS = 60_000
 export function useCloudLook(fromCloud: boolean): void {
   useEffect(() => {
     if (!fromCloud) return undefined
+    const ask = (): void => void api.libraryVersion().catch(() => undefined)
     const timer = setInterval(() => {
-      if (!focusManager.isFocused()) return
-      void api.libraryVersion().catch(() => undefined)
+      if (focusManager.isFocused()) ask()
     }, ASK_EVERY_MS)
-    return () => clearInterval(timer)
+    // Back in front is when another device's edits matter most — a song
+    // deleted there while this one was away, and about to play here — so it
+    // asks then too, rather than up to a whole wait later.
+    const unsubscribe = focusManager.subscribe(focused => {
+      if (focused) ask()
+    })
+    return () => {
+      clearInterval(timer)
+      unsubscribe()
+    }
   }, [fromCloud])
 }

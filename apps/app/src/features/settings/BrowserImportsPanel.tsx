@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react'
-import type { View } from 'react-native'
 import { resetRatchet } from '@selfmp3/shared'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
@@ -11,7 +10,7 @@ import {
   useDeviceDownloads,
   useDeviceHandBack,
 } from '../import/devicePrefs'
-import { Panel, Row } from './SettingsParts'
+import { Card, Row } from './SettingsParts'
 
 /**
  * Downloading in this browser (docs/features/client-download.md): this tab's
@@ -19,11 +18,7 @@ import { Panel, Row } from './SettingsParts'
  * Where to turn on the YouTube sign-in is the extension's own options page:
  * it is the extension that would send it, and no page should be able to.
  */
-export function BrowserImportsPanel({
-  anchor,
-}: {
-  anchor: (node: View | null) => void
-}): ReactNode {
+export function BrowserImportsPanel(): ReactNode {
   const downloads = useDeviceDownloads()
   const handBack = useDeviceHandBack()
   // Read as the panel draws: a refusal lands while downloading, not while Settings is open.
@@ -34,7 +29,7 @@ export function BrowserImportsPanel({
     setPace(paceNote(deviceBudget.get(), Date.now()))
   }
   return (
-    <Panel title="In this browser" hint="on this device" anchor={anchor}>
+    <Card title="In this browser">
       <Row
         label="Download songs here"
         hint="With the self.mp3 extension, YouTube songs are looked up, heard and downloaded in this browser, and your server adds them."
@@ -62,6 +57,6 @@ export function BrowserImportsPanel({
           <Button label="Reset" onPress={resetPace} testID="settings-reset-youtube-pace" />
         </Row>
       ) : null}
-    </Panel>
+    </Card>
   )
 }

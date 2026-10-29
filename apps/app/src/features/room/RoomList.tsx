@@ -5,8 +5,6 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
 import { artistOr, formatDuration, plural, type RoomAction, type RoomState } from '@selfmp3/shared'
 import {
-  HIT_TARGET,
-  fonts,
   radius,
   roomTrackId,
   roomTrackSong,
@@ -15,12 +13,12 @@ import {
   tracking,
   iconSize,
 } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
 import { roomTrack } from '../../player/roomTracks'
 import { label, rowTitle, lineSub } from '../../ui/surfaces'
-import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { More, Next, Play, Plus, ToTop } from '../../ui/components/Icons'
@@ -45,7 +43,6 @@ import {
 import { openRoomSheet } from './roomSheets.store'
 import { sayRoomFailure } from './roomFailure'
 import { currentRoom, roomAct, useRoom } from './room.store'
-import { Press } from '../../ui/components/Press'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 
 /** Rows of what is next drawn at once; a room's list is rarely longer. */
@@ -128,16 +125,15 @@ export function RoomHead({
         </View>
       </View>
       <View style={styles.headButtons}>
-        <Press
-          onPress={() => openRoomSheet('together')}
-          accessibilityRole="button"
-          accessibilityLabel="The room: invite, people, end it"
-          {...tip('People')}
+        <IconButton
+          onPress={() => openRoomSheet()}
+          label="The room: invite, people, end it"
+          caption="People"
+          filled
           testID="room-people"
-          style={styles.round}
         >
           <More size={iconSize.medium} color={theme.colors.textPrimary} />
-        </Press>
+        </IconButton>
       </View>
     </View>
   )
@@ -168,7 +164,8 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
     <PlayingCard
       song={song}
       label={`${paused ? 'Paused' : 'Playing'} · ${whose}`}
-      line={<RoomClock state={state} artist={artistOr(song.artist)} duration={song.duration} />}
+      line={artistOr(song.artist)}
+      clock={<RoomClock state={state} duration={song.duration} />}
       playing={playing}
       badge={
         row.face ? (
@@ -192,16 +189,9 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
         />
       ) : null}
       {maySkip ? (
-        <Press
-          onPress={() => act({ type: 'skip' })}
-          accessibilityRole="button"
-          accessibilityLabel="Skip"
-          {...tip('Skip')}
-          style={styles.round}
-          testID="room-skip"
-        >
+        <IconButton onPress={() => act({ type: 'skip' })} label="Skip" filled testID="room-skip">
           <Next size={iconSize.medium} color={theme.colors.textPrimary} />
-        </Press>
+        </IconButton>
       ) : null}
     </PlayingCard>
   )
@@ -260,16 +250,8 @@ function RoomEmpty({ state }: { state: RoomState }): ReactNode {
   )
 }
 
-/** "ヨルシカ · 1:52 of 4:23", on the room's clock, ticking on its own. */
-function RoomClock({
-  state,
-  artist,
-  duration,
-}: {
-  state: RoomState
-  artist: string
-  duration: number
-}): ReactNode {
+/** "1:52 of 4:23", on the room’s clock, ticking on its own. */
+function RoomClock({ state, duration }: { state: RoomState; duration: number }): ReactNode {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -279,7 +261,7 @@ function RoomClock({
     positionNow(state, currentRoom().offset, now),
     duration > 0 ? duration : Number.POSITIVE_INFINITY,
   )
-  return `${artist} · ${formatDuration(position)}${duration > 0 ? ` of ${formatDuration(duration)}` : ''}`
+  return `${formatDuration(position)}${duration > 0 ? ` of ${formatDuration(duration)}` : ''}`
 }
 
 function Upcoming({ state }: { state: RoomState }): ReactNode {
@@ -334,7 +316,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
         <Button
           label="Invite"
           variant={next.length === 0 && state.playing !== null ? 'primary' : 'secondary'}
-          onPress={() => openRoomSheet('together')}
+          onPress={() => openRoomSheet()}
           grow
           testID="room-invite"
         />
@@ -421,14 +403,6 @@ const styles = StyleSheet.create(theme => ({
   people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   line: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.sub },
   headButtons: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
-  round: {
-    width: HIT_TARGET,
-    height: HIT_TARGET,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface3,
-  },
   empty: {
     gap: space.xs,
     padding: space.lg,

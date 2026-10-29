@@ -9,15 +9,15 @@ import { rowAvailability, type RowAvailability } from './rowAvailability.model'
  * the connection or the library's answer change, so a row's memo holds.
  */
 export function useRowAvailability(): (songId: number) => RowAvailability {
-  const { state: downloads, installed, streamBlocked } = useDownloads()
+  const { state: downloads, installed, streamBlocked, playedIds } = useDownloads()
   const { isError } = useLibrary()
   return useCallback(
     songId =>
-      rowAvailability(isDownloaded(downloads.index, songId), {
-        installed,
-        streamBlocked,
-        libraryUnreachable: isError,
-      }),
-    [downloads.index, installed, streamBlocked, isError],
+      rowAvailability(
+        isDownloaded(downloads.index, songId),
+        { installed, streamBlocked, libraryUnreachable: isError },
+        playedIds.has(songId),
+      ),
+    [downloads.index, installed, streamBlocked, playedIds, isError],
   )
 }

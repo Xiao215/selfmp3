@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '@selfmp3/client'
+import { ApiError, SORT_OPTIONS } from '@selfmp3/client'
 
 import {
   emptyReason,
   footNotice,
   footSummary,
+  linkedSort,
   matchNote,
   noMatchesTitle,
+  orderLabel,
   stripTags,
   unreachableCopy,
   unreachableLabel,
@@ -65,6 +67,21 @@ describe('saying the library cannot be reached', () => {
     ).toBe('Can’t reach your library')
   })
 
+  it('says a library that answered with an error ran into a problem, not that it is out of reach', () => {
+    const broken = new ApiError(500, 'Unexpected answer from /api/library', 'contract_mismatch')
+    const copy = unreachableCopy({
+      fromCloud: false,
+      address: 'http://a:1',
+      compact: false,
+      error: broken,
+    })
+    expect(copy.title).toBe('Your library ran into a problem')
+    expect(copy.body).not.toMatch(/online|switched on/)
+    expect(unreachableLabel(new ApiError(503, 'Service Unavailable'))).toBe(
+      'Your library ran into a problem',
+    )
+  })
+
   it('counts down to midnight GMT, in minutes for the last hour', () => {
     expect(untilCapResets(new Date('2026-10-08T00:00:00Z'))).toBe('24 hours')
     expect(untilCapResets(new Date('2026-10-08T22:31:00Z'))).toBe('1 hour')
@@ -111,11 +128,43 @@ describe('the sidebar foot', () => {
     )
   })
 
+  // R3-M1: "All saved", then "Saving…" with a green dot, over edits the bucket refused.
+  it('says edits the storage did not take are not sent, whatever else answers', () => {
+    expect(footNotice({ ...base, unsent: 2, stuck: true })).toEqual({
+      title: 'Not sent yet',
+      body: 'Your 2 changes didn’t go through. They’re sent again by themselves.',
+    })
+    expect(footNotice({ ...base, unsent: 1, stuck: true })?.body).toBe(
+      'Your change didn’t go through. It’s sent again by itself.',
+    )
+    // Made a moment ago and on their way: nothing to say yet.
+    expect(footNotice({ ...base, unsent: 2 })).toBeNull()
+    expect(footSummary({ songs: 40, here: 40, place: 'computer', unsent: 2 })).toBe(
+      'Saving 2 changes… · 40 songs · 40 on this computer',
+    )
+    // Offline says it its own way.
+    expect(footNotice({ ...base, unsent: 1, stuck: true, offline: true })?.title).toBe('Offline')
+  })
+
   it('says a server library’s edits wait for it to come back', () => {
     expect(footNotice({ ...base, error: offline, fromCloud: false })).toEqual({
       title: 'Can’t reach your library',
       body: 'Songs on this computer still play. Changes can’t be saved until it’s back. Check that you’re online.',
     })
+  })
+
+  it('says offline when the device is, though nothing has failed yet, with what waits', () => {
+    expect(footNotice({ ...base, fromCloud: false, offline: true, unsent: 2 })).toEqual({
+      title: 'Offline',
+      body: 'Songs on this computer still play. Your 2 changes send when you’re back.',
+    })
+  })
+
+  it('says a server that answered with an error ran into a problem', () => {
+    const broken = new ApiError(503, 'Service Unavailable')
+    expect(footNotice({ ...base, fromCloud: false, error: broken })?.title).toBe(
+      'Your library ran into a problem',
+    )
   })
 
   it('says a used-up allowance, and when it comes back, even before a read fails', () => {
@@ -125,11 +174,25 @@ describe('the sidebar foot', () => {
     })
   })
 
+  it('says an edit the storage would not take waits for the allowance, not the connection', () => {
+    const capped = new ApiError(502, 'Transaction cap exceeded', 'bucket_cap_exceeded')
+    expect(footNotice({ ...base, error: capped, unsent: 1 })).toEqual({
+      title: 'Storage allowance used up',
+      body: 'Your change sends when it resets, in about 20 hours.',
+    })
+    expect(footNotice({ ...base, error: capped, unsent: 2 })?.body).toBe(
+      'Your 2 changes send when it resets, in about 20 hours.',
+    )
+  })
+
   it('reassures on hover, naming only what this device keeps', () => {
     expect(footSummary({ songs: 109, here: 12, place: 'computer' })).toBe(
       'All saved · 109 songs · 12 on this computer',
     )
     expect(footSummary({ songs: 1, here: 0, place: 'computer' })).toBe('All saved · 1 song')
+    expect(footSummary({ songs: 1, here: 0, place: 'computer', unsent: 2 })).toBe(
+      'Saving 2 changes… · 1 song',
+    )
   })
 })
 
@@ -200,5 +263,32 @@ describe('the tag strip', () => {
   it('stops at its limit, but never hides a chosen tag', () => {
     expect(stripTags(tags, [], [], 2)).toHaveLength(2)
     expect(stripTags(tags, [1, 2, 3], [], 2)).toHaveLength(3)
+  })
+})
+
+describe('naming the order', () => {
+  const option = (field: string) => SORT_OPTIONS.find(each => each.field === field)
+
+  it('says the field and which way round, in the field’s own words', () => {
+    expect(orderLabel(option('addedAt'), true)).toBe('Recently added · newest')
+    expect(orderLabel(option('addedAt'), false)).toBe('Recently added · oldest')
+    expect(orderLabel(option('title'), false)).toBe('Title · A–Z')
+    expect(orderLabel(option('playCount'), false)).toBe('Most played · fewest')
+  })
+
+  it('starts each field its own way round', () => {
+    expect(option('addedAt')?.orders[0].descending).toBe(true)
+    expect(option('artist')?.orders[0].descending).toBe(false)
+    expect(option('duration')?.orders[0].label).toBe('Longest')
+  })
+})
+
+describe('an order a link opens Library in', () => {
+  it('is a sort Library has, read from the address; anything else is none', () => {
+    expect(linkedSort('lastPlayedAt')).toBe('lastPlayedAt')
+    expect(linkedSort(['playCount', 'title'])).toBe('playCount')
+    expect(linkedSort(undefined)).toBeNull()
+    expect(linkedSort('random')).toBeNull()
+    expect(linkedSort('loudest')).toBeNull()
   })
 })

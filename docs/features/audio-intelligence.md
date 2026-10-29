@@ -41,20 +41,16 @@ The queue is the database itself (`song_audio_features` rows), so a restart lose
 
 ## Using it
 
-**Settings › Advanced › Library** has an "Audio analysis" row with **Analyse new songs** and
-**Redo all**, and live progress. The same thing over HTTP:
+The analyser runs on its own, over every song still missing its tempo and key; there is
+nothing to start by hand.
 
-```
-POST /api/library/analyze          { "force": false }   start / resume
-GET  /api/library/analyze                               progress
-```
-
-**A song's facts** (`apps/app/src/features/song/SongFacts.tsx`: the foot of the song's own
-page, and the Details tab of Now Playing on a computer) start with how it sounds: the tempo
-as `♩ = 130`, the way a score marks it, and in words; a small waveform drawn straight from
-the 0–1 energy value, taller and denser as a song gets more intense, with no steps or level
-names (`energyWavePath` in `packages/client/src/songs/facts.ts`, drawn by
-`apps/app/src/ui/components/EnergyWave.tsx`); and the key. Song rows show none of it.
+**A song's sound** (`SoundStrip` in `apps/app/src/features/song/SongFacts.tsx`: on the song's
+own page under its buttons, and at the head of the Details tab of Now Playing on a computer)
+is three tiles across: Tempo ("120 bpm"), Key, and Energy, its number beside a small
+waveform drawn straight from the 0–1 energy value, taller and denser as a song gets more
+intense, with no steps or level names (`energyWavePath` in `packages/client/src/songs/facts.ts`,
+drawn by `apps/app/src/ui/components/EnergyWave.tsx`). Each is said once. Song rows show none
+of it.
 
 **Ask** narrows by energy and tempo ranges when the words call for them ("something calm",
 "fast songs"), and a song not analysed yet does not pass an energy range. The rule engine in
@@ -159,15 +155,21 @@ ten idle minutes.
 - **Ask** ([ai.md](ai.md)): the plan has a `sound` part, the description's sound in English
   ("intense epic battle music"), written by the model in English whatever the request's
   language, in positive words only (the model does not understand "no vocals"; that is the
-  words filter). Of the songs the other parts let in, it keeps the ones that sound like it,
-  best first: within 0.06 of the best match, a line drawn from the top because the scores
-  only mean something against each other. A sound few songs have keeps few and a broad one
-  many: on 585 songs, "solo classical piano" kept 20 against the 18 piano pieces (three in
-  four right), "Japanese pop" 86 (nineteen in twenty right), "intense epic battle music" 26 of
-  337 Genshin tracks. Songs not heard yet stay out. When nothing else is wanted, the kept
-  songs are the answer, with no second model call; otherwise the model picks from the
-  best-sounding 300 of them, with a `sound` column (0–100). The app shows the part as a chip,
+  words filter). The songs the other parts let in are put in the order they sound like it,
+  best first. With no tags, artists or albums asked for, the sound is what chooses, and it keeps the
+  ones that sound like it: within 0.06 of the best match, a line drawn from the top because
+  the scores only mean something against each other. A sound few songs have keeps few and a
+  broad one many: on 585 songs, "solo classical piano" kept 20 against the 18 piano pieces
+  (three in four right), "Japanese pop" 86 (nineteen in twenty right). Songs not heard yet
+  stay out. Inside tags, artists or albums asked for it only orders, since one song standing out
+  inside a single kind of music would leave the rest below the line ("比较温和的jpop" once
+  answered one song of a hundred jpop). When nothing else is wanted, the best-sounding are
+  the answer, with no second model call; otherwise the model picks from the best-sounding
+  300, with a `sound` column (0–100). The app shows the part as a chip,
   "Sounds like calm orchestral…", that can be taken away.
+- **The sound map** ([sound-map.md](sound-map.md)): every heard song placed on a plane by
+  how it sounds, the vectors folded down to two numbers on the server, for pressing a spot to
+  hear what is there or drawing a drift from one place to another.
 - **"More like this"** in Ask, with a song playing: when the router says they want music like
   it (`like`), the songs that fit are ordered by how close they sound to it, with no cutoff.
 
@@ -175,9 +177,8 @@ The listening model is used only for those. A request with no sound in it, and n
 never loads the text half of the model; the songs' vectors are made in the background either
 way.
 
-**Settings › Advanced › Library** shows it under "How songs sound": waiting (while songs still need their
-tempo and key), downloading, how many songs are heard and how many are to go, or why the model
-could not be had.
+It runs on its own too: it waits while songs still need their tempo and key, downloads the
+model, then hears every song. The server's log says why, when the model could not be had.
 
 `npx tsx apps/server/src/sound/eval.ts <models> <folder of songs> "calm orchestral" …` hears a
 folder of songs and prints what each description finds, for a person to judge.
@@ -207,7 +208,7 @@ the next run.
   arithmetic, tested), `models.ts` (downloading and checking the files), `clamp3.ts`
   (onnxruntime), `clamp3Worker.ts` and `clamp3.worker.ts` (the model on a thread of its
   own), `pack.ts` (the vectors as one file for the bucket), `sound.ts` (hearing, "sounds
-  like", matching words), `eval.ts`
+  like", matching words), `map.ts` and `soundMap.ts` (the sound map), `eval.ts`
 - `apps/server/src/ai/describe.ts` (`soundOrder`, not exported) — Ask's songs in the order they sound
 - `scripts/sound-models/` — the export, its requirements and the model's licences
 - `packages/client/src/queue/autoMix.ts` — queue ordering and per-transition crossfade (tested)

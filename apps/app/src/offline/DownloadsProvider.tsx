@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -10,7 +11,9 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import type { Song } from '@selfmp3/shared'
-import { bucketHold } from '@selfmp3/replica'
+import { bucketHold, bucketRefusals, doormanTrouble } from '@selfmp3/replica'
+import { askBucketNow } from '../connection/bucketAsk.model'
+import { askBucketAgain } from '../ports/askBucketAgain'
 import { useBucketHold } from '../features/profile/useBucketHold'
 import {
   dataAnswer,
@@ -30,15 +33,20 @@ import {
   useSameArray,
 } from '@selfmp3/client'
 import { installedApp } from '../ports/install'
+import { thisPlace } from '../ports/place'
+import { keepEverySongUnasked } from '../features/welcome/firstSync.model'
 import {
   clearRecent,
+  dropAhead,
   forgetRecent,
   keepRecentlyPlayed,
   promoteRecent,
   recentUri,
 } from '../ports/recentCopies'
+import { onPlayedKeys, playedKeys } from '../ports/playedCopies'
 import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../connection/ConnectionProvider'
+import { useDoormanTrouble } from '../connection/useDoormanTrouble'
 import { useConnectionKind } from './connectionKind'
 import { downloadQueue } from './downloads'
 import { useSongsById } from '../ui/songsById'
@@ -109,6 +117,12 @@ interface DownloadsContextValue {
   /** Remove these, and keep them removed. */
   removeByHand: (songIds: readonly number[]) => Promise<void>
   /**
+   * Draw these as not on this device, or as on it again, while their removal
+   * waits on its Undo (`useDownloadRemoval`). Only what `state` shows: the
+   * files stay, and nothing else here counts them gone, until it is sent.
+   */
+  holdLeaving: (songIds: readonly number[], leaving: boolean) => void
+  /**
    * These songs are leaving the library: their copies here go with them.
    *
    * Not `removeByHand`, which keeps the song and remembers the removal so the
@@ -142,14 +156,23 @@ interface DownloadsContextValue {
    * its copy. Resolves true once there is a copy here to play.
    */
   keepAhead: (songId: number) => Promise<boolean>
+  /** That song is not coming after all: its copy, if still arriving, is not wanted (`dropAhead`). */
+  dropAhead: (songId: number) => void
   /** Whether a song can start here now, without asking. */
   mayPlay: (songId: number) => boolean
+  /** Why a song cannot start here now, or null when it can. */
+  blockFor: (songId: number) => PlayBlock | null
   /**
    * A song not on this device cannot start now, whatever is tapped: a library
    * from the bucket with no connection, or with the bucket refusing reads for
    * the day. Rows fade such songs, rather than a tap finding out.
    */
   readonly streamBlocked: boolean
+  /**
+   * Songs a browser's service worker kept for having played them: not
+   * downloads, but on this browser, so they play while the bucket refuses.
+   */
+  readonly playedIds: ReadonlySet<number>
   /** True when the song can start; otherwise the reason is put to the person, with `retry`. */
   checkPlay: (songId: number, retry: () => void) => boolean
   readonly question: DownloadQuestion | null
@@ -160,7 +183,10 @@ const DownloadsContext = createContext<DownloadsContextValue | null>(null)
 
 const PREFS_KEY = 'downloads.prefs'
 const EXCLUDED_KEY = 'downloads.excluded'
-const DEFAULT_PREFS: DownloadPrefs = { autoOnWifi: true, streamUndownloaded: true }
+const DEFAULT_PREFS: DownloadPrefs = {
+  autoOnWifi: keepEverySongUnasked(thisPlace()),
+  streamUndownloaded: true,
+}
 
 function readPrefs(): DownloadPrefs {
   try {
@@ -290,7 +316,12 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   // starts until the hold lifts. The first download after it asks again, so a
   // bucket still refusing costs one request each time the hold runs out.
   const held = useBucketHold('read') !== null && fromCloud
-  const streamBlocked = installedApp && fromCloud && (held || network === 'none')
+  // A browser too, on the bucket's day: it has nothing else to stream from.
+  // Offline it fades nothing, since its worker may answer more than it lists.
+  // Nothing answering from the storage, though the device is online, is the
+  // bucket's day again: the songs played here still play, and only those.
+  const unreachable = useDoormanTrouble()?.kind === 'unreachable' && fromCloud
+  const streamBlocked = fromCloud && (held || unreachable || (installedApp && network === 'none'))
   useEffect(() => {
     if (!held) return undefined
     const timer = setTimeout(() => {
@@ -437,6 +468,19 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
 
   // The player's commands are made once; they read the latest rules through this.
   const songsById = useSongsById()
+  const played = useSyncExternalStore(onPlayedKeys, playedKeys)
+  // The same set until its songs change: a like makes a new library, and a new
+  // set here would draw every row again.
+  const playedList = useSameArray(
+    useMemo(
+      () =>
+        played.size === 0
+          ? []
+          : [...songsById.values()].filter(song => played.has(song.path)).map(song => song.id),
+      [played, songsById],
+    ),
+  )
+  const playedIds = useMemo(() => new Set(playedList), [playedList])
   const rules = useRef({
     network,
     prefs,
@@ -445,7 +489,10 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     excluded,
     songsById,
   })
-  useEffect(() => {
+  // Before any effect below this one runs: a child that asks `mayPlay` in its
+  // own effect, on the render where the network came back, must not be told
+  // the network is still gone (`usePlaybackMemory`).
+  useLayoutEffect(() => {
     rules.current = {
       network,
       prefs,
@@ -459,14 +506,18 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   /*
    * A file here the player would use: a download first, then a copy kept
    * because it was played. Asked the way the player asks (`localUri`, with the
-   * song's rev), so a kept file the player would not use counts as none.
+   * song's rev), so a kept file the player would not use counts as none. In a
+   * browser the kept copy is the service worker's, answered at the song's
+   * ordinary address, and read at the moment of asking like the bucket's hold.
    */
-  const hereNow = useCallback(
-    (songId: number): boolean =>
-      downloadQueue.localUri(songId, rules.current.songsById.get(songId)?.rev) !== null ||
-      recentUri(rules.current.songsById.get(songId)) !== null,
-    [],
-  )
+  const hereNow = useCallback((songId: number): boolean => {
+    const song = rules.current.songsById.get(songId)
+    return (
+      downloadQueue.localUri(songId, song?.rev) !== null ||
+      recentUri(song) !== null ||
+      (song !== undefined && playedKeys().has(song.path))
+    )
+  }, [])
 
   /** The song, when a copy of it may be kept for having been (or being about to be) played. */
   const keepable = useCallback(
@@ -483,7 +534,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       if (!installedApp) return null
       if (now.prefs.autoOnWifi) return null
       // A copy is a fetch of its own, so it answers to the rule every other
-      // download does: not over mobile data nobody agreed to.
+      // download does: not over mobile data nobody agreed to. A phone's stream
+      // keeps the song it brought whatever the network (`recentCopies.ts`,
+      // `streamOnce`); what this stops is the song after it fetched ahead.
       if (now.network === 'cellular' && !now.dataAllowed) return null
       return now.songsById.get(songId) ?? null
     },
@@ -522,6 +575,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
         // Asked at the moment of playing, like the rest: a hold comes and goes
         // by the minute, and the player asks this for every song it lines up.
         bucketHeld: bucketHold('read') !== null,
+        storageUnreachable: doormanTrouble()?.kind === 'unreachable',
         dataAllowed: now.dataAllowed,
       })
     },
@@ -532,7 +586,18 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
 
   const checkPlay = useCallback(
     (songId: number, retry: () => void) => {
-      const block = blockFor(songId)
+      let block = blockFor(songId)
+      // Pressed a while after the bucket last refused, the song asks again
+      // itself, rather than being told no for the rest of the hold: the cap
+      // may have been raised (R2-M9). Refused again, it says so as before.
+      const now = Date.now()
+      if (
+        block === 'held' &&
+        askBucketNow('play', bucketHold('read', now), bucketRefusals('read'), now)
+      ) {
+        askBucketAgain()
+        block = blockFor(songId)
+      }
       if (block === null) return true
       setQuestion({ kind: 'play', block, songId, retry })
       return false
@@ -562,15 +627,45 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
           return
         case 'offline':
         case 'held':
+        case 'unreachable':
           return
       }
     },
     [question, downloadByHand],
   )
 
+  const [leaving, setLeaving] = useState<ReadonlySet<number>>(() => new Set())
+  const holdLeaving = useCallback((ids: readonly number[], on: boolean) => {
+    setLeaving(current => {
+      const next = new Set(current)
+      for (const id of ids) {
+        if (on) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    })
+  }, [])
+  // Only the screens' copy leaves them out. The automatic pass reads the
+  // queue's own, so a song waiting to be removed is not fetched again meanwhile.
+  const shown = useMemo(
+    () =>
+      leaving.size === 0
+        ? state
+        : {
+            ...state,
+            index: {
+              ...state.index,
+              entries: Object.fromEntries(
+                Object.entries(state.index.entries).filter(([id]) => !leaving.has(Number(id))),
+              ),
+            },
+          },
+    [state, leaving],
+  )
+
   const value = useMemo<DownloadsContextValue>(
     () => ({
-      state,
+      state: shown,
       queue: downloadQueue,
       installed: installedApp,
       network,
@@ -583,6 +678,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       requestDownload,
       downloadByHand,
       removeByHand,
+      holdLeaving,
       dropDownloads,
       removeFiles,
       removeAll,
@@ -590,14 +686,18 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       removing,
       keepPlayed,
       keepAhead,
+      dropAhead,
       mayPlay,
+      blockFor,
       streamBlocked,
+      playedIds,
       checkPlay,
       question,
       answer,
     }),
     [
-      state,
+      shown,
+      holdLeaving,
       network,
       prefs,
       setPrefs,
@@ -616,7 +716,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       keepPlayed,
       keepAhead,
       mayPlay,
+      blockFor,
       streamBlocked,
+      playedIds,
       checkPlay,
       question,
       answer,

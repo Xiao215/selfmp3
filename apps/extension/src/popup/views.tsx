@@ -22,7 +22,6 @@ import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { Choices } from '../bridge.js'
 import { AddTag, Logo, TagChip } from '../ui/parts.js'
 import {
-  chipState,
   connectionLabel,
   countLabel,
   comingIn,
@@ -34,7 +33,6 @@ import {
   rowState,
   songNote,
   songRequest,
-  tagIdsFor,
   toggleId,
   toggleLeftOut,
   type Connection,
@@ -154,23 +152,22 @@ function State({
 }
 
 export function Checking(): ReactNode {
-  return <p className="quiet">Checking your server…</p>
+  return <p className="quiet">Finding your library…</p>
 }
 
 export function Connect({ onOptions }: { onOptions: () => void }): ReactNode {
   return (
     <State
-      title="Connect to your library"
+      title="Save songs from any page"
       actions={
+        // Signing in runs in the options page: a sign-in window closes the
+        // popup, and the answer would come back to nobody.
         <button type="button" className="primary" onClick={onOptions}>
-          Set it up
+          Sign in with Google
         </button>
       }
     >
-      <p>
-        Sign in with the Google account your library uses, and links can wait in your bucket while
-        your server is off. Or point the extension at your server’s address.
-      </p>
+      <p>Sign in with the account your library uses.</p>
     </State>
   )
 }
@@ -294,8 +291,8 @@ function usePicked(tagging: Tagging): [ReadonlySet<number>, (next: ReadonlySet<n
 }
 
 /**
- * The tags to add (`E1`): every tag as a dot chip, the ones the server adds
- * to every import already on, and "+ new". Never a playlist.
+ * The tags to add (`E1`): every tag as a dot chip and "+ new". Never a
+ * playlist.
  */
 function TagPicker({
   heading,
@@ -312,19 +309,13 @@ function TagPicker({
   inline?: boolean
 }): ReactNode {
   const { choices } = tagging
-  const defaults = choices?.defaultTagIds ?? []
   const pick = (id: number): void => {
-    if (chipState(id, defaults, picked) === 'off') onToggle(id)
+    if (!picked.has(id)) onToggle(id)
   }
   const chips = choices ? (
     <>
       {choices.tags.map(tag => (
-        <TagChip
-          key={tag.id}
-          tag={tag}
-          state={chipState(tag.id, defaults, picked)}
-          onToggle={() => onToggle(tag.id)}
-        />
+        <TagChip key={tag.id} tag={tag} on={picked.has(tag.id)} onToggle={() => onToggle(tag.id)} />
       ))}
       <AddTag
         tags={choices.tags}
@@ -353,9 +344,6 @@ function TagPicker({
           <span className="label">{heading}</span>
           <div className="chips">{chips}</div>
         </>
-      )}
-      {defaults.length > 0 && (
-        <p className="hint">Tags from Settings → Advanced → Importing are always added.</p>
       )}
       {tagging.error && (
         <p className="error" role="alert">
@@ -435,12 +423,7 @@ export function SongForm({
         type="button"
         className="commit"
         disabled={pending || !title.trim()}
-        onClick={() =>
-          onImport(
-            songRequest(item, { title, artist }, tagIdsFor(tagging.choices?.defaultTagIds, picked)),
-            null,
-          )
-        }
+        onClick={() => onImport(songRequest(item, { title, artist }, picked), null)}
       >
         <DownloadMark />
         {pending ? 'Importing…' : 'Import to your library'}
@@ -756,12 +739,7 @@ export function ListReview({
         type="button"
         className="commit"
         disabled={pending || count === 0}
-        onClick={() =>
-          onImport(
-            listRequest(review, tagIdsFor(tagging.choices?.defaultTagIds, picked)),
-            review.playlistTitle,
-          )
-        }
+        onClick={() => onImport(listRequest(review, picked), review.playlistTitle)}
       >
         {pending ? 'Importing…' : importLabel(count)}
       </button>
@@ -850,9 +828,7 @@ export function RequestForm({
         type="button"
         className="commit"
         disabled={pending}
-        onClick={() =>
-          onRequest({ tagIds: [...tagIdsFor(tagging.choices?.defaultTagIds, picked)] })
-        }
+        onClick={() => onRequest({ tagIds: [...picked] })}
       >
         {pending ? 'Keeping it…' : 'Keep it for later'}
       </button>
@@ -860,23 +836,36 @@ export function RequestForm({
   )
 }
 
-/** Left in the bucket and not taken yet, and a way out of it. */
+/**
+ * Left in the bucket and not taken yet, and a way out of it.
+ *
+ * With no server at all (`noServer`, as `RequestForm` has it) there is no
+ * server to wait for, and saying so would promise a download nothing is going
+ * to make: the link waits for a computer to be connected instead.
+ */
 export function Waiting({
   request,
   title,
+  noServer,
   cancelling,
   onCancel,
 }: {
   request: ImportRequestView
   title: string | null
+  noServer: boolean
   cancelling: boolean
   onCancel: () => void
 }): ReactNode {
+  const unclaimed = noServer && request.state !== 'working'
   return (
     <State
       line={<SongLine cover={null} title={request.title ?? title ?? request.url} artist="" />}
       title={
-        request.state === 'working' ? 'Your server is fetching it now' : 'Waiting for your server'
+        request.state === 'working'
+          ? 'Your server is fetching it now'
+          : unclaimed
+            ? 'Kept for later'
+            : 'Waiting for your server'
       }
       actions={
         <button type="button" className="tonal" disabled={cancelling} onClick={onCancel}>
@@ -885,7 +874,9 @@ export function Waiting({
       }
     >
       <p aria-live="polite">
-        It downloads it the next time it is awake, and it arrives after the sync that follows.
+        {unclaimed
+          ? 'No computer works for your library yet. Connect one in self.mp3 and it imports from there.'
+          : 'It downloads it the next time it is awake, and it arrives after the sync that follows.'}
       </p>
     </State>
   )

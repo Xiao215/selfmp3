@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { nowPlayingAnimation, pageKey, stackAnimation, stepSide } from './pageStep'
+import { nowPlayingAnimation, pageKey, pageStepped, stackAnimation, stepSide } from './pageStep'
 
 describe('what counts as a page change', () => {
   it('is the tab on a phone, so a page pushed within a tab is not one', () => {
@@ -27,6 +27,22 @@ describe('what counts as a page change', () => {
     expect(pageKey('/now-playing', false)).toBeNull()
     expect(pageKey('/now-playing', true)).toBeNull()
     expect(pageKey('/welcome', true)).toBeNull()
+  })
+})
+
+describe('a page change that steps in', () => {
+  it('is another page under the same layout', () => {
+    expect(pageStepped({ key: '/', wide: false }, { key: '/library', wide: false })).toBe(true)
+    expect(pageStepped({ key: '/tag/chill', wide: true }, { key: '/stats', wide: true })).toBe(true)
+  })
+
+  it('is not the same page given the other layout, an iPad turned', () => {
+    // A tag page is counted by itself on a computer and by its tab on a phone.
+    const wide = { key: pageKey('/tag/chill', true) ?? '', wide: true }
+    const upright = { key: pageKey('/tag/chill', false) ?? '', wide: false }
+    expect(wide.key).not.toBe(upright.key)
+    expect(pageStepped(wide, upright)).toBe(false)
+    expect(pageStepped(upright, wide)).toBe(false)
   })
 })
 

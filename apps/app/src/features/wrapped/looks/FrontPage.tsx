@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Image, Text, View } from 'react-native'
+import { Image, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, withAlpha } from '@selfmp3/client'
+import { withAlpha } from '@selfmp3/client'
+import { fonts } from '../../../ports/fonts'
 import { Cover } from '../../../ui/components/Cover'
 import { frontPageLook, lookInk } from '../looks.model'
-import { DayDot, mono, type LookProps } from './parts'
+import { DayDot, mono, type LookProps, LookText } from './parts'
 
 /** `C16`'s sheet, as wide as a computer's page leaves it. */
 export const FRONT_SIZE = { width: 960, height: 620 } as const
@@ -39,27 +40,27 @@ export function FrontPageLook({ input, hue, art }: LookProps): ReactNode {
     <View style={[styles.sheet, { backgroundColor: ink.ground }]}>
       <View style={styles.strap}>
         {look.strap.map((item, i) => (
-          <Text key={i} style={[styles.strapText, { color: ink.second }]}>
+          <LookText key={i} style={[styles.strapText, { color: ink.second }]}>
             {item}
-          </Text>
+          </LookText>
         ))}
       </View>
       <View>
         <View style={[styles.ruleHeavy, { backgroundColor: ink.ink }]} />
-        <Text style={[styles.masthead, text]} accessibilityRole="header">
+        <LookText style={[styles.masthead, text]} accessibilityRole="header">
           {look.masthead}
-        </Text>
+        </LookText>
         <View style={[styles.ruleHeavy, { backgroundColor: ink.ink }]} />
       </View>
 
       <View style={styles.columns}>
         <View style={[styles.column, { width: COLUMN(SHARES[0]) }]}>
-          <Text style={[styles.headline, text]} numberOfLines={3}>
+          <LookText style={[styles.headline, text]} numberOfLines={3}>
             {look.headline}
-          </Text>
-          <Text style={[styles.deck, { color: ink.second }]} numberOfLines={4}>
+          </LookText>
+          <LookText style={[styles.deck, { color: ink.second }]} numberOfLines={4}>
             {look.deck}
-          </Text>
+          </LookText>
           {look.photo && top ? (
             <View style={[styles.photo, { backgroundColor: ink.tone }]}>
               {photo ? (
@@ -69,12 +70,12 @@ export function FrontPageLook({ input, hue, art }: LookProps): ReactNode {
                   <Cover uri={null} title={top.title} size={COLUMN(SHARES[0])} radius={0} />
                 </View>
               )}
-              <Text
+              <LookText
                 style={[styles.caption, text, { backgroundColor: withAlpha(ink.ground, 0.92) }]}
                 numberOfLines={2}
               >
                 {look.photo.caption}
-              </Text>
+              </LookText>
             </View>
           ) : null}
         </View>
@@ -85,10 +86,10 @@ export function FrontPageLook({ input, hue, art }: LookProps): ReactNode {
               <SectionHead title={chart.title} ink={ink.ink} />
               {chart.rows.map((row, i) => (
                 <View key={i} style={styles.chartRow}>
-                  <Text style={[styles.chartName, text]} numberOfLines={1}>
+                  <LookText style={[styles.chartName, text]} numberOfLines={1}>
                     {row.name}
-                  </Text>
-                  <Text style={[styles.chartValue, text]}>{row.value}</Text>
+                  </LookText>
+                  <LookText style={[styles.chartValue, text]}>{row.value}</LookText>
                 </View>
               ))}
             </View>
@@ -116,15 +117,19 @@ export function FrontPageLook({ input, hue, art }: LookProps): ReactNode {
             ))}
           </View>
           <View style={[styles.forecast, { backgroundColor: ink.tone }]}>
-            <Text style={[styles.sectionTitle, text]}>Forecast</Text>
-            <Text style={[styles.forecastTitle, text]} numberOfLines={3}>
+            <LookText style={[styles.sectionTitle, text]}>Forecast</LookText>
+            <LookText style={[styles.forecastTitle, text]} numberOfLines={3}>
               {look.forecast.title}
-            </Text>
+            </LookText>
             {look.forecast.line ? (
-              <Text style={[styles.forecastLine, { color: ink.second }]}>{look.forecast.line}</Text>
+              <LookText style={[styles.forecastLine, { color: ink.second }]}>
+                {look.forecast.line}
+              </LookText>
             ) : null}
           </View>
-          <Text style={[styles.strapText, styles.imprint, { color: ink.second }]}>self.mp3</Text>
+          <LookText style={[styles.strapText, styles.imprint, { color: ink.second }]}>
+            self.mp3
+          </LookText>
         </View>
       </View>
     </View>
@@ -133,7 +138,9 @@ export function FrontPageLook({ input, hue, art }: LookProps): ReactNode {
 
 /** A column's heading: the paper's small capitals, set apart by type rather than a rule. */
 function SectionHead({ title, ink }: { title: string; ink: string }): ReactNode {
-  return <Text style={[styles.sectionTitle, styles.sectionHead, { color: ink }]}>{title}</Text>
+  return (
+    <LookText style={[styles.sectionTitle, styles.sectionHead, { color: ink }]}>{title}</LookText>
+  )
 }
 
 const styles = StyleSheet.create({

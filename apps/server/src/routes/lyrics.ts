@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import type { LyricsSearchResponse } from '@selfmp3/shared'
+import { LYRICS_QUERY_MAX, type LyricsSearchResponse } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 
@@ -19,7 +19,7 @@ export function lyricsRoutes(container: Container): Router {
     route(
       {
         query: z.object({
-          q: z.string().trim().max(200).default(''),
+          q: z.string().trim().max(LYRICS_QUERY_MAX).default(''),
           limit: z.coerce.number().int().min(1).max(50).default(12),
         }),
       },

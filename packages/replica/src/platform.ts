@@ -104,6 +104,19 @@ export interface CloudPlatform {
   onWake(run: () => void): void
 
   /**
+   * The device's other copies of the app — a browser's other tabs, which
+   * share this one's store and so its outbox. `tell` says this one added to
+   * the outbox; `hear` runs whenever another says so. A tab closed a moment
+   * after an edit left it in the shared outbox unsent, for as long as the tab
+   * still open did nothing of its own. Optional: a device with one copy of
+   * the app has nobody to tell.
+   */
+  readonly outboxNews?: {
+    tell(): void
+    hear(run: () => void): void
+  }
+
+  /**
    * Text from the bucket, given its bytes.
    *
    * Snapshots are stored gzip-compressed, and whether they arrive that way

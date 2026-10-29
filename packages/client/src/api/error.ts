@@ -1,4 +1,4 @@
-import { BUCKET_CAP_CODE } from '@selfmp3/shared'
+import { AI_ERROR, API_ERROR, BUCKET_CAP_CODE } from '@selfmp3/shared'
 
 /**
  * The one error type every screen already knows how to read.
@@ -65,17 +65,47 @@ export function failureText(failure: string, error: unknown): string {
 }
 
 /**
- * A refusal the server put into words for the person: a 4xx it explained.
- * Not a 400, which is a request it could not read (a zod message), and not
- * one whose body it never sent (`code` left at `error`, the message being
- * "POST /api/… failed (404)").
+ * `failureText` as a message's two lines: what did not happen in bold, and
+ * the why, when there is one, as a sentence under it. One line holding both
+ * wrapped mid-reason in a toast.
+ */
+export function failureWords(
+  failure: string,
+  error: unknown,
+): { readonly say: string; readonly under?: string } {
+  const why =
+    error instanceof ApiError && error.isOffline
+      ? 'your library isn’t reachable right now'
+      : error instanceof ApiError && error.isBucketCapped
+        ? 'your storage’s allowance for today is used up'
+        : error instanceof ApiError && saidForPeople(error)
+          ? error.message
+          : null
+  if (why === null) return { say: failure }
+  const sentence = why.charAt(0).toLocaleUpperCase() + why.slice(1)
+  return { say: failure, under: /[.!?…]$/.test(sentence) ? sentence : `${sentence}.` }
+}
+
+/**
+ * The codes worded for people whatever their status: why a model did not
+ * answer, and the server's disk full or its database held.
+ */
+const WORDED_FAILURES: ReadonlySet<string> = new Set([
+  ...Object.values(AI_ERROR),
+  API_ERROR.diskFull,
+  API_ERROR.databaseBusy,
+])
+
+/**
+ * A refusal the server put into words for the person: a 4xx it explained, or
+ * a 5xx it said the reason for — why the model did not answer ("Your server
+ * couldn’t reach the model.", a 502 or 503), its disk full (507), its
+ * database busy (503). Not a 400, which is a request it could not read (a
+ * zod message), and not one whose body it never sent (`code` left at
+ * `error`, the message being "POST /api/… failed (404)").
  */
 function saidForPeople(error: ApiError): boolean {
-  return (
-    error.status >= 400 &&
-    error.status < 500 &&
-    error.status !== 400 &&
-    error.code !== 'error' &&
-    error.message.length > 0
-  )
+  if (error.message.length === 0) return false
+  if (WORDED_FAILURES.has(error.code)) return true
+  return error.status >= 400 && error.status < 500 && error.status !== 400 && error.code !== 'error'
 }

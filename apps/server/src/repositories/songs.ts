@@ -1,7 +1,7 @@
-import { fileEtag, type CoverTone, type Song, type SongPatch } from '@selfmp3/shared'
+import { fileEtag, type CameWith, type CoverTone, type Song, type SongPatch } from '@selfmp3/shared'
 import type Database from 'better-sqlite3'
 import type { Db } from '../db/index.js'
-import { toSong, type SongRow } from '../db/rows.js'
+import { readCameWith, toSong, type SongRow } from '../db/rows.js'
 
 /**
  * All SQL that touches the `songs` table lives here.
@@ -19,6 +19,8 @@ import { toSong, type SongRow } from '../db/rows.js'
 const SONG_SELECT = `
   SELECT s.*,
          (SELECT GROUP_CONCAT(tag_id) FROM song_tags WHERE song_id = s.id) AS tag_ids,
+         (SELECT hlc FROM sync_stamps
+           WHERE kind = 'song' AND uid = s.uid AND field = 'loved') AS loved_hlc,
          f.bpm           AS feat_bpm,
          f.energy        AS feat_energy,
          f.loudness_lufs AS feat_loudness_lufs,
@@ -48,10 +50,12 @@ interface AdoptedSong {
   lyricsKind: string
   instrumental: boolean
   loved: boolean
+  restUntil: string | null
   playCount: number
   lastPlayedAt: string | null
   addedAt: string
   sourceUrl: string | null
+  cameWith: CameWith | null
 }
 
 interface NewSong {
@@ -83,6 +87,9 @@ export class SongRepository {
   readonly #updateScanned
   readonly #withSource
   readonly #setSourceUrl
+  readonly #setCameWith
+  readonly #cameWith
+  readonly #allCameWith
   readonly #deleteById
   readonly #recordPlay
   readonly #setArt
@@ -92,10 +99,17 @@ export class SongRepository {
   readonly #count
   readonly #manifest
   readonly #setLoved
-  readonly #withoutArt
   readonly #nextWithoutCoverTone
   readonly #setCoverTone
   readonly #allPaths
+  readonly #inFolder
+  readonly #leaving
+  readonly #allLeaving
+  readonly #copyGone
+  readonly #coverToRead
+  readonly #coverRead
+  readonly #isCoverToRead
+  readonly #coversToRead
   /** `patch` statements by the columns they set: a handful of shapes, each prepared once. */
   readonly #patches = new Map<string, Database.Statement>()
 
@@ -122,11 +136,11 @@ export class SongRepository {
       INSERT INTO songs (
         uid, path, title, artist, album, album_artist, track_no, year, duration,
         size_bytes, mime, mtime_ms, has_art, art_ext, lyrics_kind, instrumental,
-        play_count, loved, source_url, last_played_at, added_at
+        play_count, loved, rest_until, source_url, last_played_at, added_at, came_with
       ) VALUES (
         @uid, @path, @title, @artist, @album, @albumArtist, @trackNo, @year, @duration,
         @sizeBytes, @mime, 0, 0, NULL, @lyricsKind, @instrumental,
-        @playCount, @loved, @sourceUrl, @lastPlayedAt, @addedAt
+        @playCount, @loved, @restUntil, @sourceUrl, @lastPlayedAt, @addedAt, @cameWith
       )
     `)
 
@@ -145,6 +159,13 @@ export class SongRepository {
     `)
 
     this.#setSourceUrl = db.prepare('UPDATE songs SET source_url = ? WHERE id = ?')
+    this.#setCameWith = db.prepare('UPDATE songs SET came_with = ? WHERE id = ?')
+    this.#cameWith = db.prepare<[number], { came_with: string | null }>(
+      'SELECT came_with FROM songs WHERE id = ?',
+    )
+    this.#allCameWith = db.prepare<[], { id: number; came_with: string }>(
+      'SELECT id, came_with FROM songs WHERE came_with IS NOT NULL',
+    )
     this.#withSource = db.prepare<[], { id: number; source_url: string }>(
       'SELECT id, source_url FROM songs WHERE source_url IS NOT NULL',
     )
@@ -182,7 +203,6 @@ export class SongRepository {
     this.#setLoved = db.prepare(
       "UPDATE songs SET loved = ?, updated_at = datetime('now') WHERE id = ? AND loved != ?",
     )
-    this.#withoutArt = db.prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 ORDER BY s.id`)
     this.#nextWithoutCoverTone = db.prepare<[], { id: number; art_rev: number }>(
       `SELECT id, art_rev FROM songs
         WHERE has_art = 1
@@ -195,6 +215,25 @@ export class SongRepository {
     this.#allPaths = db.prepare<[], { id: number; path: string; mtime_ms: number }>(
       'SELECT id, path, mtime_ms FROM songs',
     )
+    // '/' sorts just before '0', so the range is every path under the folder, by the path index.
+    this.#inFolder = db.prepare<[string, string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM (SELECT 1 FROM songs WHERE path >= ? AND path < ? LIMIT 1)',
+    )
+    this.#leaving = db.prepare<[string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM leaving_copies WHERE path = ?',
+    )
+    this.#allLeaving = db.prepare<[], { song_id: number; path: string }>(
+      'SELECT song_id, path FROM leaving_copies ORDER BY path',
+    )
+    this.#copyGone = db.prepare<[string]>('DELETE FROM leaving_copies WHERE path = ?')
+    this.#coverToRead = db.prepare<[number]>(
+      'INSERT OR IGNORE INTO covers_to_read (song_id) VALUES (?)',
+    )
+    this.#coverRead = db.prepare<[number]>('DELETE FROM covers_to_read WHERE song_id = ?')
+    this.#isCoverToRead = db.prepare<[number], { n: number }>(
+      'SELECT COUNT(*) AS n FROM covers_to_read WHERE song_id = ?',
+    )
+    this.#coversToRead = db.prepare<[], { song_id: number }>('SELECT song_id FROM covers_to_read')
   }
 
   all(): Song[] {
@@ -224,6 +263,15 @@ export class SongRepository {
     return row ? toSong(row) : null
   }
 
+  /**
+   * Whether any song's path is in this folder of the library. A song whose
+   * copy was let go keeps its path and its folder's name though neither is on
+   * disk any more, and a new song given that folder would share its words.
+   */
+  hasFolder(folder: string): boolean {
+    return (this.#inFolder.get(`${folder}/`, `${folder}0`)?.n ?? 0) > 0
+  }
+
   /** Returns the new row id. */
   insert(song: NewSong): number {
     const info = this.#insert.run({
@@ -247,6 +295,7 @@ export class SongRepository {
       ...song,
       loved: song.loved ? 1 : 0,
       instrumental: song.instrumental ? 1 : 0,
+      cameWith: song.cameWith ? JSON.stringify(song.cameWith) : null,
     })
     return Number(info.lastInsertRowid)
   }
@@ -282,6 +331,7 @@ export class SongRepository {
       trackNo: 'track_no',
       loved: 'loved',
       instrumental: 'instrumental',
+      restUntil: 'rest_until',
     }
 
     for (const [key, column] of Object.entries(columns) as [keyof SongPatch, string][]) {
@@ -306,6 +356,25 @@ export class SongRepository {
   /** Where an imported song came from: how its own lyrics are found later. */
   setSourceUrl(id: number, url: string): void {
     this.#setSourceUrl.run(url, id)
+  }
+
+  /** Who handed the song over (schemas/song.ts, CameWith); the song's page says so. */
+  setCameWith(id: number, cameWith: CameWith | null): void {
+    this.#setCameWith.run(cameWith ? JSON.stringify(cameWith) : null, id)
+  }
+
+  cameWith(id: number): CameWith | null {
+    return readCameWith(this.#cameWith.get(id)?.came_with ?? null)
+  }
+
+  /** Every song someone handed over, by id: what the snapshot carries for each. */
+  allCameWith(): Map<number, CameWith> {
+    const out = new Map<number, CameWith>()
+    for (const row of this.#allCameWith.all()) {
+      const cameWith = readCameWith(row.came_with)
+      if (cameWith) out.set(row.id, cameWith)
+    }
+    return out
   }
 
   delete(id: number): void {
@@ -394,6 +463,8 @@ export class SongRepository {
 
   setArt(id: number, hasArt: boolean, extension: string | null): void {
     this.#setArt.run(hasArt ? 1 : 0, extension, id)
+    // With a cover kept, none is still to be read out of its file.
+    if (hasArt) this.#coverRead.run(id)
   }
 
   /** The extension the song's kept cover was saved with (`setArt`), or null. */
@@ -421,11 +492,6 @@ export class SongRepository {
       sizeBytes: row.size_bytes,
       etag: fileEtag(row.size_bytes, row.mtime_ms),
     }))
-  }
-
-  /** Songs with no cover art, for the cover-art pass. */
-  withoutArt(): Song[] {
-    return this.#withoutArt.all().map(toSong)
   }
 
   /** The next song whose cover has not had its colour read, as the cover is now. */
@@ -456,5 +522,46 @@ export class SongRepository {
   allPaths(): Map<string, { id: number; mtimeMs: number }> {
     const rows = this.#allPaths.all()
     return new Map(rows.map(row => [row.path, { id: row.id, mtimeMs: row.mtime_ms }]))
+  }
+
+  /**
+   * Whether a removed song's copy at this path is still to be deleted. A row's
+   * deletion notes its path (`leaving_copies`), so the note outlives a server
+   * killed before the copy went.
+   */
+  isLeaving(path: string): boolean {
+    return (this.#leaving.get(path)?.n ?? 0) > 0
+  }
+
+  /** Removed songs whose copies are still to be deleted, for a start to finish. */
+  leaving(): { id: number; path: string }[] {
+    return this.#allLeaving.all().map(row => ({ id: row.song_id, path: row.path }))
+  }
+
+  /** A removed song's copy is gone: the sweep may make a song of that path again. */
+  copyGone(path: string): void {
+    this.#copyGone.run(path)
+  }
+
+  /**
+   * The cover in this song's file could not be kept, and is to be read out
+   * of it again (`covers_to_read`). Until it is, the copy here is not let go.
+   */
+  coverToRead(id: number): void {
+    this.#coverToRead.run(id)
+  }
+
+  /** Nothing more to read out of this song's file for its cover: one is kept, or it has none. */
+  coverRead(id: number): void {
+    this.#coverRead.run(id)
+  }
+
+  isCoverToRead(id: number): boolean {
+    return (this.#isCoverToRead.get(id)?.n ?? 0) > 0
+  }
+
+  /** Every song with a cover still to read out of its file. */
+  coversToRead(): Set<number> {
+    return new Set(this.#coversToRead.all().map(row => row.song_id))
   }
 }

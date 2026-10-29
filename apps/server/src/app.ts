@@ -3,6 +3,7 @@ import compression from 'compression'
 import type { Config } from './config.js'
 import type { Container } from './container.js'
 import type { Logger } from './logger.js'
+import type { ServerMetrics } from './services/metrics.js'
 import {
   bearerAuth,
   cors,
@@ -12,7 +13,6 @@ import {
   securityHeaders,
 } from './http/middleware.js'
 import { errorHandler, notFoundHandler } from './http/errors.js'
-import { mountAdminPage } from './http/admin.js'
 import { libraryRoutes } from './routes/library.js'
 import { songRoutes } from './routes/songs.js'
 import { mediaRoutes } from './routes/media.js'
@@ -27,8 +27,10 @@ import { lyricsRoutes } from './routes/lyrics.js'
 import { deviceRoutes } from './routes/devices.js'
 import { wrappedRoutes } from './routes/wrapped.js'
 import { gemsRoutes } from './routes/gems.js'
+import { soundMapRoutes } from './routes/soundMap.js'
 import { cloudRoutes } from './routes/cloud.js'
 import { artistRoutes } from './routes/artists.js'
+import { usageRoutes } from './routes/usage.js'
 
 /**
  * Wire the HTTP layer.
@@ -38,10 +40,10 @@ import { artistRoutes } from './routes/artists.js'
  * token), auth before any route, and the error handler dead last so it catches
  * everything above it.
  *
- * Two shapes share it. `createApp` serves one library, as a test or a laptop
- * with a folder for a bucket wants. A server working for several accounts
- * serves each library's `libraryApi` behind the hub's own door instead
- * (hub/app.ts), which finds the library a request is for by its token.
+ * Two shapes share it. `createApp` serves one library, as the route tests
+ * stand it up. A running server works for several accounts and serves each
+ * library's `libraryApi` behind the hub's own door instead (hub/app.ts), which
+ * finds the library a request is for by its token.
  */
 export function createApp(container: Container): Express {
   const app = frame(container.config, container.logger)
@@ -54,7 +56,11 @@ export function createApp(container: Container): Express {
  * Everything in front of the API: headers, CORS, the log, compression, JSON
  * bodies, and refusing other sites' writes. The same for one library or many.
  */
-export function frame(config: Config, logger: Logger): Express {
+export function frame(
+  config: Config,
+  logger: Logger,
+  metrics: Pick<ServerMetrics, 'count'> | null = null,
+): Express {
   const app = express()
 
   // Behind `tailscale serve`, so trust exactly one proxy hop for req.ip.
@@ -64,7 +70,7 @@ export function frame(config: Config, logger: Logger): Express {
 
   app.use(securityHeaders())
   app.use(cors(config))
-  app.use(requestLogger(logger))
+  app.use(requestLogger(logger, metrics))
 
   // Compress JSON, never audio: an m4a is already compressed, and gzipping it
   // would burn CPU while breaking the byte offsets that range requests need.
@@ -84,10 +90,13 @@ export function frame(config: Config, logger: Logger): Express {
   return app
 }
 
-/** The API's own 404, then the server's page, then the one error handler. */
+/**
+ * The end of every app here: anything not answered is a 404, the API's own.
+ * The server serves no page on its public port: its admin page has a listener
+ * of its own, on this machine only (admin/app.ts).
+ */
 export function finish(app: Express, logger: Logger): Express {
-  app.use('/api', notFoundHandler)
-  mountAdminPage(app)
+  app.use(notFoundHandler)
   app.use(errorHandler(logger))
   return app
 }
@@ -115,7 +124,9 @@ export function libraryApi(container: Container): Router {
   api.use(deviceRoutes(container))
   api.use(wrappedRoutes(container))
   api.use(gemsRoutes(container))
+  api.use(soundMapRoutes(container))
   api.use(cloudRoutes(container))
   api.use(artistRoutes(container))
+  api.use(usageRoutes(container))
   return api
 }

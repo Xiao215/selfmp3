@@ -18,6 +18,9 @@ const library: Library = {
   songs: [{ id: 1, rev: 'r1', hasArt: true } as Song],
   tags: [],
   playlists: [],
+  artistNames: {},
+  artistNamesFound: [],
+  spellings: {},
   version: 1,
   generatedAt: '2026-10-07T00:00:00Z',
 }
@@ -25,9 +28,13 @@ const library: Library = {
 let mockLibrary = library
 
 const mockEnsureCover = jest.fn<Promise<string | null>, [number]>()
-const mockPlaylistSongs = jest.fn<Promise<{ playlistId: number; songIds: number[] }>, [number]>()
+const mockAllPlaylistSongs = jest.fn<
+  Promise<{ playlists: { playlistId: number; songIds: number[] }[] }>,
+  []
+>()
 const mockEnsurePicture = jest.fn<Promise<string | null>, [string]>()
 const mockSweep = jest.fn<Promise<number>, [ReadonlySet<string>]>()
+const mockFill = jest.fn<Promise<ReadonlySet<string>>, [() => boolean]>()
 
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
@@ -35,7 +42,7 @@ jest.mock('@selfmp3/client', () => ({
   isDownloaded: () => false,
 }))
 jest.mock('../api/client', () => ({
-  api: { playlistSongs: (id: number) => mockPlaylistSongs(id) },
+  api: { allPlaylistSongs: () => mockAllPlaylistSongs() },
   mediaUrlFor: () => ({}),
 }))
 jest.mock('../connection/ConnectionProvider', () => ({
@@ -47,6 +54,7 @@ jest.mock('./DownloadsProvider', () => ({
 jest.mock('./caches', () => ({ playlistCache: { write: () => undefined } }))
 jest.mock('../replica', () => ({
   library: {
+    cloudCoverKeyNow: () => `covers/${'a'.repeat(64)}.jpg`,
     cloudPicturesNow: () => ({
       covers: new Set([`covers/${'a'.repeat(64)}.jpg`]),
       artists: [
@@ -57,10 +65,12 @@ jest.mock('../replica', () => ({
 }))
 jest.mock('./covers', () => ({
   KEPT_COVER_SIZE: 640,
+  keepsCovers: true,
   ensureCover: (songId: number) => mockEnsureCover(songId),
   ensurePicture: (key: string) => mockEnsurePicture(key),
   ensureServerCover: () => Promise.resolve(),
   sweepPictures: (named: ReadonlySet<string>) => mockSweep(named),
+  fillFromPacks: (isCancelled: () => boolean) => mockFill(isCancelled),
 }))
 
 /** Lets the pass's chain of awaits run out. */
@@ -72,10 +82,13 @@ describe('useKeepAlongside, for a cloud library', () => {
   beforeEach(() => {
     jest.useFakeTimers()
     mockLibrary = library
-    mockPlaylistSongs.mockReset().mockImplementation(async id => ({ playlistId: id, songIds: [1] }))
+    mockAllPlaylistSongs.mockReset().mockImplementation(async () => ({
+      playlists: mockLibrary.playlists.map(playlist => ({ playlistId: playlist.id, songIds: [1] })),
+    }))
     mockEnsureCover.mockReset().mockResolvedValue('file:///cover.jpg')
     mockEnsurePicture.mockReset().mockResolvedValue('file:///picture.jpg')
     mockSweep.mockReset().mockResolvedValue(0)
+    mockFill.mockReset().mockResolvedValue(new Set())
   })
   afterEach(() => {
     jest.useRealTimers()
@@ -89,6 +102,28 @@ describe('useKeepAlongside, for a cloud library', () => {
     expect(mockEnsurePicture.mock.calls.map(([key]) => key).sort()).toEqual([BANNER, PORTRAIT])
     expect(mockSweep).toHaveBeenCalledTimes(1)
     expect([...(mockSweep.mock.calls[0]?.[0] ?? [])].sort()).toEqual([COVER, BANNER, PORTRAIT])
+  })
+
+  it('fills from the packs first, and leaves what a pack could not bring for later', async () => {
+    // The pack with the cover and the banner did not come: not fetched one by
+    // one instead, but asked for again with the next pass.
+    mockFill.mockResolvedValueOnce(new Set([COVER, BANNER]))
+    await renderHook(() => useKeepAlongside())
+    await settle()
+
+    expect(mockFill).toHaveBeenCalledTimes(1)
+    expect(mockEnsureCover).not.toHaveBeenCalled()
+    expect(mockEnsurePicture.mock.calls.map(([key]) => key)).toEqual([PORTRAIT])
+    expect(mockSweep).not.toHaveBeenCalled()
+
+    await act(async () => {
+      jest.advanceTimersByTime(10 * 60_000)
+    })
+    await settle()
+
+    expect(mockFill).toHaveBeenCalledTimes(2)
+    expect(mockEnsureCover).toHaveBeenCalledWith(1)
+    expect(mockSweep).toHaveBeenCalledTimes(1)
   })
 
   it('sweeps nothing while a picture is missing, and asks again ten minutes later', async () => {
@@ -114,15 +149,28 @@ describe('useKeepAlongside, for a cloud library', () => {
     const { rerender } = await renderHook(() => useKeepAlongside())
     await settle()
     expect(mockEnsureCover).toHaveBeenCalledTimes(1)
-    expect(mockPlaylistSongs).toHaveBeenCalledTimes(1)
+    expect(mockAllPlaylistSongs).toHaveBeenCalledTimes(1)
 
     // A tag ticked that the live playlist follows: its count moves, no song's files do.
     mockLibrary = { ...library, playlists: [{ ...live, songCount: 2 }] }
     await rerender({})
     await settle()
 
-    expect(mockPlaylistSongs).toHaveBeenCalledTimes(2)
+    expect(mockAllPlaylistSongs).toHaveBeenCalledTimes(2)
     expect(mockEnsureCover).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for every playlist’s songs in one request, however many there are', async () => {
+    mockLibrary = {
+      ...library,
+      playlists: Array.from(
+        { length: 600 },
+        (_, i) => ({ id: i + 1, songCount: 1, updatedAt: '2026-10-07 00:00:00' }) as Playlist,
+      ),
+    }
+    await renderHook(() => useKeepAlongside())
+    await settle()
+    expect(mockAllPlaylistSongs).toHaveBeenCalledTimes(1)
   })
 
   it('lets the phone draw between songs rather than holding it for the whole pass', async () => {

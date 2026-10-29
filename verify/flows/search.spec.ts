@@ -82,7 +82,13 @@ test.describe('search', () => {
     await page.goto('/')
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
     await page.getByTestId('home-search').click()
+    // Words that match nothing are a question: Ask comes first, and nothing
+    // under it says there was nothing (D1).
     await page.getByTestId('search-field').fill('zzqqxxnothing')
+    await expect(page.getByTestId('search-ask')).toBeVisible()
+    await expect(page.getByText(/Nothing matches/)).toHaveCount(0)
+    // Two letters are too few to ask about.
+    await page.getByTestId('search-field').fill('zq')
     await expect(page.getByText(/Nothing matches/)).toBeVisible()
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(page.getByTestId('home-screen')).toBeVisible()

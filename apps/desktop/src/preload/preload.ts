@@ -21,6 +21,7 @@ import {
   type DesktopBridge,
   type DesktopInfo,
   type DockPlaybackState,
+  type MenuState,
   type FileKind,
 } from '@selfmp3/desktop-bridge'
 
@@ -101,6 +102,9 @@ const bridge: DesktopBridge = {
     fetchTo: async (kind, name, url, headers) => {
       await ipcRenderer.invoke(CHANNELS.filesFetchTo, kind, name, url, headers)
     },
+    unpackTo: async (kind, url, headers, slices) => {
+      await ipcRenderer.invoke(CHANNELS.filesUnpackTo, kind, url, headers, slices)
+    },
     write: async (kind, name, text) => {
       await ipcRenderer.invoke(CHANNELS.filesWrite, kind, name, text)
     },
@@ -128,6 +132,9 @@ const bridge: DesktopBridge = {
     use: async session => {
       await ipcRenderer.invoke(CHANNELS.bucketUse, session)
     },
+    release: async () => {
+      await ipcRenderer.invoke(CHANNELS.bucketRelease)
+    },
     // A key's parts each encoded, so its slashes stay slashes, as the doorman's own path has them.
     streamUrl: (key: string) =>
       `${APP_ORIGIN}${STREAM_PREFIX}${key.split('/').map(encodeURIComponent).join('/')}`,
@@ -146,6 +153,14 @@ const bridge: DesktopBridge = {
 
   setPlaybackState: async (state: DockPlaybackState) => {
     await ipcRenderer.invoke(CHANNELS.setPlaybackState, state)
+  },
+
+  setMenuState: async (state: MenuState) => {
+    await ipcRenderer.invoke(CHANNELS.setMenuState, state)
+  },
+
+  setWindowGround: async (colour: string) => {
+    await ipcRenderer.invoke(CHANNELS.setWindowGround, colour)
   },
 
   updates: {

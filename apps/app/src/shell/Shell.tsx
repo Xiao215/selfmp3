@@ -3,40 +3,56 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react'
 import type { ReactNode } from 'react'
-import { router, usePathname } from 'expo-router'
+import { type Href, router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { StyleSheet } from 'react-native-unistyles'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
 import { CoverFlight } from '../ui/components/CoverFlight'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { SELECTION_BAR_SPACE, selectionBarLift } from '../ui/components/SelectionBar'
 import { ResumeToast } from '../features/devices/ResumeToast'
+import { AppUpdateNotice } from '../features/settings/AppUpdate'
 import { CommandPalette } from '../features/commandPalette/CommandPalette'
+import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
 import { PLAYER_BAR_HEIGHT, PlayerBar } from './PlayerBar'
+import { usePageTabs } from './pageChrome'
 import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
+import { SkipToPage } from './SkipToPage'
 import { useFloatingChrome } from './bottomInset'
+import { usePageFoot } from './pageFoot'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
+import { closeLayers } from './layers'
 import { useCommands } from './useCommands'
 import { useLayout, useLayoutValue } from './useLayout'
 import { ease, timing, useFade, usePresence } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
-import { motion, space } from '@selfmp3/client'
-import { pageKey, stepSide } from './pageStep'
+import { isRoomTrackId, motion, space, useLibrary, useToggleLoved } from '@selfmp3/client'
+import { pageKey, pageStepped, stepSide, type PageShown } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
-import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
+import {
+  usePlayer,
+  usePlayerCommands,
+  usePlayingSongId,
+  useSongLoaded,
+} from '../player/PlayerProvider'
+import { pressed } from '../player/roomTransport'
+import { desktop } from '../ports/desktop/bridge'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
-import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
+import { QueueRail, useQueueRailCover, useQueueRailRoom } from '../features/queue/QueueRail'
+import { closeQueueSheet } from '../features/queue/queueSheet.store'
+import { usePageTap } from './pageTap'
 import { RoomSheets } from '../features/room/RoomSheets'
 import { ShareSheet } from '../features/share/ShareSheet'
 import { QueueSheet } from '../features/queue/QueueSheet'
@@ -99,6 +115,9 @@ export function Shell({
       <PlaybackNotices />
       <PaletteHost />
       <MenuCommands />
+      {desktop ? <MenuChecks /> : null}
+      {desktop ? <WindowGround /> : null}
+      <NewPlaylistHost />
       <DeepLinkRoutes />
       {/* Covers flying into the Up next button (`ui/coverFlight.ts`). */}
       <CoverFlight />
@@ -171,6 +190,13 @@ function Frame({
    */
   const { width } = useLayout()
   const railRoom = useQueueRailRoom()
+  const railCover = useQueueRailCover()
+  // Up next lying over the page goes when the page is tapped, as the phone's
+  // sheet does (P2 B): heard, not taken, so the tap still lands where it was.
+  const pageRef = useRef<View>(null)
+  const pageTap = usePageTap(pageRef, wide && railCover > 0, closeQueueSheet)
+  // A page that puts the tab bar away keeps the mini player (`pageChrome.ts`).
+  const tabs = usePageTabs()
   const contentWidth = useDeferredValue(wide ? width - SIDEBAR_WIDTH - railRoom : null)
   // Told to the page's readers once it has settled: a store, so that a row
   // asking only whether its album column fits is not rendered for every pixel.
@@ -183,27 +209,31 @@ function Frame({
       <View style={styles.columns}>
         {/* First, so a keyboard and a screen reader still come to it before the
             page; drawn over the page by its `zIndex`, not by coming after it. */}
+        {/* Tab's first stop on a computer, before the sidebar's rows (AF1). */}
+        {wide ? <SkipToPage pageRef={pageRef} /> : null}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
-        <View style={styles.content}>
+        <View ref={pageRef} style={styles.content} role="main" {...pageTap}>
           <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
-          {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
+          {wide && railCover === 0 ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
         </View>
         {/* Up next, beside the page, across every page. */}
         {wide ? <QueueRail /> : null}
+        {/* Over Up next while it lies over the page: the strip of page left
+            between it and the sidebar is too narrow to read a message in. */}
+        {wide && railCover > 0 ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
       </View>
       {wide ? <BarSlot hidden={barHidden} /> : null}
       {!wide && chrome ? <MiniPlayer /> : null}
-      {!wide && chrome ? <BottomNav /> : null}
+      {!wide && chrome && tabs ? <BottomNav /> : null}
       {wide || covered ? null : <QueueSheet />}
       {/* On every compact page, chrome or not: a toast raised by a full-screen
           page (Now Playing, the import review) has nowhere else to land, and
           the row already drops to the foot when there is no chrome to sit on. */}
       {wide ? null : <Toasts />}
-      {/* A listening room's sheets: Together, Add songs, People; and the
-          share sheet. Drawn by the phone's Now Playing instead while it
-          covers the shell. */}
+      {/* A listening room's sheet, Together, and the share sheet. Drawn by
+          the phone's Now Playing instead while it covers the shell. */}
       {covered ? null : <RoomSheets />}
       {covered ? null : <ShareSheet />}
     </View>
@@ -333,11 +363,15 @@ const PAGE_STEP_WIDE = 6
 function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): ReactNode {
   const pathname = usePathname()
   const key = pageKey(pathname, wide, stackMoves)
-  const [shown, setShown] = useState(key)
-  const [step, setStep] = useState({ count: 0, side: 1 as -1 | 1 })
-  if (key !== null && key !== shown) {
-    setShown(key)
-    if (shown !== null) setStep({ count: step.count + 1, side: stepSide(shown, key) })
+  const [shown, setShown] = useState<PageShown | null>(key === null ? null : { key, wide })
+  // Under the layout it was taken in: the layout changing later is not a step.
+  const [step, setStep] = useState({ count: 0, side: 1 as -1 | 1, wide })
+  if (key !== null && (key !== shown?.key || wide !== shown.wide)) {
+    const now = { key, wide }
+    setShown(now)
+    if (shown !== null && pageStepped(shown, now)) {
+      setStep({ count: step.count + 1, side: stepSide(shown.key, key), wide })
+    }
   }
   const [value] = useState(() => new Animated.Value(1))
   // How far, and which way: a number sent to a node, so the step's nodes are
@@ -356,10 +390,10 @@ function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): R
   // Before the paint, so the new page's first frame is already stepped aside.
   useLayoutEffect(() => {
     if (step.count === 0) return
-    distance.setValue(wide ? PAGE_STEP_WIDE : PAGE_STEP_PHONE * step.side)
+    distance.setValue(step.wide ? PAGE_STEP_WIDE : PAGE_STEP_PHONE * step.side)
     value.setValue(0)
-    timing(value, 1, wide ? MOVE_MS.page : MOVE_MS.tab, undefined, { easing: ease.out })
-  }, [step, value, distance, wide])
+    timing(value, 1, step.wide ? MOVE_MS.page : MOVE_MS.tab, undefined, { easing: ease.out })
+  }, [step, value, distance])
 
   return (
     <Animated.View style={[styles.content, wide ? moves.wide : moves.phone]}>
@@ -377,6 +411,7 @@ function DeepLinkRoutes(): ReactNode {
   useEffect(
     () =>
       onDeepLinkRoute(route => {
+        closeLayers()
         if (route.kind === 'now-playing') router.navigate('/now-playing')
         else router.navigate(`/playlists/${route.id}`)
       }),
@@ -395,22 +430,88 @@ function DeepLinkRoutes(): ReactNode {
  */
 function MenuCommands(): ReactNode {
   const player = usePlayerCommands()
+  const playingId = usePlayingSongId()
+  const { data: library } = useLibrary()
+  const toggleLoved = useToggleLoved()
+  // A page chosen from the menu bar closes whatever was open over this one:
+  // left open, a song's menu went on working over Settings.
+  const open = (path: Href): void => {
+    closeLayers()
+    router.navigate(path)
+  }
   useCommands({
-    library: () => router.navigate('/library'),
-    playlists: () => router.navigate('/playlists'),
-    'now-playing': () => router.navigate('/now-playing'),
-    settings: () => router.navigate('/settings'),
-    'play-pause': () => player.toggle(),
-    next: () => player.next(),
-    previous: () => player.previous(),
+    home: () => open('/'),
+    library: () => open('/library'),
+    import: () => open('/import'),
+    stats: () => open('/stats'),
+    playlists: () => open('/playlists'),
+    'now-playing': () => open('/now-playing'),
+    settings: () => open('/settings'),
+    // File › Import…: the page, with its field ready to paste into. A new
+    // value each time, so the field takes the focus again on the page itself.
+    'start-import': () => open({ pathname: '/import', params: { focus: String(Date.now()) } }),
+    // The playing song, as the heart beside it does; a friend's song in a room has none.
+    like: () => {
+      if (playingId === null || isRoomTrackId(playingId)) return
+      const song = library?.songs.find(one => one.id === playingId)
+      if (song) toggleLoved.mutate({ id: song.id, loved: !song.loved })
+    },
+    // Pressed, so in a room this device follows they are the room's (roomTransport.ts).
+    'play-pause': () => pressed('toggle', player.toggle),
+    next: () => pressed('next', player.next),
+    previous: () => pressed('previous', player.previous),
     'seek-forward': () => player.seekBy(SEEK_STEP_SECONDS),
     'seek-back': () => player.seekBy(-SEEK_STEP_SECONDS),
     shuffle: () => player.toggleShuffle(),
-    repeat: () => player.cycleRepeatMode(),
+    'repeat-off': () => player.setRepeatMode('off'),
+    'repeat-all': () => player.setRepeatMode('all'),
+    'repeat-one': () => player.setRepeatMode('one'),
     'volume-up': () => player.stepVolume(VOLUME_STEP),
     'volume-down': () => player.stepVolume(-VOLUME_STEP),
     mute: () => player.toggleMute(),
   })
+  return null
+}
+
+/**
+ * The Mac window's own colour follows the theme on screen: the ground it shows
+ * at its edges while being resized, and opens in next time (Paper's on Paper).
+ */
+function WindowGround(): ReactNode {
+  const { theme } = useUnistyles()
+  const ground = theme.colors.surface0
+  useEffect(() => {
+    void desktop?.setWindowGround(ground)
+  }, [ground])
+  return null
+}
+
+/**
+ * File › New Playlist (⌘N): the same window the sidebar's + opens, here so it
+ * opens at any width, a window too narrow for the sidebar included.
+ */
+function NewPlaylistHost(): ReactNode {
+  const [open, setOpen] = useState(false)
+  useCommands({ 'new-playlist': () => setOpen(true) })
+  return <NewPlaylist open={open} onClose={() => setOpen(false)} />
+}
+
+/**
+ * The installed app's menu ticks Shuffle, the Repeat mode and Like as the
+ * player has them (AO1): told to the shell whenever one changes. Drawn only
+ * where there is a shell to tell.
+ */
+function MenuChecks(): ReactNode {
+  const { queue, current } = usePlayer()
+  const { data: library } = useLibrary()
+  // The library's word on the like, which a heart pressed anywhere changes first.
+  const liked = useMemo(() => {
+    if (!current || isRoomTrackId(current.id)) return null
+    return library?.songs.find(one => one.id === current.id)?.loved ?? current.loved
+  }, [current, library])
+  useEffect(() => {
+    void desktop?.setMenuState({ shuffle: queue.shuffle, repeat: queue.repeat, liked })
+  }, [queue.shuffle, queue.repeat, liked])
   return null
 }
 
@@ -439,6 +540,8 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
   // rise and sink (`selectionBarLift`), a transform because the value moves
   // on the native side and a `bottom` cannot.
   const chrome = useFloatingChrome()
+  // And above a field docked at the page's foot (Ask's), whatever the device.
+  const foot = usePageFoot()
   const [lift] = useState(() => ({
     transform: [
       {
@@ -451,11 +554,13 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
   }))
   return (
     <Animated.View
-      // Centred in the page, which starts where the sidebar over it ends.
-      style={[styles.toasts, { left, bottom: TOASTS_BOTTOM + chrome }, lift]}
+      // Centred in the page that can be seen: it starts where the sidebar over
+      // it ends.
+      style={[styles.toasts, { left, bottom: TOASTS_BOTTOM + chrome + foot }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />
+      <AppUpdateNotice />
       <ToastHost />
     </Animated.View>
   )
@@ -463,6 +568,8 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
 
 /** How far the toasts sit above the foot of the page, or above the chrome that floats there. */
 const TOASTS_BOTTOM = 10
+/** Above the sheets the shell draws beside them (their rows lift at 2), and Up next lying over the page (2). */
+const TOASTS_LAYER = 10
 
 const styles = StyleSheet.create(theme => ({
   toasts: {
@@ -473,6 +580,13 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.lg,
+    /*
+     * Over Up next's sheet for the finger as well as the eye. Drawn after it
+     * was enough to be seen on top, not to be pressed: a toast's ✕ over the
+     * sheet played the row under it instead.
+     */
+    zIndex: TOASTS_LAYER,
+    elevation: TOASTS_LAYER,
   },
   root: {
     flex: 1,
@@ -488,6 +602,12 @@ const styles = StyleSheet.create(theme => ({
     // slide. Everything that has to escape the frame — a popover, a song
     // being dragged, a toast — is drawn by the overlay host above this.
     overflow: 'hidden',
+    // In a browser, clipped sideways only: Now Playing reaches down under the
+    // player bar (`stagePage`), and clipped at the bar's top edge too, Focus
+    // with a still mouse showed a flat 84 px strip of the frame where the bar
+    // had faded instead of the page's own light. `clip`, not `hidden`, so the
+    // other way stays visible rather than becoming a scroller.
+    _web: { overflow: 'visible', overflowX: 'clip' },
   },
   content: {
     flex: 1,
@@ -503,8 +623,11 @@ const styles = StyleSheet.create(theme => ({
     width: SIDEBAR_WIDTH,
     flexDirection: 'row',
     zIndex: 1,
+    // The app's chrome, not words to copy: a press-drag across it selected
+    // its labels in blue. The bar's and Up next's do the same.
+    userSelect: 'none',
   },
   sidebarGone: { display: 'none' },
-  barSlot: { overflow: 'hidden' },
+  barSlot: { overflow: 'hidden', userSelect: 'none' },
   barInSlot: { position: 'absolute', top: 0, left: 0, right: 0 },
 }))

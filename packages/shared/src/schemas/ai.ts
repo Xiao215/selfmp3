@@ -12,6 +12,9 @@ import { IdSchema } from './common.js'
  * a translation of its own.
  */
 
+/** The size that means every song the other parts let in ("all my YOASOBI"). */
+export const EVERY_SONG = 2000
+
 /** A bound of a 0–1, bpm or year range; either end may be open. */
 export const RangeSchema = z.object({
   min: z.number().nullable(),
@@ -24,14 +27,17 @@ export type Range = z.infer<typeof RangeSchema>
  * away one at a time.
  *
  * Places widen and everything else narrows (the rule from combining tags):
- * a song is in if it carries any of `anyTags` or is by any of `artists` (or
- * there are neither), and then passes every other part that is set.
+ * a song is in if it carries any of `anyTags`, is by any of `artists` or is on
+ * any of `albums` (or there are none), and then passes every other part that
+ * is set.
  */
 export const UnderstandingSchema = z.object({
   /** A name for the playlist, from the words. */
   name: z.string().trim().min(1).max(60),
   anyTags: z.array(z.string()).max(12),
   artists: z.array(z.string()).max(12),
+  /** Album names, as the library spells them. */
+  albums: z.array(z.string()).max(12),
   noTags: z.array(z.string()).max(12),
   /** 0–1, from the audio analysis. A song not analysed yet does not pass a set range. */
   energy: RangeSchema,
@@ -50,7 +56,7 @@ export const UnderstandingSchema = z.object({
   notPlayedWithinDays: z.number().int().min(1).max(3650).nullable(),
   addedWithinDays: z.number().int().min(1).max(3650).nullable(),
   /** How many songs were asked for, when the words said. */
-  size: z.number().int().min(1).max(2000).nullable(),
+  size: z.number().int().min(1).max(EVERY_SONG).nullable(),
   /**
    * How long it should play, in minutes, when the words said ("2 hours" is
    * 120). The songs are counted by their own lengths, not an average song's.
@@ -72,8 +78,11 @@ export const UnderstandingSchema = z.object({
 })
 export type Understanding = z.infer<typeof UnderstandingSchema>
 
+/** The longest question Ask takes — and so what a search box takes, since Search asks too. */
+export const ASK_TEXT_MAX = 500
+
 export const DescribeRequestSchema = z.object({
-  text: z.string().trim().min(1).max(500),
+  text: z.string().trim().min(1).max(ASK_TEXT_MAX),
   /**
    * Given when the parts were changed on the device: the words are not read
    * again, the songs are only picked again from what the parts now let in.
@@ -90,24 +99,6 @@ export type DescribeRequest = z.infer<typeof DescribeRequestSchema>
 /** A smart request's own name, chosen by the device: how it asks after the request, or stops it. */
 export const AskTicketSchema = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/)
 
-/**
- * An answer changed after it was given: "10 首", "不要动漫的" (docs/features/ai.md,
- * "Change it"). The filters as they stand and the songs shown come along, so
- * what the change does not touch stays.
- */
-export const RefineRequestSchema = z.object({
-  /** What was first asked. */
-  text: z.string().trim().min(1).max(500),
-  understanding: UnderstandingSchema,
-  /** What to change, in their words. */
-  change: z.string().trim().min(1).max(300),
-  /** The songs shown now, by the server's ids, in their order. */
-  shown: z.array(IdSchema).max(2000).default([]),
-  /** Names this request, so the device can ask how it is going (`AskProgress`). */
-  ticket: AskTicketSchema.optional(),
-})
-export type RefineRequest = z.infer<typeof RefineRequestSchema>
-
 export const DescribePickSchema = z.object({
   songId: IdSchema,
   /** A few words on why it fits; null when every song that fit was taken. */
@@ -123,6 +114,12 @@ export const DescribeResultSchema = z.object({
   loosened: z.array(z.string()),
   /** Tags or artists the words named that this library does not have. */
   unknown: z.array(z.string()),
+  /**
+   * What else made the songs fewer than what fit, in plain words: the line
+   * the listening drew, resting songs set aside, a size nobody asked for, or
+   * why none were chosen. Never silent: an answer shorter than it could be says so.
+   */
+  notes: z.array(z.string()),
   picks: z.array(DescribePickSchema),
 })
 export type DescribeResult = z.infer<typeof DescribeResultSchema>
@@ -166,21 +163,105 @@ export const TagReviewSchema = z.object({
 })
 export type TagReview = z.infer<typeof TagReviewSchema>
 
+/** The longest line a turn's answer is told back in. */
+export const ASK_ANSWERED_MAX = 2000
+/** The most earlier turns a follow-up is asked after: a longer conversation sends its newest. */
+export const ASK_BEFORE_MAX = 8
+/** The most songs an answer's object carries back, in its order. */
+export const ASK_OBJECT_SONGS = 200
+/** The most cards one reply holds. */
+export const ASK_CARDS_MAX = 4
+/** The most answers a question back offers. */
+export const ASK_CLARIFY_OPTIONS = 3
+
+/**
+ * A handle names something an answer showed, for the rest of the conversation
+ * (AGENT-DESIGN 2.1): `t3.2` is the third turn's second card. The device gives
+ * it, from where the turn stands on its page, so it stays the same however
+ * many turns are sent after it.
+ */
+export const AskHandleSchema = z.string().regex(/^t\d{1,3}\.\d{1,2}$/)
+export type AskHandle = z.infer<typeof AskHandleSchema>
+
+/** What an answer showed, as an object a follow-up can name. */
+export const AskObjectKindSchema = z.enum([
+  'songs',
+  'together',
+  'find',
+  'library',
+  'stats',
+  'explore',
+  'playlistSongs',
+  'tagChanges',
+  'nameChanges',
+  'copies',
+])
+export type AskObjectKind = z.infer<typeof AskObjectKindSchema>
+
+/**
+ * Something an earlier answer showed, sent back by the device so a follow-up
+ * can act on it by its handle ("play the 3rd one", "add these to gym", "why
+ * is 大海 in here"): the server keeps no conversation, and the device already
+ * holds the server's ids. `songIds` are the songs in the order shown, `why`
+ * each one's reason where the answer gave one, in the same order.
+ */
+export const AskObjectSchema = z.object({
+  handle: AskHandleSchema,
+  kind: AskObjectKindSchema,
+  /** Its name or a few words on what it is ("Rainy day", "5 tag changes"). */
+  label: z.string().max(120),
+  songIds: z.array(IdSchema).max(ASK_OBJECT_SONGS),
+  why: z.array(z.string().max(140).nullable()).max(ASK_OBJECT_SONGS).default([]),
+  /** The playlist it is about, for a playlist's songs. */
+  playlist: z.string().max(120).nullable().default(null),
+  /** What a song list was offered for: to play now, to keep, or after the song playing. */
+  lead: z.enum(['play', 'save', 'next']).nullable().default(null),
+  /** The song a list sounds like, when it was asked to (`like`), by the server's id. */
+  like: IdSchema.nullable().default(null),
+  /** What a song list understood, as it stands now: what a change to it starts from. */
+  understanding: UnderstandingSchema.nullable().default(null),
+})
+export type AskObject = z.infer<typeof AskObjectSchema>
+
+/**
+ * One turn of an Ask conversation: what was asked, what the answer shown for
+ * it said — its words, or a line the device writes for a list or a review
+ * ("Showed 12 songs (“…”)") — and what it showed, by handle.
+ */
+export const AskTurnSchema = z.object({
+  asked: z.string().trim().min(1).max(ASK_TEXT_MAX),
+  answered: z.string().trim().max(ASK_ANSWERED_MAX),
+  objects: z.array(AskObjectSchema).max(ASK_CARDS_MAX).default([]),
+})
+export type AskTurn = z.infer<typeof AskTurnSchema>
+export type AskTurnInput = z.input<typeof AskTurnSchema>
+
+/**
+ * Where the asking device is: the song playing, what "this" means (A8), and
+ * the answer on its screen, what "these" means — the field's "↳ these songs",
+ * null once it is let go.
+ */
+export const AskContextSchema = z.object({
+  playing: IdSchema.nullable().default(null),
+  screen: AskHandleSchema.nullable().default(null),
+})
+export type AskContext = z.infer<typeof AskContextSchema>
+
 /**
  * The Search box's Ask (docs/features/ai.md, "S1"): one request, routed to one
  * of a few things the app can already do, and answered as a proposal.
  */
 export const AskRequestSchema = z.object({
-  text: z.string().trim().min(1).max(500),
-  /** The song playing on the asking device, by the server's id: what "this" means (A8). */
-  playing: IdSchema.nullable().default(null),
+  text: z.string().trim().min(1).max(ASK_TEXT_MAX),
+  context: AskContextSchema.default({ playing: null, screen: null }),
   /** Names this request, so the device can ask how it is going (`AskProgress`). */
   ticket: AskTicketSchema.optional(),
   /**
-   * What was said before this, first ask first, when `text` follows up on an
-   * answer ("only the albums"): the request is all of it together.
+   * The conversation before this, first turn first, when `text` follows up on
+   * an answer: each thing asked with what was shown for it. `text` is what is
+   * answered; these are what it is said after.
    */
-  before: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+  before: z.array(AskTurnSchema).max(ASK_BEFORE_MAX).default([]),
 })
 export type AskRequest = z.infer<typeof AskRequestSchema>
 
@@ -206,6 +287,8 @@ export const AskSortSchema = z.enum([
   'duration',
   'plays',
   'lastPlayed',
+  /** An album's own order: by album, then track number. */
+  'track',
 ])
 export type AskSort = z.infer<typeof AskSortSchema>
 
@@ -355,13 +438,19 @@ export const AskPlaybackOpSchema = z.enum([
 ])
 export type AskPlaybackOp = z.infer<typeof AskPlaybackOpSchema>
 
-export const AskAnswerSchema = z.discriminatedUnion('kind', [
+/**
+ * One card of an Ask reply (`AskReply`): one thing the answer shows or
+ * proposes, each with its own button.
+ */
+export const AskCardSchema = z.discriminatedUnion('kind', [
   /** Songs to play now or keep: Describe's answer, and which of the two the words led with. */
   z.object({
     kind: z.literal('songs'),
     /** play: now; save: a playlist; next: after the song playing, in Up next (A8). */
     lead: z.enum(['play', 'save', 'next']),
     describe: DescribeResultSchema,
+    /** The song they asked for music like, by the server's id: a change to the list keeps it. */
+    like: IdSchema.nullable().default(null),
   }),
   /**
    * Listening with friends: a room to open, or songs for the room the device
@@ -417,8 +506,17 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
       }),
     ),
   }),
-  /** An open question looked into with tools: the answer in words, and the songs it is about (server ids). */
-  z.object({ kind: z.literal('explore'), say: z.string(), songIds: z.array(IdSchema) }),
+  /**
+   * An open question looked into with tools: the answer in words, the songs it
+   * is about (server ids), and what to search a catalogue for when it is about
+   * music they don't have.
+   */
+  z.object({
+    kind: z.literal('explore'),
+    say: z.string(),
+    songIds: z.array(IdSchema),
+    get: z.string().nullable(),
+  }),
   /**
    * Playlists to delete or one to rename, as a proposal to approve: the
    * playlists meant, by their exact names (matched on the server, so a
@@ -465,13 +563,27 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     show: z.enum(['count', 'songs', 'artists', 'albums', 'tags']),
     count: z.number().int().nonnegative(),
     seconds: z.number().nonnegative(),
+    /**
+     * When a model judged the songs by meaning: how many it read of how many
+     * the filters let in. Fewer read than let in makes `count` an estimate,
+     * scaled up from them. Null when the filters alone counted.
+     */
+    judged: z
+      .object({ songs: z.number().int().nonnegative(), of: z.number().int().nonnegative() })
+      .nullable(),
     songIds: z.array(IdSchema),
     sortBy: AskSortSchema.nullable(),
     order: AskOrderSchema,
-    /** Who, which albums and which tags the songs are in, most songs first. */
+    /** Who, which albums and which tags the songs are in, most songs first (a song counts for everyone it is by). */
     artists: z.array(z.object({ label: z.string(), count: z.number().int() })),
     albums: z.array(z.object({ label: z.string(), count: z.number().int() })),
     tags: z.array(z.object({ label: z.string(), count: z.number().int() })),
+    /** How many different artists, albums and tags there are among them, past those listed. */
+    distinct: z.object({
+      artists: z.number().int().nonnegative(),
+      albums: z.number().int().nonnegative(),
+      tags: z.number().int().nonnegative(),
+    }),
   }),
   z.object({ kind: z.literal('open'), place: AskPlaceSchema, say: z.string() }),
   /**
@@ -488,12 +600,36 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     place: z.number().int().nullable(),
   }),
   /**
-   * Not something the box can do, and what to do instead: `try` is requests
-   * it can do that come closest, each one press away.
+   * A question back, when the words could mean things that would be answered
+   * differently: `options` are answers to it, in their words, each asked as
+   * the next turn when pressed. Always the reply's only card.
    */
-  z.object({ kind: z.literal('none'), say: z.string(), try: z.array(z.string()).default([]) }),
+  z.object({
+    kind: z.literal('clarify'),
+    question: z.string(),
+    options: z.array(z.string()).max(ASK_CLARIFY_OPTIONS),
+  }),
 ])
-export type AskAnswer = z.infer<typeof AskAnswerSchema>
+export type AskCard = z.infer<typeof AskCardSchema>
+
+/**
+ * What Ask answers (AGENT-DESIGN 2.4): a few words of its own, and the cards,
+ * in the order the request asked for them ("10 calm songs, then tag them 夜"
+ * is a songs card and a tags card). Each card is named by `t{turn}.{card}`
+ * for the rest of the conversation, 1 for the first card. A `clarify` card
+ * stands alone: a question back is not asked beside an answer.
+ */
+export const AskReplySchema = z
+  .object({
+    /** Its own words above the cards, or null when the cards say it all. */
+    say: z.string().nullable(),
+    cards: z.array(AskCardSchema).min(1).max(ASK_CARDS_MAX),
+  })
+  .refine(reply => reply.cards.length === 1 || reply.cards.every(card => card.kind !== 'clarify'), {
+    message: 'A question back is the only card of its reply',
+    path: ['cards'],
+  })
+export type AskReply = z.infer<typeof AskReplySchema>
 
 /**
  * How an Ask is going: its stages so far, the last one still running unless
@@ -507,8 +643,8 @@ export const AskProgressSchema = z.object({
   known: z.boolean(),
   /** Finished, one way or the other. */
   done: z.boolean(),
-  /** The answer, when finished and asked for with `answer=1`. */
-  answer: AskAnswerSchema.nullable(),
+  /** The reply, when finished and asked for with `answer=1`. */
+  answer: AskReplySchema.nullable(),
   /** Why it failed, said as an error response would say it. */
   failed: z.object({ status: z.number().int(), error: z.string(), code: z.string() }).nullable(),
 })
@@ -524,25 +660,6 @@ export const AiSetupSchema = z.object({
   models: z.object({ fast: z.string(), smart: z.string() }),
 })
 export type AiSetup = z.infer<typeof AiSetupSchema>
-
-/** Why the model did not answer, as `LlmError` names it on the server. */
-export const AiFailureSchema = z.enum(['off', 'unreachable', 'busy', 'refused', 'invalid'])
-export type AiFailure = z.infer<typeof AiFailureSchema>
-
-/**
- * One small call through the same door the features use, JSON schema and all:
- * how long it took, or why it failed in words and in the endpoint's own.
- */
-export const AiCheckSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), model: z.string(), ms: z.number().nonnegative() }),
-  z.object({
-    ok: z.literal(false),
-    failure: AiFailureSchema,
-    message: z.string(),
-    detail: z.string(),
-  }),
-])
-export type AiCheck = z.infer<typeof AiCheckSchema>
 
 /**
  * A5 · the Report in a few sentences. Every number in them is one of the

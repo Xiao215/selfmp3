@@ -1,12 +1,11 @@
 import {
-  failureText,
   useBulkTag,
   useCreateTag,
   useDeleteTag,
   useRenameTag,
   useUpdatePlaylist,
 } from '@selfmp3/client'
-import { showToast } from '../../ui/toast'
+import { showFailure } from '../../ui/toast'
 import { swapTagInRules, type TagRef, type TagStep } from './smart.model'
 
 /** What applying did: whether every step was made, and how to take back the ones that were. */
@@ -30,12 +29,12 @@ export function useTagChanges(): (steps: readonly TagStep[]) => Promise<TagChang
   // Making and renaming a tag say nothing when they fail; the other edits say so themselves.
   const make = (input: { name: string; hue?: number }) =>
     createTag.mutateAsync(input).catch((error: unknown) => {
-      showToast(failureText('Couldn’t make the tag', error), 'error')
+      showFailure('Couldn’t make the tag', error)
       throw error
     })
   const rename = (input: { id: number; name: string }) =>
     renameTag.mutateAsync(input).catch((error: unknown) => {
-      showToast(failureText('Couldn’t rename the tag', error), 'error')
+      showFailure('Couldn’t rename the tag', error)
       throw error
     })
 

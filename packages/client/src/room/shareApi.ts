@@ -1,5 +1,6 @@
 import {
   DOORMAN_PATHS,
+  formatShareStart,
   ShareLinkSchema,
   ShareSummariesSchema,
   type DoormanFetch,
@@ -54,7 +55,21 @@ export function createShareApi(doormanUrl: string, fetch: DoormanFetch): ShareAp
   }
 }
 
-/** A share link's address: its page in the web app, which opens without self.mp3. */
-export function shareLinkUrl(appUrl: string, link: Pick<ShareLink, 'id' | 'key'>): string {
-  return `${appUrl.replace(/\/+$/, '')}/l/${link.id}/${link.key}`
+/**
+ * A share link's address: its page in the web app, which opens without
+ * self.mp3. A list's names the song it opens on, `?s=<entry>`; shared from a
+ * line, it says where to start, `?t=0:42`. The colon is left as it is, which
+ * a query may carry, so the address reads as a time.
+ */
+export function shareLinkUrl(
+  appUrl: string,
+  link: Pick<ShareLink, 'id' | 'key'>,
+  { song = null, start = null }: { song?: string | null; start?: number | null } = {},
+): string {
+  const query = [
+    song === null ? null : `s=${encodeURIComponent(song)}`,
+    start === null ? null : `t=${formatShareStart(start)}`,
+  ].filter(Boolean)
+  const at = query.length > 0 ? `?${query.join('&')}` : ''
+  return `${appUrl.replace(/\/+$/, '')}/l/${link.id}/${link.key}${at}`
 }

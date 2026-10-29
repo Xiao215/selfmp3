@@ -8,7 +8,7 @@ import type { SoundModel } from './clamp3.js'
 import { Clamp3Worker } from './clamp3Worker.js'
 import { SOUND_MODEL, SoundModelFiles } from './models.js'
 import { decodePack, encodePack } from './pack.js'
-import { dot, SOUND_SAMPLE_RATE, WINDOW_SECONDS, windowStarts } from './vectors.js'
+import { dot, fromBlob, SOUND_SAMPLE_RATE, WINDOW_SECONDS, windowStarts } from './vectors.js'
 
 /**
  * How songs sound (docs/features/audio-intelligence.md, "How songs sound").
@@ -329,6 +329,19 @@ export class SoundService {
   pack(): Buffer | null {
     const entries = this.#vectors.inBucket(SOUND_MODEL.name)
     return entries.length > 0 ? encodePack(SOUND_MODEL.name, entries) : null
+  }
+
+  /**
+   * Every heard song's vector by its audio's key, the ones whose audio is in
+   * the bucket: what the sound map is folded from (sound/soundMap.ts).
+   */
+  vectorsInBucket(): Map<string, Float32Array> {
+    const out = new Map<string, Float32Array>()
+    for (const entry of this.#vectors.inBucket(SOUND_MODEL.name)) {
+      const vector = fromBlob(entry.vector)
+      if (vector && !out.has(entry.audioKey)) out.set(entry.audioKey, vector)
+    }
+    return out
   }
 
   /**

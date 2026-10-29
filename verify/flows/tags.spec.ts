@@ -30,9 +30,8 @@ import {
  * the biggest, then by name — `tagsMostPlayed` in `features/tag/tag.model.ts`.
  */
 function mostPlayed(tags: LibraryTag[], songs: LibrarySong[]): LibraryTag[] {
-  const present = songs.filter(song => !song.missing)
   const standing = (tag: LibraryTag) => {
-    const carrying = present.filter(song => song.tagIds.includes(tag.id))
+    const carrying = songs.filter(song => song.tagIds.includes(tag.id))
     return {
       tag,
       plays: carrying.reduce((sum, song) => sum + song.playCount, 0),
@@ -59,7 +58,7 @@ test.describe('tags as places', () => {
     test.skip(tags.length === 0, 'needs a tag in the dev library')
 
     await expect(
-      page.getByText(`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'} · most played first`),
+      page.getByText(`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`, { exact: true }),
     ).toBeVisible()
     await expect(page.getByTestId(/^tags-row-\d+$/)).toHaveCount(tags.length)
     const first = mostPlayed(tags, songs)[0]
@@ -80,11 +79,10 @@ test.describe('tags as places', () => {
    * it opens the combination as a page of its own over it, so the tag page
    * never turns into something else, and Back finds it as it was.
    */
-  test('Combine with… opens the tags together over the tag’s page', async ({ page }) => {
+  test('Mix in… opens the tags together over the tag’s page', async ({ page }) => {
     const { songs, tags } = await libraryData(page)
-    const present = songs.filter(song => !song.missing)
     const used = mostPlayed(tags, songs).filter(tag =>
-      present.some(song => song.tagIds.includes(tag.id)),
+      songs.some(song => song.tagIds.includes(tag.id)),
     )
     const [first, second] = used
     test.skip(!first || !second, 'needs two tags with songs')
@@ -93,7 +91,7 @@ test.describe('tags as places', () => {
     await page.goto(`/tag/${encodeURIComponent(first.name)}`)
     const name = page.locator('[data-testid="place-name"]:visible')
     await expect(name).toHaveText(first.name, { timeout: 30_000 })
-    // One tag: no chips to take off, no Save; Combine with… instead.
+    // One tag: no chips to take off, no Save; Mix in… instead.
     await expect(page.locator('[data-testid="place-add"]:visible')).toHaveCount(0)
     await expect(page.getByText('Save as playlist')).toHaveCount(0)
 
@@ -128,7 +126,7 @@ test.describe('tags as places', () => {
   }, info) => {
     await openAllTags(page)
     const { songs } = await libraryData(page)
-    const untagged = songs.filter(song => !song.missing && song.tagIds.length === 0).length
+    const untagged = songs.filter(song => song.tagIds.length === 0).length
 
     if (untagged === 0) {
       await expect(page.getByTestId('tags-untagged')).toHaveCount(0)
@@ -137,15 +135,13 @@ test.describe('tags as places', () => {
     const card = page.getByTestId('tags-untagged')
     await expect(card).toBeVisible()
     await expect(card).toContainText(
-      `${untagged} ${untagged === 1 ? 'song has' : 'songs have'} no tag yet`,
+      `${untagged} ${untagged === 1 ? 'song' : 'songs'} without a tag`,
     )
-    // A computer's card names who the songs are by and has a button that tags
-    // them while they play; a phone's whole card is that button.
-    if (info.project.name === 'desktop') {
-      await expect(card.getByTestId('tags-untagged-start')).toHaveText('Tag while they play')
-    } else {
-      await expect(card).toHaveAccessibleName(/Tag them one at a time, while they play$/)
-    }
+    // A computer's card has one "Tag them", a phone's whole card is that
+    // button; either offers tagging them while they play.
+    if (info.project.name === 'desktop') await card.getByTestId('tags-untagged-tag').click()
+    else await card.click()
+    await expect(page.getByTestId('tags-untagged-start')).toHaveText('Tag while they play')
   })
 })
 
@@ -182,26 +178,25 @@ test.describe('the library’s tag strip, still a filter', () => {
     await skipIfNoLibrary(page)
 
     const { songs, tags } = await libraryData(page)
-    const present = songs.filter(song => !song.missing)
-    const count = (id: number) => present.filter(song => song.tagIds.includes(id)).length
+    const count = (id: number) => songs.filter(song => song.tagIds.includes(id)).length
 
     // Two tags that overlap without being the same set: then "both" is a real
     // subset of the union, and the note under the head has something to say.
     const pair = tags
       .flatMap(a => tags.filter(b => b.id !== a.id).map(b => [a, b] as const))
       .find(([a, b]) => {
-        const both = present.filter(s => s.tagIds.includes(a.id) && s.tagIds.includes(b.id)).length
-        const union = present.filter(s => s.tagIds.includes(a.id) || s.tagIds.includes(b.id)).length
+        const both = songs.filter(s => s.tagIds.includes(a.id) && s.tagIds.includes(b.id)).length
+        const union = songs.filter(s => s.tagIds.includes(a.id) || s.tagIds.includes(b.id)).length
         return both > 0 && both < union && count(a.id) > 0 && count(b.id) > 0
       })
     test.skip(!pair, 'needs two overlapping tags')
     if (!pair) return
 
     const [first, second] = pair
-    const union = present.filter(
+    const union = songs.filter(
       s => s.tagIds.includes(first.id) || s.tagIds.includes(second.id),
     ).length
-    const both = present.filter(
+    const both = songs.filter(
       s => s.tagIds.includes(first.id) && s.tagIds.includes(second.id),
     ).length
 
@@ -242,7 +237,7 @@ test.describe('the library’s tag strip, still a filter', () => {
     await skipIfNoLibrary(page)
 
     const { songs, tags } = await libraryData(page)
-    const used = tags.find(tag => songs.some(song => !song.missing && song.tagIds.includes(tag.id)))
+    const used = tags.find(tag => songs.some(song => song.tagIds.includes(tag.id)))
     test.skip(!used, 'needs a tag with songs')
     if (!used) return
 

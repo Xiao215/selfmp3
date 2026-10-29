@@ -13,7 +13,7 @@
  * Both can be pointed elsewhere:
  *
  *   SELFMP3_WEB_URL=http://localhost:8090 \
- *   SELFMP3_APP_API=http://localhost:4610 npm run verify:flows
+ *   SELFMP3_APP_API=http://localhost:4620 npm run verify:flows
  */
 
 import { DEFAULT_LOCAL_SERVER_URL, DEFAULT_LOCAL_WEB_URL } from '@selfmp3/shared'

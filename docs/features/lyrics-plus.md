@@ -31,22 +31,37 @@ words are first seen — an import, a fetch, a hand edit, and a pass over the wh
 after start — and kept in the server's cache at `lyrics/<songId>/romanized.<hash>.json`
 under the library's data folder, keyed by a hash of the lyric text, so an edited lyric
 gets fresh romaji and an unchanged one is never romanized twice. The cloud pass uploads
-the lines beside the words in the bucket and names them in the snapshot
-(`lyrics.romanized`), so a device reading the bucket has them without asking the server.
+the lines in one file with the words (`lyrics/<sha256>.words`, `CloudWordsSchema`), so a
+device reading the bucket has them, with one read, without asking the server.
 A server answers them inside the lyrics response itself, as its `romanized` field
 (`GET /api/songs/:id/lyrics`); there is no separate route.
 
-Whether they are shown is two switches, **Show pinyin** and **Show romaji** under
-Settings → Lyrics, each a preference of the device rather than a synced setting
-(`apps/app/src/features/nowPlaying/romanizationPref.ts`); the pill flips the one for the
-song's language.
+Whether they are shown is switched only by that pill beside the words: off until it is
+pressed, then on for every song in that language until it is pressed again. Pinyin and
+romaji are remembered apart, each a preference of the device rather than a synced setting
+(`apps/app/src/features/nowPlaying/romanizationPref.ts`).
+
+## Search by name
+
+Search, the palette and Library's own search find a song by its title, artist and album
+(`songSearchNames` in `packages/shared/src/searchNames.ts`): on a word start, a run of
+letters, the initials ("md" for Midnight Drive), a phrase running from one into the next
+("drive kav"), or the whole name with a typo. A name in Chinese or Japanese is also found by
+its pinyin or romaji spelling, spaced or run together and by its initials ("zjl" for
+周杰伦), and an artist by the names they also go by ("ikura" for 幾田りら). Letters scattered
+through a song in order are not a match (X2, 2026-10-25): "calm" had found eight songs whose
+title, artist and album held c…a…l…m, one of them right. That loose match is kept for pickers
+of short names (a tag picker, the sidebar's tag suggestions), where it is a quick way to one
+(`scattered` in `packages/shared/src/fuzzy.ts`).
 
 ## Search by lyric
 
 Type at least three characters (two if they are Chinese or Japanese) into Search — the
 Search page, or the command palette (the sidebar's Search row; ⌘K in the installed app)
-— and a **Lyrics** section appears with the best matching line per song, the match
-highlighted. Choosing a hit plays the song (`useLibrarySearch.ts`).
+— and a **Lyrics** section appears with one line per song, the match highlighted: the first
+line that matches, so a chorus is shown where it is first sung, and the songs ordered by their
+best match. Two copies of one song (the single and the album's: the same title, artist and
+line) are one hit (X3, 2026-10-25). Choosing a hit plays the song (`useLibrarySearch.ts`).
 
 ```
 GET /api/lyrics/search?q=夜空&limit=20
@@ -101,7 +116,6 @@ GET /api/songs/:id/lyrics
 - Only lrclib's exact match is believed about a track having no words. The
   fuzzy search fallback readily returns the karaoke version of a song with
   words, and a wrong flag would stop the song from ever being looked up again.
-- **Find lyrics** beside the words asks again and clears the flag.
 - `PATCH /api/songs/:id { instrumental: true | false }` sets or clears it by hand.
 
 ## Files

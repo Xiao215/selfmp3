@@ -26,6 +26,11 @@ import {
   needsReport,
   pastRoomOf,
   pastTitle,
+  libraryPicks,
+  followerPress,
+  keptTitle,
+  endedLine,
+  upgradePastRooms,
   soundTarget,
   startingSongs,
   roomLine,
@@ -177,6 +182,28 @@ describe('the host’s player', () => {
     expect(needsReport(state, 0, 15_000, { entryId: null, playing: true, position: 0 })).toBe(true)
   })
 
+  it('tells the room a song that started late, when everyone’s phone follows it', () => {
+    let doc = act({ ...room(), mode: 'everyone' }, M, { type: 'add', song: song(1) })
+    const first = doc.entries[0]?.id ?? ''
+    doc = act(doc, X, { type: 'report', entryId: first, position: 0, playing: true }, 10_000)
+    // 10 s on the doorman's clock, but the host's song only 8.5 s in: it loaded late.
+    const late = { entryId: first, playing: true, position: 8.5 }
+    expect(needsReport(as(doc, X), 0, 20_000, late)).toBe(true)
+    expect(needsReport(as({ ...doc, mode: 'speaker' }, X), 0, 20_000, late)).toBe(false)
+    expect(needsReport(as(doc, X), 0, 20_000, { ...late, position: 9.8 })).toBe(false)
+  })
+
+  it('takes the room’s song up where the room is, with nothing loaded after a reload', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    doc = act(doc, M, { type: 'add', song: song(2) })
+    const [first, second] = doc.entries.map(entry => entry.id)
+    doc = act(doc, X, { type: 'report', entryId: first ?? null, position: 0, playing: true })
+    expect(hostPlan(as(doc, X), { currentId: null, playing: false, ranOut: false })).toEqual({
+      kind: 'resume',
+      ids: [roomTrackId(first ?? ''), roomTrackId(second ?? '')],
+    })
+  })
+
   it('acts on each thing a friend asked once', () => {
     const doc = act(room(), M, { type: 'skip' })
     expect(freshWant(as(doc, X), 0)?.kind).toBe('skip')
@@ -241,6 +268,34 @@ describe('what a member sees', () => {
   })
 })
 
+describe('a friend’s own transport, on everyone’s phones', () => {
+  const playingRoom = (): RoomDoc => {
+    const doc = act({ ...room(), mode: 'everyone' }, M, { type: 'add', song: song(1) })
+    return act(doc, X, {
+      type: 'report',
+      entryId: doc.entries[0]?.id ?? null,
+      position: 0,
+      playing: true,
+    })
+  }
+
+  it('asks the room to skip, and says only the host may pause', () => {
+    const doc = playingRoom()
+    expect(followerPress(as(doc, M), 'next', true)).toEqual({ act: 'skip' })
+    expect(followerPress(as(doc, M), 'toggle', true)).toEqual({
+      say: 'Only Xiao can pause the room',
+    })
+    expect(followerPress(as(doc, M), 'previous', true)).toEqual({ say: 'A room only goes forward' })
+  })
+
+  it('leaves the press to the player for the host, one speaker, or a song of your own', () => {
+    const doc = playingRoom()
+    expect(followerPress(as(doc, X), 'next', true)).toBeNull()
+    expect(followerPress(as({ ...doc, mode: 'speaker' }, M), 'next', true)).toBeNull()
+    expect(followerPress(as(doc, M), 'next', false)).toBeNull()
+  })
+})
+
 describe('a link on someone else’s phone', () => {
   it('plays through the doorman once the host has said where its server is, and not before', () => {
     let doc = act(room(), A, {
@@ -277,6 +332,24 @@ describe('keep it going', () => {
     expect(
       keepGoingPicks(as(doc, X), 4, { random: () => 0 }).some(pick => pick.type === 'again'),
     ).toBe(false)
+  })
+})
+
+describe('keep it going, from the host’s library', () => {
+  it('brings songs of the host’s the room does not have, nearest in sound first', () => {
+    const doc = act(room(), M, { type: 'add', song: song(1) })
+    const library = new Map([
+      [song(1).audio?.key ?? '', 1],
+      [song(2).audio?.key ?? '', 2],
+      [song(3).audio?.key ?? '', 3],
+      [song(4).audio?.key ?? '', 4],
+    ])
+    const near = (key: string): number | null => (key === song(4).audio?.key ? 0.9 : null)
+    const picks = libraryPicks(as(doc, X), library, 2, { closeness: near, random: () => 0 })
+    expect(picks[0]).toBe(4)
+    expect(picks).toHaveLength(2)
+    expect(picks).not.toContain(1)
+    expect(libraryPicks(as(doc, X), library, 0)).toEqual([])
   })
 })
 
@@ -338,12 +411,45 @@ describe('after the room', () => {
     ])
   })
 
+  it('brings rooms remembered before pictures and kept playlists up to now, once', () => {
+    const song = { song: { title: 'Song 1' }, by: 'You', colour: 1, mine: true }
+    const old = [{ code: 'KQ7482', people: [{ name: 'Mia', colour: 2 }], songs: [song] }]
+    expect(upgradePastRooms(old)).toEqual([
+      {
+        code: 'KQ7482',
+        shared: null,
+        people: [{ name: 'Mia', colour: 2, picture: null }],
+        songs: [{ ...song, picture: null }],
+      },
+    ])
+    // Rooms already as they are now come back as the very same value: nothing to write.
+    const now = upgradePastRooms(old)
+    expect(upgradePastRooms(now)).toBe(now)
+  })
+
   it('remembers nothing of a room where nothing played', () => {
     expect(pastRoomOf(as(room(), X), 9000)).toBeNull()
   })
 
   it('is named after the others', () => {
     expect(pastTitle(as(room(), X))).toBe('With Mia and Ana')
+  })
+
+  it('names each person once, and a kept playlist only those still here who signed in', () => {
+    const K = 'eeeeeeeeeeee'
+    const M2 = 'ffffffffffff'
+    let doc = ok(addRoomMember(room(), { id: K, name: 'Kai', kind: 'friend', picture: null }, 1300))
+    doc = act(doc, K, { type: 'leave' })
+    // Mia leaves and comes back: a second member record, the same person.
+    doc = act(doc, M, { type: 'leave' })
+    doc = ok(addRoomMember(doc, { id: M2, name: 'Mia', kind: 'friend', picture: null }, 2100))
+    expect(pastTitle(as(doc, X))).toBe('With Ana, Kai and Mia')
+    expect(keptTitle(as(doc, X))).toBe('With Mia')
+    // Mia's own earlier record is not someone else she was with.
+    expect(pastTitle(as(doc, M2))).toBe('With Xiao, Ana and Kai')
+    expect(endedLine(as(doc, M2), 'ended')).toBe("Xiao's room ended")
+    expect(endedLine(as(doc, M2), 'removed')).toBe("You were taken out of Xiao's room")
+    expect(endedLine(as(doc, X), 'ended')).toBe('Your room ended')
   })
 
   it('invites to the join page', () => {

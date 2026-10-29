@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import {
@@ -16,6 +16,7 @@ import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
 import { NoticeCard } from '../ui/components/NoticeCard'
 import { StatusLine } from '../ui/components/StatusLine'
+import { countShownError } from '../features/usage/usage'
 
 /**
  * What a screen shows instead of what it came for, while the server behind a
@@ -43,11 +44,14 @@ export function ServerAway({
   need,
   row = false,
   last = true,
+  empty = false,
   testID,
 }: {
   reach: Reach & { readonly lookAgain: () => void }
   need: ServerNeed
   row?: boolean
+  /** The library has no songs yet (`awayCopy`). */
+  empty?: boolean
   /** As a row, whether it ends its panel: Importing has its token row under it. */
   last?: boolean
   testID: string
@@ -55,8 +59,12 @@ export function ServerAway({
   const accent = useAccent()
   const { theme } = useUnistyles()
   const said = reach.state === 'away' && reach.said
+  // Counted once each time it comes to say so, for the server owner's admin page (features/usage).
+  useEffect(() => {
+    if (said) countShownError('server-away')
+  }, [said])
   const offered = !said && sharedServerUrl !== ''
-  const copy = awayCopy(said, need, offered)
+  const copy = awayCopy(said, need, offered, empty)
 
   const buttons =
     reach.state === 'away' ? (

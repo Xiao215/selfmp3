@@ -2,19 +2,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { DEFAULT_SETTINGS, type Library, type Settings } from '@selfmp3/shared'
+import { DEFAULT_SETTINGS, type Settings } from '@selfmp3/shared'
 import { configureClient, type Api } from '@selfmp3/client'
-import * as Clipboard from 'expo-clipboard'
-import { currentToasts, dismissToast } from '../../ui/toast'
 import { ImportingPanel } from './ImportingPanel'
-import { SmartPanel } from './SmartPanel'
+import { RememberedCard, SmartTile } from './SmartPanel'
 
 /**
  * The settings a server acts on, changed from a signed-in device (2026-10-14).
  *
  * A cloud library's every call went to this device's copy, which kept the
- * settings on the device: turning Ask off, or Search the web on, changed
- * nothing the server read. Now the panels find the server the way Import does
+ * settings on the device: turning smart features off changed nothing the
+ * server read. Now the panels find the server the way Import does
  * and read and write its own settings. Faked here is only the network: the
  * server's addresses, as the device's copy of the library names them, and
  * the server behind them.
@@ -24,8 +22,6 @@ jest.mock('../../connection/ConnectionProvider', () => ({
   useConnection: () => ({ fromCloud: true, connection: null }),
 }))
 jest.mock('../../replica', () => ({ library: { markCloudLibraryStale: () => undefined } }))
-// The clipboard itself, under the app's port (ports/clipboard).
-jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }))
 
 const ADDRESS = 'https://music.example.com'
 /** The library's token, as the snapshot carries it to every device of theirs. */
@@ -39,18 +35,11 @@ configureClient({
   } as unknown as Api,
 } as Parameters<typeof configureClient>[0])
 
-const serverLibrary: Library = {
-  songs: [],
-  // The server's numbering: tag 7 there is "night drive", whatever it is here.
-  tags: [{ id: 7, name: 'night drive', hue: 200, songCount: 0 }],
-  playlists: [],
-  version: 1,
-  generatedAt: '2026-10-14T00:00:00.000Z',
-}
-
 /** The server: its settings table, and every request it was sent. */
 let stored: Settings
 let up: boolean
+/** The server's model address; null is a server with none set up. */
+let modelAddress: string | null
 let sent: { method: string; path: string; body: unknown; auth: string | null }[]
 
 const json = (body: unknown): Response =>
@@ -60,11 +49,10 @@ const json = (body: unknown): Response =>
   })
 
 beforeEach(() => {
-  stored = { ...DEFAULT_SETTINGS, defaultImportTagIds: [7] }
+  stored = { ...DEFAULT_SETTINGS }
   named = { id: 'the-pi', addresses: ['http://localhost:4600', ADDRESS], token: TOKEN }
   up = true
-  jest.mocked(Clipboard.setStringAsync).mockClear()
-  for (const toast of currentToasts()) dismissToast(toast.id)
+  modelAddress = 'http://127.0.0.1:8787/v1'
   sent = []
   global.fetch = jest.fn((input: string, init: RequestInit = {}) => {
     if (!up) return Promise.reject(new TypeError('Network request failed'))
@@ -77,8 +65,10 @@ beforeEach(() => {
     if (url.pathname === '/api/health') {
       return Promise.resolve(json({ ok: true, version: '1', serverId: 'the-pi', uptimeSeconds: 1 }))
     }
-    if (url.pathname === '/api/library') return Promise.resolve(json(serverLibrary))
     if (url.pathname === '/api/settings' && method === 'GET') return Promise.resolve(json(stored))
+    if (url.pathname === '/api/ai') {
+      return Promise.resolve(json({ address: modelAddress, models: { fast: 'f', smart: 's' } }))
+    }
     if (url.pathname === '/api/settings' && method === 'PATCH') {
       stored = { ...stored, ...(body as Partial<Settings>) }
       return Promise.resolve(json(stored))
@@ -93,7 +83,14 @@ const METRICS = {
 }
 
 const draw = async (ui: ReactNode) => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // Nothing is collected on a timer: a query or a saved setting left to be
+  // collected in five minutes keeps jest from exiting.
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { gcTime: Infinity },
+    },
+  })
   const drawn = await render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <QueryClientProvider client={client}>{ui}</QueryClientProvider>
@@ -102,42 +99,57 @@ const draw = async (ui: ReactNode) => {
   return { ...drawn, client }
 }
 
-const anchor = (): void => undefined
+it('turns smart features off on the server itself, with one tile', async () => {
+  const { unmount, client } = await draw(<SmartTile />)
+  const smart = await screen.findByRole('switch', { name: 'Smart features, On', checked: true })
 
-it('turns a smart feature off, and the web search on, on the server itself', async () => {
-  const { unmount, client } = await draw(<SmartPanel anchor={anchor} />)
-  const web = await screen.findByRole('switch', { name: 'Search the web' })
-  const ask = screen.getByRole('switch', { name: 'Ask in Search' })
-  expect(screen.getByRole('switch', { name: 'Search the web', checked: false })).toBe(web)
-  expect(screen.getByRole('switch', { name: 'Ask in Search', checked: true })).toBe(ask)
-
-  await fireEvent.press(web)
-  await fireEvent.press(ask)
-  await waitFor(() => expect(stored.smartAsk).toBe(false))
-  expect(stored.smartWeb).toBe(true)
+  await fireEvent.press(smart)
+  await waitFor(() => expect(stored.smartFeatures).toBe(false))
   const patches = sent.filter(each => each.method === 'PATCH')
   expect(patches).toEqual([
-    { method: 'PATCH', path: '/api/settings', body: { smartWeb: true }, auth: `Bearer ${TOKEN}` },
-    { method: 'PATCH', path: '/api/settings', body: { smartAsk: false }, auth: `Bearer ${TOKEN}` },
+    {
+      method: 'PATCH',
+      path: '/api/settings',
+      body: { smartFeatures: false },
+      auth: `Bearer ${TOKEN}`,
+    },
   ])
   await unmount()
   client.clear()
 })
 
-it('says the computer is away rather than drawing switches that go nowhere', async () => {
-  up = false
-  const { unmount, client } = await draw(<SmartPanel anchor={anchor} />)
-  expect(await screen.findByText('Your library’s computer')).toBeTruthy()
-  expect(screen.queryByRole('switch', { name: 'Search the web' })).toBeNull()
+it('says it is not set up, rather than being a switch, when the server has no model', async () => {
+  modelAddress = null
+  const { unmount, client } = await draw(<SmartTile />)
+  const tile = await screen.findByRole('button', { name: 'Smart features, Not set up' })
+  expect(tile).toBeDisabled()
+  expect(screen.queryByRole('switch')).toBeNull()
   await unmount()
   client.clear()
 })
 
-it('changes how the server imports, and shows the tags it adds by its own names', async () => {
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+it('says it cannot reach the computer rather than drawing a switch that goes nowhere', async () => {
+  up = false
+  const { unmount, client } = await draw(<SmartTile />)
+  expect(await screen.findByRole('button', { name: 'Smart features, Can’t reach' })).toBeTruthy()
+  expect(screen.queryByRole('switch')).toBeNull()
+  await unmount()
+  client.clear()
+})
+
+it('lists what Ask remembers, and forgets one on the server', async () => {
+  stored = { ...DEFAULT_SETTINGS, smartNotes: ['Song names in Chinese only', 'No live versions'] }
+  const { unmount, client } = await draw(<RememberedCard />)
+  expect(await screen.findByText('Song names in Chinese only')).toBeTruthy()
+  await fireEvent.press(screen.getAllByRole('button', { name: 'Remove' })[0]!)
+  await waitFor(() => expect(stored.smartNotes).toEqual(['No live versions']))
+  await unmount()
+  client.clear()
+})
+
+it('changes how the server imports', async () => {
+  const { unmount, client } = await draw(<ImportingPanel />)
   const lyrics = await screen.findByRole('switch', { name: 'Look up lyrics automatically' })
-  // Tag 7 is the server's "night drive": read from the server, not this device.
-  expect(await screen.findByText('night drive')).toBeTruthy()
 
   await fireEvent.press(lyrics)
   await waitFor(() => expect(stored.autoFetchLyrics).toBe(false))
@@ -146,68 +158,11 @@ it('changes how the server imports, and shows the tags it adds by its own names'
   client.clear()
 })
 
-/*
- * The token for an iOS Shortcut or the extension given an address by hand
- * (docs/features/share-to-import.md). Those are not devices of the library, so
- * the bucket never hands it to them; on a server holding several libraries it
- * lived only in the server's data/hub.json. Every signed-in device has it.
- */
-it('copies the server’s token, showing only its address and the token’s end', async () => {
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
-  const copy = await screen.findByRole('button', { name: 'Copy token' })
-  // The address the internet reaches, not localhost; the token never whole.
-  expect(screen.getByText(`${ADDRESS} · token ending Ab3x`)).toBeTruthy()
-  expect(screen.queryByText(new RegExp(TOKEN))).toBeNull()
-
-  await fireEvent.press(copy)
-  await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(TOKEN))
-  await waitFor(() => expect(currentToasts().map(toast => toast.text)).toEqual(['Token copied']))
-  await unmount()
-  client.clear()
-})
-
-/*
- * The Shortcut needs the address as well, and a long ts.net address typed on
- * a phone is where it goes wrong: the one the row shows can be copied too.
- */
-it('copies the address it shows, beside the token', async () => {
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
-  await fireEvent.press(await screen.findByRole('button', { name: 'Copy address' }))
-  await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(ADDRESS))
-  await waitFor(() => expect(currentToasts().map(toast => toast.text)).toEqual(['Address copied']))
-  expect(Clipboard.setStringAsync).not.toHaveBeenCalledWith(TOKEN)
-  await unmount()
-  client.clear()
-})
-
-it('offers no address to copy when it shows none', async () => {
-  // Only the server talking to itself: nothing a phone elsewhere could use.
-  named = { id: 'the-pi', addresses: ['http://localhost:4600'], token: TOKEN }
-  up = false
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
-  expect(await screen.findByRole('button', { name: 'Copy token' })).toBeTruthy()
-  expect(screen.getByText('token ending Ab3x')).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'Copy address' })).toBeNull()
-  await unmount()
-  client.clear()
-})
-
-it('offers the token while the server is away: copying it needs nothing from the server', async () => {
-  up = false
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
-  expect(await screen.findByText('Your library’s computer')).toBeTruthy()
-  await fireEvent.press(await screen.findByRole('button', { name: 'Copy token' }))
-  await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(TOKEN))
-  await unmount()
-  client.clear()
-})
-
-it('has no token row when the library names no server', async () => {
+it('says it cannot reach the server when the library names none', async () => {
   named = null
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  const { unmount, client } = await draw(<ImportingPanel />)
   // Away, which it is only once the device's copy has answered that it names none.
   expect(await screen.findByRole('button', { name: 'Look again' })).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'Copy token' })).toBeNull()
   await unmount()
   client.clear()
 })

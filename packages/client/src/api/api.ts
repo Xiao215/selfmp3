@@ -16,17 +16,20 @@
  * chances to change a route string nobody notices until a screen breaks.
  */
 import {
+  readerTimeZone,
   AffectedSchema,
-  AnalysisStatusSchema,
+  AllPlaylistSongsSchema,
   ArtistBackdropSchema,
+  SetArtistNamesSchema,
   DeviceCommandResultSchema,
   DeviceListSchema,
-  DoormanAccessSchema,
   DoormanGrantsSchema,
+  type UsageReport,
   ErrorBodySchema,
   HealthSchema,
   ImportEnqueueResultSchema,
   ImportDeviceRenewResultSchema,
+  IMPORT_ENQUEUE_MAX,
   AlreadyHaveResponseSchema,
   ImportCoverToneSchema,
   ImportFindResultSchema,
@@ -41,16 +44,16 @@ import {
   LibrarySchema,
   LibraryVersionSchema,
   ApplyMetadataResultSchema,
-  FixCoversStatusSchema,
   MetadataLookupResponseSchema,
   MetadataSuggestionSchema,
-  AiCheckSchema,
   AiSetupSchema,
-  AskAnswerSchema,
+  AskReplySchema,
   AskProgressSchema,
   TidyResultSchema,
   ImportNamesSchema,
   type ImportNamesRequest,
+  type AskContext,
+  type AskTurnInput,
   WrittenReportSchema,
   DescribeResultSchema,
   TagReviewSchema,
@@ -59,7 +62,6 @@ import {
   MotionSchema,
   LyricsSearchResponseSchema,
   OkSchema,
-  PlayHistorySchema,
   PlayRecordedSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
@@ -67,6 +69,9 @@ import {
   ScanResultSchema,
   SettingsSchema,
   SimilarSongsSchema,
+  SongHistorySchema,
+  UsualHoursSchema,
+  SoundMapSchema,
   SongSchema,
   StatsSchema,
   WrappedSchema,
@@ -76,6 +81,7 @@ import {
   TagSchema,
   ToolStatusSchema,
   type CreateTag,
+  type SetArtistNames,
   BulkDeleteResultSchema,
   MergeSongsResultSchema,
   type MergeSongs,
@@ -95,12 +101,18 @@ import {
   type OfflineScope,
   type PlayEvent,
   type SongPatch,
+  type ChangeSongTags,
   type StatsRange,
   type WrappedRange,
   type UpdatePlaylist,
   type UpdateSettings,
-  type DoormanAccessUpdate,
+  type Affected,
+  type BulkDeleteResult,
+  type Playlist,
+  type RemovedFromPlaylist,
   API_ERROR,
+  BULK_IDS_MAX,
+  LYRICS_QUERY_MAX,
 } from '@selfmp3/shared'
 import type { z } from 'zod'
 import {
@@ -112,6 +124,7 @@ import {
 } from '@selfmp3/replica'
 
 import { ApiError } from './error.js'
+import { TIMED_OUT } from '../connection/reach.js'
 import type { ApiContext, ClientFetch, ClientSignal, CloudRequest } from '../platform.js'
 
 /**
@@ -121,6 +134,58 @@ import type { ApiContext, ClientFetch, ClientSignal, CloudRequest } from '../pla
  * check: every refetch with nothing new put thousands of songs through zod.
  */
 const checkedAnswers = new WeakMap<object, Map<z.ZodTypeAny, unknown>>()
+
+/**
+ * A bulk request for a selection bigger than one may name (`BULK_IDS_MAX`),
+ * as several, one after another: select-all over a big library failed whole
+ * with a 400. Each part is told how many came before it. Always at least one
+ * part, so a request for nothing is still the server's to refuse.
+ */
+async function inChunks<T>(
+  ids: readonly number[],
+  send: (part: number[], offset: number) => Promise<T>,
+): Promise<T[]> {
+  const answers: T[] = []
+  for (let offset = 0; offset === 0 || offset < ids.length; offset += BULK_IDS_MAX) {
+    answers.push(await send(ids.slice(offset, offset + BULK_IDS_MAX), offset))
+  }
+  return answers
+}
+
+/** How many times in all a part that sets a state is sent while its answer runs out of time. */
+const SETTING_TRIES = 3
+
+/**
+ * A part of an edit that sets a state — a tag on, a heart off — asked again
+ * when its answer ran out of time. A server busy with a scan applied every
+ * part of a 5,040-song tag but answered one after the deadline, and the app
+ * said the tag had failed (R3-m9). Setting the same thing twice is the same
+ * as setting it once, so asking again is how to find out whether it landed.
+ * A server that does not answer at all fails at once, as before.
+ */
+async function setting<T>(send: () => Promise<T>): Promise<T> {
+  for (let tried = 1; ; tried++) {
+    try {
+      return await send()
+    } catch (error) {
+      const late = error instanceof ApiError && error.isOffline && error.message === TIMED_OUT
+      if (!late || tried >= SETTING_TRIES) throw error
+    }
+  }
+}
+
+/**
+ * The reader's zone for Stats, Wrapped and the usual hours (`readerTimeZone`),
+ * as a query parameter after `join`, the `?` or `&` before it.
+ */
+function zoneQuery(join: '?' | '&'): string {
+  const zone = readerTimeZone()
+  return zone ? `${join}zone=${encodeURIComponent(zone)}` : ''
+}
+
+const affectedIn = (parts: readonly Affected[]): Affected => ({
+  affected: parts.reduce((sum, part) => sum + part.affected, 0),
+})
 
 /**
  * The bucket answering instead of a server.
@@ -299,18 +364,13 @@ export function createApi({ context, fetch }: ApiOptions) {
     manifest: (scope: OfflineScope = 'library') =>
       request('GET', `/api/library/manifest?scope=${scope}`, SyncManifestSchema),
 
-    analyze: (force = false) =>
-      request('POST', '/api/library/analyze', AnalysisStatusSchema, { force }),
-
-    analysisStatus: () => request('GET', '/api/library/analyze', AnalysisStatusSchema),
-
     // --- songs --------------------------------------------------------------
 
     patchSong: (id: number, patch: SongPatch) =>
       request('PATCH', `/api/songs/${id}`, SongSchema, patch),
 
-    setSongTags: (id: number, tagIds: number[]) =>
-      request('PUT', `/api/songs/${id}/tags`, SongSchema, { tagIds }),
+    changeSongTags: (id: number, change: ChangeSongTags) =>
+      request('PATCH', `/api/songs/${id}/tags`, SongSchema, change),
 
     setLoved: (id: number, loved: boolean) =>
       request('POST', `/api/songs/${id}/loved`, SongSchema, { loved }),
@@ -328,16 +388,26 @@ export function createApi({ context, fetch }: ApiOptions) {
     lyricsSearch: (query: string, limit = 8) =>
       request(
         'GET',
-        `/api/lyrics/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+        `/api/lyrics/search?q=${encodeURIComponent(query.trim().slice(0, LYRICS_QUERY_MAX))}&limit=${limit}`,
         LyricsSearchResponseSchema,
       ),
 
     similar: (id: number, limit: number) =>
       request('GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
 
+    /** Every heard song's place on the sound map (docs/features/sound-map.md). */
+    soundMap: () => request('GET', '/api/sound-map', SoundMapSchema),
+
     /** The multi-select delete. */
-    bulkDeleteSongs: (input: BulkDeleteSongs) =>
-      request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
+    bulkDeleteSongs: async (input: BulkDeleteSongs): Promise<BulkDeleteResult> => {
+      const results = await inChunks(input.songIds, songIds =>
+        request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, { songIds }),
+      )
+      return {
+        removed: results.reduce((sum, result) => sum + result.removed, 0),
+        failed: results.flatMap(result => result.failed),
+      }
+    },
 
     /** Copies of one song folded into the one kept, then out of the library (`MergeSongs`). */
     mergeSongs: (input: MergeSongs) =>
@@ -346,8 +416,14 @@ export function createApi({ context, fetch }: ApiOptions) {
     bulkEditSongs: (input: BulkEditSongs) =>
       request('POST', '/api/songs/bulk/edit', AffectedSchema, input),
 
-    bulkLoved: (input: BulkLoved) =>
-      request('POST', '/api/songs/bulk/loved', AffectedSchema, input),
+    bulkLoved: async (input: BulkLoved): Promise<Affected> =>
+      affectedIn(
+        await inChunks(input.songIds, songIds =>
+          setting(() =>
+            request('POST', '/api/songs/bulk/loved', AffectedSchema, { ...input, songIds }),
+          ),
+        ),
+      ),
 
     // --- metadata polish ------------------------------------------------------
 
@@ -360,8 +436,6 @@ export function createApi({ context, fetch }: ApiOptions) {
     /** A cover taken off again, leaving the song with none: a filled-in cover's Undo. */
     removeCover: (id: number) => request('DELETE', `/api/songs/${id}/cover`, OkSchema),
 
-    fixCoversStart: () => request('POST', '/api/library/fix-covers', FixCoversStatusSchema),
-
     // --- smart features (docs/features/ai.md): the server's, never the bucket's
 
     describePlaylist: (input: {
@@ -370,27 +444,16 @@ export function createApi({ context, fetch }: ApiOptions) {
       avoid?: readonly number[]
     }) => request('POST', '/api/ai/describe', DescribeResultSchema, input),
 
-    /** An answer changed after it was given (`RefineRequest`). */
-    refineAnswer: (
-      input: {
-        text: string
-        understanding: Understanding
-        change: string
-        shown: readonly number[]
-        ticket?: string
-      },
-      signal?: ClientSignal,
-    ) => request('POST', '/api/ai/refine', DescribeResultSchema, input, signal),
-
-    /** The Search box's Ask: one request, routed to one thing the app can do. */
+    /** The Search box's Ask: one request, answered as a reply of a few words and its cards. */
     ask: (
       text: string,
-      playing: number | null = null,
+      /** The song playing and the answer on the screen, by the server's ids and handles. */
+      context: AskContext = { playing: null, screen: null },
       ticket?: string,
-      /** What was said before, when this follows up on an answer. */
-      before: readonly string[] = [],
+      /** The conversation before this, when it follows up on an answer. */
+      before: readonly AskTurnInput[] = [],
       signal?: ClientSignal,
-    ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket, before }, signal),
+    ) => request('POST', '/api/ai/ask', AskReplySchema, { text, context, ticket, before }, signal),
 
     /**
      * How an Ask named by `ticket` is going, while its answer is on the way;
@@ -434,13 +497,6 @@ export function createApi({ context, fetch }: ApiOptions) {
     /** Where the server asks a model; Settings › Smart features. */
     aiSetup: () => request('GET', '/api/ai', AiSetupSchema),
 
-    /** One small call to the model; a failure is the answer, not a thrown error. */
-    checkAi: () => request('POST', '/api/ai/check', AiCheckSchema),
-
-    fixCoversStatus: () => request('GET', '/api/library/fix-covers', FixCoversStatusSchema),
-
-    fixCoversCancel: () => request('POST', '/api/library/fix-covers/cancel', FixCoversStatusSchema),
-
     // --- tags ---------------------------------------------------------------
 
     createTag: (tag: CreateTag) => request('POST', '/api/tags', TagSchema, tag),
@@ -452,12 +508,34 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     deleteTag: (id: number) => request('DELETE', `/api/tags/${id}`, OkSchema),
 
-    bulkTag: (input: BulkTag) => request('POST', '/api/tags/bulk', AffectedSchema, input),
+    bulkTag: async (input: BulkTag): Promise<Affected> =>
+      affectedIn(
+        await inChunks(input.songIds, songIds =>
+          setting(() => request('POST', '/api/tags/bulk', AffectedSchema, { ...input, songIds })),
+        ),
+      ),
 
     // --- playlists ----------------------------------------------------------
 
-    createPlaylist: (input: CreatePlaylist) =>
-      request('POST', '/api/playlists', PlaylistSchema, input),
+    /**
+     * Its first `BULK_IDS_MAX` songs come in the same request, and any past
+     * that are added after, in parts: Save Up next of a big shuffled library,
+     * or Duplicate of a playlist grown past it, failed whole.
+     */
+    createPlaylist: async (input: CreatePlaylist): Promise<Playlist> => {
+      const songIds = input.kind === 'manual' ? (input.songIds ?? []) : []
+      if (songIds.length <= BULK_IDS_MAX) {
+        return request('POST', '/api/playlists', PlaylistSchema, input)
+      }
+      const made = await request('POST', '/api/playlists', PlaylistSchema, {
+        ...input,
+        songIds: songIds.slice(0, BULK_IDS_MAX),
+      })
+      const parts = await inChunks(songIds.slice(BULK_IDS_MAX), part =>
+        request('POST', `/api/playlists/${made.id}/songs`, PlaylistSchema, { songIds: part }),
+      )
+      return parts[parts.length - 1]!
+    },
 
     updatePlaylist: (id: number, patch: UpdatePlaylist) =>
       request('PATCH', `/api/playlists/${id}`, PlaylistSchema, patch),
@@ -471,11 +549,31 @@ export function createApi({ context, fetch }: ApiOptions) {
     playlistSongs: (id: number) =>
       request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
 
-    addToPlaylist: (id: number, input: AddToPlaylist) =>
-      request('POST', `/api/playlists/${id}/songs`, PlaylistSchema, input),
+    /** Every playlist's songs in one request. */
+    allPlaylistSongs: () => request('GET', '/api/playlists/songs', AllPlaylistSongsSchema),
 
-    removeManyFromPlaylist: (id: number, songIds: number[]) =>
-      request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, { songIds }),
+    /** A selection past `BULK_IDS_MAX` goes in parts, each after the last. */
+    addToPlaylist: async (id: number, input: AddToPlaylist): Promise<Playlist> => {
+      const parts = await inChunks(input.songIds, (songIds, offset) =>
+        request('POST', `/api/playlists/${id}/songs`, PlaylistSchema, {
+          songIds,
+          ...(input.position === undefined ? {} : { position: input.position + offset }),
+        }),
+      )
+      return parts[parts.length - 1]!
+    },
+
+    removeManyFromPlaylist: async (id: number, songIds: number[]): Promise<RemovedFromPlaylist> => {
+      const parts = await inChunks(songIds, part =>
+        request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, {
+          songIds: part,
+        }),
+      )
+      return {
+        removed: parts.reduce((sum, part) => sum + part.removed, 0),
+        playlist: parts[parts.length - 1]!.playlist,
+      }
+    },
 
     reorderPlaylist: (id: number, songIds: number[]) =>
       request('PUT', `/api/playlists/${id}/order`, OkSchema, { songIds }),
@@ -517,8 +615,34 @@ export function createApi({ context, fetch }: ApiOptions) {
         })),
       }),
 
-    importEnqueue: (input: ImportEnqueue) =>
-      request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, input),
+    /**
+     * Songs put in the import queue: past `IMPORT_ENQUEUE_MAX`, as several
+     * requests, one after another, answered as one. A playlist the first part
+     * made is where the rest go. Each part held for this device comes with a
+     * lease of its own (docs/features/client-download.md): `leases` has them
+     * all, in order.
+     */
+    importEnqueue: async (input: ImportEnqueue) => {
+      const enqueue = (part: ImportEnqueue) =>
+        request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, part)
+      let answer = await enqueue({ ...input, items: input.items.slice(0, IMPORT_ENQUEUE_MAX) })
+      const leases = answer.device ? [answer.device] : []
+      for (let at = IMPORT_ENQUEUE_MAX; at < input.items.length; at += IMPORT_ENQUEUE_MAX) {
+        const items = input.items.slice(at, at + IMPORT_ENQUEUE_MAX)
+        const into = answer.playlistId
+        const next = await enqueue(
+          into === null ? { ...input, items } : { ...input, items, playlistId: into },
+        )
+        if (next.device) leases.push(next.device)
+        answer = {
+          jobs: [...answer.jobs, ...next.jobs],
+          skipped: answer.skipped + next.skipped,
+          playlistId: answer.playlistId ?? next.playlistId,
+          device: answer.device ?? next.device,
+        }
+      }
+      return { ...answer, leases }
+    },
 
     // --- songs this device downloads itself (docs/features/client-download.md)
 
@@ -635,11 +759,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     /** The servers this account has let into its bucket, from the doorman. */
     serverGrants: () => request('GET', '/api/cloud/grants', DoormanGrantsSchema),
 
-    /** Who may sign in, for the doorman's owner (a 403 for anyone else). */
-    access: () => request('GET', '/api/cloud/access', DoormanAccessSchema),
-
-    updateAccess: (update: DoormanAccessUpdate) =>
-      request('PUT', '/api/cloud/access', DoormanAccessSchema, update),
+    /** A day of this device's feature counts, for the owner's admin page (docs/features/admin.md). */
+    reportUsage: (report: UsageReport) => request('POST', '/api/usage', OkSchema, report),
 
     /** Take a server's way into the bucket back. */
     removeServerGrant: (id: string) => request('DELETE', `/api/cloud/grants/${id}`, OkSchema),
@@ -660,7 +781,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     updateSettings: (patch: UpdateSettings) =>
       request('PATCH', '/api/settings', SettingsSchema, patch),
 
-    stats: (range: StatsRange) => request('GET', `/api/stats?range=${range}`, StatsSchema),
+    stats: (range: StatsRange) =>
+      request('GET', `/api/stats?range=${range}${zoneQuery('&')}`, StatsSchema),
 
     /**
      * Whether the server has a picture for this artist, finding one if it
@@ -674,13 +796,21 @@ export function createApi({ context, fetch }: ApiOptions) {
         ArtistBackdropSchema,
       ),
 
+    /** The names an artist also goes by, all of them as they should be now: search finds them by these. */
+    setArtistNames: (input: SetArtistNames) =>
+      request('PUT', '/api/artists/names', SetArtistNamesSchema, input),
+
     wrapped: (range: WrappedRange) =>
-      request('GET', `/api/stats/wrapped?range=${range}`, WrappedSchema),
+      request('GET', `/api/stats/wrapped?range=${range}${zoneQuery('&')}`, WrappedSchema),
 
     gems: (limit: number) =>
       request('GET', `/api/library/gems?limit=${limit}`, ForgottenGemsSchema),
 
-    history: (limit: number) =>
-      request('GET', `/api/stats/history?limit=${limit}`, PlayHistorySchema),
+    /** What you usually play at each hour, by this device's clock (`UsualHours`). */
+    usualHours: () => request('GET', `/api/stats/usual${zoneQuery('?')}`, UsualHoursSchema),
+
+    /** One song's every play, which only a server keeps (`SongHistory`). */
+    songHistory: (songId: number) =>
+      request('GET', `/api/songs/${songId}/history`, SongHistorySchema),
   }
 }

@@ -14,10 +14,11 @@ import {
   SNAPSHOTS_FOLDER,
   audioKey,
   coverKey,
+  coverPackKey,
+  isCoverPackKey,
   foldedLogKeys,
   detectLyricsLanguage,
   isSynced,
-  lyricsKey,
   motionKey,
   newestSnapshotKey,
   othersSnapshotsToPrune,
@@ -27,19 +28,24 @@ import {
   lyricTextLines,
   parseLyrics,
   readLogFile,
-  romanizedKey,
   snapshotFileKeys,
   snapshotKey,
   snapshotsToPrune,
+  soundMapKey,
   soundVectorsKey,
   playsKey,
+  parseCloudWords,
+  wordsKey,
   unfoldedLogKeys,
   type Change,
   type CloudConnect,
   type CloudLyrics,
   type CloudSnapshot,
   type CloudPlays,
+  type CloudCoverPack,
   type CloudSound,
+  type CloudSoundMap,
+  type CloudWords,
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
@@ -54,6 +60,7 @@ import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
 import type {
+  CloudArtistState,
   CloudConnection,
   CloudRepository,
   CloudSongState,
@@ -69,11 +76,16 @@ import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { ArtistBackdropService } from './artistBackdrops.js'
+import type { ArtistNameLookup } from './artistNames.js'
+import type { SpellingService } from './spellings.js'
+import type { NamesRepository } from '../repositories/names.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
+import { planCoverPacks } from './coverPacks.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
+import type { SoundMapService } from '../sound/soundMap.js'
 import type { SoundService } from '../sound/sound.js'
 import type { PlaysArchive } from './playsArchive.js'
 import {
@@ -122,8 +134,23 @@ const DEFAULT_DEBOUNCE_MS = 4_000
 const FIRST_RETRY_MS = 60_000
 const RETRY_DELAYS_MS = [FIRST_RETRY_MS, 120_000, 300_000, 900_000, 1_800_000]
 
+/**
+ * How long a copy here has to have been left alone before a pass sends it,
+ * and before it lets it go. Something may still be writing it: an encoder
+ * fed slowly, a copy over a slow link. Sent too soon, the bucket has part of
+ * the song; let go too soon, the writer goes on into a file nothing names,
+ * and the rest of the song is lost (bug bash R4 NEW). Until it is sent, a
+ * change to the copy is the song changing (scanner.ts); after, it is
+ * another song beside it, but nothing is lost while the copy is here. An
+ * import's own download is sent at once (`uploadSong`): this server wrote it.
+ */
+const SEND_WHEN_STILL_MS = 60_000
+const LET_GO_WHEN_STILL_MS = 10 * 60_000
+
 /** Snapshots this server keeps in the bucket; older ones are deleted. */
 const SNAPSHOTS_KEPT = 3
+/** Passes in a row a log file is found broken before the server goes past it (`#givenUpOn`). */
+const BROKEN_LOG_PASSES = 3
 
 /**
  * How often to look for changes other devices have written. One listing of
@@ -232,12 +259,11 @@ interface Settled {
   readonly sidecarHere: boolean
 }
 
-/** A song's words in the bucket, and their romanized lines beside them. */
+/** A song's words file in the bucket: the text and its romanized lines (`wordsKey`). */
 interface UploadedLyrics {
   readonly key: string
   readonly size: number
   readonly kind: CloudLyrics['kind']
-  readonly romanized: string | null
 }
 
 /** Whether a lyric text is Chinese or Japanese: words that should have romanized lines. */
@@ -260,7 +286,7 @@ interface CloudSyncDeps {
   readonly logger: Logger
   /**
    * A lyric text's romanized lines, made once per text and cached
-   * (services/romanizedLines.ts), uploaded beside the words. Null when the
+   * (services/romanizedLines.ts), uploaded in the words' own file. Null when the
    * words need none or the dictionary would not load. Absent where romaji is
    * not what is being tested, which then uploads none.
    */
@@ -280,11 +306,29 @@ interface CloudSyncDeps {
    */
   readonly artists?: Pick<ArtistBackdropService, 'artists' | 'keptPair' | 'fill'>
   /**
+   * What search finds things by (packages/shared/src/searchNames.ts): the names
+   * artists also go by, looked up after each pass as pictures are, and every
+   * Chinese and Japanese name spelt in Latin letters before each snapshot, so
+   * a new song goes up spelt. Absent where names are not what is being tested,
+   * which then publishes none.
+   */
+  readonly names?: {
+    readonly repo: Pick<NamesRepository, 'artistNames'>
+    readonly spellings: Pick<SpellingService, 'fill' | 'current'>
+    readonly lookup: Pick<ArtistNameLookup, 'fill'>
+  }
+  /**
    * Every song's sound vector (sound/sound.ts), as one file in the bucket
    * beside the words, so the vectors outlive this server's database. Absent
    * where vectors are not what is being tested, which then sends none.
    */
   readonly sound?: Pick<SoundService, 'model' | 'hearing' | 'packSignature' | 'pack' | 'restore'>
+  /**
+   * Where every heard song sits on the sound map (sound/soundMap.ts), as one
+   * small file beside the vectors, for devices to draw. Absent where the map
+   * is not what is being tested, which then sends none.
+   */
+  readonly soundMap?: Pick<SoundMapService, 'file' | 'refresh' | 'adopt'>
   /**
    * When each song was played, a file a month beside the words
    * (services/playsArchive.ts), so the history outlives this server's
@@ -314,6 +358,12 @@ interface CloudSyncDeps {
    * of everything else, which read the files back.
    */
   readonly analysed?: (songId: number) => boolean
+  /**
+   * Whether a song's cover is still to be read out of its copy here, having
+   * failed to be kept the first time (`SongRepository.coverToRead`): the copy
+   * is the only place it is, so it stays till then.
+   */
+  readonly coverToRead?: (songId: number) => boolean
   /**
    * A folder to use as the bucket instead of an account (bucket/local.ts).
    * Connected from the start and never saved; signing in and connecting are
@@ -357,6 +407,8 @@ interface CloudSyncDeps {
   readonly retryDelaysMs?: readonly number[]
   /** How long a snapshot of nothing but enrichment waits (`ENRICHMENT_DEFER_MS`); a test's own. */
   readonly enrichmentDeferMs?: number
+  /** `SEND_WHEN_STILL_MS` and `LET_GO_WHEN_STILL_MS`; tests that write a copy and send it at once make them 0. */
+  readonly stillMs?: { readonly send: number; readonly letGo: number }
 }
 
 /**
@@ -375,12 +427,18 @@ export class CloudSyncService {
   readonly #logPollMs: number
   readonly #retryDelaysMs: readonly number[]
   readonly #enrichmentDeferMs: number
+  readonly #stillMs: { readonly send: number; readonly letGo: number }
 
   /**
    * Called after a pass has applied other devices' changes, so the library
    * version moves and the files of songs removed elsewhere go too.
    */
   onIngested: ((result: IngestResult) => void | Promise<void>) | null = null
+  /**
+   * A copy here was found written to since the sweep read it. What was read
+   * is not sent or let go; the sweep reads it again (`ScannerService.lookAgain`).
+   */
+  onCopyChanged: (() => void) | null = null
 
   /** Where uploads go, for display and for the bookkeeping's sake. */
   #target: CloudStatus['target'] = null
@@ -421,6 +479,22 @@ export class CloudSyncService {
    * before that snapshot has been looked at.
    */
   #bucketSound: CloudSound | null | undefined = undefined
+  /** Likewise the sound map the bucket's snapshot named, until it has been read back. */
+  #bucketSoundMap: CloudSoundMap | null | undefined = undefined
+  /**
+   * Pictures named in the library whose bytes this server does not have, as
+   * the last look for them found: not looked for again every pass. A cover
+   * that changes has a new key, and is looked for under that.
+   */
+  readonly #unpackable = new Set<string>()
+  /** How many passes in a row found each broken log file broken (`#givenUpOn`). */
+  readonly #brokenLogs = new Map<string, number>()
+  /**
+   * The files each snapshot in the bucket names, by its key: a snapshot never
+   * changes once written, so asking again which files the kept ones name is
+   * a listing, not a read of each (`#namedBySnapshots`).
+   */
+  readonly #snapshotFiles = new Map<string, Set<string>>()
   /** The pass that sends the vectors once the hour since the last is up. */
   #soundTimer: NodeJS.Timeout | null = null
   /**
@@ -431,6 +505,9 @@ export class CloudSyncService {
   #bucketPlays: readonly CloudPlays[] | null | undefined = undefined
   /** The pass that sends this month's plays once the hour since the last is up. */
   #playsTimer: NodeJS.Timeout | null = null
+  /** The pass for copies here not yet still for long enough to send or let go, and when it is due. */
+  #stillTimer: NodeJS.Timeout | null = null
+  #stillAt = 0
   #adopting: Promise<void> | null = null
   #preparing: Promise<void> | null = null
 
@@ -537,6 +614,7 @@ export class CloudSyncService {
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
     this.#retryDelaysMs = deps.retryDelaysMs ?? RETRY_DELAYS_MS
     this.#enrichmentDeferMs = deps.enrichmentDeferMs ?? ENRICHMENT_DEFER_MS
+    this.#stillMs = deps.stillMs ?? { send: SEND_WHEN_STILL_MS, letGo: LET_GO_WHEN_STILL_MS }
     if (deps.cloudDir) this.#useFolder(deps.cloudDir)
   }
 
@@ -615,6 +693,7 @@ export class CloudSyncService {
       this.#adopted = false
       this.#coversSwept = false
       this.#bucketSound = undefined
+      this.#bucketSoundMap = undefined
       this.#forgetBucketReads()
     }
     return this.#pass()
@@ -643,10 +722,14 @@ export class CloudSyncService {
 
   /**
    * A song's words from the bucket, once the sidecar here has gone: what the
-   * lyrics routes, the search index and the romanization pass read. Null with
-   * no bucket, or a song the bucket holds no words for.
+   * lyrics routes, the search index and the romanization pass read. With the
+   * romanized lines the words file carries beside them, so a server that did
+   * not make them need not make them again (`keepRomanizedFromBucket`). Null
+   * with no bucket, or a song the bucket holds no words for.
    */
-  async fetchLyrics(songId: number): Promise<{ text: string; synced: boolean } | null> {
+  async fetchLyrics(
+    songId: number,
+  ): Promise<{ text: string; synced: boolean; romanized: string[] | null } | null> {
     const store = this.#store
     const state = this.#deps.cloud.state(songId)
     if (!store || !state?.lyricsKey) return null
@@ -657,7 +740,10 @@ export class CloudSyncService {
       body = await store.get(key)
       if (body) await kept?.keep(key, body)
     }
-    return body ? { text: body.toString('utf8'), synced: state.lyricsKind === 'synced' } : null
+    const words = body ? parseCloudWords(body.toString('utf8')) : null
+    return words
+      ? { text: words.text, synced: state.lyricsKind === 'synced', romanized: words.romanized }
+      : null
   }
 
   /**
@@ -987,7 +1073,6 @@ export class CloudSyncService {
       // Other devices' changes next: a song removed elsewhere is not worth
       // uploading, and the snapshot at the end should say they are folded in.
       const logs = await this.#readLogs(store, generation)
-      failed += logs.unreadable
       if (generation !== this.#generation || this.#stopped) return
 
       // Only by a pass that read every log there is to read: what nothing
@@ -1008,6 +1093,7 @@ export class CloudSyncService {
       /** Songs wholly in the bucket as they are here: what may be let go of below. */
       const settled: Settled[] = []
       let withoutCopy = 0
+      let stillWriting = 0
       for (const [index, file] of files.entries()) {
         const state = states.get(file.id)
         const signatures = signed[index] as Signatures
@@ -1030,6 +1116,16 @@ export class CloudSyncService {
           withoutCopy++
           continue
         }
+        // A copy something may still be writing is sent once it has been
+        // left alone a while, and a pass comes back for it then.
+        if (!state || state.audioSig !== signatures.audio) {
+          const wait = stillIn(file.mtimeMs, this.#stillMs.send)
+          if (wait > 0) {
+            stillWriting++
+            this.#passOnceStill(wait)
+            continue
+          }
+        }
         changed.push({ file, signatures })
       }
       if (withoutCopy > 0) {
@@ -1037,9 +1133,16 @@ export class CloudSyncService {
           songs: withoutCopy,
         })
       }
+      if (stillWriting > 0) {
+        this.#logger.debug('songs whose copies changed a moment ago, sent once left alone', {
+          songs: stillWriting,
+        })
+      }
 
       const total = changed.length
       let done = 0
+      /** Copies found written to since the sweep read them: not sent, and not failures either. */
+      let notAsRead = 0
       this.#progress = { done, total, current: null }
       for (const { file, signatures } of changed) {
         if (generation !== this.#generation || this.#stopped) return
@@ -1052,15 +1155,32 @@ export class CloudSyncService {
             sidecarHere: signatures.sidecarHere,
           })
         } catch (error) {
-          // Offline, a refused key, no bucket, a used-up cap: nothing else
-          // will work either, and every try against a cap is one more call.
+          // Offline, a refused key, no bucket, a used-up cap, a bucket asking
+          // for fewer requests: nothing else will work either, and every try
+          // against a cap or a busy bucket is one more call.
           if (error instanceof CloudError && error.kind !== 'other') throw error
-          failed++
-          this.#lastError = `${file.title}: ${messageOf(error)}`
-          this.#logger.warn('could not upload a song', {
-            songId: file.id,
-            message: messageOf(error),
-          })
+          // Written to since the sweep read it: not sent, and not a failure.
+          // The sweep reads it again once it is still, and that sends it.
+          if (error instanceof CopyChanged) {
+            this.#logger.info('a copy changed since it was read; it goes up once read again', {
+              path: file.path,
+            })
+            this.onCopyChanged?.()
+            notAsRead++
+            done++
+            this.#progress = { done, total, current: null }
+            continue
+          }
+          // Removed while the pass was sending it, its copy with it: what was
+          // asked, not a failure to try again over.
+          if (this.#deps.cloud.songFile(file.id)) {
+            failed++
+            this.#lastError = `${file.title}: ${messageOf(error)}`
+            this.#logger.warn('could not upload a song', {
+              songId: file.id,
+              message: messageOf(error),
+            })
+          }
         }
         done++
         this.#progress = { done, total, current: null }
@@ -1069,7 +1189,11 @@ export class CloudSyncService {
       if (generation !== this.#generation || this.#stopped) return
       await this.#uploadArtists(store)
       if (generation !== this.#generation || this.#stopped) return
+      await this.#uploadCoverPacks(store)
+      if (generation !== this.#generation || this.#stopped) return
       await this.#uploadSound(store)
+      if (generation !== this.#generation || this.#stopped) return
+      await this.#uploadSoundMap(store)
       if (generation !== this.#generation || this.#stopped) return
       if (await this.#uploadPlays(store)) this.#playsCovered = this.#deps.sync?.cursors() ?? {}
 
@@ -1088,16 +1212,29 @@ export class CloudSyncService {
         // is no longer needed here, what the library no longer names is no
         // longer needed in the bucket, and nothing can take a removed song back.
         cloud.forgetRemoved()
-        await this.#letGo(settled)
+        await this.#letGo(store, settled)
         if (generation !== this.#generation || this.#stopped) return
         await this.#emptyTrash(store)
         if (generation !== this.#generation || this.#stopped) return
         await this.#tidyLogs(store, logs.keys)
       }
 
-      if (changed.length > 0) {
-        this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
+      if (changed.length > notAsRead) {
+        this.#logger.info('cloud pass complete', {
+          uploaded: changed.length - notAsRead - failed,
+          failed,
+        })
       }
+      // The names artists also go by, for any nobody has named: found ones go
+      // up with the pass this starts.
+      void this.#deps.names?.lookup
+        .fill()
+        .then(found => {
+          if (found > 0 && !this.#stopped) this.kick()
+        })
+        .catch((error: unknown) => {
+          this.#logger.warn('could not look up artists’ names', { message: messageOf(error) })
+        })
       // Pictures for artists that have none yet, in the background: one found
       // is put in the bucket by the pass this starts.
       void this.#deps.artists
@@ -1109,10 +1246,17 @@ export class CloudSyncService {
           this.#logger.warn('could not look for artists’ pictures', { message: messageOf(error) })
         })
       this.#lastSyncAt = this.#now().toISOString()
-      if (failed === 0) {
+      if (failed === 0 && logs.unreadable === 0) {
         this.#retryIndex = 0
         this.#state = 'idle'
         this.#lastError = null
+      } else if (failed === 0) {
+        // A device's log this server cannot use, said for what it is
+        // (`#readLog` kept the words) rather than as songs that would not go
+        // up. Nothing here is waited out: the next look at the log folder
+        // reads it again, and a server that is updated reads it at last.
+        this.#retryIndex = 0
+        this.#state = 'error'
       } else {
         // The bucket refused some songs and took the rest: a full bucket, or
         // a doorman past its day's quota. Nothing about the library will
@@ -1192,11 +1336,17 @@ export class CloudSyncService {
       const where = parseLogKey(key)
       const file = read[index]
       if (!where || stuck.has(where.deviceId)) return
-      if (file === 'gone' || file === 'unreadable') {
-        stuck.add(where.deviceId)
-        if (file === 'unreadable') unreadable++
+      if (file === 'broken' && this.#givenUpOn(key)) {
+        // Read as nothing: its changes are lost, and the device's later ones count.
+        reached.set(where.deviceId, where.seq)
         return
       }
+      if (file === 'gone' || file === 'broken' || file === 'newer') {
+        stuck.add(where.deviceId)
+        if (file !== 'gone') unreadable++
+        return
+      }
+      this.#brokenLogs.delete(key)
       changes.push(...(file ?? []))
       reached.set(where.deviceId, where.seq)
     })
@@ -1292,22 +1442,25 @@ export class CloudSyncService {
   /**
    * One log file's changes. `gone` when it went between the listing and now —
    * a device tidies its files away once a snapshot has them, so the next pass
-   * simply lists again — and `unreadable`, with the reason kept, when it
-   * cannot be used.
+   * simply lists again; `newer` when a newer build wrote it, which updating
+   * this server fixes; and `broken` when it is not a log file at all — cut
+   * short, or not the file its name says — which nothing will ever fix, since
+   * a file once written never changes (`#givenUpOn`). Either way the reason
+   * is kept.
    */
-  async #readLog(store: CloudStore, key: string): Promise<Change[] | 'gone' | 'unreadable'> {
+  async #readLog(store: CloudStore, key: string): Promise<Change[] | 'gone' | 'broken' | 'newer'> {
     const where = parseLogKey(key)
-    if (!where) return 'unreadable'
+    if (!where) return 'broken'
     const data = await store.get(key)
     if (!data) return 'gone'
     const read = readLogFile(parseJson(data))
     if (!read.ok || read.file.device !== where.deviceId || read.file.seq !== where.seq) {
-      this.#lastError =
-        read.ok || read.reason === 'unreadable'
-          ? `A change log from ${where.deviceId} could not be read (${key}).`
-          : `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
+      const broken = read.ok || read.reason === 'unreadable'
+      this.#lastError = broken
+        ? `A change log from ${where.deviceId} could not be read (${key}).`
+        : `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
       this.#logger.warn('could not use a log file', { key, reason: this.#lastError })
-      return 'unreadable'
+      return broken ? 'broken' : 'newer'
     }
     if (read.skipped > 0) {
       this.#lastError = `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
@@ -1315,9 +1468,27 @@ export class CloudSyncService {
         key,
         skipped: read.skipped,
       })
-      return 'unreadable'
+      return 'newer'
     }
     return [...read.file.changes]
+  }
+
+  /**
+   * Whether to go past a broken log file (`#readLog`), and so lose what it
+   * held, rather than hold back everything that device writes after it for
+   * good. Not at the first sight of one: a read cut short by the network
+   * looks the same once. A file broken on `BROKEN_LOG_PASSES` passes in a row
+   * is broken for good.
+   */
+  #givenUpOn(key: string): boolean {
+    const seen = (this.#brokenLogs.get(key) ?? 0) + 1
+    if (seen < BROKEN_LOG_PASSES) {
+      this.#brokenLogs.set(key, seen)
+      return false
+    }
+    this.#brokenLogs.delete(key)
+    this.#logger.warn('went past a change log that cannot be read; its changes are lost', { key })
+    return true
   }
 
   /**
@@ -1455,6 +1626,7 @@ export class CloudSyncService {
     const newest = await this.#newestSnapshot(store)
     if (!newest) {
       this.#bucketSound = null
+      this.#bucketSoundMap = null
       this.#bucketPlays = null
       this.#adopted = true
       return
@@ -1474,7 +1646,9 @@ export class CloudSyncService {
       )
     }
     this.#bucketSound = snapshot.sound
+    this.#bucketSoundMap = snapshot.soundMap ?? null
     this.#bucketPlays = snapshot.plays ?? []
+    this.#takeOnCoverPacks(snapshot.coverPacks)
     if (snapshot.writtenBy === this.#deviceId()) {
       // This server's own, from before it last stopped. Said again word for
       // word, it would be one more download for every device and nothing new
@@ -1492,7 +1666,14 @@ export class CloudSyncService {
     }
 
     const result: AdoptionResult = await adopt.adopt(snapshot)
+    const reclaimed = await this.#reclaimLetGo(snapshot)
     this.#adopted = true
+    if (reclaimed > 0) {
+      this.#logger.info('found songs already in the bucket that this server had lost track of', {
+        from: newest.key,
+        songs: reclaimed,
+      })
+    }
     if (result.logsFrom > 0) {
       this.#logger.info('reads each device’s log from where the bucket’s snapshot left off', {
         from: newest.key,
@@ -1513,6 +1694,66 @@ export class CloudSyncService {
         songs: result.withoutAudio,
       })
     }
+  }
+
+  /**
+   * Songs this server has, whose copy here was let go, and that it has no
+   * record of having sent: the bucket's snapshot says where their files are.
+   *
+   * What the pass knows about a bucket is forgotten when the bucket looks like
+   * another one (`adoptTarget`) — a folder moved, an endpoint spelt another
+   * way. Adoption leaves a song it already has alone, and with its copy here
+   * gone the pass had nothing to send for it either, so it left every snapshot
+   * and the guard refused to publish for good. The bucket still holds its
+   * files, under the keys the snapshot gives, so they are this song's again,
+   * with the signatures the pass works out for it here: unchanged to the pass.
+   * A song whose copy is still here is sent the ordinary way.
+   */
+  async #reclaimLetGo(snapshot: CloudSnapshot): Promise<number> {
+    const { cloud, storage, sync } = this.#deps
+    if (!sync) return 0
+    let reclaimed = 0
+    for (const song of snapshot.songs) {
+      const songId = sync.songId(song.uid)
+      if (songId === null || cloud.wasRemoved(song.uid) || cloud.state(songId)) continue
+      if (!cloud.hasFile(song.audio.key)) continue
+      const file = cloud.songFile(songId)
+      if (!file || (await storage.exists(file.path))) continue
+      // Words kept nowhere here read as whatever was last sent (`#signatures`):
+      // the bucket's, as the snapshot names them. A cover or curve here that
+      // the snapshot has none of goes up (an empty signature matches nothing).
+      const signatures = await this.#signatures(file)
+      cloud.saveState({
+        songId,
+        audioKey: song.audio.key,
+        audioSize: song.audio.size,
+        audioSig: signatures.audio,
+        coverKey: song.cover?.key ?? null,
+        coverSize: song.cover?.size ?? null,
+        coverSig: song.cover || !file.hasArt ? signatures.cover : '',
+        lyricsKey: song.lyrics?.key ?? null,
+        lyricsSize: song.lyrics?.size ?? null,
+        lyricsKind: song.lyrics?.kind ?? null,
+        lyricsSig: signatures.lyrics,
+        motionKey: song.motion,
+        motionSig: song.motion || signatures.motion === NO_FILE_SIGNATURE ? signatures.motion : '',
+      })
+      reclaimed++
+    }
+    return reclaimed
+  }
+
+  /**
+   * The bucket's packs of covers, for a server that has none of its own yet:
+   * it may not have the covers to make them again (a library taken on from
+   * the bucket has none here), and without them every device would be back
+   * to a read per cover. Only those the bucket still has, as its listing said.
+   */
+  #takeOnCoverPacks(packs: readonly CloudCoverPack[]): void {
+    const { cloud } = this.#deps
+    if (cloud.coverPacks().length > 0) return
+    const present = packs.filter(pack => cloud.hasFile(pack.key))
+    if (present.length > 0) cloud.saveCoverPacks(present)
   }
 
   /**
@@ -1585,6 +1826,17 @@ export class CloudSyncService {
       audio = { key: state.audioKey, size: state.audioSize }
     } else {
       const data = await this.#deps.storage.read(file.path)
+      // What was read is the song as the sweep read it, or it is not sent:
+      // the row's size and time are what every later look compares with.
+      const after = await this.#deps.storage.stat(file.path)
+      if (
+        data.length !== file.sizeBytes ||
+        !after ||
+        after.sizeBytes !== file.sizeBytes ||
+        Math.floor(after.modifiedAt.getTime()) !== file.mtimeMs
+      ) {
+        throw new CopyChanged(file.path)
+      }
       const key = audioKey(sha256(data), path.extname(file.path))
       await this.#putOnce(store, key, data, file.mime)
       audio = { key, size: data.length }
@@ -1602,12 +1854,7 @@ export class CloudSyncService {
     if (state && state.lyricsSig === signatures.lyrics) {
       lyrics =
         state.lyricsKey !== null && state.lyricsKind !== null
-          ? {
-              key: state.lyricsKey,
-              size: state.lyricsSize ?? 0,
-              kind: state.lyricsKind,
-              romanized: state.romanizedKey,
-            }
+          ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }
           : null
     } else {
       const uploaded = await this.#uploadLyrics(store, file)
@@ -1635,7 +1882,6 @@ export class CloudSyncService {
       lyricsKey: lyrics?.key ?? null,
       lyricsSize: lyrics?.size ?? null,
       lyricsKind: lyrics?.kind ?? null,
-      romanizedKey: lyrics?.romanized ?? null,
       lyricsSig,
       motionKey: motion,
       motionSig: signatures.motion,
@@ -1700,6 +1946,95 @@ export class CloudSyncService {
       }
     }
     for (const artist of states.keys()) if (!kept.has(artist)) cloud.dropArtist(artist)
+  }
+
+  /**
+   * The covers and artists' pictures, packed a few megabytes to a file
+   * (services/coverPacks.ts), so a device with none of them reads a file per
+   * pack rather than one per picture. A pack replaced goes in the trash with
+   * the pass that replaced it; a library already packed costs a look at the
+   * database.
+   */
+  async #uploadCoverPacks(store: CloudStore): Promise<void> {
+    const { cloud } = this.#deps
+    const live = new Map<string, number>()
+    for (const state of cloud.states().values()) {
+      if (state.coverKey !== null) live.set(state.coverKey, state.coverSize ?? 0)
+    }
+    const artists = cloud.artistStates()
+    for (const artist of artists.values()) {
+      live.set(artist.bannerKey, artist.bannerSize)
+      live.set(artist.portraitKey, artist.portraitSize)
+    }
+    const packs = cloud.coverPacks()
+    // First as if every picture not known to be missing were here: when that
+    // packs nothing, nothing is looked for on the disk.
+    const hoped = planCoverPacks(live, packs, key => !this.#unpackable.has(key))
+    if (hoped.groups.length === 0) {
+      if (hoped.kept.length !== packs.length) cloud.saveCoverPacks(hoped.kept)
+      return
+    }
+
+    const sources = await this.#pictureSources(artists)
+    for (const key of live.keys()) if (!sources.has(key)) this.#unpackable.add(key)
+    const plan = planCoverPacks(live, packs, key => sources.has(key))
+    const made: CloudCoverPack[] = []
+    for (const group of plan.groups) {
+      if (this.#stopped) return
+      const parts: Buffer[] = []
+      const covers: [string, number][] = []
+      for (const { key } of group) {
+        const data = await fsp.readFile(sources.get(key) ?? '').catch(() => null)
+        // Changed since it went up: the cover's next upload names it anew.
+        if (!data || !key.includes(`/${sha256(data)}.`)) {
+          this.#unpackable.add(key)
+          continue
+        }
+        parts.push(data)
+        covers.push([key, data.length])
+      }
+      if (covers.length === 0) continue
+      const bytes = Buffer.concat(parts)
+      const key = coverPackKey(sha256(bytes))
+      await this.#putOnce(store, key, bytes, 'application/octet-stream')
+      made.push({ key, size: bytes.length, covers })
+    }
+    const next = [...plan.kept, ...made]
+    const before = packs.map(pack => pack.key).join()
+    if (next.map(pack => pack.key).join() !== before) {
+      cloud.saveCoverPacks(next)
+      this.#logger.debug('covers packed', {
+        packs: next.length,
+        covers: next.reduce((sum, pack) => sum + pack.covers.length, 0),
+      })
+    }
+  }
+
+  /** Where this server keeps each picture the bucket has of its library, by key. */
+  async #pictureSources(
+    artists: ReadonlyMap<string, CloudArtistState>,
+  ): Promise<Map<string, string>> {
+    const { cloud, covers } = this.#deps
+    const sources = new Map<string, string>()
+    for (const [songId, state] of cloud.states()) {
+      if (state.coverKey === null || sources.has(state.coverKey)) continue
+      if (this.#unpackable.has(state.coverKey)) continue
+      const found = await covers.find(songId)
+      if (found) sources.set(state.coverKey, found.path)
+    }
+    const pictures = this.#deps.artists
+    if (pictures) {
+      for (const [artist, state] of artists) {
+        if (this.#unpackable.has(state.bannerKey) && this.#unpackable.has(state.portraitKey)) {
+          continue
+        }
+        const pair = await pictures.keptPair(artist)
+        if (!pair) continue
+        sources.set(state.bannerKey, pair.banner)
+        sources.set(state.portraitKey, pair.portrait)
+      }
+    }
+    return sources
   }
 
   /**
@@ -1774,6 +2109,53 @@ export class CloudSyncService {
       cloud.saveSound({ ...named, sig: '', uploadedAt: this.#now().toISOString() })
     }
     this.#bucketSound = null
+  }
+
+  /**
+   * The sound map's file (sound/soundMap.ts), when it is not the one in the
+   * bucket. The fold itself is started here and not waited for: it can take
+   * a while on a Pi, and a new map asks for a pass of its own when it is made.
+   */
+  async #uploadSoundMap(store: CloudStore): Promise<void> {
+    const soundMap = this.#deps.soundMap
+    if (!soundMap) return
+    const { cloud } = this.#deps
+    await this.#readBucketSoundMap(store, soundMap)
+    void soundMap.refresh()
+    const file = soundMap.file()
+    if (file === null) {
+      if (!cloud.soundState()) cloud.dropSoundMap()
+      return
+    }
+    const data = Buffer.from(file)
+    const key = soundMapKey(sha256(data))
+    if (cloud.soundMapState()?.key === key) return
+    await this.#putOnce(store, key, data, 'application/json')
+    cloud.saveSoundMap({ key, size: data.length })
+  }
+
+  /**
+   * The map the bucket's snapshot named when its library was taken on: a
+   * server with no map of its own starts its next fold from it, so the map
+   * every device has been drawing holds still. Read once.
+   */
+  async #readBucketSoundMap(
+    store: CloudStore,
+    soundMap: NonNullable<CloudSyncDeps['soundMap']>,
+  ): Promise<void> {
+    const named = this.#bucketSoundMap
+    if (!named) return
+    const { cloud } = this.#deps
+    if (cloud.soundMapState()?.key !== named.key) {
+      if (soundMap.file() === null) {
+        const data = await store.get(named.key)
+        if (data && soundMap.adopt(data.toString('utf8'))) {
+          this.#logger.info('took the sound map back from the bucket', { key: named.key })
+        }
+      }
+      cloud.saveSoundMap(named)
+    }
+    this.#bucketSoundMap = null
   }
 
   /**
@@ -1879,6 +2261,22 @@ export class CloudSyncService {
     this.#playsTimer.unref()
   }
 
+  /** A pass in `wait` ms, or sooner if one is already due sooner. */
+  #passOnceStill(wait: number): void {
+    const at = Date.now() + wait
+    if (this.#stopped || (this.#stillTimer && this.#stillAt <= at)) return
+    if (this.#stillTimer) clearTimeout(this.#stillTimer)
+    this.#stillAt = at
+    this.#stillTimer = setTimeout(
+      () => {
+        this.#stillTimer = null
+        this.kick()
+      },
+      Math.max(0, at - Date.now()),
+    )
+    this.#stillTimer.unref()
+  }
+
   #soundLater(wait: number): void {
     if (this.#soundTimer || this.#stopped) return
     this.#soundTimer = setTimeout(() => {
@@ -1890,7 +2288,7 @@ export class CloudSyncService {
 
   /**
    * The words — the sidecar if there is one, else the audio file's own tags —
-   * and their romanized lines beside them, as the server's own lyrics answer
+   * put up with their romanized lines, as the server's own lyrics answer
    * carries them. `romanizedMissing` says the words are Chinese or Japanese
    * and no romaji could be made this time.
    */
@@ -1914,23 +2312,19 @@ export class CloudSyncService {
     }
     if (!text?.trim()) return null
 
-    const data = Buffer.from(text, 'utf8')
-    const key = lyricsKey(sha256(data), kind === 'synced')
-    await this.#putOnce(store, key, data, 'text/plain; charset=utf-8')
+    // One file, the text and its romanized lines together, so a device reads
+    // both with one call to the bucket.
+    const romanize = this.#deps.romanize
+    const romanized = romanize ? await romanize(file.id, text).catch(() => null) : null
+    const words: CloudWords = { text, romanized }
+    const data = Buffer.from(JSON.stringify(words), 'utf8')
+    const key = wordsKey(sha256(data))
+    await this.#putOnce(store, key, data, 'application/json')
     // Read from here once the sidecar is let go, rather than from the bucket.
     await this.#deps.kept?.keep(key, data)
-
-    const romanize = this.#deps.romanize
-    const lines = romanize ? await romanize(file.id, text).catch(() => null) : null
-    let romanized: string | null = null
-    if (lines) {
-      const json = Buffer.from(JSON.stringify(lines), 'utf8')
-      romanized = romanizedKey(sha256(json))
-      await this.#putOnce(store, romanized, json, 'application/json')
-    }
     return {
-      lyrics: { key, size: data.length, kind, romanized },
-      romanizedMissing: romanize !== undefined && lines === null && wantsRomanized(text),
+      lyrics: { key, size: data.length, kind },
+      romanizedMissing: romanize !== undefined && romanized === null && wantsRomanized(text),
     }
   }
 
@@ -1954,25 +2348,62 @@ export class CloudSyncService {
    *
    * Every song here is wholly in the bucket as it stands, and the snapshot
    * naming it is up; what the copy is still for is analysis, so a song analysis
-   * has not reached yet keeps it a while longer. From here on the words are
+   * has not reached yet keeps it a while longer — as does one whose cover could
+   * not be kept and is still to be read out of it. From here on the words are
    * read from the bucket (`fetchLyrics`), and the pass knows they are current
    * because nothing here can have changed them (`#signatures`).
    *
    * What is here is what `#signatures` saw at the start of the pass, so a
    * library already let go costs no second look. A sidecar written since then
    * has not been sent yet, and stays for the next pass to send.
+   *
+   * The last copy is not deleted on the word of what this server remembers
+   * sending: the bucket is asked, once a song, for the audio every device
+   * will play from now on. A song whose audio is not there — a bucket emptied
+   * by hand, a folder standing in for one that went away — keeps its copy,
+   * and the next pass checks the whole bucket and sends what it lost.
+   *
+   * Nor while something may still be writing it: the copy is let go only as
+   * it was sent — its size and time unchanged — and once it has been left
+   * alone `LET_GO_WHEN_STILL_MS`, with a pass coming back for it then. A
+   * writer that went on into a deleted file lost the rest of the song.
    */
-  async #letGo(settled: readonly Settled[]): Promise<void> {
+  async #letGo(store: CloudStore, settled: readonly Settled[]): Promise<void> {
     const analysed = this.#deps.analysed
     if (!analysed) return
-    const { storage, lyrics } = this.#deps
+    const { storage, lyrics, cloud } = this.#deps
     let released = 0
+    let notThere = 0
+    let changed = 0
     for (const { file, audioHere, sidecarHere } of settled) {
       if (this.#stopped) return
       if (!audioHere && !sidecarHere) continue
       if (!analysed(file.id)) continue
+      if (this.#deps.coverToRead?.(file.id)) continue
       try {
-        if (audioHere) await storage.delete(file.path)
+        if (audioHere) {
+          const copy = await storage.stat(file.path)
+          if (
+            !copy ||
+            copy.sizeBytes !== file.sizeBytes ||
+            Math.floor(copy.modifiedAt.getTime()) !== file.mtimeMs
+          ) {
+            changed++
+            continue
+          }
+          const wait = stillIn(file.mtimeMs, this.#stillMs.letGo)
+          if (wait > 0) {
+            this.#passOnceStill(wait)
+            continue
+          }
+          const state = cloud.state(file.id)
+          const object = state ? await store.head(state.audioKey) : null
+          if (!state || object?.size !== state.audioSize) {
+            notThere++
+            continue
+          }
+          await storage.delete(file.path)
+        }
         await lyrics.deleteSidecar(file.path)
         await removeFolderIfEmpty(storage, file.path)
         released++
@@ -1984,6 +2415,18 @@ export class CloudSyncService {
       }
     }
     if (released > 0) this.#logger.info('let go of copies now in the bucket', { songs: released })
+    if (changed > 0) {
+      this.#logger.warn('kept copies written to since they were sent; reading them again', {
+        songs: changed,
+      })
+      this.onCopyChanged?.()
+    }
+    if (notThere > 0) {
+      this.#logger.warn('kept copies whose audio the bucket does not have; checking it next pass', {
+        songs: notThere,
+      })
+      this.#verified = false
+    }
   }
 
   /**
@@ -1995,11 +2438,28 @@ export class CloudSyncService {
    * that lands meanwhile finds it absent and sends it again, rather than
    * finding it present and pointing every device at a file about to vanish.
    * One that fails stays in the trash for the next pass.
+   *
+   * A pack of covers replaced waits longer: until no snapshot in the bucket
+   * names it. A device reads the snapshot it listed, which may be one of the
+   * older ones still kept, and a pack deleted under it left that device
+   * fetching every cover one by one — what the packs are there to save. Other
+   * files go as they did: an older snapshot naming a removed song's audio
+   * names a song the logs since have taken away.
    */
   async #emptyTrash(store: CloudStore): Promise<void> {
     const { cloud } = this.#deps
+    let trashed = cloud.trashedKeys()
+    if (trashed.some(isCoverPackKey)) {
+      const named = await this.#namedBySnapshots(store).catch((error: unknown) => {
+        this.#logger.warn('could not read every snapshot; replaced cover packs stay for now', {
+          message: messageOf(error),
+        })
+        return null
+      })
+      trashed = trashed.filter(key => !isCoverPackKey(key) || (named !== null && !named.has(key)))
+    }
     let deleted = 0
-    for (const key of cloud.trashedKeys()) {
+    for (const key of trashed) {
       if (this.#stopped) return
       const inflight = store.delete(key).finally(() => this.#deleting.delete(key))
       this.#deleting.set(key, inflight)
@@ -2073,12 +2533,20 @@ export class CloudSyncService {
   async #namedBySnapshots(store: CloudStore): Promise<Set<string>> {
     const named = new Set<string>()
     const keys = (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
+    const listed = new Set(keys)
+    for (const key of this.#snapshotFiles.keys())
+      if (!listed.has(key)) this.#snapshotFiles.delete(key)
     for (const key of keys) {
       if (!parseSnapshotKey(key)) continue
-      const kept = this.#newestRead?.newest
-      const body = kept?.key === key ? kept.body : await store.get(key)
-      if (!body) throw new Error(`${key} went while it was being read`)
-      for (const file of snapshotFileKeys(parseSnapshot(body))) named.add(file)
+      let files = this.#snapshotFiles.get(key)
+      if (!files) {
+        const kept = this.#newestRead?.newest
+        const body = kept?.key === key ? kept.body : await store.get(key)
+        if (!body) throw new Error(`${key} went while it was being read`)
+        files = snapshotFileKeys(parseSnapshot(body))
+        this.#snapshotFiles.set(key, files)
+      }
+      for (const file of files) named.add(file)
     }
     return named
   }
@@ -2131,7 +2599,7 @@ export class CloudSyncService {
           ? read.newest
           : await this.#newestSnapshot(store)
       if (!newest) return null
-      inBucket = snapshotSongCount(newest.body)
+      inBucket = snapshotSongCount(newest.body, uid => this.#deps.cloud.wasRemoved(uid))
     } catch (error) {
       return error instanceof CloudError
         ? error.message
@@ -2212,26 +2680,42 @@ export class CloudSyncService {
     await this.#prepareBucket(store)
 
     const deviceId = this.#deviceId()
-    const writtenAt = this.#now()
     // A request whose songs have all finished says so from now on.
     importRequests?.settle()
 
     const server = this.#deps.server?.()
     this.#publishedServer = this.#serverKey(server)
+    // New names go up spelt. A dictionary that will not load costs only the
+    // spellings, which the next snapshot brings.
+    const names = this.#deps.names
+    await names?.spellings.fill().catch((error: unknown) => {
+      this.#logger.warn('could not spell names', { message: messageOf(error) })
+    })
+    // After the spelling, which can take a while on a new library: the time
+    // names the snapshot and starts the window logs are tidied against, so it
+    // is the time the snapshot was really written.
+    const writtenAt = this.#now()
+    const everySong = songs.all()
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
+      emptiedTags: sync?.emptiedTags() ?? [],
       merged: sync?.merges() ?? new Map(),
       upTo: sync?.cursors() ?? {},
       imports: importRequests?.recent() ?? [],
       ...(server ? { server } : {}),
-      songs: songs.all(),
+      songs: everySong,
+      cameWith: songs.allCameWith(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
+      artistNames: names?.repo.artistNames() ?? new Map(),
+      spellings: names?.spellings.current(everySong) ?? {},
+      coverPacks: cloud.coverPacks(),
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.
       sound: this.#bucketSound ?? cloud.soundState(),
+      soundMap: this.#bucketSoundMap ?? cloud.soundMapState(),
       // Likewise the bucket's months of plays, until they have been read back.
       plays: this.#bucketPlays ?? cloud.playsStates(),
       tags: tags.all(),
@@ -2385,7 +2869,12 @@ export class CloudSyncService {
   #useFolder(dir: string): void {
     const target = { endpoint: 'file://', bucket: dir, prefix: '' }
     this.#deps.cloud.adoptTarget(target)
-    this.#use(new LocalCloudStore(dir), { ...target, region: '', keyIdHint: 'folder' })
+    const published = () => this.#deps.cloud.totals().songsInCloud > 0
+    this.#use(new LocalCloudStore(dir, { published }), {
+      ...target,
+      region: '',
+      keyIdHint: 'folder',
+    })
   }
 
   /** With a folder as the bucket there is no account to sign in to or out of. */
@@ -2418,6 +2907,7 @@ export class CloudSyncService {
     this.#adopted = false
     this.#coversSwept = false
     this.#bucketSound = undefined
+    this.#bucketSoundMap = undefined
     this.#bucketPlays = undefined
     this.#adopting = null
     this.#checkedAgainstBucket = false
@@ -2465,12 +2955,33 @@ export class CloudSyncService {
     if (this.#logPoll) clearInterval(this.#logPoll)
     if (this.#soundTimer) clearTimeout(this.#soundTimer)
     if (this.#playsTimer) clearTimeout(this.#playsTimer)
+    if (this.#stillTimer) clearTimeout(this.#stillTimer)
     if (this.#enrichmentTimer) clearTimeout(this.#enrichmentTimer)
     this.#retry = null
     this.#logPoll = null
     this.#soundTimer = null
     this.#playsTimer = null
+    this.#stillTimer = null
     this.#enrichmentTimer = null
+  }
+}
+
+/**
+ * How long until a copy last written at `mtimeMs` has been left alone for
+ * `forMs`; 0 once it has. Either way of now, as the sweep counts it
+ * (scanner.ts): a time far ahead of this clock is a clock that is wrong, not
+ * a writer, and waiting for it would be waiting for ever.
+ */
+function stillIn(mtimeMs: number, forMs: number): number {
+  const since = Math.abs(Date.now() - mtimeMs)
+  return since < forMs ? forMs - since : 0
+}
+
+/** A copy here written to since the sweep read it: what was read is not the song any more. */
+class CopyChanged extends Error {
+  constructor(key: string) {
+    super(`changed since it was read: ${key}`)
+    this.name = 'CopyChanged'
   }
 }
 

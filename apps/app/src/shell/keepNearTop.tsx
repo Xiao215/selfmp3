@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import type { ReactElement, ReactNode } from 'react'
+import { HiddenPage } from '../ports/hiddenPage'
 
 /**
  * How many pages under the one on top stay drawn.
@@ -19,6 +20,9 @@ import type { ReactElement, ReactNode } from 'react'
  * Two, not one: Now Playing on a phone is a see-through modal, so the page
  * under it shows. A swipe back draws the page under that one. Either way,
  * what is on screen during a transition is always drawn.
+ *
+ * In a browser the ones kept but not on screen are hidden from React as well
+ * (`ports/hiddenPage`), so a resize or a song change does not draw them.
  */
 const PAGES_KEPT_BELOW = 2
 
@@ -28,11 +32,31 @@ function keptNearTop(routeIndex: number, focused: number): boolean {
   return routeIndex < 0 || focused - routeIndex <= PAGES_KEPT_BELOW
 }
 
+/** The page a phone's Now Playing is laid over, which shows through it. */
+const SEE_THROUGH = 'now-playing'
+
+/**
+ * Whether the route is on screen: the focused one, one on its way in or out,
+ * or one with only Now Playing above it. A page further down is kept but
+ * hidden (`ports/hiddenPage`).
+ */
+function onScreen(
+  routes: readonly { name: string }[],
+  routeIndex: number,
+  focused: number,
+): boolean {
+  if (routeIndex < 0 || routeIndex >= focused) return true
+  return routes.slice(routeIndex + 1, focused + 1).every(route => route.name === SEE_THROUGH)
+}
+
 /** What a screen's navigation offers here: the stack's state, and word when it changes. */
 type StackNavigation = {
-  getState: () => { index: number; routes: readonly { key: string }[] }
+  getState: () => { index: number; routes: readonly { key: string; name: string }[] }
   addListener: (event: 'state', listener: () => void) => () => void
 }
+
+/** Drawn, and on screen too; one string, so the store's answer compares by `===`. */
+type Kept = 'gone' | 'hidden' | 'shown'
 
 function KeepNearTop({
   routeKey,
@@ -47,15 +71,14 @@ function KeepNearTop({
     (onChange: () => void) => navigation.addListener('state', onChange),
     [navigation],
   )
-  const kept = useCallback(() => {
+  const kept = useCallback((): Kept => {
     const state = navigation.getState()
-    return keptNearTop(
-      state.routes.findIndex(route => route.key === routeKey),
-      state.index,
-    )
+    const index = state.routes.findIndex(route => route.key === routeKey)
+    if (!keptNearTop(index, state.index)) return 'gone'
+    return onScreen(state.routes, index, state.index) ? 'shown' : 'hidden'
   }, [navigation, routeKey])
   const drawn = useSyncExternalStore(subscribe, kept, kept)
-  return drawn ? children : null
+  return drawn === 'gone' ? null : <HiddenPage hidden={drawn === 'hidden'}>{children}</HiddenPage>
 }
 
 /** The stack's `screenLayout`: every page's content, drawn only near the top. */

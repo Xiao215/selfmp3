@@ -7,11 +7,13 @@ import {
   type,
   type ThemePalette,
 } from '@selfmp3/client/tokens'
+import { DEFAULT_APP_URL, escapeHtml } from '@selfmp3/shared'
 import { sha256Base64 } from './encoding.js'
 
 /**
- * The few pages a person sees in their browser: the sign-in code, and the
- * ways signing in can go wrong.
+ * The few pages a person sees in their browser: the sign-in code and the ways
+ * signing in can go wrong (`page`), and the card a chat app draws for a share
+ * link (`previewPage`).
  *
  * Each page is one self-contained document with no script at all. The
  * stylesheet is inline and named in the Content-Security-Policy by its hash,
@@ -46,6 +48,12 @@ function paletteVars(palette: ThemePalette): string {
   ].join(' ')
 }
 
+/**
+ * The wordmark's face, from beside the web app (apps/app/scripts/pages.mjs
+ * copies it there), which GitHub Pages serves to any origin.
+ */
+const WORDMARK_FONT = `${DEFAULT_APP_URL}/fonts/InstrumentSerif-Regular.ttf`
+
 const STYLE = `
 :root { color-scheme: dark; ${paletteVars(darkPalette(DEFAULT_ACCENT_HUE))} }
 @media (prefers-color-scheme: light) {
@@ -70,7 +78,8 @@ main {
   border-radius: ${radius.card}px;
   background: var(--card);
 }
-.brand { margin: 0 0 20px; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+@font-face { font-family: 'Instrument Serif'; src: url(${WORDMARK_FONT}); font-display: swap; }
+.brand { margin: 0 0 16px; color: var(--text); font: 400 28px/1 'Instrument Serif', Georgia, serif; letter-spacing: -0.01em; }
 h1 { margin: 0 0 12px; font-size: ${type.large}px; line-height: ${leading.large}px; }
 p { margin: 0 0 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
 a { color: var(--accent); }
@@ -81,9 +90,30 @@ a { color: var(--accent); }
   letter-spacing: 0.08em;
   user-select: all;
 }
+.code.long { font-size: 22px; letter-spacing: 0.02em; overflow-wrap: anywhere; }
 `
 
 let styleHash: Promise<string> | null = null
+
+/**
+ * What every page here is sent with: its stylesheet the only thing it may
+ * load, never framed, never cached, and no Referer passed on.
+ */
+async function pageHeaders(): Promise<Record<string, string>> {
+  styleHash ??= sha256Base64(STYLE)
+  const hash = await styleHash
+  return {
+    'content-type': 'text/html; charset=utf-8',
+    'content-security-policy':
+      `default-src 'none'; style-src 'sha256-${hash}'; font-src ${new URL(DEFAULT_APP_URL).origin}; ` +
+      "base-uri 'none'; " +
+      "form-action 'none'; frame-ancestors 'none'",
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'cache-control': 'no-store',
+  }
+}
 
 interface PageOptions {
   readonly status: number
@@ -92,11 +122,11 @@ interface PageOptions {
   /** A sign-in code, shown large after the lines, and the notes that go under it. */
   readonly code?: string
   readonly notes?: readonly string[]
+  /** The page's one way on, after everything else: back to the app, say. */
+  readonly link?: { readonly href: string; readonly label: string }
 }
 
 export async function page(options: PageOptions): Promise<Response> {
-  styleHash ??= sha256Base64(STYLE)
-  const hash = await styleHash
   const paragraphs = (lines: readonly string[] = []) =>
     lines.map(line => `<p>${escapeHtml(line)}</p>`)
 
@@ -115,8 +145,13 @@ export async function page(options: PageOptions): Promise<Response> {
     '<p class="brand">self.mp3</p>',
     `<h1>${escapeHtml(options.title)}</h1>`,
     ...paragraphs(options.lines),
-    options.code ? `<p class="code">${escapeHtml(options.code)}</p>` : '',
+    options.code
+      ? `<p class="code${options.code.length > 12 ? ' long' : ''}">${escapeHtml(options.code)}</p>`
+      : '',
     ...paragraphs(options.notes),
+    options.link
+      ? `<p><a href="${escapeHtml(options.link.href)}">${escapeHtml(options.link.label)}</a></p>`
+      : '',
     '</main>',
     '</body>',
     '</html>',
@@ -124,19 +159,7 @@ export async function page(options: PageOptions): Promise<Response> {
     .filter(Boolean)
     .join('\n')
 
-  return new Response(html, {
-    status: options.status,
-    headers: {
-      'content-type': 'text/html; charset=utf-8',
-      'content-security-policy':
-        `default-src 'none'; style-src 'sha256-${hash}'; base-uri 'none'; ` +
-        "form-action 'none'; frame-ancestors 'none'",
-      'referrer-policy': 'no-referrer',
-      'x-content-type-options': 'nosniff',
-      'x-frame-options': 'DENY',
-      'cache-control': 'no-store',
-    },
-  })
+  return new Response(html, { status: options.status, headers: await pageHeaders() })
 }
 
 /** What a chat app draws for a link (linkPage.ts): its card's words, picture and colour. */
@@ -165,8 +188,6 @@ export interface PreviewOptions {
  * that comes across it.
  */
 export async function previewPage(options: PreviewOptions): Promise<Response> {
-  styleHash ??= sha256Base64(STYLE)
-  const hash = await styleHash
   const meta = (attribute: 'property' | 'name', name: string, content: string) =>
     `<meta ${attribute}="${name}" content="${escapeHtml(content)}">`
 
@@ -208,29 +229,6 @@ export async function previewPage(options: PreviewOptions): Promise<Response> {
 
   return new Response(html, {
     status: 200,
-    headers: {
-      'content-type': 'text/html; charset=utf-8',
-      'content-security-policy':
-        `default-src 'none'; style-src 'sha256-${hash}'; base-uri 'none'; ` +
-        "form-action 'none'; frame-ancestors 'none'",
-      'referrer-policy': 'no-referrer',
-      'x-content-type-options': 'nosniff',
-      'x-frame-options': 'DENY',
-      'x-robots-tag': 'noindex',
-      'cache-control': 'no-store',
-    },
+    headers: { ...(await pageHeaders()), 'x-robots-tag': 'noindex' },
   })
-}
-
-const ESCAPES: Readonly<Record<string, string>> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-}
-
-/** Safe in text and in a quoted attribute. */
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, char => ESCAPES[char] ?? char)
 }

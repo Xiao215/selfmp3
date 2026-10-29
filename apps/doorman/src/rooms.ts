@@ -17,10 +17,9 @@ import {
   STREAM_RELAYED_HEADERS,
   relayedRange,
 } from '@selfmp3/shared'
-import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
-import { relayRead } from './files.js'
-import { json, methodNotAllowed, notFound, readJson } from './http.js'
+import { lentAnswer, optionalSession, post, readLent, relayed } from './doRelay.js'
+import { methodNotAllowed, notFound, readJson } from './http.js'
 import {
   KeepableSchema,
   LentFileSchema,
@@ -29,8 +28,8 @@ import {
   type JoinRequest,
 } from './room.js'
 import { LentSongsSchema } from './shared.js'
-import { newSharedId, post as sharedPost, rememberShared, sharedObject } from './sharedRoutes.js'
-import { bearerToken, facePicture, type Session } from './sessions.js'
+import { newSharedId, rememberShared, sharedObject } from './sharedRoutes.js'
+import { facePicture } from './sessions.js'
 
 /**
  * Rooms: listening together (docs/features/listen-together.md; the contract is
@@ -97,9 +96,7 @@ export async function rooms(ctx: Context): Promise<Response> {
   if (action === 'socket' && entry === undefined) {
     if (method !== 'GET') return methodNotAllowed(['GET'])
     const answer = await room.fetch(new Request(`https://room${withToken('/socket')}`, ctx.request))
-    // An answer from a Durable Object has headers that cannot be changed,
-    // and every answer but the socket itself gets the CORS headers added
-    // (doorman.ts): a refusal is made again as the doorman's own.
+    // Every answer but the socket itself is made again as the doorman's own.
     return answer.status === 101 ? answer : relayed(answer)
   }
   if (action === 'files' && entry !== undefined && part !== undefined && rest.length === 0) {
@@ -110,20 +107,21 @@ export async function rooms(ctx: Context): Promise<Response> {
     const lent = await ask(withToken('/file', { entry, part }))
     if (!lent.ok) return relayed(lent)
     const file = LentFileSchema.parse(await lent.json())
-    let response: Response
-    if ('listen' in file) {
-      response = await listenThrough(ctx, file.listen, method)
-    } else {
-      const target = await ctx.accounts.bucket(file.sub)
-      if (!target) throw notFound('that song’s owner has no bucket connected any more')
-      response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+    if ('shared' in file && file.shared) {
+      // A shared playlist's song is lent for as long as it is in it and its
+      // owner is too: the playlist says so on every read, not once at import.
+      const query = new URLSearchParams({ sub: file.sub, audio: file.shared.audio })
+      const still = await sharedObject(ctx, file.shared.id).fetch(
+        `https://shared/lends?${query.toString()}`,
+      )
+      if (!still.ok) return relayed(still)
+      await still.body?.cancel()
     }
-    // The web app's audio element asks with credentials (apps/app's
-    // engine.web.ts), which a browser lets it read only when the answer says
-    // so, besides naming the origin (cors.ts does that for every answer).
-    // The doorman keeps no cookies, so there is nothing more this lets through.
-    response.headers.set('access-control-allow-credentials', 'true')
-    return response
+    return lentAnswer(
+      'listen' in file
+        ? await listenThrough(ctx, file.listen, method)
+        : await readLent(ctx, file, method, 'that song’s owner'),
+    )
   }
   if (action === 'vectors' && entry === undefined) {
     if (method === 'GET') return relayed(await ask(withToken('/vectors')))
@@ -142,7 +140,7 @@ export async function rooms(ctx: Context): Promise<Response> {
     const id = newSharedId()
     const made = await sharedObject(ctx, id).fetch(
       'https://shared/create-from',
-      sharedPost({
+      post({
         id,
         name: body.name,
         creator: session.sub,
@@ -165,7 +163,7 @@ export async function rooms(ctx: Context): Promise<Response> {
     )
     if (!lent.ok) return relayed(lent)
     const songs = LentSongsSchema.parse(await lent.json())
-    return relayed(await ask(withToken('/import'), post(songs)))
+    return relayed(await ask(withToken('/import'), post({ shared: body.shared, ...songs })))
   }
   if (action === 'link-server' && entry === undefined) {
     if (method !== 'PUT') return methodNotAllowed(['PUT'])
@@ -222,11 +220,6 @@ async function listenThrough(
   return new Response(upstream.body, { status: upstream.status, headers: out })
 }
 
-/** The room's answer, passed on as JSON the doorman's own way: never cached. */
-async function relayed(response: Response): Promise<Response> {
-  return json(await response.json(), response.status)
-}
-
 /** Room actions arrive as the action itself; the session that brings a song comes from its header. */
 const ActBodySchema = RoomActionSchema
 
@@ -251,20 +244,6 @@ async function create(ctx: Context, namespace: DurableObjectNamespace): Promise<
     await response.body?.cancel()
   }
   throw new DoormanError(503, DOORMAN_ERROR.roomCodes, 'could not find a free room code; try again')
-}
-
-/** The session the request brings, when it brings one. A token that is no good is said so. */
-async function optionalSession(ctx: Context): Promise<Session | null> {
-  if (!bearerToken(ctx.request)) return null
-  return requireSession(ctx)
-}
-
-function post(body: unknown): RequestInit {
-  return {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  }
 }
 
 /** Six letters from the room alphabet, each as likely as the others. */

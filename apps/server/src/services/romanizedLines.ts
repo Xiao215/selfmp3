@@ -1,10 +1,10 @@
 import type { RomanizedLyrics, Song } from '@selfmp3/shared'
-import { messageOf } from '@selfmp3/shared'
+import { detectLyricsLanguage, messageOf } from '@selfmp3/shared'
 import { CloudError } from '../bucket/store.js'
 import type { Logger } from '../logger.js'
 import { LyricsCache } from './lyricsCache.js'
 import { unattendedLyricText } from './lyrics.js'
-import type { RomanizationService } from './romanization.js'
+import { toLyricLines, type RomanizationService } from './romanization.js'
 
 /**
  * The romanized lines that belong to a lyric text, made once per text.
@@ -49,10 +49,42 @@ async function romanizeAndKeep(
 }
 
 /**
- * Romaji for every song in the library that has words on disk, made once.
+ * Keep the romanized lines a song's words file in the bucket carried
+ * (`lyrics/<sha>.words`) as this server's own, for a text it has none for yet.
  *
- * Runs after boot, behind the lyrics index, so a library imported before
- * romaji travelled with the lyrics has it ready before a phone asks. A
+ * They were made from the same text by the same dictionaries, on whichever
+ * server sent the words up; a server rebuilt from the bucket would otherwise
+ * make every song's again. The lines line up with the text's as `romanize`
+ * splits it, so the timings and the language are worked out here again, which
+ * needs no dictionary. Lines that do not line up are left for `romanize`.
+ */
+export async function keepRomanizedFromBucket(
+  deps: { readonly lyricsCache: LyricsCache },
+  songId: number,
+  text: string,
+  romanized: readonly string[],
+): Promise<void> {
+  const hash = LyricsCache.hash(text)
+  if (await deps.lyricsCache.read<RomanizedLyrics>(songId, 'romanized', hash)) return
+  const { synced, lines } = toLyricLines(text)
+  if (lines.length !== romanized.length) return
+  const language = detectLyricsLanguage(lines.map(line => line.text))
+  if (language === 'none') return
+  const lyrics: RomanizedLyrics = {
+    language,
+    synced,
+    lines: lines.map((line, index) => ({ ...line, romanized: romanized[index] ?? '' })),
+  }
+  await deps.lyricsCache.write(songId, 'romanized', hash, lyrics)
+}
+
+/**
+ * Romaji for every song in the library that has words, made once.
+ *
+ * Runs after boot, behind the lyrics index, so every song's romaji is ready
+ * before a phone asks. Words read from the bucket bring their own
+ * (`keepRomanizedFromBucket`), so a rebuilt server makes only what they
+ * lacked — words sent up while the Japanese dictionary would not load. A
  * song's cache hit is a file check, so a second run is quick; no words are
  * looked up online here — words a song does not have yet get their romaji
  * when they arrive.

@@ -9,6 +9,7 @@ import { HttpError } from '../http/errors.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
 import { sendRange, type RangeSource } from '../http/range.js'
 import { sendStoredImage } from '../http/sendStoredImage.js'
+import { audioSignature } from '../services/cloudSignatures.js'
 
 /** The sizes covers are kept at; a request is answered with the smallest that is not smaller. */
 const ART_SIZES = [160, 320, 640, 1024] as const
@@ -23,20 +24,26 @@ function snapArtSize(wanted: number): number {
  * The copy on this disk is let go once a song is wholly in the bucket
  * (services/cloudSync.ts), so for most of a library this is the source: each
  * range the player asks for is asked of the bucket in turn, and nothing is
- * kept on the way past. The bucket names the file by its hash, which is as
- * good an etag as there is.
+ * kept on the way past.
  */
 function bucketSource(store: CloudStore, song: Song, state: CloudSongState): RangeSource {
   return {
     sizeBytes: state.audioSize,
     mime: song.mime,
-    etag: `"${state.audioKey.replace(/^audio\//, '').replace(/\.[^.]+$/, '')}"`,
-    lastModified: new Date(fromSqliteTime(state.uploadedAt)),
+    ...bucketValidators(state),
     open: async (start, end, signal) => {
       const body = await store.range(state.audioKey, start, end, signal)
       if (!body) throw new Error('the bucket has no such file')
       return body
     },
+  }
+}
+
+/** The bucket names the file by its hash, which is as good an etag as there is. */
+function bucketValidators(state: CloudSongState): Pick<RangeSource, 'etag' | 'lastModified'> {
+  return {
+    etag: `"${state.audioKey.replace(/^audio\//, '').replace(/\.[^.]+$/, '')}"`,
+    lastModified: new Date(fromSqliteTime(state.uploadedAt)),
   }
 }
 
@@ -63,9 +70,18 @@ export function mediaRoutes(container: Container): Router {
     // A copy still here — an import not yet uploaded, or not yet analysed —
     // is served from here; otherwise the bucket is where the song is.
     let source = await container.storage.rangeSource(song.path, song.mime)
+    const state = container.cloudRepo.state(song.id)
+    if (
+      source &&
+      state?.audioSig === audioSignature(source.sizeBytes, source.lastModified.getTime())
+    ) {
+      // The copy here is the file that went up: named as the bucket names it,
+      // so a player holding part of it does not start again when the copy
+      // here is let go and the bucket answers instead.
+      source = { ...source, ...bucketValidators(state) }
+    }
     if (!source) {
       const store = container.cloudSync.bucket()
-      const state = container.cloudRepo.state(song.id)
       if (!store || !state) {
         throw HttpError.notFound('this song’s audio is not in the bucket yet')
       }

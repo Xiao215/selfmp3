@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode, Ref } from 'react'
 import { Animated, Text, View } from 'react-native'
 import { Guide } from '../features/guide/Guide'
 import { useGuideAsked } from '../features/guide/guideMemory'
@@ -16,20 +16,26 @@ import {
   space,
   type,
   useAddToPlaylist,
+  useBulkLoved,
   useLibrary,
   iconSize,
 } from '@selfmp3/client'
-import { footNotice, footSummary } from '../features/library/library.model'
+import { footNotice, footSummary, troubleAsError } from '../features/library/library.model'
+import { useLibraryFailure } from '../features/library/useLibraryFailure'
 import { profileName } from '../features/profile/profile.model'
-import { devicePlace } from '../features/settings/settings.model'
-import { deviceKind } from '../ports/device'
-import { library as cloudLibrary } from '../replica'
 import { useBucketHold } from '../features/profile/useBucketHold'
 import { useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
+import { useEscape } from './useEscape'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
-import { isLive, listedPlaylists } from '../features/playlists/playlists.model'
+import {
+  addedToPlaylist,
+  emptyPlaylists,
+  isLive,
+  listedPlaylists,
+} from '../features/playlists/playlists.model'
+import { LIKED_LINK } from '../features/lists/lists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
 import { useMenuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID } from '../ports/titleBarDragId'
@@ -40,12 +46,19 @@ import { useDownloads } from '../offline/DownloadsProvider'
 import { useOpenTag } from '../features/tag/useOpenTag'
 import { onTagPage } from '../features/tag/placePath.model'
 import { existingTag, noTagsLine } from '../features/tag/tag.model'
-import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
+import { TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
 import { StatusLine } from '../ui/components/StatusLine'
 import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
+import {
+  useAskBucketAgain,
+  useCloudStuck,
+  useCloudUnsent,
+  useDoormanTrouble,
+} from '../connection/useDoormanTrouble'
+import { Button } from '../ui/components/Button'
 import { BrandMark } from '../ui/components/BrandMark'
-import { Live, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
+import { Heart, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
 import { HueSwatches } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
@@ -58,12 +71,20 @@ import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
-import { label as labelText } from '../ui/surfaces'
+import { label, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
+import { Bone, Skeleton } from '../ui/components/Skeleton'
+import { ResumeCard } from '../features/devices/ResumeToast'
+import { FOCUS_INSIDE } from './tabbing'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
+import { thisPlace } from '../ports/place'
+import { tabbing } from './tabbing'
+import { useOnline } from '../offline/useOnline'
+import { useWaitingEdits } from '../offline/waitingEdits'
+import { useSteadyOrder } from '../ui/useSteadyOrder'
 
 /**
  * The desktop's left rail.
@@ -76,20 +97,26 @@ import { SIDEBAR_WIDTH } from './widths'
  * At the top, under the brand, a Search row that opens the command palette —
  * the one way to it in a browser tab, which has no ⌘K of its own.
  *
- * Playlists are a section whose header is itself the way to the playlists
- * page, with the count and a ＋ that makes any of the three kinds; the few
+ * Playlists are a section whose quiet header is itself the way to the
+ * playlists page, with a ＋ that makes any of the three kinds (shown while the
+ * pointer is over the header; a right-click on it offers the same); the few
  * played last sit under it, and a song dragged from the library drops onto
  * one. There are no pins (docs/UI-MIGRATION.md, Phase 5), and an empty
  * playlist is not listed.
  *
  * Below them, the tags reached for last: a click opens the tag's page, the ⋯
- * edits it, and the TAGS header opens all of them. At the foot, you, and a
- * card only when something needs you.
+ * edits it, and the Tags header (or "3 more" under the list) opens all of
+ * them. At the foot, you, and a card only when something needs you.
  */
 const ROWS = NAV.filter(place => place.rail === 'row')
 
+const tagKey = (tag: Tag): number => tag.id
+
 /** How many playlists the rail lists: the ones played last. The header opens them all. */
 const RAIL_PLAYLISTS = 4
+
+/** How many tags the rail lists before "N more". */
+const RAIL_TAGS = 8
 
 function SidebarInner(): ReactNode {
   // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.
@@ -108,7 +135,10 @@ function SidebarInner(): ReactNode {
   return (
     <View
       style={[styles.rail, { paddingTop: space.xl + insets.top + titleBarInset }]}
+      // The app's navigation, as a landmark a screen reader can jump to.
+      role="navigation"
       testID="sidebar"
+      {...FOCUS_INSIDE}
     >
       {/*
         The installed desktop app's traffic lights sit over this corner. The strip
@@ -121,44 +151,50 @@ function SidebarInner(): ReactNode {
           style={[styles.titleBarDrag, { height: titleBarInset }]}
         />
       ) : null}
-      <View style={styles.brand}>
-        <BrandMark size={20} />
-        <Text style={styles.wordmark}>self.mp3</Text>
-      </View>
+      {/*
+        Everything above the foot scrolls, so on a short window (a 720 p laptop's
+        browser) the foot stays in reach rather than going under the player bar.
+      */}
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <View style={styles.brand}>
+          <BrandMark size={20} />
+          <Text style={styles.wordmark}>self.mp3</Text>
+        </View>
 
-      <SearchRow />
+        <SearchRow />
 
-      <View accessibilityRole="tablist" style={styles.nav}>
-        {slide.highlight}
-        {ROWS.map(row => {
-          const active = row.href === lit
-          const Icon = NAV_ICON[row.id]
-          return (
-            <Press
-              key={row.href}
-              feedback="wash"
-              onLayout={slide.measure(row.href)}
-              style={[styles.item, active && !slide.placed && styles.itemOn]}
-              onPress={() => {
-                if (!navGoes(pathname, row.href)) return
-                enterFromSidebar()
-                router.navigate(row.href)
-              }}
-              accessibilityLabel={row.label}
-              {...navItemProps(active)}
-              testID={`nav-${row.id}`}
-            >
-              <Icon size={iconSize.medium} tone={active ? 'textPrimary' : 'textMuted'} />
-              <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-                {row.label}
-              </Text>
-            </Press>
-          )
-        })}
-      </View>
+        <View accessibilityRole="tablist" accessibilityLabel="Pages" style={styles.nav}>
+          {slide.highlight}
+          {ROWS.map(row => {
+            const active = row.href === lit
+            const Icon = NAV_ICON[row.id]
+            return (
+              <Press
+                key={row.href}
+                feedback="wash"
+                onLayout={slide.measure(row.href)}
+                style={[styles.item, active && !slide.placed && styles.itemOn]}
+                onPress={() => {
+                  if (!navGoes(pathname, row.href)) return
+                  enterFromSidebar()
+                  router.navigate(row.href)
+                }}
+                accessibilityLabel={row.label}
+                {...navItemProps(active)}
+                testID={`nav-${row.id}`}
+              >
+                <Icon size={iconSize.medium} tone={active ? 'textPrimary' : 'textMuted'} />
+                <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
+                  {row.label}
+                </Text>
+              </Press>
+            )
+          })}
+        </View>
 
-      <Playlists />
-      <Tags />
+        <Playlists />
+        <Tags />
+      </ScrollView>
       <Foot />
     </View>
   )
@@ -222,9 +258,16 @@ function Playlists(): ReactNode {
   const [newOpen, setNewOpen] = useState(false)
 
   const all = library?.playlists
-  // The ones the playlists page lists: an empty playlist is in neither.
+  // The ones the playlists page lists, in its order.
   const listed = useMemo(() => listedPlaylists(all ?? [], 'recent'), [all])
-  const recent = listed.slice(0, RAIL_PLAYLISTS)
+  // The few played last, and under them any left empty, which no other list
+  // shows: the one way back to them (`emptyPlaylists`).
+  const recent = useMemo(
+    () => [...listed.slice(0, RAIL_PLAYLISTS), ...emptyPlaylists(all ?? [])],
+    [listed, all],
+  )
+  // Liked leads, once a song is liked: until then the Playlists page has it.
+  const anyLiked = useMemo(() => library?.songs.some(song => song.loved) ?? false, [library?.songs])
   // Lit on a playlist's own page too: that page is inside this section.
   const onPage = activeDestination(pathname) === '/playlists'
   /*
@@ -242,36 +285,42 @@ function Playlists(): ReactNode {
   return (
     <View style={styles.section} testID="sidebar-playlists">
       {/*
-        A section, as Tags is: its header opens every playlist ("All 4"), and
-        the few under it are the ones played last. The ＋ beside the header makes
-        any of the three kinds.
+        A section, as Tags is: its header opens every playlist, and the few
+        under it are the ones played last. The ＋ beside the header makes any of
+        the three kinds.
       */}
-      <View style={styles.groupTitle}>
-        <Press
-          feedback="dim"
-          onPress={() => {
-            if (!navGoes(pathname, '/playlists')) return
-            enterFromSidebar()
-            router.navigate('/playlists')
-          }}
-          accessibilityLabel="Playlists"
-          {...navItemProps(onPage)}
-          testID="nav-playlists"
-          style={styles.groupTitleMain}
-        >
-          <Text style={[styles.groupTitleText, onPage && styles.groupTitleOn]}>PLAYLISTS</Text>
-          {listed.length > 0 ? <Text style={styles.groupAll}>All {listed.length}</Text> : null}
-        </Press>
-        <IconButton
-          size={TINY_BUTTON}
-          onPress={() => setNewOpen(open => !open)}
-          label="New playlist"
-        >
-          <Plus size={iconSize.field} tone="textMuted" />
-        </IconButton>
-      </View>
+      <GroupHead
+        title="Playlists"
+        on={onPage}
+        onOpen={() => {
+          if (!navGoes(pathname, '/playlists')) return
+          enterFromSidebar()
+          router.navigate('/playlists')
+        }}
+        // A section's head and a link to every playlist, as Tags' is: a tab
+        // here stood alone, outside the tab list above.
+        openProps={{
+          accessibilityRole: 'link',
+          accessibilityLabel: `All ${plural(listed.length, 'playlist', 'playlists')}`,
+          accessibilityState: { selected: onPage },
+        }}
+        testID="nav-playlists"
+        newLabel="New playlist"
+        onNew={() => setNewOpen(open => !open)}
+        newShown={newOpen}
+      />
 
       <View ref={dropTarget} collapsable={false}>
+        {library ? null : <RailWaiting kind="playlists" />}
+        {anyLiked ? (
+          <RailLiked
+            active={pathname === LIKED_LINK.pathname}
+            onOpen={() => {
+              enterFromSidebar()
+              router.navigate(LIKED_LINK)
+            }}
+          />
+        ) : null}
         {recent.map(playlist => (
           <RailPlaylist
             key={playlist.id}
@@ -302,6 +351,45 @@ function Playlists(): ReactNode {
 }
 
 /**
+ * Liked in the rail, over the playlists. Songs dragged onto it are liked: it
+ * keeps itself, so that is what adding to it means.
+ */
+function RailLiked({ active, onOpen }: { active: boolean; onOpen: () => void }): ReactNode {
+  const { theme } = useUnistyles()
+  const ref = useRef<View>(null)
+  const like = useBulkLoved()
+  const over = useSongDropTarget(ref, {
+    enabled: true,
+    onDrop: songIds =>
+      like.mutate(
+        { songIds: [...songIds], loved: true },
+        { onSuccess: () => showToast(`Liked ${plural(songIds.length, 'song', 'songs')}`, 'good') },
+      ),
+  })
+  return (
+    <View ref={ref} collapsable={false}>
+      <Press
+        feedback="wash"
+        onPress={onOpen}
+        accessibilityRole="link"
+        accessibilityLabel="Liked"
+        accessibilityState={{ selected: active }}
+        testID="nav-liked"
+        style={[styles.playlistRow, active && styles.itemOn, over && styles.dropping]}
+      >
+        <View style={styles.likedMark}>
+          <Heart size={iconSize.sub} filled color={theme.colors.danger} />
+        </View>
+        <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
+          Liked
+        </Text>
+      </Press>
+      {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to like</Text> : null}
+    </View>
+  )
+}
+
+/**
  * A playlist in the rail. Songs dragged from a list drop onto it; a live one
  * dims while they are dragged, because its rules decide what is in it.
  */
@@ -327,9 +415,20 @@ function RailPlaylist({
   const addToPlaylist = useAddToPlaylist()
   const over = useSongDropTarget(ref, {
     enabled: !live,
+    // Said once the server has taken them, counting only the songs that were
+    // not in it already; a failure is the app's own error toast.
     onDrop: songIds => {
-      addToPlaylist.mutate({ playlistId: playlist.id, songIds })
-      showToast(`Added ${plural(songIds.length, 'song', 'songs')} to ${playlist.name}`, 'good')
+      const before = playlist.songCount
+      addToPlaylist.mutate(
+        { playlistId: playlist.id, songIds },
+        {
+          onSuccess: after =>
+            showToast(
+              addedToPlaylist(playlist.name, songIds.length, before, after.songCount),
+              'good',
+            ),
+        },
+      )
     },
   })
 
@@ -347,7 +446,6 @@ function RailPlaylist({
         <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
           {playlist.name}
         </Text>
-        {live ? <Live size={iconSize.sub} tone="textMuted" /> : null}
       </Press>
       {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to add</Text> : null}
     </Animated.View>
@@ -371,7 +469,24 @@ function Tags(): ReactNode {
    * ones this device reached for last — no pinning, nothing to maintain —
    * and the rest are one press away on All tags, which the header opens.
    */
-  const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
+  const recent = useMemo(() => railTags(recentIds, tags, RAIL_TAGS), [recentIds, tags])
+  /*
+   * Held in place for as long as you stay on a page (X6): tagging songs
+   * changes their counts, and "live" jumped from 7th to 4th as soon as songs
+   * were tagged. Opening a tag makes it the one used last, and the row that
+   * jumped to the top slid another tag under the pointer for the next click,
+   * so a new page is taken as a new visit only once the pointer has left
+   * them; then they take the order they now have.
+   */
+  const [pointerOver, setPointerOver] = useState(false)
+  const [visit, setVisit] = useState(pathname)
+  if (visit !== pathname && !pointerOver) setVisit(pathname)
+  const rail = useSteadyOrder(recent, tagKey, true, visit)
+  const more = tags.length - rail.length
+  const openAll = (): void => {
+    enterFromSidebar()
+    router.navigate('/tags')
+  }
 
   // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its
   // page, which is already open when its row is lit.
@@ -380,6 +495,9 @@ function Tags(): ReactNode {
     if (!onTagPage(pathname, tag.name)) openTag(tag, { from: 'sidebar' })
   }
 
+  // The + the form opens from, where focus goes back to once it closes on
+  // its own: made, or Escape. A field that goes leaves focus on nothing.
+  const plus = useRef<View>(null)
   // Made, or already there and opened: the form has done its job and closes.
   const form = useNewTagForm({
     tags,
@@ -387,35 +505,37 @@ function Tags(): ReactNode {
       open(tag)
       setAdding(false)
     },
-    onMade: () => setAdding(false),
+    onMade: () => putAway(),
   })
+  const putAway = (): void => {
+    setAdding(false)
+    form.setName('')
+    plus.current?.focus?.()
+  }
+  // Escape puts it away, typed name and all.
+  useEscape(adding, putAway)
   const trimmed = form.name.trim()
-  const suggestions = trimmed ? fuzzyRank(trimmed, tags, tag => tag.name).slice(0, 3) : []
+  const suggestions = trimmed
+    ? fuzzyRank(trimmed, tags, tag => tag.name, { scattered: true }).slice(0, 3)
+    : []
   const exact = existingTag(tags, trimmed)
 
   return (
     <View style={styles.group}>
-      <View style={styles.groupTitle}>
-        <Press
-          feedback="dim"
-          onPress={() => {
-            enterFromSidebar()
-            router.navigate('/tags')
-          }}
-          accessibilityRole="link"
-          accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
-          testID="sidebar-tags"
-          style={styles.groupTitleMain}
-        >
-          <Text style={[styles.groupTitleText, pathname === '/tags' && styles.groupTitleOn]}>
-            TAGS
-          </Text>
-          {tags.length > 0 ? <Text style={styles.groupAll}>All {tags.length}</Text> : null}
-        </Press>
-        <IconButton size={TINY_BUTTON} onPress={() => setAdding(isOpen => !isOpen)} label="New tag">
-          <Plus size={iconSize.field} color={theme.colors.textMuted} />
-        </IconButton>
-      </View>
+      <GroupHead
+        title="Tags"
+        on={pathname === '/tags'}
+        onOpen={openAll}
+        openProps={{
+          accessibilityRole: 'link',
+          accessibilityLabel: `All ${plural(tags.length, 'tag', 'tags')}`,
+        }}
+        testID="sidebar-tags"
+        newLabel="New tag"
+        onNew={() => setAdding(isOpen => !isOpen)}
+        newShown={adding}
+        newRef={plus}
+      />
 
       {adding ? (
         <View style={styles.tagForm} testID="sidebar-new-tag">
@@ -424,6 +544,7 @@ function Tags(): ReactNode {
             size="small"
             placeholder="tag name"
             autoFocus
+            onEscape={putAway}
             onBlur={() => {
               if (!form.name) setAdding(false)
             }}
@@ -432,7 +553,7 @@ function Tags(): ReactNode {
           <View style={styles.tagHues}>
             <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} size={16} />
           </View>
-          {form.failed ? <StatusLine>{NEW_TAG_FAILED}</StatusLine> : null}
+          {form.failure ? <StatusLine>{form.failure}</StatusLine> : null}
           {suggestions.length > 0 ? (
             <View style={styles.suggestions}>
               <Text style={styles.hint}>{exact ? 'already exists:' : 'similar:'}</Text>
@@ -454,7 +575,12 @@ function Tags(): ReactNode {
         </View>
       ) : null}
 
-      <ScrollView style={styles.tagList} contentContainerStyle={styles.tagListContent}>
+      <ScrollView
+        style={styles.tagList}
+        contentContainerStyle={styles.tagListContent}
+        onPointerEnter={() => setPointerOver(true)}
+        onPointerLeave={() => setPointerOver(false)}
+      >
         {rail.map(tag => (
           <TagRow
             key={tag.id}
@@ -463,10 +589,22 @@ function Tags(): ReactNode {
             onOpen={() => open(tag)}
           />
         ))}
+        {more > 0 ? (
+          <Press
+            feedback="dim"
+            onPress={openAll}
+            accessibilityRole="link"
+            accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
+            style={styles.moreTags}
+            testID="sidebar-more-tags"
+          >
+            <Text style={styles.hint}>{more} more</Text>
+          </Press>
+        ) : null}
         {!library && !adding ? (
           // Not "no tags yet": with the library unreachable or still coming,
           // this device does not know whether there are any.
-          <Text style={[styles.hint, styles.loadingHint]}>Tags load with your library.</Text>
+          <RailWaiting kind="tags" />
         ) : null}
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
@@ -483,9 +621,105 @@ function Tags(): ReactNode {
   )
 }
 
+/** The names whose shapes the rail draws while the library is on its way, as shares of a row. */
+const RAIL_WAITING = ['64%', '48%', '72%', '40%'] as const
+
+/**
+ * A rail section's rows while the library is on its way (AA1): a playlist's
+ * cover or a tag's dot, and a name, at the rows' own size and inset.
+ */
+function RailWaiting({ kind }: { kind: 'playlists' | 'tags' }): ReactNode {
+  const shown = kind === 'playlists' ? RAIL_WAITING.slice(0, 3) : RAIL_WAITING
+  return (
+    <Skeleton label={kind === 'playlists' ? 'Loading playlists' : 'Loading tags'}>
+      {shown.map(width => (
+        <View key={width} style={kind === 'playlists' ? styles.playlistWaiting : styles.tagWaiting}>
+          {kind === 'playlists' ? (
+            <Bone width={22} height={22} radius={radius.coverSm - 2} />
+          ) : (
+            <Bone width={8} height={8} radius={radius.pill} />
+          )}
+          <Bone width={width} height={10} radius={radius.pill} />
+        </View>
+      ))}
+    </Skeleton>
+  )
+}
+
+/**
+ * A section's header in the rail: its name, quiet and in sentence case, which
+ * opens the whole page; and a ＋ that makes a new one. With a mouse the ＋
+ * waits for the pointer to come over the header, as a tag row's ⋯ does, and a
+ * right-click on the header makes a new one too; a finger sees it always.
+ */
+function GroupHead({
+  title,
+  on,
+  onOpen,
+  openProps,
+  testID,
+  newLabel,
+  onNew,
+  newShown,
+  newRef,
+}: {
+  title: string
+  on: boolean
+  onOpen: () => void
+  openProps: Partial<ComponentProps<typeof Press>>
+  testID: string
+  newLabel: string
+  onNew: () => void
+  /** The new form is open, so the ＋ that closes it stays. */
+  newShown: boolean
+  /** The ＋, for focus to come back to once the form closes on its own. */
+  newRef?: Ref<View>
+}): ReactNode {
+  const finePointer = useLayoutValue(layout => layout.finePointer)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const reveal = useFade(
+    !finePointer || hovered || focused || newShown,
+    MOVE_MS.hoverIn,
+    MOVE_MS.hoverOut,
+  )
+  return (
+    <View
+      style={styles.groupTitle}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      {...rightClick(onNew)}
+    >
+      <Press
+        feedback="dim"
+        onPress={onOpen}
+        {...openProps}
+        testID={testID}
+        style={styles.groupTitleMain}
+      >
+        <Text style={[styles.groupTitleText, on && styles.groupTitleOn]}>{title}</Text>
+      </Press>
+      <Animated.View style={{ opacity: reveal }}>
+        <IconButton
+          ref={newRef}
+          size={TINY_BUTTON}
+          onPress={onNew}
+          label={newLabel}
+          onFocus={() => setFocused(tabbing())}
+          onBlur={() => setFocused(false)}
+        >
+          <Plus size={iconSize.field} tone="textMuted" />
+        </IconButton>
+      </Animated.View>
+    </View>
+  )
+}
+
 /**
  * One tag in the sidebar: a click opens its page, which lights the row while
  * you are on it, and the ⋯ the pointer reveals edits it, as a right-click does.
+ * A finger has no hover to reveal it with, so it gets no ⋯ at all and holds
+ * the row instead, as it holds a tag on the phone's Tags (AH1).
  */
 function TagRow({
   tag,
@@ -497,20 +731,22 @@ function TagRow({
   onOpen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  // A pointer can hover, so the row's controls wait for it; a finger cannot,
-  // so they are simply there. Asked of the pointer and not of the platform —
-  // a touch-screen browser never hovers, and an iPad with a trackpad does.
+  // A pointer can hover, so the row's ⋯ waits for it; a finger cannot, so it
+  // holds the row. Asked of the pointer and not of the platform — a
+  // touch-screen browser never hovers, and an iPad with a trackpad does.
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
+  const rowRef = useRef<View>(null)
   const moreRef = useRef<View>(null)
-  const revealed = !finePointer || hovered || editing
+  const revealed = hovered || editing
   // The ⋯ fades in as the pointer arrives and out as it leaves, on the same
   // clocks as a song row's controls (`M3`, 3).
   const reveal = useFade(revealed, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
 
   return (
     <View
+      ref={rowRef}
       style={[styles.tagRow, hovered && styles.tagRowHovered, active && styles.itemOn]}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
@@ -521,6 +757,8 @@ function TagRow({
         feedback="dim"
         style={styles.tagMain}
         onPress={onOpen}
+        onLongPress={finePointer ? undefined : () => setEditing(true)}
+        delayLongPress={MOVE_MS.hold}
         accessibilityRole="link"
         accessibilityLabel={tag.name}
         accessibilityState={{ selected: active }}
@@ -532,21 +770,27 @@ function TagRow({
         <Text style={styles.count}>{tag.songCount}</Text>
       </Press>
 
-      <Animated.View ref={moreRef} collapsable={false} style={{ opacity: reveal }}>
-        <Press
-          feedback="dim"
-          style={[styles.tagAction, styles.tagActionLast]}
-          onPress={() => setEditing(isOpen => !isOpen)}
-          accessibilityRole="button"
-          accessibilityLabel={`Edit tag ${tag.name}`}
-          {...tip('Rename, recolour or delete')}
-          accessibilityState={{ expanded: editing }}
-        >
-          <More size={iconSize.sub} color={theme.colors.textMuted} />
-        </Press>
-      </Animated.View>
+      {finePointer ? (
+        <Animated.View ref={moreRef} collapsable={false} style={{ opacity: reveal }}>
+          <Press
+            feedback="dim"
+            style={[styles.tagAction, styles.tagActionLast]}
+            onPress={() => setEditing(isOpen => !isOpen)}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit tag ${tag.name}`}
+            {...tip('Rename, recolour or delete')}
+            accessibilityState={{ expanded: editing }}
+          >
+            <More size={iconSize.sub} color={theme.colors.textMuted} />
+          </Press>
+        </Animated.View>
+      ) : null}
 
-      <TagEditor tag={editing ? tag : null} anchorRef={moreRef} onClose={() => setEditing(false)} />
+      <TagEditor
+        tag={editing ? tag : null}
+        anchorRef={finePointer ? moreRef : rowRef}
+        onClose={() => setEditing(false)}
+      />
     </View>
   )
 }
@@ -571,6 +815,15 @@ function Foot(): ReactNode {
   const { state, installed } = useDownloads()
   const { fromCloud } = useConnection()
   const held = useBucketHold() !== null
+  const online = useOnline()
+  const waiting = useWaitingEdits()
+  const failure = useLibraryFailure(library)
+  // A cloud library always loads — it is this device's copy — so whether
+  // the doorman answers is what the requests that go out found (reach.ts).
+  const trouble = useDoormanTrouble()
+  const cloudUnsent = useCloudUnsent(fromCloud)
+  const stuck = useCloudStuck(fromCloud)
+  const askBucketAgain = useAskBucketAgain()
   /*
    * Of this library, what is here — not how many files the device is keeping.
    * The index holds an entry for every song ever downloaded, a replaced
@@ -583,28 +836,38 @@ function Foot(): ReactNode {
   )
 
   const name = profileName(account?.name)
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
   // A failed refetch keeps the cached library, so an error wins over the data.
-  // Edits a cloud library is still holding are read as the foot draws, which
-  // it does again whenever the library's answer changes.
+  // Edits a cloud library is still holding wait in its outbox; a server
+  // library's edits made offline wait in the query client (`waitingEdits.ts`).
+  const unsent = waiting + cloudUnsent
+  const error = failure ?? (fromCloud ? troubleAsError(trouble) : null)
   const notice = footNotice({
-    error: library.isError ? library.error : null,
+    error,
     held,
+    offline: !online,
     fromCloud,
     keepsSongs: installed,
     place,
-    unsent: fromCloud && library.isError ? cloudLibrary.pendingCloudChanges() : 0,
+    unsent,
+    stuck,
   })
+  // A cap raised at backblaze.com is not noticed until the hold is up: this asks now.
+  const capped = held || trouble?.kind === 'capped'
   const dot = notice
     ? theme.colors.warning
     : library.isPending
       ? theme.colors.textMuted
       : theme.colors.good
-  const summary = library.data ? footSummary({ songs, here, place }) : null
+  const summary = library.data ? footSummary({ songs, here, place, unsent }) : null
+  // The page says it already, in its own card where the library would be: the
+  // same title twice, one above the other, read as two problems.
+  const pageSays =
+    failure !== null && !library.data && (pathname === '/library' || pathname === '/')
 
   return (
     <View style={styles.foot}>
-      {notice ? (
+      {notice && !pageSays ? (
         <NoticeCard
           tone="warn"
           wash
@@ -613,10 +876,15 @@ function Foot(): ReactNode {
           title={notice.title}
           style={styles.notice}
           testID="sidebar-notice"
+          actions={
+            capped ? <Button label="Try again" size="small" onPress={askBucketAgain} /> : undefined
+          }
         >
           {notice.body}
         </NoticeCard>
       ) : null}
+      {/* Another device's song, waiting to be picked up here (AE1). */}
+      <ResumeCard />
       <Press
         feedback="wash"
         style={[styles.status, pathname === '/profile' && styles.itemOn]}
@@ -675,17 +943,18 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.md,
     gap: space.xl,
   },
+  // Out to the rail's edges, so a focus ring or a dragged-over row's edge is
+  // not clipped by the scroller; the rail's own margin is put back inside.
+  body: { flex: 1, minHeight: 0, marginHorizontal: -space.md },
+  bodyContent: { flexGrow: 1, gap: space.xl, paddingHorizontal: space.md },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.sm,
   },
-  wordmark: {
-    color: theme.colors.textPrimary,
-    fontSize: type.title,
-    fontWeight: '700',
-  },
+  // The name in the serif, as the install page and the welcome screen set it.
+  wordmark: serif(theme.colors, 'large'),
   nav: {
     gap: 2,
   },
@@ -739,14 +1008,24 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 32,
     paddingHorizontal: space.tight,
     borderRadius: radius.item,
-    // Clear until a song is dragged over: then the dashed edge is the drop
-    // target itself.
-    borderWidth: 1,
-    borderColor: 'transparent',
+  },
+  // A playlist's 22-point cover, for Liked: its heart on a plain tile.
+  likedMark: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface2,
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
-  loadingHint: { paddingHorizontal: space.snug, paddingVertical: space.xs },
+  // No edge until a song is dragged over: then the dashed edge is the drop
+  // target itself, its width taken from the padding so the name stays put. A
+  // clear edge kept for it was drawn round every row in forced colours, which
+  // paint every border.
   dropping: {
+    borderWidth: 1,
+    paddingHorizontal: space.tight - 1,
     borderStyle: 'dashed',
     backgroundColor: theme.colors.surface2,
     borderColor: theme.colors.accent,
@@ -760,8 +1039,8 @@ const styles = StyleSheet.create(theme => ({
   itemOn: { backgroundColor: theme.colors.surface3, borderRadius: radius.item },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   dropHint: { fontSize: type.tiny, paddingHorizontal: space.snug, paddingBottom: 2 },
-  /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
-  group: { flex: 1, minHeight: 0, gap: 1 },
+  /* `.nav-group-grow`: the tag list takes what is left; short of room, the rail scrolls. */
+  group: { flexGrow: 1, gap: 1 },
   groupTitle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -776,9 +1055,9 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'space-between',
     paddingRight: space.sm,
   },
-  groupTitleText: labelText(theme.colors),
+  groupTitleText: label(theme.colors),
   groupTitleOn: { color: theme.colors.textPrimary },
-  groupAll: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
+  moreTags: { paddingVertical: space.tight, paddingHorizontal: space.snug },
   tagForm: {
     gap: space.tight,
     paddingTop: space.xs,
@@ -800,9 +1079,23 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
   },
   suggestionText: { color: theme.colors.textSecondary, fontSize: type.tiny },
-  tagList: { flex: 1 },
+  tagList: { flexGrow: 1 },
   tagListContent: { gap: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.item },
+  playlistWaiting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 32,
+    paddingHorizontal: space.tight + 1,
+  },
+  tagWaiting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 30,
+    paddingLeft: space.snug,
+  },
   tagMain: {
     flex: 1,
     minWidth: 0,
@@ -814,7 +1107,9 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.tight,
     paddingLeft: space.snug,
   },
-  tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
+  // Left-aligned whatever its script: a browser sets a name's direction from
+  // its first letter, and an Arabic one stood at the right of the rail.
+  tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT, textAlign: 'left' },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: space.tight, paddingHorizontal: 5 },
   tagRowHovered: {

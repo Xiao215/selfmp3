@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { plural, artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
+import { plural, artistOr, formatDuration, isResting, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, type, iconSize, coverSize } from '@selfmp3/client'
 import {
   chipBudget,
@@ -32,13 +32,16 @@ import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
+import { Reveal } from './Reveal'
 import { TagDot } from './TagDot'
-import { useFade, usePresence, usePressScale } from '../motion'
+import { usePresence, usePressScale } from '../motion'
 import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
-import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
+import { Downloaded, Moon, More, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
+import { CONTROL_SCALE } from '../textScale'
+import { textScale } from '../../ports/textScale'
 
 /**
  * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
@@ -78,7 +81,6 @@ export const SongRow = memo(function SongRow({
   artUri,
   active: activeOverride,
   downloaded,
-  notDownloadedMark = false,
   onPress,
   onMore,
   selecting = false,
@@ -88,6 +90,7 @@ export const SongRow = memo(function SongRow({
   index,
   tags: allTags,
   hideTagIds,
+  showAlbum = true,
   onOpenTag,
   onEditTags,
   onLongPress,
@@ -102,12 +105,12 @@ export const SongRow = memo(function SongRow({
   artUri: string | null | undefined
   /** Draw as the loaded song. Left out, the row asks the player, which is what a list wants. */
   active?: boolean
-  downloaded: boolean
   /**
-   * Mark a song that is not on this device. An installed app says so, since
-   * such a song may not play; a browser streams, and leaves it unmarked.
+   * Kept on this device, marked before the artist. A song that is not gets no
+   * mark: in a library that lives in its storage that is most songs, and a
+   * mark on most rows is noise. The "On this phone" chip finds the kept ones.
    */
-  notDownloadedMark?: boolean
+  downloaded: boolean
   /**
    * The press event comes through, so a list can read Shift and Cmd on the web.
    * So does the song, so one handler can serve every row.
@@ -126,7 +129,8 @@ export const SongRow = memo(function SongRow({
    */
   selecting?: boolean
   selected?: boolean
-  onToggleSelect?: (song: Song) => void
+  /** The tick pressed: with the press, whose Shift ticks the rows between. */
+  onToggleSelect?: (song: Song, event?: GestureResponderEvent) => void
   /**
    * What dragging this row onto a playlist carries, with a mouse: every
    * ticked song when it is one of them, in the list's order, so the songs you
@@ -141,6 +145,11 @@ export const SongRow = memo(function SongRow({
    * left off.
    */
   tags?: readonly Tag[]
+  /**
+   * Whether the album shows at desktop width, in its column or after the
+   * artist. Off under an album's own heading, where it would only repeat it.
+   */
+  showAlbum?: boolean
   /**
    * Tags the list is already about, whose chips would only repeat the page:
    * the tags Library is filtered by, the tag Up next is playing from. Keep
@@ -188,6 +197,7 @@ export const SongRow = memo(function SongRow({
   listKey?: string
 }): ReactNode {
   const playback = useSongPlayback(song.id)
+  const resting = isResting(song)
   const active = activeOverride ?? playback !== null
   const playing = playback === 'playing'
   // The wash and the equaliser, arriving as this row becomes the playing one
@@ -267,6 +277,8 @@ export const SongRow = memo(function SongRow({
     // Selected: a translucent accent that reads as picked on the dark UI.
     selected && styles.selected,
     unavailable && styles.unavailable,
+    // Resting (shared rest.ts): set aside, a little faded, and still a tap from playing.
+    resting && !unavailable && styles.resting,
     // Held and moving: off the page, over the rows it is passing.
     lifted && styles.lifted,
   ]
@@ -286,7 +298,7 @@ export const SongRow = memo(function SongRow({
       {...press.handlers}
       delayLongPress={MOVE_MS.longPress}
       accessibilityRole="button"
-      accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
+      accessibilityLabel={`${song.title}, ${artistOr(song.artist)}${resting ? ', resting' : ''}`}
       accessibilityState={{ selected: active }}
       {...(listKey ? ROW_PRESS : null)}
       {...untabbed}
@@ -312,7 +324,8 @@ export const SongRow = memo(function SongRow({
         <Equalizer paused={!playing} size={size} color={songColor.tint} />
       </Waking>
     ) : null
-  const hereMark = <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
+  const hereMark = downloaded ? <Downloaded size={iconSize.sub} tone="good" /> : null
+  const restMark = resting ? <Moon size={iconSize.sub} tone="textMuted" /> : null
   const chips = (budget: number): ReactNode =>
     tags && tags.length > 0 ? (
       <RowTags
@@ -330,7 +343,7 @@ export const SongRow = memo(function SongRow({
       <SelectBox
         song={song}
         selected={selected}
-        onToggle={() => onToggleSelect(song)}
+        onToggle={event => onToggleSelect(song, event)}
         phone={phone}
         untabbed={listKey !== undefined}
       />
@@ -391,8 +404,13 @@ export const SongRow = memo(function SongRow({
                 <View style={styles.subtitleRow} pointerEvents="box-none">
                   <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
                     {hereMark}
+                    {restMark}
                     <Text style={styles.subtitle} numberOfLines={1}>
-                      {artistOr(song.artist)} · {formatDuration(song.duration)}
+                      {artistOr(song.artist)}
+                    </Text>
+                    {/* Its own words, so a long artist is cut before the length is. */}
+                    <Text style={styles.subtitleLength} numberOfLines={1}>
+                      · {formatDuration(song.duration)}
                     </Text>
                   </View>
                   {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
@@ -412,11 +430,14 @@ export const SongRow = memo(function SongRow({
 
   // --- desktop width ---------------------------------------------------------
 
-  // With a mouse these wait for the pointer; a tablet at this width shows them.
+  // With a mouse these wait for the pointer; a tablet at this width shows the ⋯.
   const revealed = !dense || hovered || menuOpen || keyed
-  const albumColumn = (room & ROOM_FOR_ALBUM) !== 0
+  const albumColumn = showAlbum && (room & ROOM_FOR_ALBUM) !== 0
   const tagChips = (room & ROOM_FOR_CHIPS) !== 0
   const controlSize = dense ? 34 : HIT_TARGET
+  // A finger at this width (an iPad in landscape) gets no tag button: with
+  // nothing to hover it stood in every row, and the ⋯ has Tags… (AH1).
+  const tagButton = onEditTags !== undefined && dense
 
   return (
     <Animated.View style={press.style}>
@@ -468,11 +489,12 @@ export const SongRow = memo(function SongRow({
               {title}
               <View style={styles.subtitleRow}>
                 {hereMark}
+                {restMark}
                 <Text style={styles.artist} numberOfLines={1}>
                   {artistOr(song.artist)}
                 </Text>
                 {/* With a finger the second line is the artist alone (`T03`). */}
-                {song.album && !albumColumn && dense ? (
+                {showAlbum && song.album && !albumColumn && dense ? (
                   <Text style={styles.albumInline} numberOfLines={1}>
                     {' · '}
                     {song.album}
@@ -489,25 +511,32 @@ export const SongRow = memo(function SongRow({
           </Text>
         ) : null}
 
-        <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
-          {/* Below the width for chips they go; the button stays. */}
-          {tagChips ? chips(chipBudget({ hasAddButton: onEditTags !== undefined })) : null}
-          {onEditTags ? (
-            <Reveal shown={revealed}>
-              <Pressable
-                ref={tagAddRef}
-                onPress={() => onEditTags(tagAddRef.current, song)}
-                accessibilityRole="button"
-                accessibilityLabel={`Edit tags for ${song.title}`}
-                {...tip('Edit tags')}
-                {...untabbed}
-                style={styles.tagAdd}
-              >
-                <Plus size={iconSize.sub} tone="textMuted" />
-              </Pressable>
-            </Reveal>
-          ) : null}
-        </View>
+        {/* Only where the list shows tags: inside a tag, an artist or a
+            playlist the slot would stand empty, 180 px of nothing in every
+            row while titles and albums beside it were cut short. */}
+        {allTags !== undefined || tagButton ? (
+          <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
+            {/* Below the width for chips they go; the button stays. */}
+            {tagChips ? chips(chipBudget({ hasAddButton: tagButton })) : null}
+            {onEditTags && tagButton ? (
+              <Reveal shown={revealed}>
+                <Pressable
+                  ref={tagAddRef}
+                  onPress={() => onEditTags(tagAddRef.current, song)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit tags for ${song.title}`}
+                  {...tip('Edit tags')}
+                  {...untabbed}
+                  style={styles.tagAdd}
+                >
+                  {/* The player bar's tag-with-a-plus: a bare + on a song row read as
+                      Add to playlist or Add to Up next. */}
+                  <TagPlus size={iconSize.field} tone="textMuted" />
+                </Pressable>
+              </Reveal>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.actions}>
           <Text style={styles.durationWide}>{formatDuration(song.duration)}</Text>
@@ -538,13 +567,13 @@ const DENSE_ROW_HEIGHT = 7 * 2 + coverSize.rowDense
 
 /**
  * The row height for this layout, or null when it cannot be promised: text
- * enlarged in the system's settings can wrap past the cover, and a list told
- * the wrong number places every row in the wrong spot.
+ * enlarged in the system's settings, or a browser's, can wrap past the cover,
+ * and a list told the wrong number places every row in the wrong spot.
  */
 export function useSongRowHeight(): number | null {
   const wide = useLayoutValue(isWide)
   const dense = useLayoutValue(isDense)
-  const enlarged = useWindowValue(window => window.fontScale > 1)
+  const enlarged = useWindowValue(window => window.fontScale > 1) || textScale > 1
   if (enlarged) return null
   if (!wide) return PHONE_ROW_HEIGHT
   return dense ? DENSE_ROW_HEIGHT : TOUCH_WIDE_ROW_HEIGHT
@@ -617,19 +646,6 @@ function usePageRoom(): number {
   return fromPage === -1 ? fromWindow : fromPage
 }
 
-/** Whether the song is on this device, beside its artist ("On this device"). */
-function HereMark({
-  downloaded,
-  notDownloadedMark,
-}: {
-  downloaded: boolean
-  notDownloadedMark: boolean
-}): ReactNode {
-  if (downloaded) return <Downloaded size={iconSize.sub} tone="good" />
-  if (notDownloadedMark) return <NotDownloaded size={iconSize.sub} tone="textMuted" />
-  return null
-}
-
 /** The ⋯, handing itself to `onMore` so a menu can open beside it. */
 function MoreButton({
   moreRef,
@@ -672,14 +688,14 @@ function SelectBox({
 }: {
   song: Song
   selected: boolean
-  onToggle: () => void
+  onToggle: (event: GestureResponderEvent) => void
   phone?: boolean
   untabbed: boolean
 }): ReactNode {
   return (
     <Checkbox
       checked={selected}
-      onChange={onToggle}
+      onChange={(_checked, event) => onToggle(event)}
       label={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
       style={phone ? styles.select : styles.selectWide}
       {...(untabbed ? UNTABBED : null)}
@@ -735,7 +751,12 @@ function RowTags({
             )}
             style={styles.rowTag}
           >
-            <Text style={[styles.rowTagText, styles.rowTagMoreText]}>+{hidden}</Text>
+            <Text
+              style={[styles.rowTagText, styles.rowTagMoreText]}
+              maxFontSizeMultiplier={CONTROL_SCALE}
+            >
+              +{hidden}
+            </Text>
           </Pressable>
         </View>
       ) : null}
@@ -770,7 +791,7 @@ function RowTag({
       style={styles.rowTag}
     >
       <TagDot hue={tag.hue} size={CHIP_DOT} />
-      <Text style={styles.rowTagText} numberOfLines={1}>
+      <Text style={styles.rowTagText} numberOfLines={1} maxFontSizeMultiplier={CONTROL_SCALE}>
         {tag.name}
       </Text>
     </Pressable>
@@ -778,21 +799,11 @@ function RowTag({
 }
 
 /**
- * A row's controls with a mouse (`M3`, 3): they fade in over 100 ms as the
- * pointer arrives and out over 140 as it leaves. Only the desktop's rows draw
- * these, so a phone's list carries no animated value per row.
- */
-function Reveal({ shown, children }: { shown: boolean; children: ReactNode }): ReactNode {
-  const opacity = useFade(shown, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
-  return <Animated.View style={{ opacity }}>{children}</Animated.View>
-}
-
-/**
  * The equaliser over a row's cover, waking as the row starts playing: it
  * fades in just behind the wash (`M2`, 5), over the last two thirds of the
  * wash's move, and goes with it.
  */
-function Waking({
+export function Waking({
   progress,
   style,
   children,
@@ -822,7 +833,13 @@ function Waking({
  * right it never leaves the row's rounded edge, and the edge that moves is the
  * clear one.
  */
-function RowWash({ color, progress }: { color: string; progress: Animated.Value }): ReactNode {
+export function RowWash({
+  color,
+  progress,
+}: {
+  color: string
+  progress: Animated.Value
+}): ReactNode {
   // Its own id per row. A screen the router keeps hidden behind this one (a
   // playlist listing the same song) holds a wash too; with one shared id, the
   // visible row's url() would land on the hidden, zero-size gradient and draw nothing.
@@ -845,6 +862,15 @@ function RowWash({ color, progress }: { color: string; progress: Animated.Value 
     </Animated.View>
   )
 }
+
+/**
+ * A row's words start at the column's edge whatever their script: a browser
+ * sets an Arabic or Hebrew title's direction from its own letters (React
+ * Native for web gives text `dir="auto"`), which kept their order right but
+ * pushed them to the far side of the column, away from every other title
+ * (R3-P2). Their order inside stays their own.
+ */
+const COLUMN_START = { textAlign: 'left' } as const
 
 const styles = StyleSheet.create(theme => ({
   row: {
@@ -893,9 +919,13 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingVertical: 3,
   },
+  // Held, with the album's column, to a reading width: on a very wide page
+  // the album and the length stay near the title rather than across the page
+  // from it (P1 C).
   mainWide: {
     flex: 1,
     minWidth: 0,
+    maxWidth: 720,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -903,6 +933,9 @@ const styles = StyleSheet.create(theme => ({
   // The palette's own selected-row colour, so picking a row is recoloured by
   // the accent picker without re-rendering a list of them.
   selected: { backgroundColor: theme.colors.accentSelected },
+  resting: {
+    opacity: OPACITY.resting,
+  },
   unavailable: {
     opacity: OPACITY.dim,
   },
@@ -923,16 +956,19 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     gap: 1,
   },
-  title: rowTitle(theme.colors),
+  title: { ...rowTitle(theme.colors), ...COLUMN_START },
   titleWide: {
     flexShrink: 1,
     ...rowTitle(theme.colors),
+    ...COLUMN_START,
   },
   subtitle: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,
     flexShrink: 1,
+    ...COLUMN_START,
   },
+  subtitleLength: { color: theme.colors.textSecondary, fontSize: type.sub, flexShrink: 0 },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight, minWidth: 0 },
   subtitleWords: {
     flexDirection: 'row',
@@ -942,8 +978,19 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
   },
   /* The artist is what is scanned for, so it never shrinks; the album does. */
-  artist: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
-  albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
+  artist: {
+    flexShrink: 0,
+    color: theme.colors.textSecondary,
+    fontSize: type.small,
+    ...COLUMN_START,
+  },
+  albumInline: {
+    flexShrink: 1,
+    minWidth: 0,
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    ...COLUMN_START,
+  },
   // The wash grows from the row's right edge, where it is strongest.
   washFrom: { transformOrigin: 'right' },
   playingOverlay: {
@@ -989,10 +1036,12 @@ const styles = StyleSheet.create(theme => ({
   /* A fixed column, so it lines up down the page; the title takes the slack. */
   albumColumn: {
     flexBasis: '20%',
+    maxWidth: 320,
     flexGrow: 0,
     flexShrink: 0,
     color: theme.colors.textMuted,
     fontSize: type.small,
+    ...COLUMN_START,
   },
   tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: TAG_GAP },
   /* A phone's chips, after the artist and the length; the words give way first. */

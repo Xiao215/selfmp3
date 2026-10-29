@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { plural, type AskAnswer } from '@selfmp3/shared'
+import { plural, type AskCard } from '@selfmp3/shared'
 import { iconSize, radius, space, type } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { ChevronRight, People } from '../../ui/components/Icons'
@@ -31,7 +31,7 @@ export function TogetherAnswer({
   onDone,
   onOpen,
 }: {
-  answer: Extract<AskAnswer, { kind: 'together' }>
+  answer: Extract<AskCard, { kind: 'together' }>
   text: string
   /** Search has done its job: the sheet opens over the page underneath. */
   onDone: () => void
@@ -60,9 +60,9 @@ export function TogetherAnswer({
     onDone()
     if (state) {
       if (ids.length > 0) void addSongsToRoom(ids, roomTitle(state))
-      else openRoomSheet('together')
-    } else if (ids.length > 0) openRoomSheet('together', { kind: 'songs', name, songIds: ids })
-    else openRoomSheet('together', { kind: 'empty' })
+      else openRoomSheet()
+    } else if (ids.length > 0) openRoomSheet({ kind: 'songs', name, songIds: ids })
+    else openRoomSheet({ kind: 'empty' })
   }
   const label = state
     ? ids.length > 0

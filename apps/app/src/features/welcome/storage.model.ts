@@ -13,13 +13,11 @@ import { bucketPlace, parseEndpoint, type CloudConnect, type DoormanStorage } fr
  * and the doorman asks Backblaze for the rest — the bucket a key made for one
  * bucket opens, and the account's S3 address. With any other provider it is
  * the server's form: endpoint, region where the address does not name one,
- * bucket and folder.
+ * bucket and folder. The steps for someone with no bucket yet are
+ * `BUCKET_GUIDE` in @selfmp3/shared, which the published guide reads too.
  */
 
 export const STORAGE_ROUTE = '/storage'
-
-/** Where the helper sends someone who has no bucket yet. */
-export const BACKBLAZE_URL = 'https://www.backblaze.com/cloud-storage'
 
 export type StorageMode = 'backblaze' | 'address'
 
@@ -69,23 +67,6 @@ export function whereItIs(storage: DoormanStorage): string {
     ? `${storage.bucket} on Backblaze, ${storage.region}`
     : `${storage.bucket} at ${host}`
 }
-
-/** The three steps for someone with no bucket yet, as the helper lists them. */
-export const HELPER_STEPS: readonly { readonly title: string; readonly detail: string }[] = [
-  {
-    title: 'Make a private bucket',
-    detail:
-      'On Backblaze: Buckets → Create a Bucket. Any name, private. Then its Lifecycle Settings: Keep only the last version. Free up to 10 GB.',
-  },
-  {
-    title: 'Then a key for it',
-    detail: 'App Keys → Add a New Application Key. Access: that bucket only, Read and Write.',
-  },
-  {
-    title: 'Paste the two strings here',
-    detail: 'Backblaze shows the application key once, when it makes it.',
-  },
-]
 
 /** What the page says while the doorman tries the key. No step is invented: it is one request. */
 export const TRYING =

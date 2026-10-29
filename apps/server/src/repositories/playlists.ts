@@ -281,14 +281,20 @@ export class PlaylistRepository {
     return row ? this.#toPlaylist(row) : null
   }
 
-  create(input: CreatePlaylist): Playlist {
-    const info = this.#insert.run({
-      name: input.name,
-      description: input.description,
-      kind: input.kind,
-      rules: input.rules ? JSON.stringify(input.rules) : null,
-    })
-    const created = this.byId(Number(info.lastInsertRowid))
+  /** A new playlist, with `songIds` as its first songs, made in one transaction. */
+  create(input: CreatePlaylist, songIds: readonly number[] = []): Playlist {
+    const id = this.#db.transaction(() => {
+      const info = this.#insert.run({
+        name: input.name,
+        description: input.description,
+        kind: input.kind,
+        rules: input.rules ? JSON.stringify(input.rules) : null,
+      })
+      const made = Number(info.lastInsertRowid)
+      if (songIds.length > 0) this.add(made, songIds)
+      return made
+    })()
+    const created = this.byId(id)
     if (!created) throw new Error('failed to create playlist')
     return created
   }

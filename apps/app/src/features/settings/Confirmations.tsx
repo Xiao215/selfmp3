@@ -1,16 +1,14 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
-import { failureText, useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { session as cloudSession } from '../../replica'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerApi } from '../../connection/useServerApi'
 import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { showToast } from '../../ui/toast'
+import { showFailure } from '../../ui/toast'
 import { SignOutDialog } from './SignOutDialog'
-import { devicePlace, type Confirming } from './settings.model'
-import { deviceKind } from '../../ports/device'
+import type { Confirming } from './settings.model'
+import { thisPlace } from '../../ports/place'
 
 export function Confirmations({
   confirming,
@@ -22,9 +20,7 @@ export function Confirmations({
   const router = useRouter()
   const { storageForgotten } = useConnection()
   const { removeAll } = useDownloads()
-  // Redo all is the server's pass, asked of it as Settings › Advanced › Library asks.
-  const startAnalysis = useStartAnalysis(useServerApi().api)
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
 
   const dialogs: Record<
     Exclude<Confirming, 'sign-out' | null>,
@@ -35,12 +31,6 @@ export function Confirmations({
       body: 'The library itself is not touched. Downloading automatically is turned off too.',
       label: `Remove all from this ${place}`,
       run: () => void removeAll(),
-    },
-    'redo-analysis': {
-      title: 'Throw away existing analysis and redo every song?',
-      body: 'Tempo, key, energy and loudness are worked out again from each file.',
-      label: 'Redo all',
-      run: () => startAnalysis.mutate(true),
     },
     'forget-storage': {
       title: 'Disconnect your storage?',
@@ -56,7 +46,7 @@ export function Confirmations({
             router.replace(STORAGE_ROUTE)
           } catch (caught) {
             // The dialog has closed already: the toast is the only place to say so.
-            showToast(failureText('Couldn’t disconnect your storage', caught), 'error')
+            showFailure('Couldn’t disconnect your storage', caught)
           }
         })(),
     },

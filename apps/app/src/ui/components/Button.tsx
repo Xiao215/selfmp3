@@ -229,6 +229,9 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.surface2,
+    // A drag across a page takes its words, not the labels of its buttons:
+    // selecting a playlist's head copied "Shuffle" with its name.
+    userSelect: 'none',
   },
   /* With a mouse: 36 high rather than a finger's 44. */
   buttonDense: {

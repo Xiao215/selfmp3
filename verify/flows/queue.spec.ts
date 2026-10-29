@@ -274,7 +274,7 @@ test.describe('up next on a phone', () => {
     const name = await nameOf(next.getByRole('button').first())
 
     await sheet.getByTestId('queue-clear-rest').click()
-    await expect(page.getByText(/^Cleared \d+ songs?$/)).toBeVisible()
+    await expect(page.getByText('Cleared from Up next')).toBeVisible()
     await expect(next).toHaveCount(0)
     // The song playing stays, and so do the sheet and the mini player under it.
     await expect(sheet.getByRole('button', { name: /^Playing / })).toBeVisible()

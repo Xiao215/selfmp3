@@ -45,7 +45,7 @@ export function useTagging(): Tagging {
   const tagged = (song?.tagIds.length ?? 0) > 0
   const hasNext = player.songs[player.queue.index + 1] !== undefined
 
-  // A tick on its way to the server: `useSetSongTags` names the song in what it sends.
+  // A tick on its way to the server: `useChangeSongTags` names the song in what it sends.
   const saving =
     useMutationState({
       filters: {
@@ -146,6 +146,6 @@ export function useTagEditor(
 
 function isTagsFor(variables: unknown, songId: number | null): boolean {
   if (songId === null || typeof variables !== 'object' || variables === null) return false
-  const sent = variables as { songId?: unknown; tagIds?: unknown }
-  return sent.songId === songId && Array.isArray(sent.tagIds)
+  const sent = variables as { songId?: unknown; add?: unknown; remove?: unknown }
+  return sent.songId === songId && Array.isArray(sent.add) && Array.isArray(sent.remove)
 }

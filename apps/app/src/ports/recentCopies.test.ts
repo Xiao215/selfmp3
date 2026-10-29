@@ -60,24 +60,6 @@ class FakeFile {
     disk.set(destination.uri, bytes)
     return Promise.resolve()
   }
-  static createDownloadTask(
-    url: string,
-    destination: FakeFile,
-    options: { headers?: Record<string, string> },
-  ): { downloadAsync: () => Promise<{ size: number } | null> } {
-    return {
-      downloadAsync: () => {
-        downloads.push({ url, headers: options.headers })
-        if (nextDownload === null) {
-          // What a dropped connection leaves behind: some of the file.
-          disk.set(destination.uri, 1234)
-          return Promise.reject(new Error('connection lost'))
-        }
-        disk.set(destination.uri, nextDownload)
-        return Promise.resolve({ size: nextDownload })
-      },
-    }
-  }
 }
 
 vi.mock('expo-file-system', () => ({
@@ -107,6 +89,92 @@ vi.mock('./songSource', () => ({
     }),
 }))
 
+/**
+ * The loopback server (`songStream.ts`), as far as this file sees it: an
+ * address for a song, one download of it from the doorman however often it is
+ * asked for, and word when it is all here. Left to itself a fetch lands at
+ * once (or fails, with `nextDownload` null); `held` keeps every download
+ * arriving until the test says it is all here (`arrive`).
+ */
+class FakeStream {
+  /** Every download asked of the doorman, by its address. */
+  readonly upstream: string[] = []
+  stopped = 0
+  readonly #held: boolean
+  readonly #waiting = new Map<string, ((bytes: number | null) => void)[]>()
+  readonly #listeners: ((arrived: { name: string; bytes: number }) => void)[] = []
+
+  constructor({ held = false }: { held?: boolean } = {}) {
+    this.#held = held
+  }
+
+  address(name: string, _url: string, _headers: unknown, _directory: string): string {
+    return `http://127.0.0.1:5555/${name}`
+  }
+
+  /** The player asking for the first range: answered from the folder, or the one download starts. */
+  play(name: string, url: string): void {
+    if (this.#waiting.has(name) || disk.has(`file:///cache/recent-songs/${name}`)) return
+    this.upstream.push(url)
+    this.#waiting.set(name, [])
+  }
+
+  fetch(
+    name: string,
+    url: string,
+    headers: Record<string, string>,
+    directory: string,
+  ): Promise<number | null> {
+    const whole = disk.get(`${directory}/${name}`)
+    if (whole !== undefined) return Promise.resolve(whole)
+    if (!this.#held && !this.#waiting.has(name)) {
+      downloads.push({ url, headers })
+      // A dropped connection: the server deletes what part of the file came.
+      if (nextDownload === null) return Promise.resolve(null)
+      const bytes = nextDownload
+      this.arrive(name, bytes)
+      return Promise.resolve(bytes)
+    }
+    this.play(name, url)
+    return new Promise(resolve => this.#waiting.get(name)?.push(resolve))
+  }
+
+  /** All here: renamed into the folder, the fetches waiting on it answered, and JavaScript told. */
+  arrive(name: string, bytes: number): void {
+    disk.set(`file:///cache/recent-songs/${name}`, bytes)
+    for (const resolve of this.#waiting.get(name) ?? []) resolve(bytes)
+    this.#waiting.delete(name)
+    for (const listener of this.#listeners) listener({ name, bytes })
+  }
+
+  /** Downloads stopped one by one, by name. */
+  readonly cancelled: string[] = []
+
+  /** Stopped: what came of it deleted, and whoever waits on it told it did not arrive. */
+  cancel(name: string): void {
+    this.cancelled.push(name)
+    for (const resolve of this.#waiting.get(name) ?? []) resolve(null)
+    this.#waiting.delete(name)
+  }
+
+  stopAll(): void {
+    this.stopped += 1
+  }
+
+  addListener(
+    _event: 'onArrived',
+    listener: (arrived: { name: string; bytes: number }) => void,
+  ): { remove(): void } {
+    this.#listeners.push(listener)
+    return { remove: () => undefined }
+  }
+}
+
+let native = new FakeStream()
+vi.mock('expo', () => ({
+  requireNativeModule: (name: string) => (name === 'SongStream' ? native : null),
+}))
+
 const HASH = (n: number): string => String(n).repeat(64).slice(0, 64)
 const song = (id: number): { id: number; path: string } => ({
   id,
@@ -131,7 +199,178 @@ beforeEach(() => {
   downloads.length = 0
   freeSpace = 100 * 1024 * 1024 * 1024
   nextDownload = 4_000_000
+  native = new FakeStream()
   vi.useRealTimers()
+})
+
+describe('a song streamed through the loopback server', () => {
+  const doorman = (id: number): string => `https://doorman.example/v1/files/audio/${HASH(id)}.m4a`
+  const name = (id: number): string => `${HASH(id)}.m4a`
+
+  it('is kept the moment its one download is whole, and is not fetched again for counting', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+
+    expect(recent.streamOnce(song(1), doorman(1), { Authorization: 'Bearer t' })).toBe(
+      `http://127.0.0.1:5555/${name(1)}`,
+    )
+    stream.play(name(1), doorman(1))
+    stream.arrive(name(1), 4_000_000)
+    await vi.waitFor(() => expect(recent.recentUri(song(1))).toBe(cached(1)))
+
+    await recent.keepRecentlyPlayed(song(1))
+
+    expect(stream.upstream).toEqual([doorman(1)])
+    expect(downloads).toHaveLength(0)
+  })
+
+  it('joins the download under way when the play counts before it is whole', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    recent.streamOnce(song(1), doorman(1), { Authorization: 'Bearer t' })
+    stream.play(name(1), doorman(1))
+
+    const keeping = recent.keepRecentlyPlayed(song(1))
+    await Promise.resolve()
+    stream.arrive(name(1), 4_000_000)
+    await keeping
+
+    expect(stream.upstream).toEqual([doorman(1)])
+    expect(downloads).toHaveLength(0)
+    expect(recent.recentUri(song(1))).toBe(cached(1))
+  })
+
+  it('fetches the next song ahead through the same server, so playing it asks nothing more', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+
+    const ahead = recent.keepRecentlyPlayed(song(2))
+    await vi.waitFor(() => expect(stream.upstream).toHaveLength(1))
+    stream.arrive(name(2), 3_000_000)
+    await ahead
+    stream.play(name(2), doorman(2))
+
+    expect(stream.upstream).toEqual([doorman(2)])
+    expect(recent.recentUri(song(2))).toBe(cached(2))
+  })
+
+  it('leaves a file not named by its hash to the doorman', async () => {
+    const recent = await port()
+    expect(recent.streamOnce({ id: 3, path: 'audio/three.m4a' }, 'https://d/x', {})).toBeNull()
+  })
+
+  it('stops what is arriving when every copy is cleared', async () => {
+    const stream = native
+    const recent = await port()
+    recent.clearRecent()
+    expect(stream.stopped).toBe(1)
+  })
+
+  it('keeps a song as played when it was asked for, not when it landed', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    vi.useFakeTimers()
+    // Two songs' worth of free space and held copies make a one-song budget.
+    const MB = 1024 * 1024
+    freeSpace = 20 * MB
+
+    vi.setSystemTime(1_000)
+    recent.streamOnce(song(1), doorman(1), {})
+    stream.play(name(1), doorman(1))
+    vi.setSystemTime(2_000)
+    recent.streamOnce(song(2), doorman(2), {})
+    stream.play(name(2), doorman(2))
+    vi.setSystemTime(3_000)
+    stream.arrive(name(2), 4 * MB)
+    await vi.waitFor(() => expect(recent.recentIds()).toEqual(new Set([2])))
+    // The song asked for first lands last: still the older of the two.
+    vi.setSystemTime(4_000)
+    freeSpace = 16 * MB
+    stream.arrive(name(1), 4 * MB)
+
+    await vi.waitFor(() => expect(disk.has(cached(1))).toBe(false))
+    expect(recent.recentIds()).toEqual(new Set([2]))
+  })
+
+  it('keeps both of two songs that land together', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    recent.streamOnce(song(1), doorman(1), {})
+    recent.streamOnce(song(2), doorman(2), {})
+    stream.play(name(1), doorman(1))
+    stream.play(name(2), doorman(2))
+
+    // The second written down while the first's trim is asking the folder.
+    stream.arrive(name(1), 4_000_000)
+    stream.arrive(name(2), 4_000_000)
+
+    await vi.waitFor(() => expect(recent.recentIds()).toEqual(new Set([1, 2])))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(recent.recentIds()).toEqual(new Set([1, 2]))
+  })
+
+  it('does not keep a song removed by hand while it arrived', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    recent.streamOnce(song(1), doorman(1), {})
+    stream.play(name(1), doorman(1))
+
+    recent.forgetRecent([1])
+    stream.arrive(name(1), 4_000_000)
+
+    await vi.waitFor(() => expect(disk.has(cached(1))).toBe(false))
+    expect(recent.recentIds().size).toBe(0)
+  })
+
+  // Bug bash R2-m15: an Ogg the phone cannot play was fetched whole and kept.
+  it('stops the download of a song forgotten while it arrives', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    recent.streamOnce(song(1), doorman(1), {})
+    stream.play(name(1), doorman(1))
+
+    recent.forgetRecent([1])
+
+    expect(stream.cancelled).toEqual([name(1)])
+  })
+
+  // Bug bash R2-m24: the song after the old one went on arriving once another was picked.
+  it('stops fetching the song ahead once it is no longer coming, and keeps nothing of it', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    const ahead = recent.keepRecentlyPlayed(song(2))
+    await vi.waitFor(() => expect(stream.upstream).toHaveLength(1))
+
+    recent.dropAhead(2)
+    await ahead
+
+    expect(stream.cancelled).toEqual([name(2)])
+    expect(recent.recentIds().size).toBe(0)
+    expect(recent.recentUri(song(2))).toBeNull()
+  })
+
+  it('keeps a song fetched ahead that was whole before it stopped coming', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    const ahead = recent.keepRecentlyPlayed(song(2))
+    await vi.waitFor(() => expect(stream.upstream).toHaveLength(1))
+    stream.arrive(name(2), 3_000_000)
+    await ahead
+
+    recent.dropAhead(2)
+
+    expect(stream.cancelled).toEqual([])
+    expect(recent.recentUri(song(2))).toBe(cached(2))
+  })
 })
 
 describe('keeping a song that was played', () => {

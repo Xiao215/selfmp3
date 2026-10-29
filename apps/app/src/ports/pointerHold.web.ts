@@ -43,6 +43,26 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
         clearTimeout(timer)
         timer = null
       }
+      document.removeEventListener('pointerup', abandon, true)
+      document.removeEventListener('pointercancel', abandon, true)
+    }
+
+    /*
+     * The count let go of somewhere else. Until the hold lifts, nothing is
+     * captured, so the button can come up — or the browser's own drag can
+     * take the pointer, cancelling it on whatever row it is over by then —
+     * away from this row, which hears nothing. The count ran on, and lifted
+     * the row after it had been dropped, following a pointer with no button
+     * held. So the document listens while it counts, and a drag starting
+     * ends it too.
+     */
+    const abandon = (event: Event): void => {
+      if (timer === null) return
+      // On the row itself, its own `up` and `cancel` answer it.
+      if (event.type !== 'dragstart' && event.target instanceof Node && node.contains(event.target))
+        return
+      forget()
+      latest.current.onHolding?.(false)
     }
 
     const down = (event: PointerEvent): void => {
@@ -54,8 +74,10 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
       forget()
       // The count has begun, so the row can say so while it runs.
       latest.current.onHolding?.(true)
+      document.addEventListener('pointerup', abandon, true)
+      document.addEventListener('pointercancel', abandon, true)
       timer = setTimeout(() => {
-        timer = null
+        forget()
         lifted = true
         // Every later move comes here, whatever it is over.
         node.setPointerCapture(event.pointerId)
@@ -105,6 +127,7 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
     node.addEventListener('pointermove', move)
     node.addEventListener('pointerup', up)
     node.addEventListener('pointercancel', cancel)
+    node.addEventListener('dragstart', abandon)
     node.addEventListener('click', click, true)
     return () => {
       // Let go of mid-hold — the row unmounted, or moving was switched off —
@@ -120,6 +143,7 @@ export function usePointerHold(ref: RefObject<View | null>, hold: PointerHold): 
       node.removeEventListener('pointermove', move)
       node.removeEventListener('pointerup', up)
       node.removeEventListener('pointercancel', cancel)
+      node.removeEventListener('dragstart', abandon)
       node.removeEventListener('click', click, true)
     }
   }, [ref, hold.enabled])

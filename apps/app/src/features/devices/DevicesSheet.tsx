@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import { heardAt, shortDeviceName, space, type, iconSize } from '@selfmp3/client'
+import { deviceLabels, heardAt, space, type, iconSize } from '@selfmp3/client'
 import { formatRelative } from '@selfmp3/shared'
 
 import { ServerAway } from '../../connection/ServerAway'
@@ -53,13 +53,19 @@ export function DevicesSheet({
   const player = usePlayer()
   // Something is loaded here, but no other device could be told which song.
   const unshareable = player.current !== null && !devices.canPlayOn
+  // This one as the others see it (a tab's number and all), named beside them.
+  const self = devices.devices.find(device => device.id === devices.deviceId) ?? {
+    id: devices.deviceId,
+    name: devices.name,
+  }
+  const labels = deviceLabels([self, ...devices.others])
 
   const list = (
     <>
       <View style={styles.self}>
         <Devices size={iconSize.button} color={theme.colors.textSecondary} />
         <Text style={styles.selfName} numberOfLines={1}>
-          {shortDeviceName(devices.name)}
+          {labels.get(self.id)}
         </Text>
         <Text style={styles.selfNote}>this device</Text>
       </View>
@@ -85,7 +91,7 @@ export function DevicesSheet({
             <View key={device.id} testID={`device-${device.id}`}>
               <SheetItem
                 icon={<Remote color={theme.colors.textSecondary} />}
-                label={shortDeviceName(device.name)}
+                label={labels.get(device.id) ?? device.name}
                 detail={
                   !named
                     ? device.state.playing
@@ -105,7 +111,7 @@ export function DevicesSheet({
                 label="Play there instead"
                 disabled={!devices.canPlayOn}
                 onPress={() => {
-                  devices.playOn(device)
+                  void devices.playOn(device)
                   onClose()
                 }}
               />

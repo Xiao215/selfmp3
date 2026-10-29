@@ -12,11 +12,13 @@ import { rowTitle, lineSub, textColumn } from '../surfaces'
 /**
  * On or off.
  *
- * A 42 by 24 track with the knob inside it, the accent when on. A switch to
- * assistive technology, named by the setting it changes.
+ * A 42 by 24 track with a white knob inside it, the accent when on. A switch
+ * to assistive technology, named by the setting it changes. The knob is white
+ * either way (C2, 2026-10-26): a knob in the accent's dark ink read as a hole
+ * in the track rather than a thing to push.
  *
  * One value — `position` — carries the whole change: the knob slides on the
- * spring, and both on-colours are drawn as layers over the off-colours whose
+ * spring, and the accent track is drawn as a layer over the off track whose
  * opacity follows the same value, so the colour arrives with the knob instead
  * of snapping at the first frame. A colour cannot go on the native driver; an
  * opacity can, so the fade is a crossfade of two layers rather than an
@@ -77,15 +79,12 @@ export function Toggle({
       {/* The accent track, over the off track, as far in as the knob is along. */}
       <Animated.View pointerEvents="none" style={[styles.trackOn, lit]} />
       {/*
-        Each of these carries one whole Unistyles style and nothing else of
-        Unistyles': `Animated.View` flattens its style array into the single
-        object it animates, so two of Unistyles' styles arrive merged into one,
-        which is the case it warns about because it can no longer tell them
-        apart. That is why the knob is a shape *with* its colour twice over
-        rather than a shape with a colour laid on it.
+        One whole Unistyles style and nothing else of Unistyles':
+        `Animated.View` flattens its style array into the single object it
+        animates, so two of Unistyles' styles would arrive merged into one,
+        which is the case it warns about.
       */}
-      <Animated.View pointerEvents="none" style={[styles.knobOff, slide]} />
-      <Animated.View pointerEvents="none" style={[styles.knobOn, slide, lit]} />
+      <Animated.View pointerEvents="none" style={[styles.knob, slide]} />
     </Press>
   )
 }
@@ -182,8 +181,11 @@ const styles = StyleSheet.create(theme => ({
     left: 0,
     backgroundColor: theme.colors.accent,
   },
-  knobOn: { ...KNOB, backgroundColor: theme.colors.onAccent },
-  knobOff: { ...KNOB, backgroundColor: theme.colors.textPrimary },
+  knob: {
+    ...KNOB,
+    backgroundColor: theme.colors.onArt,
+    boxShadow: `0 1px 2px ${theme.colors.floatShadow}`,
+  },
   disabled: { opacity: OPACITY.disabled },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
   words: textColumn,

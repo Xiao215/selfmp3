@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { Song, Stats, StatsRange, Wrapped, WrappedRange } from '@selfmp3/shared'
+import type { Song, SongHistory, Stats, StatsRange, Wrapped, WrappedRange } from '@selfmp3/shared'
 import {
   STALE,
-  HISTORY_PLAYS,
-  useHistory,
+  useSongHistory,
   useStats,
   useWrapped,
   type Api,
@@ -34,6 +33,8 @@ import { noServer, viaKey } from '../../connection/via'
 interface Answer<T> {
   readonly data: T | undefined
   readonly isLoading: boolean
+  /** Ask again, for a page that is showing it could not be answered. */
+  readonly refetch: () => void
 }
 
 /**
@@ -54,7 +55,11 @@ function useOwnOrVia<T>(
     staleTime: STALE.minute,
   })
   const chosen = via ? server : own
-  return { data: chosen.data, isLoading: chosen.isLoading }
+  return {
+    data: chosen.data,
+    isLoading: chosen.isLoading,
+    refetch: () => void chosen.refetch(),
+  }
 }
 
 export function useStatsFor(via: ServerConnection | undefined, range: StatsRange): Answer<Stats> {
@@ -70,9 +75,31 @@ export function useWrappedFor(
   return useOwnOrVia(via, own, ['wrapped', range], api => api.wrapped(range))
 }
 
-export function useHistoryFor(via: ServerConnection | undefined) {
-  const own = useHistory(via === undefined)
-  return useOwnOrVia(via, own, ['history'], api => api.history(HISTORY_PLAYS))
+/**
+ * One song's history with you, from whichever server keeps its plays. A cloud
+ * library's server numbers the song its own way, so it is asked by the id it
+ * knows the song by; a song it has not lined up yet is not asked about.
+ */
+export function useSongHistoryFor(
+  via: ServerConnection | undefined,
+  songId: number,
+): Answer<SongHistory> {
+  const own = useSongHistory(songId, via === undefined)
+  const ids = useServerSongIds(via)
+  const there = via ? ids.onServer(songId) : songId
+  const server = useQuery({
+    queryKey: viaKey(via?.baseUrl, 'song-history', there),
+    queryFn: () => (via && there !== undefined ? apiFor(via).songHistory(there) : noServer()),
+    enabled: via !== undefined && there !== undefined,
+    retry: false,
+    staleTime: STALE.minute,
+  })
+  const chosen = via ? server : own
+  return {
+    data: chosen.data,
+    isLoading: chosen.isLoading,
+    refetch: () => void chosen.refetch(),
+  }
 }
 
 /**

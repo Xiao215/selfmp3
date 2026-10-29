@@ -65,6 +65,8 @@ export function useSongRows({
   testPrefix = 'song-row',
   withTags = false,
   hideTagIds,
+  withAlbum = true,
+  numbered = true,
   playlist,
 }: {
   /** The rows, in the list's order. */
@@ -78,6 +80,13 @@ export function useSongRows({
   withTags?: boolean
   /** Tags every row already shares, whose chips would only repeat the page. */
   hideTagIds?: readonly number[]
+  /** Each row's album: off where the list is grouped under album headings. */
+  withAlbum?: boolean
+  /**
+   * The position at desktop width: off where it is no rank and no track,
+   * only where a match fell (Search's results, M1).
+   */
+  numbered?: boolean
   /** The playlist these are, for the song menu's "Remove from this playlist". */
   playlist?: { readonly id: number; readonly name: string }
 }): SongRows {
@@ -105,7 +114,14 @@ export function useSongRows({
   }, [])
   // Holding a row selects it; the ⋯ opens the menu.
   const onLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
-  const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
+  // A tick ticks; with Shift it ticks every row from the last one ticked, as
+  // Shift on the row does, rather than that one alone.
+  const onToggleSelect = useCallback((song: Song, event?: GestureResponderEvent) => {
+    const { selection } = latest.current
+    const modifiers = modifiersOf(event)
+    if (modifiers.shiftKey) selection.click(song.id, modifiers)
+    else selection.toggle(song.id)
+  }, [])
   // A drag from a ticked row carries every ticked song.
   const dragSongs = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
   const listRef = useRef<FlatList<Song>>(null)
@@ -127,6 +143,10 @@ export function useSongRows({
       list.scrollToIndex({ index, viewPosition: 0.5, animated: false })
       return true
     },
+    endsAt: (songId, step) => {
+      const { ids } = latest.current
+      return ids.indexOf(songId) === (step === 1 ? ids.length - 1 : 0)
+    },
   })
   const onOpenTag = useCallback((tagId: number) => {
     const now = latest.current
@@ -142,7 +162,7 @@ export function useSongRows({
       song,
       artUri: artFor(song),
       ...availability(song.id),
-      index,
+      index: numbered ? index : undefined,
       onPress: press,
       onMore,
       menuOpen: menuSongId === song.id,
@@ -152,6 +172,7 @@ export function useSongRows({
       onToggleSelect,
       dragSongs,
       listKey,
+      showAlbum: withAlbum,
       ...(withTags ? { tags: tagsOf(song), hideTagIds, onOpenTag, onEditTags } : null),
     }),
     [
@@ -166,6 +187,8 @@ export function useSongRows({
       onToggleSelect,
       dragSongs,
       listKey,
+      withAlbum,
+      numbered,
       withTags,
       tagsOf,
       hideTagIds,

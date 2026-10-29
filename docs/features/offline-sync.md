@@ -14,7 +14,7 @@ Files:
 |---|---|
 | The listening outbox, shared rules | `packages/shared/src/outbox.ts`, `packages/client/src/listens/outbox.ts` |
 | …kept on the device (a JSON file, IndexedDB in a browser) | `apps/app/src/offline/listenOutbox.ts` (+ `.web.ts`) |
-| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts` |
+| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts`; a browser's held edits, kept through a reload: `apps/app/src/offline/waitingEdits.ts` (+ `.model.ts`), `editKeys` in `packages/client/src/queries/queries.ts` |
 | Automatic downloads | `apps/app/src/offline/DownloadsProvider.tsx` |
 | Per-device preferences, connection type | `packages/client/src/downloads/syncPolicy.ts`, `apps/app/src/offline/connectionKind.ts` |
 | Download, prune | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
@@ -54,19 +54,32 @@ A love, a tag, a playlist change made with no connection is applied to this devi
 the library at once and kept in its outbox, which goes up to the bucket once it answers again
 (docs/SYNC.md, "Editing from anywhere"). Nothing has to be redone by hand.
 
+A browser that says it is offline holds every edit back before any library hears of it, a
+server's or the bucket's. The taps that can wait — a tag, a heart, a song onto or off a
+playlist, a new order (`editKeys`) — are kept on the device while they wait
+(`waitingEdits.ts`), put back when the app opens again on the same library, and sent once it
+is online; the sidebar says "Offline" and how many are waiting, never "All saved". Each says
+only what it changes — a tag edit names the tags it puts on and takes off
+(`PATCH /api/songs/:id/tags`), never the whole set — so one sent late leaves what another
+device did meanwhile.
+
 ## Automatic downloads
 
-On the devices that keep songs — the phone app and the desktop app — on by default, per
-device. A browser tab streams and downloads nothing, so none of this applies there. Whenever
+On the devices that keep songs — the phone app and the desktop app — per device: on by
+default on a computer or an iPad, off on a phone, which plays from the bucket and keeps what
+it played. First sync asks the same question once (`keepEverySongUnasked` and
+`keepEverySongByDefault` in `firstSync.model.ts`), so a phone that never reaches that page
+downloads nothing nobody asked for. A browser tab streams and downloads nothing, so none of this applies there. Whenever
 something changes — a song imported, the app opened, the connection switching to Wi-Fi — the
 device works out what of the library it is missing and fetches it from the bucket, one song
 at a time.
 
-- **Download automatically on Wi-Fi** (on by default). A phone reports its connection type
+- **Download automatically on Wi-Fi** (off on a phone, on elsewhere). A phone reports its connection type
   (`connectionKind.ts`). A computer reports nothing, and is taken to be on Wi-Fi or a cable
-  rather than refusing to download on a desk (`onWifi` in `syncPolicy.ts`). On mobile data,
-  or for any sync over 500 MB (`LARGE_SYNC_BYTES`), it shows "12 to download · Download" and
-  waits for a tap rather than spending the allowance for you.
+  rather than refusing to download on a desk (`onWifi` in `syncPolicy.ts`). On mobile data
+  it shows "12 not on this phone · on data · Download" and waits for a tap rather than
+  spending the allowance for you; a sync over 500 MB (`LARGE_SYNC_BYTES`) waits for one too,
+  quietly: Library's ⋯ has **Download all**, beside its size.
 - **The whole library.** What to keep is every song the library has (`GET
   /api/library/manifest`, worked out from this device's copy).
 - **A capped bucket waits.** While the bucket refuses reads for the day (docs/SYNC.md, "Caps"),
@@ -131,8 +144,12 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   and motion a tab has read survive a deploy.
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
-- **A line at the top of the Library** when there is something to say: downloading, waiting
-  for Wi-Fi or for a tap, the bucket's cap, or offline.
-- **Settings › On this phone** (*On this computer* in the desktop app) has the switch, what is
-  on the device and how much room it takes, the reason for any wait with a Download button,
-  and the removal buttons.
+- **A line at the top of the Library** when there is news: downloading, a failure, waiting
+  for Wi-Fi, the bucket's cap, or offline. A wait only a tap ends (automatic downloads off,
+  or over 500 MB) is no news, and says nothing there.
+- **Only a song that is here is marked**, with a small filled mark before its artist. A song
+  that is not carries nothing: in a library that lives in its storage that is most of them.
+- **Settings** has the switches as two quick tiles, Wi-Fi downloads and Stream the rest. Its
+  **On this phone** card (*On this computer* in the desktop app) shows how much of the library
+  is on the device and the room it takes, with one Download button and the leftover files;
+  removing every song is at the foot of Settings.

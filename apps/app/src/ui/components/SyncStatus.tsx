@@ -16,8 +16,7 @@ import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvid
 import { timing } from '../motion'
 import { card } from '../surfaces'
 import { Press } from './Press'
-import { devicePlace } from '../../features/settings/settings.model'
-import { deviceKind } from '../../ports/device'
+import { thisPlace } from '../../ports/place'
 
 /**
  * One line saying whether this device has your music yet — "Downloading 12
@@ -25,9 +24,9 @@ import { deviceKind } from '../../ports/device'
  * · offline" — with the device named as the word table
  * names it (docs/features/design-system.md, Words).
  *
- * Only when there is something to say. On Wi-Fi with automatic downloads on,
- * a missing song is about to be fetched, and a browser streams, so neither
- * says anything until a download is actually running.
+ * Only when there is news. On Wi-Fi with automatic downloads on, a missing
+ * song is about to be fetched; a browser streams; and a wait only a tap ends
+ * is Library's ⋯ "Download all", not a strip on every visit (`syncHeader`).
  */
 export function SyncStatus(): ReactNode {
   const downloads = useDownloads()
@@ -41,7 +40,7 @@ export function SyncStatus(): ReactNode {
   const header = syncHeader(downloads.situation)
   if (header.kind === 'none') return null
 
-  const { text, action } = syncHeaderText(header, devicePlace(deviceKind()))
+  const { text, action } = syncHeaderText(header, thisPlace())
   const { queue } = downloads
   const onAction = (): void => {
     if (header.kind === 'downloading') {

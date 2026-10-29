@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import type { Song, Tag } from '@selfmp3/shared'
 
 import { appApi } from '../env.js'
 
@@ -225,17 +226,13 @@ export async function topRow(page: Page): Promise<Locator> {
   return rows.nth(top)
 }
 
-/** As much of `/api/library` as the specs that read it directly need. */
-export interface LibraryTag {
-  id: number
-  name: string
-}
-export interface LibrarySong {
-  artist: string
-  tagIds: number[]
-  missing: boolean
-  playCount: number
-}
+/**
+ * As much of `/api/library` as the specs that read it directly need, picked
+ * from the shared schemas so a field that leaves them fails the typecheck here
+ * rather than reading as `undefined` in a flow.
+ */
+export type LibraryTag = Pick<Tag, 'id' | 'name'>
+export type LibrarySong = Pick<Song, 'artist' | 'tagIds' | 'playCount'>
 
 /** The library as the server has it, for a spec that works out what the app should show. */
 export async function libraryData(

@@ -1,9 +1,14 @@
 import {
+  artistKey,
   artistOr,
   DAY_MS,
+  joinedNames,
+  NO_JOINS,
+  type ArtistJoinNames,
   formatDuration,
   fromSqliteTime,
   mainArtist,
+  splitArtists,
   type Song,
   type Tag,
 } from '@selfmp3/shared'
@@ -57,8 +62,36 @@ function quantile(sorted: readonly number[], q: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0
 }
 
-/** Rung two: the library's size and spread, its tags, and who is in it most. */
-export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): string {
+/**
+ * Everyone a song is by, as the library shows them: each name its credit
+ * gives (shared `splitArtists`), joined spellings under the name they are
+ * shown by, each once. What the library's artists count a song for, so "陈致逸,
+ * HOYO-MiX" is a HOYO-MiX song as well as a 陈致逸 one.
+ */
+export function creditedArtists(
+  song: Pick<Song, 'artist'>,
+  shownAs: ReadonlyMap<string, string>,
+): string[] {
+  const names = splitArtists(song.artist).map(name => shownAs.get(artistKey(name)) ?? name)
+  const seen = new Set<string>()
+  return names.filter(name => {
+    const key = artistKey(name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/**
+ * Rung two: the library's size and spread, its tags, who is in it most and its albums.
+ * An artist under two spellings joined by their other names is one artist, and
+ * a song counts for everyone it is by.
+ */
+export function libraryShape(
+  songs: readonly Song[],
+  tags: readonly Tag[],
+  names: ArtistJoinNames = NO_JOINS,
+): string {
   const energies = songs
     .map(song => song.audioFeatures?.energy)
     .filter((value): value is number => typeof value === 'number')
@@ -72,7 +105,12 @@ export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): stri
     .filter((value): value is number => typeof value === 'number' && value > 0)
     .sort((a, b) => a - b)
   const withWords = songs.filter(hasWords).length
-  const artists = tally(songs.map(song => mainArtist(song.artist)))
+  const shownAs = joinedNames(songs, names)
+  const artists = tally(songs.flatMap(song => creditedArtists(song, shownAs)))
+  // A single's album is its own title, which says nothing an album can.
+  const albums = tally(songs.map(song => song.album).filter(Boolean)).filter(
+    ([, count]) => count >= 2,
+  )
 
   return [
     `The library: ${songs.length} songs. ${withWords} have words, ${songs.length - withWords} have none.`,
@@ -90,6 +128,7 @@ export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): stri
     tagCatalog(songs, tags),
     '',
     `Artists, most songs first: ${top(artists, 40)}`,
+    `Albums of two songs or more, most songs first: ${top(albums, 60) || '(none)'}`,
   ].join('\n')
 }
 

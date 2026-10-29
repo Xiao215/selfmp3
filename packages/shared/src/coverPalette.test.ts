@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pickCoverPalette, pickCoverTone } from './coverTone.js'
+import { pickCoverTone } from './coverTone.js'
 
 /** RGBA pixels from a list of [r, g, b, count] runs. */
 function pixels(...runs: Array<[number, number, number, number]>): Uint8ClampedArray {
@@ -9,6 +9,9 @@ function pixels(...runs: Array<[number, number, number, number]>): Uint8ClampedA
   }
   return new Uint8ClampedArray(out)
 }
+
+/** The palette as a song gets it: the cover tone's, and none for a cover with nothing to read. */
+const pickCoverPalette = (cover: ArrayLike<number>) => pickCoverTone(cover)?.palette ?? []
 
 const hueDistance = (a: number, b: number): number => Math.abs(((a - b + 540) % 360) - 180)
 

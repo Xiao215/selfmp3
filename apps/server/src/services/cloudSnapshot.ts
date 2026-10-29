@@ -4,6 +4,8 @@ import {
   CloudSnapshotSchema,
   playlistRules,
   toCloudRules,
+  type CameWith,
+  type CloudCoverPack,
   type CloudPlaylist,
   type CloudServer,
   type CloudSnapshot,
@@ -16,10 +18,12 @@ import type {
   CloudArtistState,
   CloudPlaysState,
   CloudSongState,
+  CloudSoundMapState,
   CloudSoundState,
 } from '../repositories/cloud.js'
 import type { ImportRequest } from '../repositories/importRequests.js'
-import type { StampRow } from '../repositories/sync.js'
+import type { ArtistNamesRow } from '../repositories/names.js'
+import type { EmptiedTag, StampRow } from '../repositories/sync.js'
 import { sha256 } from '../util/hash.js'
 
 /**
@@ -32,12 +36,22 @@ import { sha256 } from '../util/hash.js'
  */
 interface SnapshotInput {
   readonly songs: readonly Song[]
+  /** Who handed each song over, for the songs someone did (`CameWith`). */
+  readonly cameWith?: ReadonlyMap<number, CameWith>
   readonly songUids: ReadonlyMap<number, string>
   readonly states: ReadonlyMap<number, CloudSongState>
   /** Each artist's picture in the bucket. */
   readonly artists: readonly CloudArtistState[]
+  /** The names artists also go by, by `artistKey`. */
+  readonly artistNames?: ReadonlyMap<string, ArtistNamesRow>
+  /** The library's Chinese and Japanese names, spelt in Latin letters. */
+  readonly spellings?: Readonly<Record<string, readonly string[]>>
+  /** The covers and artists' pictures, packed a few megabytes to a file. */
+  readonly coverPacks?: readonly CloudCoverPack[]
   /** Every song's sound vector, as one file in the bucket; null before there is one. */
   readonly sound?: Pick<CloudSoundState, 'model' | 'key' | 'size'> | null
+  /** Where every heard song sits on the sound map, as one file; null before there is one. */
+  readonly soundMap?: CloudSoundMapState | null
   /** When songs were played, a file a month in the bucket. */
   readonly plays?: readonly Pick<CloudPlaysState, 'month' | 'key' | 'size' | 'count'>[]
   readonly tags: readonly Tag[]
@@ -52,6 +66,8 @@ interface SnapshotInput {
   readonly stamps?: readonly StampRow[]
   /** Second uids for tags made twice under one name, and the tag each means. */
   readonly aliases?: ReadonlyMap<string, string>
+  /** Tags that went with their last songs (`tagEmptied`), kept aside to come back. */
+  readonly emptiedTags?: readonly EmptiedTag[]
   /** Copies folded into another song (`songMerged`), and the uid of the song each went into. */
   readonly merged?: ReadonlyMap<string, string>
   /** How far into each device's log this library has read. */
@@ -95,6 +111,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
   for (const song of input.songs) {
     const state = input.states.get(song.id)
     const uid = input.songUids.get(song.id)
+    const cameWith = input.cameWith?.get(song.id)
     if (!state || !uid) continue
     published.set(song.id, uid)
 
@@ -114,21 +131,18 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       coverTone: state.coverKey !== null ? song.coverTone : null,
       lyrics:
         state.lyricsKey !== null && state.lyricsKind !== null
-          ? {
-              key: state.lyricsKey,
-              size: state.lyricsSize ?? 0,
-              kind: state.lyricsKind,
-              romanized: state.romanizedKey,
-            }
+          ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }
           : null,
       // The curve, once analysis has made one and it is up. Null before.
       motion: state.motionKey,
       instrumental: song.instrumental,
       loved: song.loved,
+      restUntil: song.restUntil,
       playCount: song.playCount,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
       sourceUrl: song.sourceUrl,
+      ...(cameWith ? { cameWith } : {}),
       tagUids: song.tagIds.flatMap(id => {
         const tagUid = input.tagUids.get(id)
         return tagUid ? [tagUid] : []
@@ -173,6 +187,9 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
   }
   const aliases = [...(input.aliases ?? [])].filter(([, target]) => tagUidSet.has(target))
   const merged = [...(input.merged ?? [])].filter(([, target]) => publishedUids.has(target))
+  const emptiedTags = (input.emptiedTags ?? [])
+    .filter(tag => !tagUidSet.has(tag.uid))
+    .map(tag => ({ uid: tag.uid, name: tag.name, hue: tag.hue }))
 
   // Parsed on the way out as well as on the way in: a snapshot another device
   // would reject is a bug here, and it should fail here, loudly.
@@ -194,9 +211,23 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       banner: { key: artist.bannerKey, size: artist.bannerSize },
       portrait: { key: artist.portraitKey, size: artist.portraitSize },
     })),
+    artistNames: [...(input.artistNames ?? [])].map(([artist, row]) => ({
+      artist,
+      names: [...row.names],
+      stamps: { names: row.hlc },
+    })),
+    spellings: Object.fromEntries(
+      Object.entries(input.spellings ?? {}).map(([name, spelt]) => [name, [...spelt]]),
+    ),
+    coverPacks: (input.coverPacks ?? []).map(pack => ({
+      key: pack.key,
+      size: pack.size,
+      covers: pack.covers.map(([key, size]): [string, number] => [key, size]),
+    })),
     sound: input.sound
       ? { model: input.sound.model, key: input.sound.key, size: input.sound.size }
       : null,
+    ...(input.soundMap ? { soundMap: { key: input.soundMap.key, size: input.soundMap.size } } : {}),
     ...(input.plays && input.plays.length > 0
       ? {
           plays: input.plays.map(month => ({
@@ -208,6 +239,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
         }
       : {}),
     ...(aliases.length > 0 ? { aliases: Object.fromEntries(aliases) } : {}),
+    ...(emptiedTags.length > 0 ? { emptiedTags } : {}),
     ...(merged.length > 0 ? { merged: Object.fromEntries(merged) } : {}),
     ...(input.imports && input.imports.length > 0
       ? {
@@ -290,11 +322,22 @@ export function publishWouldLoseLibrary(inBucket: number, onThisDevice: number):
  *
  * Throws when the bytes are not a snapshot. That is deliberate — the caller
  * must treat "cannot read it" as a reason to stop, never as permission.
+ *
+ * A song `removedHere` says this server removed on purpose is not counted: the
+ * snapshot is only older than the removal (a restart before the next snapshot
+ * went up), and a server publishing its own deliberate delete is not losing
+ * the library. A song with no uid to tell by is counted.
  */
-export function snapshotSongCount(body: Buffer): number {
+export function snapshotSongCount(
+  body: Buffer,
+  removedHere: (uid: string) => boolean = () => false,
+): number {
   const songs = (JSON.parse(snapshotText(body)) as { songs?: unknown }).songs
   if (!Array.isArray(songs)) throw new Error('a snapshot with no songs array')
-  return songs.length
+  return songs.filter(song => {
+    const uid = (song as { uid?: unknown } | null)?.uid
+    return typeof uid !== 'string' || !removedHere(uid)
+  }).length
 }
 
 /**
@@ -371,8 +414,8 @@ export function storedSnapshotContentHash(body: Buffer): string {
  * What a snapshot says that a device needs promptly, as a hash: all of it but
  * what analysis, the listening model and the picture lookups add after a song
  * has arrived — its cover's colour, its motion curve, its tempo and key, the
- * pointer to every song's sound vector, artists' pictures, and the months of
- * plays. A snapshot that
+ * pointer to every song's sound vector and the sound map, artists' pictures, the packs of
+ * covers, and the months of plays. A snapshot that
  * changes only those can wait a little to be published (cloudSync.ts,
  * `ENRICHMENT_DEFER_MS`): every snapshot is a download for every device, and
  * an import's songs were each published again for each of them.
@@ -381,13 +424,17 @@ export function snapshotCoreHash(snapshot: {
   readonly writtenAt?: unknown
   readonly songs?: readonly object[]
   readonly sound?: unknown
+  readonly soundMap?: unknown
   readonly artists?: unknown
+  readonly coverPacks?: unknown
   readonly plays?: unknown
 }): string {
   const {
     writtenAt: _when,
     sound: _sound,
+    soundMap: _soundMap,
     artists: _artists,
+    coverPacks: _packs,
     plays: _plays,
     songs,
     ...rest

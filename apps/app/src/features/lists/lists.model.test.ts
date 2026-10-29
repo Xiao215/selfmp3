@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_QUEUE, type Playlist, type QueueState, type Song, type Tag } from '@selfmp3/shared'
+import {
+  EMPTY_QUEUE,
+  NO_JOINS,
+  type Playlist,
+  type QueueState,
+  type Song,
+  type Tag,
+} from '@selfmp3/shared'
 
 import {
   combinedLink,
   describeSource,
+  foundSource,
   homeRecents,
+  LIKED_SOURCE,
+  LINED_UP_SOURCE,
+  libraryListSource,
   librarySource,
+  likedSongs,
   parseCombinedParams,
   parseListSource,
   parseRecentLists,
@@ -13,8 +25,11 @@ import {
   playAlone,
   recentKind,
   recentSongIds,
+  RECENTS_SOURCE,
   savePlan,
+  searchSource,
   songsToSave,
+  sourceAfterAdding,
   sourceKey,
   sourceTagIds,
   withListRenamed,
@@ -98,6 +113,23 @@ describe('what Save makes', () => {
       kind: 'follow',
       name: '原神纯音乐 or YOASOBI',
       tagIds: [1, 2],
+      match: 'any',
+    })
+  })
+
+  it('makes tags that are all wanted into a playlist that needs all of them', () => {
+    const source: ListSource = {
+      kind: 'combined',
+      tagIds: [1, 2],
+      artistKeys: [],
+      name: 'x',
+      match: 'all',
+    }
+    expect(savePlan(source, queue([5]), known)).toEqual({
+      kind: 'follow',
+      name: '原神纯音乐 & YOASOBI',
+      tagIds: [1, 2],
+      match: 'all',
     })
   })
 
@@ -133,6 +165,80 @@ describe('what Save makes', () => {
       savePlan({ kind: 'songs', origin: 'search', name: 'Search' }, queue([5]), known),
     ).toBeNull()
     expect(savePlan({ kind: 'songs', origin: 'untagged', name: 'x' }, q, known)).toBeNull()
+  })
+})
+
+describe('songs played from a search', () => {
+  // The tile's title is the words searched; its line says they were searched.
+  it('is a Search, not "From Search" under a title of Search', () => {
+    expect(recentKind({ kind: 'songs', origin: 'search', name: '“yoru”' })).toBe('Search')
+  })
+
+  it('is named for the words searched, cut short when long', () => {
+    expect(searchSource('  yoru  ni ')).toEqual({
+      kind: 'songs',
+      origin: 'search',
+      name: '“yoru ni”',
+    })
+    const long = searchSource('a'.repeat(60))
+    expect(long.kind === 'songs' && Array.from(long.name)).toHaveLength(42)
+    expect(long.kind === 'songs' && long.name.endsWith('…”')).toBe(true)
+  })
+
+  it('tells one search’s tile from another’s, and is one tile for the same words', () => {
+    let lists: readonly RecentList[] = []
+    lists = withListStarted(lists, searchSource('yoru'), [1, 2, 3], 100)
+    lists = withListStarted(lists, searchSource('YOASOBI'), [4, 5], 200)
+    // The same words again, finding a song more since: the same tile, with what they find now.
+    lists = withListStarted(lists, searchSource('Yoru'), [1, 2, 3, 6], 300)
+    expect(lists.map(entry => describeSource(entry.source, known).label)).toEqual([
+      '“Yoru”',
+      '“YOASOBI”',
+    ])
+    expect(lists[0]?.songIds).toEqual([1, 2, 3, 6])
+  })
+
+  it('is a song of its own when the words found one song', () => {
+    expect(withListStarted([], searchSource('yoru'), [1], 100)).toEqual([])
+  })
+
+  it('plays the songs played last as Recently played before anything is typed', () => {
+    expect(searchSource(' ')).toEqual(RECENTS_SOURCE)
+    expect(withListStarted([], searchSource(''), [1, 2, 3], 100)).toEqual([])
+  })
+
+  it('names what Ask found for the words asked', () => {
+    const found = foundSource('比较温和的jpop')
+    expect(describeSource(found, known).label).toBe('“比较温和的jpop”')
+    expect(recentKind(found)).toBe('You asked')
+    const lists = withListStarted(
+      withListStarted([], found, [1, 2], 100),
+      foundSource('rainy day'),
+      [3, 4],
+      200,
+    )
+    expect(lists).toHaveLength(2)
+  })
+
+  it('forgets a search kept by its songs, from before searches were kept by their words', () => {
+    const old = [
+      {
+        key: 'songs:search:1,2,3',
+        source: { kind: 'songs', origin: 'search', name: 'Search' },
+        songIds: [1, 2, 3],
+        played: [1],
+        at: 100,
+      },
+      {
+        key: 'songs:found:4,5',
+        source: { kind: 'songs', origin: 'found', name: 'Search' },
+        songIds: [4, 5],
+        played: [],
+        at: 90,
+      },
+    ]
+    const kept = withListStarted([], searchSource('yoru'), [1, 2], 200)
+    expect(parseRecentLists(JSON.stringify([...kept, ...old]))).toEqual(kept)
   })
 })
 
@@ -220,6 +326,7 @@ describe('sources from places and Library', () => {
     expect(parseCombinedParams({ tags: '2,1,x,1', artists: 'Yorushika' })).toEqual({
       tagIds: [2, 1],
       artistKeys: ['yorushika'],
+      match: 'any',
     })
   })
 
@@ -309,11 +416,28 @@ describe('Recently played', () => {
     const library = {
       songs: [song(1, { tagIds: [1] }), song(2, { tagIds: [1] }), song(3)],
       tags: TAGS,
+      ...NO_JOINS,
     }
     const fromTag = withListStarted([], tagSource, [1], 100)[0]!
     expect(recentSongIds(fromTag, library).sort()).toEqual([1, 2])
     const fromAnswer = withListStarted([], asked, [3, 99], 100)[0]!
     expect(recentSongIds(fromAnswer, library)).toEqual([3])
+  })
+
+  it('plays an artist kept from before a join as the artist it is joined to', () => {
+    const library = {
+      songs: [song(1, { artist: 'Yorushika' }), song(2, { artist: 'ヨルシカ' })],
+      tags: TAGS,
+      artistNames: { yorushika: ['ヨルシカ'] },
+      artistNamesFound: [],
+    }
+    const kept = withListStarted(
+      [],
+      { kind: 'artist', key: 'ヨルシカ', name: 'ヨルシカ' },
+      [2],
+      100,
+    )[0]!
+    expect(recentSongIds(kept, library).sort()).toEqual([1, 2])
   })
 
   it('keeps an answer with its list, so its page can open after a reload', () => {
@@ -322,6 +446,7 @@ describe('Recently played', () => {
         name: 'Calm',
         anyTags: [],
         artists: [],
+        albums: [],
         noTags: [],
         energy: { min: null, max: 0.4 },
         bpm: { min: null, max: null },
@@ -339,6 +464,7 @@ describe('Recently played', () => {
       fit: 9,
       loosened: [],
       unknown: [],
+      notes: [],
       picks: [{ songId: 3, why: null }],
     }
     const lists = withListStarted([], asked, [3], 100, result)
@@ -352,5 +478,113 @@ describe('Recently played', () => {
     expect(parseRecentLists(JSON.stringify(lists))).toEqual(lists)
     expect(parseRecentLists('nope')).toEqual([])
     expect(parseRecentLists(JSON.stringify([{ key: 1 }]))).toEqual([])
+  })
+})
+
+describe('Liked', () => {
+  const songs = [
+    song(1, { loved: true, lovedAt: '2026-10-01 10:00:00' }),
+    song(2, { loved: false, lovedAt: null }),
+    song(3, { loved: true, lovedAt: '2026-10-20 10:00:00' }),
+    // Liked before likes were timed: after the timed ones, newest added first.
+    song(4, { loved: true, lovedAt: null }),
+    song(5, { loved: true, lovedAt: null }),
+  ]
+
+  it('lists the liked songs, the newest like first', () => {
+    expect(likedSongs(songs).map(each => each.id)).toEqual([3, 1, 5, 4])
+  })
+
+  it('is a place of its own: named Liked, linked to its page, never saved', () => {
+    expect(describeSource(LIKED_SOURCE, known)).toMatchObject({
+      label: 'Liked',
+      link: { pathname: '/playlists/liked' },
+    })
+    expect(savePlan(LIKED_SOURCE, queue([3, 1, 5]), known)).toBeNull()
+    expect(parseListSource(JSON.parse(JSON.stringify(LIKED_SOURCE)))).toEqual(LIKED_SOURCE)
+  })
+
+  it('is remembered once, and plays again as the likes are now', () => {
+    expect(sourceKey(LIKED_SOURCE, [1, 3])).toBe('liked')
+    const entry: RecentList = {
+      key: 'liked',
+      source: LIKED_SOURCE,
+      songIds: [1],
+      played: [],
+      at: 1,
+    }
+    expect(recentSongIds(entry, { songs, tags: TAGS, ...NO_JOINS })).toEqual([3, 1, 5, 4])
+  })
+
+  it('is what Library plays with its Liked chip on, and with tags too it is a list of its own', () => {
+    expect(libraryListSource({ tagIds: [], likedOnly: true }, TAGS)).toEqual(LIKED_SOURCE)
+    expect(libraryListSource({ tagIds: [3], likedOnly: false }, TAGS)).toEqual(
+      librarySource([3], TAGS),
+    )
+    const both = libraryListSource({ tagIds: [3], likedOnly: true }, TAGS)
+    expect(both).toEqual({ kind: 'songs', origin: 'liked', name: 'Liked · Calm' })
+    expect(savePlan(both, queue([1, 3]), known)).toMatchObject({
+      kind: 'songs',
+      name: 'Liked · Calm',
+    })
+  })
+})
+
+describe('Up next lined up by hand', () => {
+  it('is what one song or the library becomes once songs are added; anything named stays', () => {
+    expect(sourceAfterAdding(null)).toEqual(LINED_UP_SOURCE)
+    expect(sourceAfterAdding({ kind: 'library' })).toEqual(LINED_UP_SOURCE)
+    const tagged: ListSource = { kind: 'tag', tagId: 3, name: 'Calm' }
+    expect(sourceAfterAdding(tagged)).toBe(tagged)
+    expect(sourceAfterAdding(LIKED_SOURCE)).toBe(LIKED_SOURCE)
+  })
+
+  it('saves the songs in Up next’s order, by a name no playlist has yet', () => {
+    const shuffled = queue([5, 2, 9], [2, 5, 9])
+    const taken = { ...known, playlists: [playlist(8, 'Songs you lined up')] }
+    expect(savePlan(LINED_UP_SOURCE, shuffled, taken)).toEqual({
+      kind: 'songs',
+      name: 'Songs you lined up 2',
+      songIds: [5, 2, 9],
+    })
+    expect(savePlan(LINED_UP_SOURCE, queue([5]), known)).toBeNull()
+  })
+
+  it('is not kept as a list of its own by Recently played: its songs are', () => {
+    expect(sourceKey(LINED_UP_SOURCE, [1, 2])).toBeNull()
+  })
+})
+
+describe('tags combined: any or all', () => {
+  const places = [
+    { kind: 'tag' as const, tag: TAGS[2]! },
+    { kind: 'tag' as const, tag: TAGS[1]! },
+  ]
+
+  it('names any with “or” and all with “&”, and keeps all in the source and the address', () => {
+    expect(placesSource(places)).not.toHaveProperty('match')
+    const all = placesSource(places, 'all')
+    expect(all).toEqual({
+      kind: 'combined',
+      tagIds: [3, 2],
+      artistKeys: [],
+      name: 'Calm & YOASOBI',
+      match: 'all',
+    })
+    if (all?.kind !== 'combined') throw new Error('combined')
+    expect(describeSource(all, known).label).toBe('Calm & YOASOBI')
+    expect(combinedLink(all).params).toEqual({ tags: '3,2', match: 'all' })
+    expect(parseCombinedParams({ tags: '3,2', match: 'all' }).match).toBe('all')
+    expect(parseCombinedParams({ tags: '3,2' }).match).toBe('any')
+    expect(parseListSource(JSON.parse(JSON.stringify(all)))).toEqual(all)
+  })
+
+  it('remembers any and all as two lists, and plays all again as all', () => {
+    const any = placesSource(places)!
+    const all = placesSource(places, 'all')!
+    expect(sourceKey(any, [])).not.toBe(sourceKey(all, []))
+    const songs = [song(1, { tagIds: [3] }), song(2, { tagIds: [2, 3] })]
+    const entry: RecentList = { key: 'k', source: all, songIds: [], played: [], at: 1 }
+    expect(recentSongIds(entry, { songs, tags: TAGS, ...NO_JOINS })).toEqual([2])
   })
 })

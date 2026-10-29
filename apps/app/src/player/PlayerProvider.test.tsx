@@ -6,6 +6,8 @@ import type { EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
 
 import { PlayerProvider, usePlayer, type PlayerApi } from './PlayerProvider'
 import { setRoomTracks } from './roomTracks'
+import { currentToasts } from '../ui/toast'
+import { STORAGE_BUSY } from '../ports/streamFailure.model'
 
 /**
  * The queue the commands read is the queue the last command left.
@@ -33,12 +35,14 @@ const mockWiring: Partial<EngineWiring> = {}
 let mockEngineListener: ((state: EngineState) => void) | null = null
 const mockKeepPlayed = jest.fn()
 const mockKeepAhead = jest.fn((_songId: number) => Promise.resolve(false))
+const mockDropAhead = jest.fn()
+const mockForgetRecent = jest.fn()
 const mockEngine = {
   capabilities: {
     crossfade: false,
     analyser: false,
   },
-  state: IDLE,
+  state: IDLE as EngineState,
   currentSongId: null as number | null,
   playhead: 0,
   subscribe: (listener: (state: EngineState) => void) => {
@@ -48,6 +52,8 @@ const mockEngine = {
   configure: jest.fn(),
   load: jest.fn((songId: number) => {
     mockEngine.currentSongId = songId
+    // As both engines do: a load clears the last one's error before anything else.
+    mockEngineListener?.(IDLE)
     return Promise.resolve()
   }),
   play: jest.fn(() => Promise.resolve()),
@@ -80,7 +86,12 @@ jest.mock('../offline/DownloadsProvider', () => ({
     mayPlay: () => true,
     keepPlayed: mockKeepPlayed,
     keepAhead: mockKeepAhead,
+    dropAhead: mockDropAhead,
   }),
+}))
+jest.mock('../ports/recentCopies', () => ({
+  ...jest.requireActual('../ports/recentCopies'),
+  forgetRecent: (songIds: readonly number[]) => mockForgetRecent(songIds),
 }))
 // The cloud session and the kept covers are disk and network; nothing here reaches either.
 jest.mock('../replica', () => ({
@@ -127,7 +138,9 @@ const song = (id: number): Song =>
   }) as unknown as Song
 
 const SONGS = [1, 2, 3, 4]
-const mockLibrary = { songs: SONGS.map(song), playlists: [], tags: [] } as unknown as Library
+const mockLibrary = { songs: SONGS.map(song), playlists: [], tags: [] } as unknown as {
+  songs: Song[]
+} & Library
 
 let api: PlayerApi
 function Probe(): null {
@@ -147,9 +160,16 @@ const draw = () =>
     </QueryClientProvider>,
   )
 
+/** The engine's ticks for this many seconds of the song, from its top. */
+const listen = (seconds: number): void => {
+  for (let at = 1; at <= seconds; at++) mockWiring.onProgress?.(at, 200)
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   mockEngine.currentSongId = null
+  mockEngine.state = IDLE
+  mockLibrary.songs = SONGS.map(song)
   mockRoom.view = { pass: null, link: 'live' }
   mockRoom.alive = true
   setRoomTracks(new Map())
@@ -201,6 +221,20 @@ describe('the queue as the commands see it', () => {
     expect([...api.queue.items]).toEqual([1, 2, 3])
   })
 
+  it('makes one song, or the library, a list of your own once songs are added to it', async () => {
+    await draw()
+    await act(() => api.playFrom([1], 0))
+    expect(api.source).toBeNull()
+    await act(() => api.addToQueue([2, 3]))
+    expect(api.source).toMatchObject({ kind: 'songs', origin: 'upnext' })
+
+    // A tag stays a tag: edits to it change nothing lasting.
+    const tag = { kind: 'tag', tagId: 4, name: 'calm' } as const
+    await act(() => api.playFrom([1, 2], 0, { source: tag }))
+    await act(() => api.playNext([3]))
+    expect(api.source).toEqual(tag)
+  })
+
   it('starts the song again on repeat-one when it ends, rather than moving on', async () => {
     await draw()
     await act(() => api.playFrom([1, 2], 0))
@@ -238,7 +272,10 @@ describe('keeping songs where they stream from the bucket', () => {
     await draw()
     await act(() => api.playFrom([1, 2, 3], 0))
 
-    // A song that ran out counts.
+    // A song that ran out counts a second short of its minute: the last tick
+    // before the end may not have been counted.
+    await act(() => listen(59))
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
     await act(() => mockWiring.onTrackEnd?.())
 
     expect(mockKeepPlayed).toHaveBeenCalledWith(1)
@@ -248,12 +285,63 @@ describe('keeping songs where they stream from the bucket', () => {
     expect(mockEngine.refreshLookahead).toHaveBeenCalled()
   })
 
+  // Seeking to the end of a long song a few seconds in "completed" it, and it counted.
+  it('does not count a song run out with only seconds of it heard', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    await act(() => listen(5))
+    await act(() => mockWiring.onTrackEnd?.())
+
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
+  })
+
+  // Bug bash R3-m1 (R2-m5): the scrubber dragged to the end, or End on Seek, a few seconds in.
+  it('does not count a song seeked to its end a few seconds in', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    await act(() => listen(4))
+    await act(() => api.seekTo(199.5))
+    await act(() => mockWiring.onProgress?.(199.5, 200))
+    await act(() => mockWiring.onProgress?.(200, 200))
+    await act(() => mockWiring.onTrackEnd?.())
+
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
+  })
+
+  // Bug bash R2-m24: the old queue's next song went on downloading after another was picked.
+  it('lets go of the song kept ahead once another song is chosen', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    await act(() => listen(60))
+    expect(mockKeepAhead).toHaveBeenCalledWith(2)
+
+    await act(() => api.jumpTo(3))
+
+    expect(mockDropAhead).toHaveBeenCalledWith(2)
+  })
+
+  it('keeps the song kept ahead arriving when it is the one that plays next', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    await act(() => listen(60))
+    await act(() => mockWiring.onTrackEnd?.())
+    expect(api.current?.id).toBe(2)
+
+    // Its stream now, kept as any song played is, whatever comes after it.
+    await act(() => api.next())
+
+    expect(mockDropAhead).not.toHaveBeenCalled()
+  })
+
   it('lends nothing again when the next song could not be kept', async () => {
     mockKeepAhead.mockImplementation(() => Promise.resolve(false))
     await draw()
     await act(() => api.playFrom([1, 2], 0))
     mockEngine.refreshLookahead.mockClear()
 
+    await act(() => listen(59))
     await act(() => mockWiring.onTrackEnd?.())
     await act(() => Promise.resolve())
 
@@ -355,5 +443,299 @@ describe('a room’s song that stops', () => {
     await act(async () => fails())
 
     expect(mockEngine.load).toHaveBeenCalledWith(-1, { autoplay: true })
+  })
+})
+
+describe('a run of songs that will not play', () => {
+  /** The engine saying the song it holds failed, as it does once per load. */
+  const fails = (error = 'This song isn’t on this computer'): void => {
+    mockEngine.currentSongId = null
+    mockEngineListener?.({ ...IDLE, error })
+  }
+  /** The ids loaded, in order. */
+  const loaded = (): number[] => mockEngine.load.mock.calls.map(([id]) => id)
+
+  it('tries a song again, then skips, and stops after three skips', async () => {
+    await draw()
+    await act(() =>
+      api.playFrom(
+        [1, 2, 3, 4, 1, 2, 3, 4].map((id, at) => id + at * 10),
+        0,
+      ),
+    )
+    mockEngine.load.mockClear()
+
+    // Each song fails, and each failure is told twice, in other words, the
+    // second time late: that is one failure, not two.
+    for (let failure = 0; failure < 12; failure++) {
+      await act(async () => {
+        fails()
+        fails('Failed to load because no supported source was found.')
+      })
+    }
+
+    // A retry and a skip for each of three songs, then the fourth's retry: stopped there.
+    expect(loaded()).toEqual([1, 12, 12, 23, 23, 34, 34])
+    expect(api.queue.items[api.queue.index]).toBe(34)
+    expect(mockEngine.pause).toHaveBeenCalled()
+  })
+
+  it('stops with Repeat all on too, rather than going round forever', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+    await act(() => api.cycleRepeatMode())
+    expect(api.queue.repeat).toBe('all')
+    mockEngine.load.mockClear()
+
+    for (let failure = 0; failure < 20; failure++) await act(async () => fails())
+
+    expect(mockEngine.load.mock.calls.length).toBe(7)
+  })
+
+  it('stops after the retry when nothing answers, leaving Up next as it was', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    mockEngine.load.mockClear()
+
+    for (let failure = 0; failure < 5; failure++) {
+      await act(async () => fails('Lost connection to the library'))
+    }
+
+    expect(loaded()).toEqual([1])
+    expect(api.current?.id).toBe(1)
+  })
+
+  it('leaves a song put back paused alone when it fails: no retry, no skip', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 1, { autoplay: false, position: 42 }))
+    mockEngine.load.mockClear()
+
+    await act(async () => fails())
+
+    expect(mockEngine.load).not.toHaveBeenCalled()
+    expect(api.current?.id).toBe(2)
+  })
+
+  it('keeps a Pause pressed while songs fail', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    // Playing for the moment between one failure and the next.
+    mockEngine.state = { ...IDLE, playing: true }
+    await act(() => api.toggle())
+    mockEngine.state = IDLE
+    mockEngine.load.mockClear()
+
+    await act(async () => fails())
+
+    expect(mockEngine.load).not.toHaveBeenCalled()
+    expect(api.current?.id).toBe(1)
+  })
+
+  it('asks for a failed song again when Play is pressed, from where it was', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0, { autoplay: false }))
+    await act(() => listen(3))
+    await act(async () => fails())
+    mockEngine.load.mockClear()
+    mockEngine.play.mockClear()
+
+    await act(() => api.toggle())
+
+    expect(mockEngine.load).toHaveBeenCalledWith(1, { autoplay: true, startAt: 3 })
+    expect(mockEngine.play).not.toHaveBeenCalled()
+  })
+
+  /*
+   * Bug bash R3-M2: Backblaze asking for fewer requests failed songs the way a
+   * broken file does, so one Next walked three good songs in a second, stopped
+   * on "Couldn't play", and never asked again once the bucket had recovered.
+   */
+  describe('while the storage is busy', () => {
+    beforeEach(() => jest.useFakeTimers())
+    afterEach(() => jest.useRealTimers())
+
+    const busy = (): void => fails(STORAGE_BUSY)
+    const wait = (ms: number) => act(() => jest.advanceTimersByTime(ms))
+
+    it('waits it out on the same song, longer each time, and says so', async () => {
+      await draw()
+      await act(() => api.playFrom(SONGS, 0))
+      await act(() => listen(3))
+      mockEngine.load.mockClear()
+
+      await act(async () => busy())
+      // Not at once: a bucket asking for fewer requests is asked again after a while.
+      expect(mockEngine.load).not.toHaveBeenCalled()
+      expect(currentToasts().map(toast => toast.over)).toContain('Storage is busy, trying again')
+      await wait(2_000)
+      expect(loaded()).toEqual([1])
+      expect(mockEngine.load).toHaveBeenLastCalledWith(1, { autoplay: true, startAt: 3 })
+
+      await act(async () => busy())
+      await wait(2_000)
+      expect(loaded()).toEqual([1])
+      await wait(2_000)
+      expect(loaded()).toEqual([1, 1])
+
+      // The bucket answers again: the song plays, nothing else is asked for.
+      await act(async () => mockEngineListener?.({ ...IDLE, playing: true, currentTime: 3 }))
+      expect(currentToasts().map(toast => toast.over)).not.toContain(
+        'Storage is busy, trying again',
+      )
+      await wait(60_000)
+      expect(loaded()).toEqual([1, 1])
+      expect(api.current?.id).toBe(1)
+      expect(mockEngine.pause).not.toHaveBeenCalled()
+    })
+
+    it('never skips down the queue, and stops once it has waited a few minutes', async () => {
+      await draw()
+      await act(() => api.playFrom(SONGS, 0))
+      mockEngine.load.mockClear()
+
+      for (let tries = 0; tries < 30; tries++) {
+        await act(async () => busy())
+        await wait(30_000)
+      }
+
+      expect(new Set(loaded())).toEqual(new Set([1]))
+      expect(api.current?.id).toBe(1)
+      expect(mockEngine.pause).toHaveBeenCalled()
+      expect(currentToasts().map(toast => toast.say)).toContain(
+        'Your storage is still busy. Press Play to try “Song 1” again',
+      )
+    })
+
+    it('calls the wait off for a Pause, and for a song chosen meanwhile', async () => {
+      await draw()
+      await act(() => api.playFrom(SONGS, 0))
+      await act(async () => busy())
+      mockEngine.load.mockClear()
+
+      // Next to a song this device has: it plays, and song 1 is not asked for after all.
+      await act(() => api.next())
+      expect(mockEngine.load).toHaveBeenLastCalledWith(2, { autoplay: true })
+      await wait(60_000)
+      expect(loaded()).toEqual([2])
+
+      await act(async () => busy())
+      await act(() => api.toggle())
+      await wait(60_000)
+      expect(loaded()).toEqual([2])
+    })
+  })
+
+  // Bug bash R2-m15: each failure was said twice, the retry's too.
+  it('says each song that will not play once, its retry included', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    // Song 1, its retry, then song 2.
+    for (let failure = 0; failure < 3; failure++) await act(async () => fails())
+
+    const said = warn.mock.calls.map(([words]) => String(words))
+    expect(said.filter(words => words.startsWith('Playback failed'))).toEqual([
+      'Playback failed for song 1:',
+      'Playback failed for song 2:',
+    ])
+    warn.mockRestore()
+  })
+
+  it('keeps no copy of a song given up on, but keeps one that failed for the connection', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    await act(async () => fails())
+    expect(mockForgetRecent).not.toHaveBeenCalled()
+    await act(async () => fails())
+    expect(mockForgetRecent).toHaveBeenCalledWith([1])
+
+    mockForgetRecent.mockClear()
+    await act(() => api.playFrom([3, 4], 0))
+    for (let failure = 0; failure < 3; failure++) {
+      await act(async () => fails('Lost connection to the library'))
+    }
+    expect(mockForgetRecent).not.toHaveBeenCalled()
+  })
+
+  // From the phone lane in round 4: "Couldn’t play" stayed up naming the song before.
+  it('takes down what it said of a song once Next moves past it', async () => {
+    mockLibrary.songs = [1, 2, 3, 4, 5].map(song)
+    await draw()
+    await act(() => api.playFrom([1, 2, 3, 4, 5], 0))
+    for (let failure = 0; failure < 8; failure++) await act(async () => fails())
+    const about = (id: number): boolean =>
+      currentToasts().some(toast => toast.say.includes(song(id).title))
+    expect(api.current?.id).toBe(4)
+    expect(about(4)).toBe(true)
+
+    await act(() => api.next())
+    // Song 5 fails as well, put on paused: nothing tries it, so nothing is said yet.
+    await act(async () => fails())
+
+    expect(api.current?.id).toBe(5)
+    expect(about(4)).toBe(false)
+  })
+
+  // From the phone lane in round 4: eight quick Nexts on Now Playing after the
+  // run stopped seemed to do nothing but read the same song again. They had
+  // gone round its eight-song list, Next going back to the top at the end.
+  it('moves one song for each quick Next after the run stops, round the list at its end', async () => {
+    const list = [1, 2, 3, 4, 5, 6, 7, 8]
+    mockLibrary.songs = list.map(song)
+    await draw()
+    await act(() => api.playFrom(list, 0))
+    for (let failure = 0; failure < 8; failure++) await act(async () => fails())
+    expect(api.current?.id).toBe(4)
+    mockEngine.load.mockClear()
+
+    // Each press its own tap, and each song put on paused fails as well.
+    const press = async (): Promise<void> => {
+      await act(() => api.next())
+      await act(async () => fails())
+    }
+    for (let tap = 0; tap < 3; tap++) await press()
+    expect(api.current?.id).toBe(7)
+
+    for (let tap = 0; tap < 5; tap++) await press()
+    expect(loaded()).toEqual([5, 6, 7, 8, 1, 2, 3, 4])
+    expect(api.current?.id).toBe(4)
+  })
+
+  it('counts no play for a song that failed and was moved past', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+
+    // The phone's player moving on from a failed song reads as it ending.
+    await act(() => mockWiring.onTrackEnd?.())
+
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
+  })
+})
+
+describe('songs deleted on another device', () => {
+  it('stops the song playing when the library no longer has it, and takes them out of Up next', async () => {
+    const view = await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    mockEngine.load.mockClear()
+
+    // The library comes back without songs 1 and 4.
+    mockLibrary.songs = [2, 3].map(song)
+    await view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlayerProvider>
+          <Probe />
+        </PlayerProvider>
+      </QueryClientProvider>,
+    )
+
+    expect(mockEngine.pause).toHaveBeenCalled()
+    expect([...api.queue.items]).toEqual([2, 3])
+    expect(mockEngine.load).toHaveBeenLastCalledWith(2, { autoplay: false })
+    // The music stopping by itself is said, or it reads as a fault.
+    expect(currentToasts().map(toast => toast.say)).toContain(
+      `“${song(1).title}” is no longer in your library`,
+    )
   })
 })

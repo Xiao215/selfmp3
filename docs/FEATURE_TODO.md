@@ -22,13 +22,14 @@ portrait, a finger gets no select circle or hover play in a row (holding a row s
 crossing 820 keeps the page (`Shell.tsx` is one tree at every width;
 `verify/flows/navigation.spec.ts` checks 1194 → 507 → 1194 in a browser). Checked on the
 iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678, 507 and
-320 in a browser. What is left:
+320 in a browser. Since 2026-10-25 (AI1) an iPad held upright has the phone's layout at
+every width, and `tablet.yaml` turns it on its side for the sidebar. What is left:
 
 - **Split View on the simulator, by hand, once more.** Landscape was checked on the iPad
   Pro 11-inch on 2026-09-19 (Home as `T06`, a tag page, Now Playing). Split View on
   2026-09-20 showed the hazard below for real — at about 600 points the app went on
-  drawing the sidebar and the stage — so `useLayout` now prefers the root view's measured
-  width (`shell/rootWidth.ts`); that wants confirming in Split View itself, which nothing
+  drawing the sidebar and the stage — so `useLayout` takes the root view's measured size
+  whenever it is newer than the window's (`shell/layoutSize.model.ts`); that wants confirming in Split View itself, which nothing
   here can enter. Notes for whoever does it: Maestro cannot turn an iPad and its taps land
   in the wrong place while one is turned (relaunch the app afterwards), so drive it by hand
   or by deep link (`xcrun simctl openurl <udid> selfmp3://tag/<name>` — which also pulls
@@ -62,8 +63,9 @@ What exists is in [features/desktop-app.md](features/desktop-app.md).
 
 ## The phone
 
-- **Android.** No Android binary has ever been built and nothing has run on a physical
-  Android device; [MOBILE.md](MOBILE.md) says exactly what has and has not been seen.
+- **Android.** Debug and signed release builds have run on an emulator, and friends get
+  the APK from the install page (MOBILE.md, "Sharing the Android app"), but nothing has
+  run on a physical Android device; [MOBILE.md](MOBILE.md) says exactly what has and has not been seen.
 - **The widget on a real iPhone.** It builds and runs on the simulator; a signed build needs
   the App Group `group.com.selfmp3.app` registered in a paid Apple Developer account and
   `ios.appleTeamId` in `app.config.js` ([features/widget.md](features/widget.md), "Building

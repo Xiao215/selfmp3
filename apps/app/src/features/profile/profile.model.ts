@@ -1,11 +1,9 @@
 import { plural, type Stats } from '@selfmp3/shared'
 import { unreachableLabel } from '../library/library.model'
-import type { DevicePlace } from '../settings/settings.model'
 import {
   formatHour,
   peakHour,
   peakHourWords,
-  REPORT_HINT,
   statFigures,
   type StatFigures,
 } from '../stats/stats.model'
@@ -19,7 +17,7 @@ import {
  * sidebar, and keeps Stats as a sidebar row as well.
  */
 
-export type ProfileRowId = 'import' | 'report' | 'links' | 'settings'
+export type ProfileRowId = 'import' | 'stats' | 'links' | 'settings'
 
 export interface ProfileRow {
   readonly id: ProfileRowId
@@ -30,16 +28,18 @@ export interface ProfileRow {
 }
 
 /**
- * Import, Report, Links you shared and Settings. Tags are reached from Home's
- * tiles and "All N tags", and Stats from the card above. Links you shared is
+ * Import, Stats, Sound map, Links you shared and Settings. Tags are reached from Home's
+ * tiles and "All N tags". Stats is a row as well as the card above, so the page
+ * names it where its other pages are; Report is the last line of Stats. Links you shared is
  * there for a signed-in account, the only kind that can send one; `linksHint`
  * says how many play.
  */
+/** The line under Stats: what is behind the row. */
+const STATS_HINT = 'What you play, and when'
+
 export function profileRows({
-  place,
   linksHint,
 }: {
-  place: DevicePlace
   /** The line under Links you shared, or null where no link can be sent. */
   linksHint: string | null
 }): readonly ProfileRow[] {
@@ -48,13 +48,13 @@ export function profileRows({
       id: 'import',
       label: 'Import',
       href: '/import',
-      hint: 'Paste a link or share one',
+      hint: 'From a link or a search',
     },
     {
-      id: 'report',
-      label: 'Report',
-      href: '/stats/report',
-      hint: REPORT_HINT,
+      id: 'stats',
+      label: 'Stats',
+      href: '/stats',
+      hint: STATS_HINT,
     },
     ...(linksHint === null
       ? []
@@ -63,7 +63,7 @@ export function profileRows({
       id: 'settings',
       label: 'Settings',
       href: '/settings',
-      hint: `Account, look, on this ${place}, devices`,
+      hint: 'Account, look, devices',
     },
   ]
 }
@@ -148,6 +148,6 @@ export function monthCardSpoken(card: MonthCard | null): string {
   if (!card) return 'Stats'
   const repeat = card.onRepeat ? `, on repeat: ${card.onRepeat.title}` : ''
   return `Stats. ${MONTH_CARD_TITLE}: ${card.listened} listened, ${card.plays} ${
-    card.plays === '1' ? 'play' : 'plays'
+    card.playsCaption
   }, a streak of ${card.streak} ${card.streakUnit}${repeat}`
 }

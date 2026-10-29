@@ -25,11 +25,31 @@ export interface EventSink {
    * string buffer, which has nothing to end.
    */
   end?(): void
+  /**
+   * What is written but not yet sent, where the sink can say — a response's
+   * `writableLength`. A reader that stopped reading (a tab frozen in the
+   * background, a phone gone to sleep with its socket held open) keeps every
+   * frame queued in this process, and with many of them the server's memory
+   * climbed by hundreds of megabytes.
+   */
+  readonly writableLength?: number
 }
+
+/**
+ * How much may wait to go to one stream before it is dropped. The client
+ * reconnects on its own and the replay brings it up to date, so dropping costs
+ * a reader that was not reading nothing.
+ */
+export const MAX_QUEUED_BYTES = 1024 * 1024
 
 interface Subscriber {
   readonly sink: EventSink
-  readonly deviceId: string | null
+  /**
+   * The devices whose commands this stream carries: none for a reader that
+   * only listens, one for a phone, and every tab of a browser, which keeps one
+   * stream between them all (`apps/app/src/ports/events.web.ts`).
+   */
+  readonly deviceIds: ReadonlySet<string>
 }
 
 /** How often to send a comment so proxies do not close an idle stream. */
@@ -77,16 +97,16 @@ export class EventHub {
    * Add a connection. Returns the function that removes it; the route calls
    * that when the response closes.
    */
-  subscribe(sink: EventSink, deviceId: string | null): () => void {
-    const subscriber: Subscriber = { sink, deviceId }
+  subscribe(sink: EventSink, deviceIds: readonly string[]): () => void {
+    const subscriber: Subscriber = { sink, deviceIds: new Set(deviceIds) }
     this.#subscribers.add(subscriber)
     this.#safeWrite(subscriber, encodeSsePreamble())
     this.#ensureKeepalive()
-    this.#logger.debug('event stream opened', { deviceId, open: this.#subscribers.size })
+    this.#logger.debug('event stream opened', { deviceIds, open: this.#subscribers.size })
 
     return () => {
       this.#subscribers.delete(subscriber)
-      this.#logger.debug('event stream closed', { deviceId, open: this.#subscribers.size })
+      this.#logger.debug('event stream closed', { deviceIds, open: this.#subscribers.size })
       if (this.#subscribers.size === 0) this.#stopKeepalive()
     }
   }
@@ -111,12 +131,12 @@ export class EventHub {
     }
   }
 
-  /** Send to every connection of one device. Returns how many got it. */
+  /** Send to every connection that carries one device. Returns how many got it. */
   sendTo(deviceId: string, event: ServerEvent): number {
     const frame = encodeSseEvent(event, this.#nextId++)
     let delivered = 0
     for (const subscriber of this.#subscribers) {
-      if (subscriber.deviceId !== deviceId) continue
+      if (!subscriber.deviceIds.has(deviceId)) continue
       if (this.#safeWrite(subscriber, frame)) delivered++
     }
     return delivered
@@ -139,6 +159,18 @@ export class EventHub {
   }
 
   #safeWrite(subscriber: Subscriber, chunk: string): boolean {
+    if ((subscriber.sink.writableLength ?? 0) > MAX_QUEUED_BYTES) {
+      this.#subscribers.delete(subscriber)
+      this.#logger.debug('event stream not reading; dropped', {
+        deviceIds: [...subscriber.deviceIds],
+      })
+      try {
+        subscriber.sink.end?.()
+      } catch {
+        // Already gone.
+      }
+      return false
+    }
     try {
       subscriber.sink.write(chunk)
       return true

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { IdSchema } from './common.js'
-import { CoverToneSchema } from './song.js'
+import { CameWithSchema, CoverToneSchema } from './song.js'
 
 /**
  * The import pipeline: a URL goes in, a tagged song with lyrics comes out.
@@ -124,11 +124,16 @@ export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
 export const ImportFromSchema = z.enum(['youtube', 'netease', 'spotify', 'list', 'search'])
 export type ImportFrom = z.infer<typeof ImportFromSchema>
 
+/** A link of several pasted that could not be read, and why, in words: the others are still offered. */
+export const UnreadLinkSchema = z.object({ url: z.string(), why: z.string() })
+export type UnreadLink = z.infer<typeof UnreadLinkSchema>
+
 export const ImportPreviewSchema = z.object({
   kind: z.enum(['single', 'playlist']),
   playlistTitle: z.string().nullable(),
   items: z.array(ImportPreviewItemSchema),
   from: ImportFromSchema,
+  unread: z.array(UnreadLinkSchema).default([]),
 })
 
 /**
@@ -159,6 +164,12 @@ export const ImportFoundSchema = z.object({
   duration: z.number().nonnegative(),
   thumbnail: z.string().nullable(),
   sure: z.boolean(),
+  /**
+   * The song was found read the other way round: what was asked as its title
+   * is its artist, and its artist its title ("Lemon - 米津玄師"). The row's names
+   * swap to match.
+   */
+  reversed: z.boolean().default(false),
 })
 export type ImportFound = z.infer<typeof ImportFoundSchema>
 
@@ -238,11 +249,19 @@ export const ImportEnqueueItemSchema = z.object({
   album: z.string().trim().max(300).default(''),
   thumbnail: z.string().nullable().default(null),
   duration: z.number().nonnegative().default(0),
+  /** The friend it came from, for a room's or a share link's Get it. */
+  cameWith: CameWithSchema.optional(),
 })
 export type ImportEnqueueItem = z.infer<typeof ImportEnqueueItemSchema>
 
+/**
+ * The most songs one enqueue names. More — Get it on a share link of a whole
+ * tag — is sent as several (the client's `importEnqueue`).
+ */
+export const IMPORT_ENQUEUE_MAX = 500
+
 export const ImportEnqueueSchema = z.object({
-  items: z.array(ImportEnqueueItemSchema).min(1).max(500),
+  items: z.array(ImportEnqueueItemSchema).min(1).max(IMPORT_ENQUEUE_MAX),
   tagIds: z.array(IdSchema).max(50).default([]),
   /** Optionally drop every imported track into this playlist. */
   playlistId: IdSchema.nullable().default(null),

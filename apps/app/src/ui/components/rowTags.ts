@@ -57,9 +57,15 @@ export function chipBudget({ hasAddButton }: { hasAddButton: boolean }): number 
  * what that line has left once the words have kept enough to be read, and
  * never more than two short chips and a count.
  */
-const UNDER_LANE_MAX = 132
-/** What the artist and the length keep of the line, however many tags the song has. */
-const UNDER_WORDS_MIN = 110
+const UNDER_LANE_MAX = 104
+/**
+ * What the artist and the length keep of the line, however many tags the song
+ * has: room for a short artist, " · 3:44" and the cloud mark. Less, and on a
+ * 390-point phone a long tag left "ZUTOMAYO · 2:…" beside it. With the lane's
+ * cap it makes the lane the same on every phone at least 390 wide, so a
+ * window dragged at phone width redraws no row (`SongRow`).
+ */
+const UNDER_WORDS_MIN = 140
 
 /** Room for the chips on a phone row's second line, in a text column `column` wide. */
 export function underBudget(column: number): number {

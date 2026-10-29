@@ -1,4 +1,5 @@
 import type { QueueState } from '@selfmp3/shared'
+import type { PlayBlock } from '@selfmp3/client'
 import { parseListSource, type ListSource } from '../features/lists/lists.model'
 
 /**
@@ -123,4 +124,24 @@ export function launchPlayback(
     }
   }
   return named === null ? null : { queueIds: [named], index: 0, position: 0, source: null }
+}
+
+/**
+ * What opening the app does with the session `launchPlayback` found, given why
+ * its song cannot start here now (null when it can): load it, paused; wait; or
+ * leave it.
+ *
+ * Out of reach — no connection, or the bucket refusing reads or not answering —
+ * it waits, and comes back once the song can play. A song that would need a
+ * question first (mobile data, streaming turned off) is left rather than
+ * greeting the person with a dialog. Neither is written over: it is still
+ * there for the next open until this one plays something of its own.
+ */
+export function comingBack(
+  launch: SavedSession | null,
+  block: PlayBlock | null,
+): 'load' | 'wait' | 'leave' {
+  if (!launch) return 'leave'
+  if (block === null) return 'load'
+  return block === 'offline' || block === 'held' || block === 'unreachable' ? 'wait' : 'leave'
 }

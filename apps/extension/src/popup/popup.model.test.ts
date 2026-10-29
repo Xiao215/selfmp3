@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import { pageKind } from '../pageKind.js'
 import {
   batchProgress,
-  chipState,
   cleanedFrom,
   comingIn,
   connectionLabel,
@@ -26,7 +25,6 @@ import {
   songNote,
   songRequest,
   taggedLine,
-  tagIdsFor,
   toggleLeftOut,
   type PopupInputs,
 } from './popup.model.js'
@@ -357,19 +355,6 @@ const tag = (id: number, name: string): Tag => ({ id, name, hue: 150, songCount:
 const TAGS = [tag(1, 'new'), tag(2, 'j-pop'), tag(3, 'chill')]
 
 describe('tags, and never a playlist', () => {
-  it('keeps a default tag on, and lets the others be picked', () => {
-    expect(chipState(1, [1], new Set())).toBe('fixed')
-    expect(chipState(1, [1], new Set([1]))).toBe('fixed')
-    expect(chipState(2, [1], new Set([2]))).toBe('on')
-    expect(chipState(3, [1], new Set([2]))).toBe('off')
-    expect(chipState(2, undefined, new Set())).toBe('off')
-  })
-
-  it('sends the defaults and the picked together, once each', () => {
-    expect([...tagIdsFor([1], new Set([2, 1]))].sort()).toEqual([1, 2])
-    expect([...tagIdsFor(undefined, new Set([3]))]).toEqual([3])
-  })
-
   it('makes a new tag only of a name that is not there yet, in any case', () => {
     expect(newTagFrom('   ', TAGS)).toEqual({ kind: 'empty' })
     expect(newTagFrom(' J-Pop ', TAGS)).toEqual({ kind: 'existing', tag: TAGS[1] })

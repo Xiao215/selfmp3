@@ -1,0 +1,127 @@
+# The Android app for friends: built, signed with the app's own key and put on
+# the `android` release, where the install page and the installed apps find it
+# (docs/MOBILE.md, "Sharing the Android app").
+#
+# When ios.yml builds, for the same reasons: on every push that changes the
+# app, one build at a time with only the newest push waiting; nightly when the
+# app has changed since the build on the release; and from "Run workflow". No
+# Mac needed: Android builds on Linux, with the SDK the runner already has.
+# The key is the repository's secrets ANDROID_KEYSTORE (the keystore, base64)
+# and ANDROID_KEYSTORE_PASSWORD.
+
+name: Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/app/**'
+      - 'packages/**'
+      - 'package-lock.json'
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: android
+  cancel-in-progress: false
+
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.since.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: since
+        name: Has the app changed since the build on the release?
+        env:
+          EVENT: ${{ github.event_name }}
+          LATEST: https://github.com/${{ github.repository }}/releases/download/android/android.json
+        run: |
+          published=$(curl -fsSL "$LATEST" | jq -r '.commit // empty' || true)
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "Asked for by hand."
+            echo build=true >> "$GITHUB_OUTPUT"
+          elif [ -z "$published" ]; then
+            echo "Nothing on the release yet."
+            echo build=true >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$published" HEAD -- apps/app packages package-lock.json 2>/dev/null; then
+            echo "The app is as it was at ${published:0:8}; nothing to build."
+            echo build=false >> "$GITHUB_OUTPUT"
+          else
+            echo "The app has changed since ${published:0:8}."
+            echo build=true >> "$GITHUB_OUTPUT"
+          fi
+
+  check:
+    needs: changed
+    if: needs.changed.outputs.build == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check.yml
+
+  build:
+    needs: [changed, check]
+    if: needs.changed.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      # The release, and moving its tag to the commit built.
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # All of it: the build number is the commit count (app.config.js), and
+          # a shallow clone would count one.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build:packages
+
+      - name: Put the key where the build reads it
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ANDROID_KEYSTORE" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "::error::No signing key. Set ANDROID_KEYSTORE and ANDROID_KEYSTORE_PASSWORD (docs/MOBILE.md, \"Sharing the Android app\")."
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/release.p12"
+          jq -n --arg file "$RUNNER_TEMP/release.p12" --arg password "$ANDROID_KEYSTORE_PASSWORD" \
+            '{storeFile: $file, storePassword: $password, keyAlias: "selfmp3", keyPassword: $password}' \
+            > "$RUNNER_TEMP/release.json"
+
+      - name: Build, sign and publish
+        working-directory: apps/app
+        env:
+          SELFMP3_ANDROID_SIGNING: ${{ runner.temp }}/release.json
+          SELFMP3_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+          SELFMP3_SERVER_URL: ${{ vars.SERVER_URL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # AGP 8.12 wants JDK 17 or later; the runner's default may be older.
+          export JAVA_HOME="${JAVA_HOME_21_X64:-${JAVA_HOME_17_X64:-$JAVA_HOME}}"
+          node scripts/android-release.mjs --publish
+
+      - name: Let the key go
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.p12" "$RUNNER_TEMP/release.json"

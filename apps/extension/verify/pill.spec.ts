@@ -63,6 +63,7 @@ async function watch(url: string): Promise<Page> {
 test('connect the extension first', async () => {
   const page = await extension.context.newPage()
   await page.goto(extensionPage('options.html'))
+  await page.getByText('Connect by address instead').click()
   await page.getByLabel('Address').fill(server.url)
   // The address alone first: this fake server has a token, so it refuses once
   // and the field to answer with appears (popup.spec.ts covers that properly).

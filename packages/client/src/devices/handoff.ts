@@ -85,3 +85,35 @@ export function shortDeviceName(name: string): string {
   const [first] = name.split('·')
   return (first ?? name).trim() || name
 }
+
+/**
+ * What to call each device on one list, by id: short where that is enough,
+ * and told apart where it is not.
+ *
+ * Every browser is called "Mac · Chrome" until it is renamed, and its other
+ * tabs "Mac · Chrome · tab 2", so the short names alone made every row of
+ * Play on… read "Mac" (R3-m2). A short name another row shares keeps its
+ * browser and tab; a whole name two devices share is numbered after the
+ * first by id, so every device numbers them alike.
+ */
+export function deviceLabels(
+  devices: readonly Pick<Device, 'id' | 'name'>[],
+): ReadonlyMap<string, string> {
+  const short = (device: Pick<Device, 'name'>): string => shortDeviceName(device.name)
+  const whole = (device: Pick<Device, 'name'>): string => device.name.trim() || device.name
+  const labels = new Map<string, string>()
+  for (const device of devices) {
+    const shared = devices.filter(other => short(other) === short(device))
+    if (shared.length === 1) {
+      labels.set(device.id, short(device))
+      continue
+    }
+    const same = shared
+      .filter(other => whole(other) === whole(device))
+      .map(other => other.id)
+      .sort()
+    const at = same.indexOf(device.id)
+    labels.set(device.id, at === 0 ? whole(device) : `${whole(device)} ${at + 1}`)
+  }
+  return labels
+}

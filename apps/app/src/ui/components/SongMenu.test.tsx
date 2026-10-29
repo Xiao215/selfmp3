@@ -1,8 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react-native'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Song } from '@selfmp3/shared'
 
 import { OverlayProvider } from '../../shell/Overlay'
+import { sendPending } from '../toast'
 import { SongMenu } from './SongMenu'
 
 /**
@@ -24,6 +26,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) 
 const mockDeleteSong = jest.fn()
 const mockForgetSongs = jest.fn()
 const mockRemoveByHand = jest.fn(() => Promise.resolve())
+const mockHoldLeaving = jest.fn()
 const mockDropDownloads = jest.fn(() => Promise.resolve())
 let mockIndex: { version: 1; entries: Record<string, unknown> }
 
@@ -32,6 +35,7 @@ jest.mock('@selfmp3/client', () => ({
   useLibrary: () => ({ data: { songs: [], playlists: [], tags: [] } }),
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
   useBulkLoved: () => ({ mutate: jest.fn() }),
+  useRestSongs: () => ({ mutate: jest.fn(), mutateAsync: jest.fn() }),
   useCreatePlaylist: () => ({ mutateAsync: jest.fn() }),
   useBulkDeleteSongs: () => ({ mutate: mockDeleteSong, isPending: false }),
   useToggleLoved: () => ({ mutate: jest.fn() }),
@@ -46,6 +50,7 @@ jest.mock('../../offline/DownloadsProvider', () => ({
     installed: true,
     requestDownload: jest.fn(),
     removeByHand: mockRemoveByHand,
+    holdLeaving: mockHoldLeaving,
     dropDownloads: mockDropDownloads,
   }),
   useDownloadProgress: () => ({ activeSongId: null, bytesWritten: 0, totalBytes: 0 }),
@@ -67,6 +72,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
@@ -80,6 +86,7 @@ const SONG = {
   duration: 224,
   sizeBytes: 4_000_000,
   loved: false,
+  restUntil: null,
   tagIds: [],
 } as unknown as Song
 
@@ -101,11 +108,14 @@ const draw = (
   } = {},
 ) =>
   render(
-    <SafeAreaProvider initialMetrics={METRICS}>
-      <OverlayProvider>
-        <SongMenu song={song} onClose={onClose} context={context} extras={extras} />
-      </OverlayProvider>
-    </SafeAreaProvider>,
+    // A removal reads the library from the cache as it is made.
+    <QueryClientProvider client={new QueryClient()}>
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <OverlayProvider>
+          <SongMenu song={song} onClose={onClose} context={context} extras={extras} />
+        </OverlayProvider>
+      </SafeAreaProvider>
+    </QueryClientProvider>,
   )
 
 /** The words inside an element, as a reader would hear its name. */
@@ -149,7 +159,9 @@ describe('what the menu offers', () => {
       /^Add to playlist/,
       /^Add to Up next$/,
       /^Play similar songs$/,
+      /^Show on the map$/,
       /^Download$/,
+      /^Rest for a month$/,
       /^Song details$/,
       /^Delete from library…$/,
     ]
@@ -160,17 +172,21 @@ describe('what the menu offers', () => {
     expect(screen.queryByRole('menuitem', { name: 'Select' })).toBeNull()
   })
 
-  it('on Now Playing, leaves out what the page shows and ends with the sleep timer and Devices', async () => {
+  it('on a phone’s Now Playing, leaves out what the page shows and ends with the sleep timer and Devices', async () => {
     const onSleep = jest.fn()
     const onDevices = jest.fn()
     await draw(undefined, { context: 'nowPlaying', extras: { onSleep, onDevices } })
 
-    // The page has the heart, the tags and ⓘ, and the song is already playing.
+    // The page has the heart and the tags, and the song is already playing;
+    // its head has no ⓘ, so the menu keeps Song details.
     expect(screen.queryByRole('button', { name: 'Like' })).toBeNull()
     const order = [
       /^Add to playlist/,
       /^Play similar songs$/,
+      /^Show on the map$/,
       /^Download$/,
+      /^Rest for a month$/,
+      /^Song details$/,
       /^Sleep timer/,
       /^Devices$/,
       /^Delete from library…$/,
@@ -194,7 +210,9 @@ describe('what the menu offers', () => {
     const order = [
       /^Add to playlist/,
       /^Play similar songs$/,
+      /^Show on the map$/,
       /^Download$/,
+      /^Rest for a month$/,
       /^Delete from library…$/,
     ]
     const names = itemNames()
@@ -254,10 +272,10 @@ describe('removing a song where the copy goes with it', () => {
     // The menu goes, and the question is one press in a dialog, not a second
     // state of the menu. It draws through the overlay host a tick later.
     expect(onClose).toHaveBeenCalled()
-    expect(await screen.findByText('Delete “Nocturne” from your library?')).toBeTruthy()
+    expect(await screen.findByText('Delete this song?')).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: 'Remove from library' })).toBeNull()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Delete song' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete' }))
     expect(mockDropDownloads).toHaveBeenCalledWith([4])
     expect(mockForgetSongs).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).toHaveBeenCalledWith({ songIds: [4] }, expect.anything())
@@ -267,7 +285,11 @@ describe('removing a song where the copy goes with it', () => {
     await draw()
 
     await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from this phone' }))
-    expect(mockRemoveByHand).toHaveBeenCalledWith([4])
+    // Drawn gone at once, and only removed once its Undo has gone.
+    expect(mockHoldLeaving).toHaveBeenCalledWith([4], true)
+    expect(mockRemoveByHand).not.toHaveBeenCalled()
+    sendPending()
+    await waitFor(() => expect(mockRemoveByHand).toHaveBeenCalledWith([4]))
     expect(mockDeleteSong).not.toHaveBeenCalled()
   })
 })

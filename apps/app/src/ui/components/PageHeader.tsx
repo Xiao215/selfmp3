@@ -2,10 +2,12 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { space, type } from '@selfmp3/client'
+import { radius, space, type } from '@selfmp3/client'
 import { usePageBack } from '../useBackTo'
 import { pageTitle, TITLE_UNDER_BACK } from '../surfaces'
 import { BackButton, type BackProps } from './BackButton'
+import { Bone, Skeleton } from './Skeleton'
+import { FIT_LINE } from '../textScale'
 
 /**
  * The head of a page (J1): the way back on its own line, the page's name
@@ -21,6 +23,9 @@ import { BackButton, type BackProps } from './BackButton'
  * The name is the display face (`pageTitle`) on every page, a thing's name as
  * well as the app's own: the serif is for a person's name and big numbers.
  *
+ * `subtitleLoading` holds the line's place with a quiet shape while what it
+ * would count is on its way (AA1).
+ *
  * `back` is the way back's props (`BackButton`); left out, there is none.
  * `beside` sits right after the name on its line — Stats' window menu on a
  * phone. `subtitle` is set in the subtitle's face; a page that needs part of
@@ -30,6 +35,7 @@ export function PageHeader({
   title,
   subtitle,
   subtitleTestID,
+  subtitleLoading = false,
   back,
   actions,
   beside,
@@ -40,6 +46,7 @@ export function PageHeader({
   title: string
   subtitle?: ReactNode
   subtitleTestID?: string
+  subtitleLoading?: boolean
   back?: BackProps
   actions?: ReactNode
   beside?: ReactNode
@@ -62,13 +69,23 @@ export function PageHeader({
       ) : null}
       <View>
         <View style={styles.row}>
-          <Text style={styles.title} numberOfLines={titleLines} accessibilityRole="header">
+          <Text
+            style={styles.title}
+            // One line is set smaller rather than cut, as the largest text
+            // sizes cut "Library" to "Libra…" (AM1).
+            {...(titleLines === 1 ? FIT_LINE : { numberOfLines: titleLines })}
+            accessibilityRole="header"
+          >
             {title}
           </Text>
           {beside}
           {backShown ? null : buttons}
         </View>
-        {subtitle === undefined || subtitle === null ? null : (
+        {subtitleLoading ? (
+          <Skeleton style={styles.subWaiting}>
+            <Bone width={72} height={11} radius={radius.pill} />
+          </Skeleton>
+        ) : subtitle === undefined || subtitle === null ? null : (
           <Text style={styles.sub} testID={subtitleTestID}>
             {subtitle}
           </Text>
@@ -87,4 +104,6 @@ const styles = StyleSheet.create(theme => ({
   // At the far end of the line, whatever is before them.
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginLeft: 'auto' },
   sub: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 3 },
+  // The line's own height: 13 points of words in a box a few taller.
+  subWaiting: { paddingTop: 6, paddingBottom: 2 },
 }))

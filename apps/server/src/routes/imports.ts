@@ -320,8 +320,7 @@ export function importRoutes(container: Container): Router {
    * Share-sheet import: probe and enqueue in one request.
    *
    * iOS has no Web Share Target, so a Shortcut posts the shared link here and
-   * gets the created jobs back. The default import tags from settings are
-   * applied so the result matches what the interactive flow would have done.
+   * gets the created jobs back.
    */
   router.post(
     '/import/share',
@@ -333,10 +332,7 @@ export function importRoutes(container: Container): Router {
       }
 
       const fresh = freshOf(items)
-      const settings = container.settings.get()
-      const tagIds = container.tags.exists([
-        ...new Set([...body.tagIds, ...settings.defaultImportTagIds]),
-      ])
+      const tagIds = container.tags.exists([...new Set(body.tagIds)])
       // Skipped counts everything the link held that was not queued now: the
       // songs the preview found in the library as well as the ones `freshOf` left out.
       return {

@@ -5,7 +5,7 @@ import { SMART_NOTES_MAX } from '@selfmp3/shared'
 import { space, useSettings, useUpdateSettings, textStyle } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
-import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
+import { AnswerActions, AnswerHead, AnswerLine, CLOSED } from './AnswerParts'
 import { useSmartServer } from './useSmartServer'
 
 /**
@@ -14,11 +14,18 @@ import { useSmartServer } from './useSmartServer'
  * saved only when you say so. Settings › Smart features lists them, to take
  * one away.
  */
-export function RememberAnswer({ note, onDone }: { note: string; onDone: () => void }): ReactNode {
+export function RememberAnswer({
+  note,
+  onDone,
+}: {
+  note: string
+  /** Done with: remembered, or not. */
+  onDone: (outcome?: string) => void
+}): ReactNode {
   // The notes are the library's settings, kept by the server Ask asked.
-  const { api } = useSmartServer()
-  const { data: settings } = useSettings(api)
-  const update = useUpdateSettings(api)
+  const { api, baseUrl } = useSmartServer()
+  const { data: settings } = useSettings(api, baseUrl)
+  const update = useUpdateSettings(api, baseUrl)
   const notes = settings?.smartNotes ?? []
   const saved = notes.some(each => each.toLowerCase() === note.toLowerCase())
   const full = notes.length >= SMART_NOTES_MAX
@@ -29,7 +36,7 @@ export function RememberAnswer({ note, onDone }: { note: string; onDone: () => v
       {
         onSuccess: () => {
           showToast('Ask will remember that', 'good')
-          onDone()
+          onDone(`Remembered “${note}”`)
         },
       },
     )
@@ -47,7 +54,7 @@ export function RememberAnswer({ note, onDone }: { note: string; onDone: () => v
             : 'Sent with each request from now on. Settings › Smart features lists what Ask remembers, to take any of it away.'}
       </AnswerLine>
       <AnswerActions>
-        <Button label="Not now" onPress={onDone} />
+        <Button label="Not now" onPress={() => onDone(CLOSED)} />
         <Button
           label="Remember"
           variant="primary"

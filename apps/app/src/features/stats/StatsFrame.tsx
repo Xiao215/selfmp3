@@ -5,7 +5,7 @@ import { Animated } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Button } from '../../ui/components/Button'
 import { NavRow } from '../../ui/components/NavRow'
@@ -101,7 +101,7 @@ export function StatsFrame({
   testID: string
   children: ReactNode
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const options = STATS_PERIODS.map(option => ({ value: option, label: periodLabel(option) }))
 
   return (

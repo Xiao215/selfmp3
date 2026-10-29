@@ -19,8 +19,15 @@ export function weekdayName(weekday: number): string {
   return WEEKDAYS[weekday] ?? '—'
 }
 
+/** The minutes as the big number: "330", or "<1" for a few seconds of listening. */
 export function figure(minutes: number): string {
-  return Math.round(minutes).toLocaleString()
+  const whole = Math.round(minutes)
+  return whole === 0 && minutes > 0 ? '<1' : whole.toLocaleString()
+}
+
+/** The word under `figure`: "<1 minute" and "1 minute", "372 minutes". */
+export function minuteWord(minutes: number): string {
+  return Math.round(minutes) <= 1 && minutes > 0 ? 'minute' : 'minutes'
 }
 
 /** An empty window is almost always the wrong one: the longer ones are offered. */

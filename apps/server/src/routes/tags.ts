@@ -50,12 +50,15 @@ export function tagRoutes(container: Container): Router {
     }),
   )
 
-  /** Deleting a tag never touches the songs that carried it. */
+  /**
+   * Deleting a tag never touches the songs that carried it; the playlists that
+   * follow it let go of it (`TagRemoval`).
+   */
   router.delete(
     '/tags/:id',
     route({ params: ParamsWithId }, ({ params }): Ok => {
       if (!container.tags.byId(params.id)) throw HttpError.notFound('no such tag')
-      container.tags.delete(params.id)
+      container.tagRemoval.remove(params.id)
       container.bumpLibraryVersion()
       return { ok: true }
     }),
@@ -66,8 +69,12 @@ export function tagRoutes(container: Container): Router {
     '/tags/bulk',
     route({ body: BulkTagSchema }, ({ body }): Affected => {
       if (!container.tags.byId(body.tagId)) throw HttpError.notFound('no such tag')
-      const affected = container.tags.bulk(body.songIds, body.tagId, body.action)
-      container.edits.tagOnSongs(body.tagId, body.songIds)
+      // A song removed since the selection was made is skipped, as adding to a
+      // playlist skips it, rather than failing the rest on its foreign key.
+      const present = container.songs.existingIds(body.songIds)
+      const songIds = body.songIds.filter(id => present.has(id))
+      const affected = container.tags.bulk(songIds, body.tagId, body.action)
+      container.edits.tagOnSongs(body.tagId, songIds)
       container.bumpLibraryVersion()
       return { affected }
     }),

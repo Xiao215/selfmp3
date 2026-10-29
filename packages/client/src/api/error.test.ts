@@ -22,6 +22,28 @@ describe('failureText', () => {
     )
   })
 
+  it('keeps why the model did not answer, whatever its status', () => {
+    const unreachable = new ApiError(502, 'Your server couldn’t reach the model.', 'ai_unreachable')
+    expect(failureText('Couldn’t answer that', unreachable)).toBe(
+      'Couldn’t answer that: Your server couldn’t reach the model.',
+    )
+    const off = new ApiError(503, 'Smart features aren’t set up on your server.', 'ai_off')
+    expect(failureText('Couldn’t write it', off)).toBe(
+      'Couldn’t write it: Smart features aren’t set up on your server.',
+    )
+  })
+
+  it('keeps a full disk or a busy database as the server said it', () => {
+    const full = new ApiError(507, 'the server’s disk is full', 'disk_full')
+    expect(failureText('Couldn’t make that tag', full)).toBe(
+      'Couldn’t make that tag: the server’s disk is full',
+    )
+    const busy = new ApiError(503, 'the server is busy, try again in a moment', 'database_busy')
+    expect(failureText('Couldn’t make that tag', busy)).toBe(
+      'Couldn’t make that tag: the server is busy, try again in a moment',
+    )
+  })
+
   it('stops at the failure for a server error, a bad shape or a thrown exception', () => {
     const failures = [
       new ApiError(500, 'POST /api/playlists failed (500)'),

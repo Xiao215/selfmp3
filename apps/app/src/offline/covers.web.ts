@@ -1,5 +1,14 @@
+import { API_CACHE } from '../../sw/names'
+import { bucketPictureAddress } from '../ports/bucketMedia'
 import { coverFiles } from '../ports/coverFiles'
-import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from './coverStore'
+import { namesDigest } from './coverPacks'
+import {
+  createCoverStore,
+  fanOfCovers,
+  parseServedName,
+  type CoverPlatform,
+  type PackSink,
+} from './coverStore'
 
 /**
  * Cover art from the bucket, for the platforms Metro calls web: the installed
@@ -12,13 +21,74 @@ import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from
  *
  * In the installed app it is: `coverFiles` puts it in the shell's covers folder
  * and `app://selfmp3/_media/covers/…` serves it back. In a tab there is no such
- * place, so `coverFiles` is null, `canKeep` is false, and every export here
- * becomes the nothing a browser has always done — a cloud library's rows keep
- * their letter tiles, and a server's covers are drawn from the server's own
- * address, which needs no file.
+ * place, so `coverFiles` is null and `canKeep` is false: the service worker
+ * attaches the header and draws each cover from an address of its own
+ * (sw/sw.ts), and a server's covers are drawn from the server's. What a tab
+ * does keep is what the packs bring (`tabPictures`).
  *
  * What to do about a cover is offline/coverStore.ts, shared with the phone.
  */
+
+/**
+ * Where a tab puts the pictures of a pack of covers: the service worker's
+ * covers cache, under the `api/bucket/<key>` address it answers a bucket
+ * picture at, which is where it looks for a song's cover before the bucket
+ * (sw/sw.ts). A tab keeps no files, but with this a cloud library's covers
+ * are a few reads for the whole library rather than one a row. Null where no
+ * worker answers those addresses.
+ *
+ * Kept, they are let go by the rules a computer's folder is: the sweep takes
+ * the pictures the library no longer names, and signing out takes them all,
+ * with every cover the worker kept (`remove`, `forgetFiles`) — the worker keeps one
+ * version of a song's cover, but never looks back at a picture under its key.
+ */
+interface TabPictures extends PackSink {
+  readonly remove: (name: string) => Promise<void>
+}
+
+function tabPictures(): TabPictures | null {
+  if (typeof caches === 'undefined' || bucketPictureAddress('covers/') === null) return null
+  const addressOf = (name: string): string =>
+    new URL(bucketPictureAddress(`covers/${name}`) ?? '', location.origin).href
+  const have = async (): Promise<readonly string[]> => {
+    const cache = await caches.open(API_CACHE)
+    const prefix = addressOf('')
+    return (await cache.keys()).flatMap(request =>
+      request.url.startsWith(prefix) ? [request.url.slice(prefix.length)] : [],
+    )
+  }
+  return {
+    have,
+    unpack: async (url, headers, slices) => {
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`the bucket answered ${response.status}`)
+      const pack = new Uint8Array(await response.arrayBuffer())
+      const cache = await caches.open(API_CACHE)
+      for (const slice of slices) {
+        if (slice.at + slice.size > pack.length) continue
+        const bytes = pack.slice(slice.at, slice.at + slice.size)
+        if (!namesDigest(slice.name, await crypto.subtle.digest('SHA-256', bytes))) continue
+        await cache.put(
+          addressOf(slice.name),
+          new Response(bytes, { headers: { 'content-type': pictureType(slice.name) } }),
+        )
+      }
+    },
+    remove: async name => {
+      await (await caches.open(API_CACHE)).delete(addressOf(name))
+    },
+  }
+}
+
+/** What a picture's extension says it is, for the worker to answer it with. */
+function pictureType(name: string): string {
+  const extension = name.slice(name.lastIndexOf('.') + 1)
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg'
+  return `image/${extension}`
+}
+
+/** A tab's, where there is no folder to keep covers in. */
+const tab = coverFiles ? null : tabPictures()
 
 const platform: CoverPlatform = {
   canKeep: () => coverFiles !== null,
@@ -49,10 +119,10 @@ const platform: CoverPlatform = {
     return (await files.has(name)) ? files.uriFor(name) : null
   },
 
-  listCloud: async () => (await coverFiles?.list()) ?? [],
+  listCloud: async () => (coverFiles ? coverFiles.list() : ((await tab?.have()) ?? [])),
 
   removeCloud: async name => {
-    await coverFiles?.remove(name)
+    await (coverFiles ?? tab)?.remove(name)
   },
 
   keepCloud: async (name, url, headers) => {
@@ -71,7 +141,21 @@ const platform: CoverPlatform = {
 
   forgetFiles: async () => {
     await coverFiles?.forget()
+    // The whole of the worker's covers cache, not only the packs' pictures:
+    // the worker keeps every cover it drew there too (`/api/art/<id>`), and
+    // none of it may outlive the account on a computer someone else signs in
+    // to next.
+    if (typeof caches !== 'undefined') await caches.delete(API_CACHE)
   },
+
+  packs: coverFiles
+    ? {
+        have: () => coverFiles?.list() ?? Promise.resolve([]),
+        unpack: async (url, headers, slices) => {
+          await coverFiles?.unpack(url, headers, slices)
+        },
+      }
+    : (tab ?? undefined),
 }
 
 /**
@@ -92,8 +176,7 @@ export async function keptCovers(limit: number): Promise<readonly string[]> {
   const files = coverFiles
   if (!files) return []
   try {
-    const names = (await files.list()).filter(isPicture)
-    return names.slice(0, limit).map(name => files.uriFor(name))
+    return fanOfCovers(await files.list(), limit).map(name => files.uriFor(name))
   } catch {
     return []
   }
@@ -113,6 +196,7 @@ export const {
   keepLent,
   holdPictures,
   sweepPictures,
+  fillFromPacks,
   forgetCovers,
 } = createCoverStore(platform)
 export { KEPT_COVER_SIZE } from './coverStore'

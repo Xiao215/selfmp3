@@ -7,11 +7,26 @@ import { Button } from '../../ui/components/Button'
 import { useSongsById } from '../../ui/songsById'
 import { showUndoToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
-import { Review, reviewText, songCount, type ReviewRowState } from './Review'
-import { tagChangesHere, tagSection, tagSteps, type TagHere } from './smart.model'
+import {
+  Review,
+  ReviewTag,
+  reviewText,
+  songCount,
+  type ReviewRowState,
+  type ShortReview,
+} from './Review'
+import {
+  tagChangesHere,
+  tagCounter,
+  tagsApply,
+  tagsTitle,
+  tagSection,
+  tagSteps,
+  type TagHere,
+} from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { useTagChanges } from './useTagChanges'
-import { AnswerLine, AnswerNote } from './AnswerParts'
+import { AnswerLine, AnswerNote, CLOSED } from './AnswerParts'
 
 /**
  * Tags (docs/features/ai.md): changes to your tags, for a yes or no each —
@@ -27,11 +42,15 @@ export function TagsReview({
   height,
   onClose,
   onKeys,
+  card = false,
 }: {
   review: TagReview
   /** How tall the list may grow before it scrolls. */
   height: number
-  onClose?: () => void
+  /** Done with: what was changed, or that nothing changed. */
+  onClose?: (outcome?: string) => void
+  /** Ask's card (`Review`). */
+  card?: boolean
   /** Given the keys while this is drawn, and null when it goes. */
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
@@ -43,6 +62,9 @@ export function TagsReview({
     () => tagChangesHere(review.changes, server.onDevice, songsById, library?.tags ?? []),
     [review.changes, server.onDevice, songsById, library?.tags],
   )
+  // One count everywhere on the review: its songs, or its changes when a tag itself changes.
+  const count = useMemo(() => tagCounter(here), [here])
+  const ops = here.map(each => each.change.op)
 
   const notes: string[] = []
   if (review.note) notes.push(review.note)
@@ -65,7 +87,7 @@ export function TagsReview({
         ))}
         {onClose ? (
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <Button label="Close" onPress={onClose} />
+            <Button label="Close" onPress={() => onClose(CLOSED)} />
           </View>
         ) : null}
       </View>
@@ -75,7 +97,7 @@ export function TagsReview({
   const apply = async (
     approved: readonly TagHere[],
     leftOut: ReadonlySet<string>,
-  ): Promise<boolean> => {
+  ): Promise<boolean | string> => {
     const steps = tagSteps(approved, leftOut, library?.songs ?? [], library?.playlists ?? [])
     if (steps.length === 0) return false
     const done = await change(steps)
@@ -85,11 +107,11 @@ export function TagsReview({
       showUndoToast('Some of the changes were made', done.undo, { tone: 'warn', after })
       return false
     }
-    showUndoToast(`Made ${plural(approved.length, 'change', 'changes')} to your tags`, done.undo, {
-      tone: 'good',
-      after,
-    })
-    return true
+    const made = ops.every(op => op === 'add' || op === 'remove')
+      ? `Changed the tags on ${songCount(count(approved, leftOut))}`
+      : `Made ${plural(approved.length, 'change', 'changes')} to your tags`
+    showUndoToast(made, done.undo, { tone: 'good', after })
+    return made
   }
 
   const meta = (each: TagHere, state: ReviewRowState): string => {
@@ -112,16 +134,74 @@ export function TagsReview({
     }
   }
 
+  // A handful on Ask's card, one line each (AD1): "Glass To Rum Raisin → live".
+  const songsOf = (each: TagHere): string => {
+    const first = songsById.get(each.songIds[0]!)
+    if (!first) return plural(each.songIds.length, 'song', 'songs')
+    return each.songIds.length > 1
+      ? `${first.title} and ${each.songIds.length - 1} more`
+      : first.title
+  }
+  const short: ShortReview<TagHere> = {
+    title: list => tagsTitle(ops, count(list)),
+    song: each => songsById.get(each.songIds[0]!),
+    why: each => each.change.why,
+    apply: (approved, leftOut) => tagsApply(ops, count(approved, leftOut)),
+    line: each => {
+      const { change: c } = each
+      const hue = each.tag?.hue
+      const songs =
+        each.songIds.length > 0 ? (
+          <Text style={[reviewText.name, reviewText.song]} numberOfLines={1}>
+            {songsOf(each)}
+          </Text>
+        ) : null
+      const arrow = <Text style={reviewText.arrow}>→</Text>
+      switch (c.op) {
+        case 'add':
+          return (
+            <>
+              {songs}
+              {arrow}
+              <ReviewTag name={each.tag ? c.tag : `${c.tag} (new)`} hue={hue} />
+            </>
+          )
+        case 'remove':
+          return (
+            <>
+              {songs}
+              {arrow}
+              <ReviewTag name={c.tag} hue={hue} gone />
+            </>
+          )
+        case 'rename':
+        case 'merge':
+          return (
+            <>
+              <ReviewTag name={c.tag} hue={hue} gone />
+              {arrow}
+              <ReviewTag name={c.to ?? ''} hue={each.into?.hue ?? hue} />
+            </>
+          )
+        case 'delete':
+          return <ReviewTag name={c.tag} hue={hue} gone />
+      }
+    },
+  }
+
   return (
     <Review
+      card={card}
+      short={short}
       changes={here}
       // A change on one song has nothing to open, so its song shows from the start.
       openAtFirst={here.filter(each => each.songIds.length === 1).map(each => each.change.key)}
       sectionOf={each => tagSection(each.change)}
+      countOf={count}
       head={
         review.asked !== null
-          ? `${plural(here.length, 'change', 'changes')} to your tags`
-          : `${plural(here.length, 'suggestion', 'suggestions')} for ${songCount(review.looked)} without a tag`
+          ? tagsTitle(ops, count(here))
+          : `Tags for ${count(here)} of your ${songCount(review.looked)} without a tag`
       }
       notes={notes}
       bandText={{
@@ -181,9 +261,7 @@ export function TagsReview({
         }
       }}
       songLine={song => artistOr(song.artist)}
-      applyLabel={approved =>
-        approved.length === 0 ? 'Apply' : `Apply ${plural(approved.length, 'change', 'changes')}`
-      }
+      applyLabel={(approved, leftOut) => tagsApply(ops, count(approved, leftOut))}
       keyWord="apply"
       onApply={apply}
       height={height}

@@ -14,6 +14,7 @@ import {
   DoormanListSchema,
   HlcClock,
   HlcSchema,
+  LOG_FILE_MAX_CHANGES,
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
   applyChanges,
@@ -27,15 +28,20 @@ import {
   toSqliteTime,
   unfoldedLogKeys,
   type Change,
+  type CloudCoverPack,
   type CloudSnapshot,
   type LibraryVersion,
   type LogFile,
   type SyncLibrary,
   type SyncManifest,
   MotionSchema,
+  parseCloudWords,
   type Motion,
   type RoomSong,
   decodeSoundPack,
+  parseSoundMap,
+  type MapPlace,
+  type SoundMap,
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
 import { bucketHold } from './hold.js'
@@ -87,8 +93,11 @@ const PLAYED_KEY = 'cloud-playlists-played'
  * bucket counts listings against a daily allowance (docs/SYNC.md, "Caps"): a
  * look every minute or so, from one open tab, was most of the allowance on its
  * own. So a device that has no counter to go by looks a good deal less often.
+ * One that has looks every twenty seconds: the counter costs the bucket
+ * nothing, and a song deleted on another device went on playing here for two
+ * minutes at a minute's wait.
  */
-const FRESH_MS = 60_000
+const FRESH_MS = 20_000
 const LISTED_FRESH_MS = 5 * 60_000
 /**
  * A counter that has not moved stands in for a listing for at most this long:
@@ -99,6 +108,12 @@ const COUNTER_TRUSTED_MS = 30 * 60_000
 /** Edits made within this long of each other go up as one file. */
 const FLUSH_DELAY_MS = 1_500
 const FLUSH_RETRY_MS = [5_000, 15_000, 60_000, 300_000]
+/**
+ * How long after another tab's edit this one sends what that tab left: well
+ * after that tab would have sent it itself, so two open tabs do not both send
+ * every edit — the second finds the outbox empty and asks the doorman nothing.
+ */
+const OTHERS_FLUSH_DELAY_MS = 10_000
 const LOG_READS_AT_ONCE = 6
 
 /**
@@ -121,6 +136,16 @@ const StoredLookSchema = z.object({
 type Look = z.infer<typeof StoredLookSchema>
 
 const NEVER_LOOKED: Look = { checkedAt: 0, listedAt: 0, changes: null }
+
+/**
+ * Whether a moment is less than `ms` ago. One after now is not: the clock was
+ * put back since (a fast clock corrected, a wrong date fixed), and taking it
+ * for recent kept a look from being due again until the clock caught up — a
+ * tab that saw no other device's edit for an hour, or a day.
+ */
+function within(at: number, ms: number, now = Date.now()): boolean {
+  return at <= now && now - at < ms
+}
 
 /** The outbox's envelope; each change in it is checked on its own (`knownChanges`). */
 const StoredOutboxSchema = z.object({
@@ -246,8 +271,22 @@ export interface CloudLibraryApi {
   /** A playlist was started: this device's "Recently played" order. False for one it does not have. */
   markPlaylistPlayed: (session: CloudSession, playlistId: number) => Promise<boolean>
   pendingCloudChanges: () => number
+  /**
+   * Whether those are waiting because sending them failed — the bucket
+   * refusing writes, a network that answers nothing — and not just because
+   * they were made a moment ago. Retried by itself; true until a send goes up.
+   */
+  cloudChangesStuck: () => boolean
+  /**
+   * The same, read from what this device keeps rather than the library in
+   * memory: for a device with none open — signed out by the doorman, and
+   * opened again — whose outbox is kept for the next sign-in.
+   */
+  keptCloudChanges: () => Promise<number>
   flushCloudChanges: () => Promise<void>
   cloudPlaylistSongs: (playlistId: number) => Promise<readonly number[]>
+  /** Every playlist's songs, by playlist id, brought up to date once. */
+  cloudAllPlaylistSongs: () => Promise<Readonly<Record<number, readonly number[]>>>
   cloudLyrics: (
     session: CloudSession | null,
     songId: number,
@@ -275,6 +314,8 @@ export interface CloudLibraryApi {
   cloudPicturesNow: () => {
     readonly covers: ReadonlySet<string>
     readonly artists: readonly ArtistPictureKeys[]
+    /** The same pictures, packed a few megabytes to a file, for filling a device from nothing. */
+    readonly packs: readonly CloudCoverPack[]
   } | null
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
   /**
@@ -284,6 +325,21 @@ export interface CloudLibraryApi {
    */
   cloudRoomSongNow: (songId: number) => RoomSong | null
   /**
+   * A song's audio in the bucket (`audio/<sha256>.<ext>`), from the library
+   * held in memory: what `cloudSoundVectors` names its sound by. Null for a
+   * song it does not hold, undefined while none is loaded.
+   */
+  cloudAudioKeyNow: (songId: number) => string | null | undefined
+  /**
+   * Whether the bucket answers reads again, while they are refused for the
+   * day: one byte of one song's audio, the cheapest read there is. The
+   * library's own look only lists the bucket, which Backblaze caps apart, so it
+   * cannot say (R2-M9). Asked while the hold stands; answered, the hold on
+   * reads is let go, refused, held again (session.ts). False when it could not
+   * ask: no library loaded, or none of its songs in the bucket.
+   */
+  askBucketRead: (session: CloudSession) => Promise<boolean>
+  /**
    * How your library's songs sound (shared soundVectors.ts), by audio key,
    * from the pack the snapshot names; null before the server has heard any,
    * or with no library loaded. Read once per pack and kept in memory.
@@ -291,6 +347,12 @@ export interface CloudLibraryApi {
   cloudSoundVectors: (
     session: CloudSession,
   ) => Promise<{ model: string; vectors: ReadonlyMap<string, Float32Array> } | null>
+  /**
+   * The sound map (docs/features/sound-map.md): each heard song's place, from
+   * the file the snapshot names, kept on the device by its hash like the
+   * words, so it is read from the bucket once a change.
+   */
+  cloudSoundMap: (session: CloudSession) => Promise<SoundMap>
   forgetCloudLibrary: () => Promise<void>
 }
 
@@ -529,6 +591,9 @@ export function createCloudLibrary(
       tags: [],
       playlists: [],
       artists: [],
+      artistNames: [],
+      spellings: {},
+      coverPacks: [],
       sound: null,
     }
   }
@@ -680,7 +745,7 @@ export function createCloudLibrary(
       !list &&
       counter !== null &&
       counter === r.look.changes &&
-      startedAt - r.look.listedAt < COUNTER_TRUSTED_MS
+      within(r.look.listedAt, COUNTER_TRUSTED_MS, startedAt)
     ) {
       // Kept as it stands when the look settles: an upload of this device's
       // own may have moved it on meanwhile.
@@ -832,10 +897,7 @@ export function createCloudLibrary(
         r.mustCheck = false
         r.look = { ...r.look, checkedAt: Date.now() }
       }
-    } else if (
-      Date.now() - r.look.checkedAt >
-      (r.look.changes === null ? LISTED_FRESH_MS : FRESH_MS)
-    ) {
+    } else if (!within(r.look.checkedAt, r.look.changes === null ? LISTED_FRESH_MS : FRESH_MS)) {
       lookInBackground(r, session)
     }
     return currentView(r)
@@ -945,6 +1007,7 @@ export function createCloudLibrary(
         if (options.deferView) r.viewStale = true
         else await show(r)
         scheduleFlush(FLUSH_DELAY_MS)
+        platform.outboxNews?.tell()
       }
       return answer(r.view)
     })
@@ -974,6 +1037,15 @@ export function createCloudLibrary(
     return replica ? localChanges(replica.outbox).length : 0
   }
 
+  function cloudChangesStuck(): boolean {
+    return retries > 0 && pendingCloudChanges() > 0
+  }
+
+  async function keptCloudChanges(): Promise<number> {
+    const outbox = asStoredOutbox(await store.read(OUTBOX_KEY).catch(() => null), false)
+    return outbox ? localChanges(outbox).length : 0
+  }
+
   // --- Uploading ----------------------------------------------------------------------
 
   let flushTimer: ReturnType<typeof setTimeout> | null = null
@@ -999,6 +1071,30 @@ export function createCloudLibrary(
     platform.onWake(() => {
       if (pendingCloudChanges() > 0) scheduleFlush(0)
     })
+    platform.outboxNews?.hear(heardOutbox)
+  }
+
+  /**
+   * Another tab added to the outbox: show its edit here too, and send it if
+   * that tab has not by the time this one looks — it may have closed.
+   */
+  function heardOutbox(): void {
+    const r = replica
+    if (!r) return
+    void exclusive(async () => {
+      if (replica !== r) return false
+      const outbox = asStoredOutbox(await store.read(OUTBOX_KEY), true)
+      if (!outbox || outboxSignature(outbox) === outboxSignature(r.outbox)) return false
+      r.outbox = outbox
+      await rebuild(r)
+      return true
+    }).then(
+      changed => {
+        if (changed) announce()
+      },
+      (error: unknown) => warn(`another tab’s edit could not be read: ${String(error)}`),
+    )
+    if (!flushTimer) scheduleFlush(OTHERS_FLUSH_DELAY_MS)
   }
 
   /** Send what is waiting, a file at a time. Resolves once all of it is up, or it cannot be for now. */
@@ -1014,13 +1110,14 @@ export function createCloudLibrary(
               ? current
               : {
                   ...current,
+                  // A file at a time, each no longer than a log file may be.
                   inflight: {
                     seq: current.nextSeq,
-                    changes: current.pending,
+                    changes: current.pending.slice(0, LOG_FILE_MAX_CHANGES),
                     writtenAt: new Date().toISOString(),
                   },
                   nextSeq: current.nextSeq + 1,
-                  pending: [],
+                  pending: current.pending.slice(LOG_FILE_MAX_CHANGES),
                 },
           )
           const inflight = outbox.inflight
@@ -1082,12 +1179,17 @@ export function createCloudLibrary(
   // --- Reading what the library points at ----------------------------------------------
 
   /** A playlist's songs, in order, from the library as this device has it — offline too. */
-  async function cloudPlaylistSongs(playlistId: number): Promise<readonly number[]> {
+  async function cloudAllPlaylistSongs(): Promise<Readonly<Record<number, readonly number[]>>> {
     // Brought up to date first: plays can move a song into a Live playlist.
-    const stored =
+    return (
       (replica ? (await currentView(replica)).playlistSongs : null) ??
-      ((await store.read(PLAYLISTS_KEY)) as Record<number, number[]> | null)
-    return stored?.[playlistId] ?? []
+      ((await store.read(PLAYLISTS_KEY)) as Record<number, number[]> | null) ??
+      {}
+    )
+  }
+
+  async function cloudPlaylistSongs(playlistId: number): Promise<readonly number[]> {
+    return (await cloudAllPlaylistSongs())[playlistId] ?? []
   }
 
   async function filesOf(songId: number): Promise<SongFiles | null> {
@@ -1099,8 +1201,8 @@ export function createCloudLibrary(
 
   /**
    * A song's lyrics and their romanized lines, the way the server's own lyrics
-   * answer carries them: from this device if it has read them before, else
-   * the bucket.
+   * answer carries them: one file (`wordsKey`), from this device if it has
+   * read it before, else the bucket.
    */
   async function cloudLyrics(
     session: CloudSession | null,
@@ -1108,12 +1210,9 @@ export function createCloudLibrary(
   ): Promise<{ text: string; kind: 'plain' | 'synced'; romanized: string[] | null } | null> {
     const files = await filesOf(songId)
     if (!files?.lyrics || !files.lyricsKind) return null
-    const text = await cloudText(session, files.lyrics)
-    if (text === null) return null
-    const romanized = files.romanized
-      ? romanizedLines(await cloudText(session, files.romanized))
-      : null
-    return { text, kind: files.lyricsKind, romanized }
+    const json = await cloudText(session, files.lyrics)
+    const words = json === null ? null : parseCloudWords(json)
+    return words ? { text: words.text, kind: files.lyricsKind, romanized: words.romanized } : null
   }
 
   /**
@@ -1158,17 +1257,6 @@ export function createCloudLibrary(
     return text
   }
 
-  /** A romanized-lines file's JSON, or null when it is not a list of lines. */
-  function romanizedLines(json: string | null): string[] | null {
-    if (json === null) return null
-    try {
-      const value: unknown = JSON.parse(json)
-      return Array.isArray(value) && value.every(line => typeof line === 'string') ? value : null
-    } catch {
-      return null
-    }
-  }
-
   /**
    * Where a song's cover is in the bucket.
    *
@@ -1186,6 +1274,27 @@ export function createCloudLibrary(
     return files[songId]?.cover ?? null
   }
 
+  function cloudAudioKeyNow(songId: number): string | null | undefined {
+    const files = replica?.view.files
+    if (!files) return undefined
+    return files[songId]?.audio ?? null
+  }
+
+  async function askBucketRead(session: CloudSession): Promise<boolean> {
+    const files = replica?.view.files
+    const audio = files ? Object.values(files).find(file => file.audio)?.audio : undefined
+    if (!audio) return false
+    // Through the hold, which stands until the answer: the session lets it go
+    // or holds again, and the screens change only if that changes anything.
+    await sessionApi
+      .doormanFetch(session, DOORMAN_PATHS.file(audio), {
+        headers: { range: 'bytes=0-0' },
+        asking: true,
+      })
+      .catch(() => undefined)
+    return true
+  }
+
   function cloudArtistPictureNow(name: string): ArtistPictureKeys | null | undefined {
     const artists = replica?.view.artists
     if (!artists) return undefined
@@ -1195,12 +1304,17 @@ export function createCloudLibrary(
   function cloudPicturesNow(): {
     covers: ReadonlySet<string>
     artists: readonly ArtistPictureKeys[]
+    packs: readonly CloudCoverPack[]
   } | null {
     const view = replica?.view
     if (!view) return null
     const covers = new Set<string>()
     for (const files of Object.values(view.files)) if (files.cover) covers.add(files.cover)
-    return { covers, artists: [...view.artists.values()] }
+    return {
+      covers,
+      artists: [...view.artists.values()],
+      packs: replica?.base.snapshot?.coverPacks ?? [],
+    }
   }
 
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */
@@ -1241,6 +1355,29 @@ export function createCloudLibrary(
       soundRead = { key: sound.key, pack }
     }
     return soundRead.pack
+  }
+
+  let soundMapRead: { key: string; places: ReadonlyMap<string, MapPlace> } | null = null
+
+  async function cloudSoundMap(session: CloudSession): Promise<SoundMap> {
+    const view = await loadCloudLibrary(session)
+    const pointer = replica?.base.snapshot?.soundMap
+    let places: ReadonlyMap<string, MapPlace> | null = null
+    if (pointer && soundMapRead?.key === pointer.key) places = soundMapRead.places
+    else if (pointer) {
+      const text = await cloudText(session, pointer.key)
+      places = text === null ? null : parseSoundMap(text)
+      if (places) soundMapRead = { key: pointer.key, places }
+    }
+    const out: SoundMap['places'] = []
+    if (places) {
+      for (const song of view.library.songs) {
+        const audio = view.files[song.id]?.audio
+        const place = audio === undefined ? undefined : places.get(audio)
+        if (place) out.push({ id: song.id, x: place.x, y: place.y })
+      }
+    }
+    return { places: out }
   }
 
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
@@ -1328,8 +1465,11 @@ export function createCloudLibrary(
     recordChanges,
     markPlaylistPlayed,
     pendingCloudChanges,
+    cloudChangesStuck,
+    keptCloudChanges,
     flushCloudChanges,
     cloudPlaylistSongs,
+    cloudAllPlaylistSongs,
     cloudLyrics,
     cloudMotion,
     cloudCoverKey,
@@ -1338,7 +1478,10 @@ export function createCloudLibrary(
     cloudPicturesNow,
     cloudManifest,
     cloudRoomSongNow,
+    cloudAudioKeyNow,
+    askBucketRead,
     cloudSoundVectors,
+    cloudSoundMap,
     forgetCloudLibrary,
   }
 }

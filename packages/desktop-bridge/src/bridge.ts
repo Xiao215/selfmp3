@@ -6,6 +6,8 @@ import type {
   DownloadResult,
   FileKind,
   FileStat,
+  MenuState,
+  PackSlice,
   StreamSession,
   TransferProgress,
   UpdateStatus,
@@ -75,6 +77,17 @@ export interface DesktopBridge {
       headers?: Record<string, string>,
     ): Promise<void>
     /**
+     * A pack of covers from the bucket, cut into the files it holds: each of
+     * `slices` kept under its name, unless its bytes are not the SHA-256 its
+     * name begins with. Covers.
+     */
+    unpackTo(
+      kind: FileKind,
+      url: string,
+      headers: Record<string, string>,
+      slices: readonly PackSlice[],
+    ): Promise<void>
+    /**
      * Put text in a file of this kind, atomically.
      *
      * The page's own small documents — the download index, and nothing else so
@@ -140,6 +153,8 @@ export interface DesktopBridge {
   readonly bucket: {
     /** The session to stream with, or null on signing out. Kept in the shell's memory only. */
     use(session: StreamSession): Promise<void>
+    /** Ask the bucket again now, before the shell's hold on a refusal for the day is up: Try again. */
+    release(): Promise<void>
     streamUrl(key: string): string
     /** The bucket refused for the day: the doorman's words, so the page can hold off and say why. */
     onCapped(listener: (message: string) => void): () => void
@@ -165,4 +180,13 @@ export interface DesktopBridge {
    * the Dock menu with what is on.
    */
   setPlaybackState(state: DockPlaybackState): Promise<void>
+
+  /** Ticks Shuffle, the Repeat mode and Like in the application menu as the player has them. */
+  setMenuState(state: MenuState): Promise<void>
+
+  /**
+   * The page's ground in the theme it shows (`#rrggbb`): the window's own
+   * colour, at its edges while it is resized and before the next launch paints.
+   */
+  setWindowGround(colour: string): Promise<void>
 }

@@ -6,7 +6,7 @@ import { NameSchema, OptionalTextSchema } from './common.js'
  * the corrections the user picks.
  *
  * Nothing here needs an API key. Candidates are suggestions only — the user
- * (or the confidence threshold, for the cover-art pass) decides what lands.
+ * decides what lands.
  */
 
 /** Where a suggestion came from: a catalogue, or the model reading them (`ai`). */
@@ -75,15 +75,3 @@ export const ApplyMetadataResultSchema = z.object({
   artworkSaved: z.boolean(),
 })
 export type ApplyMetadataResult = z.infer<typeof ApplyMetadataResultSchema>
-
-/** Progress of the background "find missing cover art" pass. */
-export const FixCoversStatusSchema = z.object({
-  status: z.enum(['idle', 'running', 'done', 'cancelled']),
-  total: z.number().int().nonnegative(),
-  done: z.number().int().nonnegative(),
-  found: z.number().int().nonnegative(),
-  currentTitle: z.string().nullable(),
-  startedAt: z.string().nullable(),
-  finishedAt: z.string().nullable(),
-})
-export type FixCoversStatus = z.infer<typeof FixCoversStatusSchema>

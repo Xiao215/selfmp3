@@ -10,22 +10,37 @@ import { LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
 import { glideToLine } from './lyricFollow.model'
 import { blurReach, lineTone, lyricBlur, type LineTone } from './stageLyrics.model'
 import { MOVE_MS } from '../../ui/motion.model'
+import { rightClick, type PopoverAnchor } from '../../ui/rightClick'
 import { motionMs, useMotionReduced } from '../../ui/motion'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
+import { FadeEdges } from '../../ui/components/FadeEdges'
 
 interface LyricsProps {
   parsed: ParsedLyrics
   roman: readonly string[] | null
   focus: boolean
   fontSize: number
+  /** Room kept clear at the right for what the page floats there (Romaji, expand). */
+  clearRight?: number
+  /**
+   * Shown before its song plays (a share link's page): no line is lit and a
+   * click seeks nothing, since the player has another song or none.
+   */
+  still?: boolean
+  /**
+   * A timed line held on a phone, or right-clicked on a computer, at the
+   * pointer (`useLineMenu`). Left out, a line only seeks.
+   */
+  onLineMenu?: (index: number, at: PopoverAnchor | null) => void
 }
 
 /**
  * The lyrics on a computer's Now Playing page.
  *
  * The line being sung stays at the same height on screen and the list moves
- * under it. Click a line to jump to it. Scrolling by hand holds off the
+ * under it. Click a line to jump to it; right-click it, or hold it on a
+ * phone, for its menu (`onLineMenu`). Scrolling by hand holds off the
  * centring for a few seconds, so reading ahead is not fought.
  *
  * The sung line is measured when it is scrolled to, not remembered from when
@@ -44,7 +59,7 @@ interface LyricsProps {
  */
 export function StageLyrics(props: LyricsProps): ReactNode {
   const { position } = usePlayerProgress()
-  const synced = props.parsed.synced ? props.parsed.lines : null
+  const synced = props.parsed.synced && !props.still ? props.parsed.lines : null
   const active = synced ? activeLineIndex(synced, position, LYRIC_LEAD) : -1
   return <LyricsList {...props} active={active} />
 }
@@ -54,6 +69,9 @@ const LyricsList = memo(function LyricsList({
   roman,
   focus,
   fontSize,
+  clearRight = 0,
+  still = false,
+  onLineMenu,
   active,
 }: LyricsProps & { active: number }): ReactNode {
   const { theme } = useUnistyles()
@@ -75,8 +93,10 @@ const LyricsList = memo(function LyricsList({
   /** The line the words were last scrolled to, so a seek can be told from the song moving on. */
   const shownLine = useRef(-1)
   const seekTo = useRef(player.seekTo)
+  const lineMenu = useRef(onLineMenu)
   useEffect(() => {
     seekTo.current = player.seekTo
+    lineMenu.current = onLineMenu
   })
 
   // Reading ahead by hand, in a browser: the wheel, a trackpad, a finger.
@@ -168,10 +188,20 @@ const LyricsList = memo(function LyricsList({
   const register = useCallback((index: number, node: View | null) => {
     lineRefs.current[index] = node
   }, [])
-  const seek = useCallback((time: number) => {
-    lastManual.current = 0
-    seekTo.current(time)
-  }, [])
+  const seek = useCallback(
+    (time: number) => {
+      if (still) return
+      lastManual.current = 0
+      seekTo.current(time)
+    },
+    [still],
+  )
+  // The same function from one drawing to the next, as `seek` is; none without a menu.
+  const hasMenu = onLineMenu !== undefined
+  const menu = useCallback(
+    (index: number, at: PopoverAnchor | null) => lineMenu.current?.(index, at),
+    [],
+  )
   const hoverIn = useCallback((index: number) => setHovered(index), [])
   const hoverOut = useCallback(
     (index: number) => setHovered(current => (current === index ? null : current)),
@@ -189,14 +219,15 @@ const LyricsList = memo(function LyricsList({
   const reach = blurReach(boxHeight, fontSize)
 
   return (
-    <View style={styles.box}>
+    <FadeEdges style={styles.box}>
       <ScrollView
         ref={scrollRef}
         style={styles.box}
         contentContainerStyle={{
           paddingTop: boxHeight * (synced ? LYRIC_ANCHOR : 0.14),
           paddingBottom: boxHeight * 0.55,
-          paddingHorizontal: space.tight,
+          paddingLeft: space.tight,
+          paddingRight: space.tight + clearRight,
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={64}
@@ -235,6 +266,7 @@ const LyricsList = memo(function LyricsList({
                 blur={blurring ? lyricBlur(index, active, reach) : 0}
                 register={register}
                 onSeek={seek}
+                onMenu={hasMenu ? menu : undefined}
                 onHoverIn={hoverIn}
                 onHoverOut={hoverOut}
               />
@@ -242,7 +274,7 @@ const LyricsList = memo(function LyricsList({
           })}
         </View>
       </ScrollView>
-    </View>
+    </FadeEdges>
   )
 })
 
@@ -257,6 +289,7 @@ const LyricLine = memo(function LyricLine({
   blur,
   register,
   onSeek,
+  onMenu,
   onHoverIn,
   onHoverOut,
 }: {
@@ -269,6 +302,7 @@ const LyricLine = memo(function LyricLine({
   blur: number
   register: (index: number, node: View | null) => void
   onSeek: (time: number) => void
+  onMenu: ((index: number, at: PopoverAnchor | null) => void) | undefined
   onHoverIn: (index: number) => void
   onHoverOut: (index: number) => void
 }): ReactNode {
@@ -320,6 +354,9 @@ const LyricLine = memo(function LyricLine({
       ref={keep}
       style={lineStyle}
       onPress={() => onSeek(time)}
+      onLongPress={onMenu ? () => onMenu(index, null) : undefined}
+      delayLongPress={onMenu ? MOVE_MS.longPress : undefined}
+      {...rightClick(onMenu ? at => onMenu(index, at) : undefined)}
       onHoverIn={() => onHoverIn(index)}
       onHoverOut={() => onHoverOut(index)}
       accessibilityRole="button"
@@ -333,7 +370,9 @@ const LyricLine = memo(function LyricLine({
 
 const styles = StyleSheet.create({
   box: { flex: 1, minHeight: 0 },
-  line: { borderRadius: radius.cover },
+  // As wide as its words, not the column: on a wide window the empty space
+  // right of a line would otherwise light it up and jump to it.
+  line: { borderRadius: radius.cover, alignSelf: 'flex-start', maxWidth: '100%' },
   words: { fontWeight: '700' },
   roman: { fontWeight: '500', fontStyle: 'italic', opacity: 0.8, letterSpacing: 0.2 },
 })

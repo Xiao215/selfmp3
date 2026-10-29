@@ -8,7 +8,9 @@ import {
   ensureCover,
   ensurePicture,
   ensureServerCover,
+  fillFromPacks,
   KEPT_COVER_SIZE,
+  keepsCovers,
   sweepPictures,
 } from './covers'
 import { useDownloads } from './DownloadsProvider'
@@ -24,7 +26,9 @@ import { lyricsCache, motionCache, playlistCache } from './caches'
  * works the same when the server is away:
  *
  *  - every song's cover, downloaded or not — a row wants its picture either way —
- *    and, from the bucket, every artist's picture. One that could not be had
+ *    and, from the bucket, every artist's picture: first from the bucket's
+ *    packs of covers, a read for a few hundred pictures (offline/coverPacks.ts),
+ *    then whatever no pack brought, one at a time. One that could not be had
  *    (the bucket's daily cap, say) is asked for again a while later, not left
  *    until the library next changes; once every one is here, the pictures the
  *    library no longer names are deleted (`sweepPictures`);
@@ -168,6 +172,15 @@ export function useKeepAlongside(): void {
 
     void (async () => {
       const breathe = slices(SLICE_MS)
+      // Pictures a pack was to bring and did not: asked for again with the
+      // next pass, not fetched one read at a time instead.
+      const unfilled = fromCloud ? await fillFromPacks(isCancelled) : new Set<string>()
+      if (cancelled) return
+      const packWaits = (key: string | null | undefined): boolean => {
+        if (!key || !unfilled.has(key)) return false
+        missing++
+        return true
+      }
       const songsDone = await runLimited(
         library.songs,
         AT_ONCE,
@@ -176,7 +189,10 @@ export function useKeepAlongside(): void {
           if (cancelled) return
           if (song.hasArt) {
             if (fromCloud) {
-              if (!(await ensureCover(song.id))) missing++
+              // A tab keeps none one at a time: its worker fetches each as it is
+              // drawn, and only what a pack was to bring can be missing.
+              const waits = packWaits(cloudLibrary.cloudCoverKeyNow(song.id))
+              if (!waits && keepsCovers && !(await ensureCover(song.id))) missing++
             } else if (connection) {
               // Waited on, so the server is asked for AT_ONCE covers at a time.
               await ensureServerCover(
@@ -213,6 +229,7 @@ export function useKeepAlongside(): void {
           pictures.artists.flatMap(artist => [artist.banner, artist.portrait]),
           AT_ONCE,
           async key => {
+            if (packWaits(key) || !keepsCovers) return
             if (!(await ensurePicture(key))) missing++
           },
           isCancelled,
@@ -254,16 +271,20 @@ export function useKeepAlongside(): void {
     let cancelled = false
 
     void (async () => {
-      for (const playlist of library.playlists) {
-        if (cancelled) return
-        try {
-          const songs = await api.playlistSongs(playlist.id)
-          playlistCache.write(songs.playlistId, songs)
-        } catch {
-          // No answer, or the server went away mid-pass: the next pass asks again.
-        }
+      // One request for all of them: asked one at a time, a library of 618
+      // playlists was 622 requests at launch, and as many after any edit.
+      if (library.playlists.length === 0) {
+        playlistsDone.current = listsKey
+        return
       }
-      if (!cancelled) playlistsDone.current = listsKey
+      try {
+        const { playlists } = await api.allPlaylistSongs()
+        if (cancelled) return
+        for (const songs of playlists) playlistCache.write(songs.playlistId, songs)
+        playlistsDone.current = listsKey
+      } catch {
+        // No answer, or the server went away: the next pass asks again.
+      }
     })()
 
     return () => {

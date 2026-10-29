@@ -41,10 +41,28 @@ async function popup(url: string, title?: string): Promise<Page> {
   return page
 }
 
-test('before a server is connected, the popup asks for one', async () => {
+/** The words a first screen leaves to setup (design-system.md, "Words"). */
+const SETUP_WORDS = /bucket|server|sync|tailscale|localhost/i
+
+test('before a server is connected, the popup asks to sign in, in plain words', async () => {
   const page = await popup(IDOL_URL)
-  await expect(page.getByRole('heading', { name: 'Connect to your library' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Set it up' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Save songs from any page' })).toBeVisible()
+  await expect(page.getByText('Sign in with the account your library uses.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible()
+  expect(await page.locator('body').innerText()).not.toMatch(SETUP_WORDS)
+  await page.close()
+})
+
+test('the options page keeps the address folded away until asked for', async () => {
+  const page = await extension.context.newPage()
+  await page.goto(extensionPage('options.html'))
+  await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible()
+  await expect(page.getByText('Use the same account as your phone.')).toBeVisible()
+  await expect(page.getByLabel('Address')).toBeHidden()
+  expect(await page.locator('body').innerText()).not.toMatch(SETUP_WORDS)
+
+  await page.getByText('Connect by address instead').click()
+  await expect(page.getByLabel('Address')).toBeVisible()
   await page.close()
 })
 
@@ -58,6 +76,7 @@ test('the options page asks for a token only once the server wants one', async (
   await page.goto(extensionPage('options.html'))
   await expect(page.getByLabel('Token')).toBeHidden()
 
+  await page.getByText('Connect by address instead').click()
   await page.getByLabel('Address').fill(server.url)
   await page.getByRole('button', { name: 'Use this address' }).click()
   await expect(page.getByRole('alert')).toHaveText('That server needs its token.')
@@ -81,10 +100,12 @@ test('a song page imports, and the popup follows the job until it is added', asy
   // The title is corrected before it is saved, not after.
   await page.getByLabel('Artist').fill('YOASOBI (Ayase)')
 
-  // The tag every import gets is on and stays on; the others are yours to pick.
-  const defaultTag = page.getByRole('button', { name: 'new', exact: true })
-  await expect(defaultTag).toBeDisabled()
-  await expect(defaultTag).toHaveAttribute('aria-pressed', 'true')
+  // Every tag starts off here, as nothing has been imported yet: the ones
+  // pressed are the ones sent.
+  const newTag = page.getByRole('button', { name: 'new', exact: true })
+  await expect(newTag).toHaveAttribute('aria-pressed', 'false')
+  await newTag.click()
+  await expect(newTag).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'j-pop', exact: true }).click()
 
   // A tag that is not there yet is made from here, and picked once it exists.

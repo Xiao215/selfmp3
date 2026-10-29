@@ -54,6 +54,14 @@ export const DOORMAN_ERROR = {
   bucketUnreachable: 'bucket_unreachable',
   /** Backblaze's daily allowance used up: held for a while (`BUCKET_HOLD_MS`). */
   bucketCapExceeded: 'bucket_cap_exceeded',
+  /**
+   * A lent song's owner's bucket is past its day's allowance: a link's, a
+   * room's or a shared playlist's song. Not `bucketCapExceeded`, which holds
+   * every read of the device's own bucket — the friend's bucket is fine.
+   */
+  lenderCapExceeded: 'lender_cap_exceeded',
+  /** The bucket asks for fewer requests for a moment (SlowDown): the same request will do later. */
+  bucketBusy: 'bucket_busy',
   bucketError: 'bucket_error',
 
   // Listening rooms and shared playlists (`RoomRefusal`, and their own).
@@ -96,11 +104,16 @@ export type DoormanErrorCode = (typeof DOORMAN_ERROR)[keyof typeof DOORMAN_ERROR
 /** The doorman's word for a bucket past its day's allowance (docs/SYNC.md, "Caps"). */
 export const BUCKET_CAP_CODE = DOORMAN_ERROR.bucketCapExceeded
 
+/** The same, for a song lent from someone else's bucket. */
+export const LENDER_CAP_CODE = DOORMAN_ERROR.lenderCapExceeded
+
 /**
- * How long a cap's refusal is believed before the bucket is asked again: ten
- * minutes, then one real request finds out whether it is over — a cap raised
- * at backblaze.com should not wait for midnight. The replica's hold
- * (packages/replica/src/hold.ts) and the service worker's both last this long.
+ * The longest a cap's refusal is believed before the bucket is asked again:
+ * then one real request finds out whether it is over — a cap raised at
+ * backblaze.com should not wait for midnight. The replica's hold
+ * (packages/replica/src/hold.ts) starts shorter and grows to this with each
+ * refusal in a row; the service worker's and the desktop shell's last this
+ * long, and the page lets them go whenever it asks again itself.
  */
 export const BUCKET_HOLD_MS = 10 * 60_000
 
@@ -110,6 +123,18 @@ export const BUCKET_HOLD_MS = 10 * 60_000
  * worker (apps/app/sw/sw.ts) and the desktop shell (apps/desktop/src/main/stream.ts).
  */
 export const PLAYED_KEPT = 10
+
+/**
+ * Set on the answer a song gets when the bucket was asked for it and nothing
+ * answered: the doorman down, or this device unable to reach it. Sent by the
+ * browser's service worker (apps/app/sw/sw.ts) and the desktop shell
+ * (apps/desktop/src/main/stream.ts), each in front of an `<audio>` element
+ * that hears only "not supported" and asks the address why
+ * (apps/app/src/ports/engine.web.ts). Without it, "not on this device" read
+ * as the song's fault, and the player went on to say "Couldn’t play" a song
+ * that was fine.
+ */
+export const UNANSWERED_HEADER = 'x-selfmp3-unanswered'
 
 /**
  * How far past what has arrived a range may start and still wait for the
@@ -200,9 +225,14 @@ export const DOORMAN_PATHS = {
   signOutEverywhere: '/v1/auth/signout-everywhere',
   me: '/v1/me',
   access: '/v1/access',
+  stats: '/v1/stats',
   storage: '/v1/storage',
   backblaze: '/v1/storage/backblaze',
   changes: '/v1/changes',
+  /** An iPhone's ID, for the iPhone app's install page (apps/doorman/src/device.ts). */
+  device: '/v1/device',
+  /** The iPhones asked for, for the owner's admin page: GET the list, PUT `/<id>` adds, DELETE drops. */
+  iphones: '/v1/iphones',
   list: LIST,
   files: FILES,
   grants: GRANTS,

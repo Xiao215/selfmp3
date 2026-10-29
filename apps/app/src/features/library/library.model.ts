@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from 'react'
-import { plural } from '@selfmp3/shared'
+import { API_ERROR, BUCKET_CAP_CODE, plural, SongSortFieldSchema } from '@selfmp3/shared'
 import type { Song, SongSortField, Tag } from '@selfmp3/shared'
+import type { DoormanTrouble } from '@selfmp3/replica'
+import type { DevicePlace } from '../settings/settings.model'
 import {
   ApiError,
   bothTagsCount,
@@ -10,6 +12,7 @@ import {
   isDownloaded,
   SORT_OPTIONS,
   tagFiltered,
+  type SortOrder,
   toggleTag,
   usedTags,
   useLibrary,
@@ -20,6 +23,7 @@ import {
 
 import { tagsWithIds } from '../lists/lists.model'
 import { useLibraryFilter } from './libraryFilter'
+import { useLibraryFailure } from './useLibraryFailure'
 
 /**
  * Everything the library screen knows, with nothing it draws.
@@ -63,28 +67,81 @@ interface LibraryModel {
    * only when the songs carrying all of them are some but not all of the list.
    */
   matchNote: string | null
+  /** The field and its way round: "Recently added · newest". */
   sortLabel: string
   sortOptions: typeof SORT_OPTIONS
+  /** The current field's two ways round, named for it: Newest first, Oldest first. */
+  sortOrders: readonly SortOrder[]
   loading: boolean
   /** The server did not answer; what is shown is the kept copy. */
   unreachable: boolean
   /** Why the library did not answer, for the card that says so; null while it has. */
   failure: unknown
   emptyReason: LibraryEmptyReason
+  /** Sort by a field, its own way round first. */
   setSort: (field: SongSortField) => void
-  toggleDirection: () => void
+  setDescending: (descending: boolean) => void
   /** Turn a tag on or off. Every chosen tag adds its songs to the list. */
   toggleTag: (tagId: number) => void
   clearTags: () => void
   toggleDownloadedOnly: () => void
+  /** The strip's Liked chip: only the songs you like. */
+  toggleLikedOnly: () => void
+  /** How many songs you like: the chip is there only once there is one. */
+  likedCount: number
   /** Ask the server for the library again, after it did not answer. */
   retry: () => void
 }
 
-export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
+/**
+ * A sort a link opened Library in (`/library?sort=lastPlayedAt`, Home's Recently
+ * played, G1), or null for an address that names none or no sort there is.
+ */
+export function linkedSort(value: string | string[] | undefined): SongSortField | null {
+  const parsed = SongSortFieldSchema.safeParse(Array.isArray(value) ? value[0] : value)
+  return parsed.success && parsed.data !== 'random' ? parsed.data : null
+}
+
+export function useLibraryModel(
+  downloads: DownloadIndex,
+  /**
+   * The order a link asked for, shown while this visit lasts without
+   * becoming the one Library remembers (G1): choosing an order here takes it
+   * over, and lets the link's go (`release`).
+   */
+  linked: { readonly sort: SongSortField | null; readonly release: () => void } = NO_LINK,
+): LibraryModel {
   const library = useLibrary()
   // Kept above the screen, so the strip and the order are still set on coming back.
-  const [filter, setFilter] = useLibraryFilter()
+  const [kept, setKept] = useLibraryFilter()
+  const linkedSortField = linked.sort
+  const filter = useMemo(
+    () =>
+      linkedSortField === null
+        ? kept
+        : {
+            ...kept,
+            sort: linkedSortField,
+            descending: optionFor(linkedSortField)?.orders[0].descending ?? true,
+          },
+    [kept, linkedSortField],
+  )
+  // The tags and the rest change what Library keeps, under a linked order as
+  // well. An order chosen over a linked one starts from what is shown and is
+  // kept, and the link's own order goes.
+  const setFilter = setKept
+  const { release } = linked
+  const setOrder = useCallback(
+    (change: (current: LibraryFilter) => LibraryFilter) => {
+      if (linkedSortField === null) {
+        setKept(change)
+        return
+      }
+      setKept(current => change({ ...current, sort: filter.sort, descending: filter.descending }))
+      release()
+    },
+    [setKept, filter.sort, filter.descending, linkedSortField, release],
+  )
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const allTags = useMemo(() => library.data?.tags ?? [], [library.data])
@@ -105,16 +162,23 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   /*
    * The actions, made once: a row is handed `toggleTag` for its chips, so a
    * new one each render would redraw every row of the library. `setFilter` is
-   * a state setter, so none of these ever needs remaking.
+   * a state setter, so none of these ever needs remaking, and `setOrder` only
+   * when a link's order comes or goes.
    */
   const setSort = useCallback(
-    (sort: SongSortField) => setFilter(current => ({ ...current, sort })),
-    [setFilter],
+    (sort: SongSortField) =>
+      setOrder(current => ({
+        ...current,
+        sort,
+        descending: optionFor(sort)?.orders[0].descending ?? current.descending,
+      })),
+    [setOrder],
   )
-  const toggleDirection = useCallback(
-    () => setFilter(current => ({ ...current, descending: !current.descending })),
-    [setFilter],
+  const setDescending = useCallback(
+    (descending: boolean) => setOrder(current => ({ ...current, descending })),
+    [setOrder],
   )
+  const sortOption = optionFor(filter.sort)
   const toggleTagId = useCallback(
     (tagId: number) => setFilter(current => toggleTag(current, tagId)),
     [setFilter],
@@ -124,8 +188,17 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     () => setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly })),
     [setFilter],
   )
+  const toggleLikedOnly = useCallback(
+    () => setFilter(current => ({ ...current, likedOnly: !current.likedOnly })),
+    [setFilter],
+  )
+  const likedCount = useMemo(() => songs.filter(song => song.loved).length, [songs])
 
-  const { isPending, isError, error, refetch } = library
+  const { refetch } = library
+  // Kept while it is asked for again, rather than "Loading…" in between.
+  const error = useLibraryFailure(library)
+  const isError = error !== null
+  const isPending = library.isPending && !isError
   const retry = useCallback(() => void refetch(), [refetch])
   return useMemo(
     () => ({
@@ -137,19 +210,30 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       heading: filterHeading(filter, allTags),
       tagFiltered: tagFiltered(filter),
       chosenTags,
-      subtitle: isPending ? 'Loading…' : plural(visible.length, 'song', 'songs'),
+      // Nothing to count when the library never came: "0 songs" over the
+      // can't-reach card read as an empty library.
+      subtitle: isPending
+        ? 'Loading…'
+        : isError && songs.length === 0
+          ? ''
+          : songs.length === 0
+            ? 'No songs yet'
+            : plural(visible.length, 'song', 'songs'),
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
-      sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
+      sortLabel: orderLabel(sortOption, filter.descending),
       sortOptions: SORT_OPTIONS,
+      sortOrders: sortOption?.orders ?? [],
       loading: isPending,
       unreachable: isError,
       failure: error,
       emptyReason: emptyReason({ isError, total: songs.length, shown: visible.length }),
       setSort,
-      toggleDirection,
+      setDescending,
       toggleTag: toggleTagId,
       clearTags,
       toggleDownloadedOnly,
+      toggleLikedOnly,
+      likedCount,
       retry,
     }),
     [
@@ -166,22 +250,49 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       isError,
       error,
       setSort,
-      toggleDirection,
+      setDescending,
+      sortOption,
       toggleTagId,
       clearTags,
       toggleDownloadedOnly,
+      toggleLikedOnly,
+      likedCount,
     ],
   )
 }
 
-/** Backblaze's Caps & Alerts page, where the daily allowance is raised. */
-export const BACKBLAZE_CAPS_URL = 'https://secure.backblaze.com/b2_caps_alerts.htm'
+const NO_LINK = { sort: null, release: () => undefined } as const
+
+const optionFor = (field: SongSortField): (typeof SORT_OPTIONS)[number] | undefined =>
+  SORT_OPTIONS.find(option => option.field === field)
+
+/** "Recently added · newest": the field, and which way round it goes. */
+export function orderLabel(
+  option: (typeof SORT_OPTIONS)[number] | undefined,
+  descending: boolean,
+): string {
+  if (!option) return 'Sort'
+  const way = option.orders.find(order => order.descending === descending)
+  return way ? `${option.label} · ${way.short}` : option.label
+}
 
 /**
  * Whether the library failed because the bucket's daily allowance is used up.
  * Everything answered then — the doorman, the server — so nothing should say
  * it cannot be reached.
  */
+/**
+ * The doorman's trouble (packages/replica/src/reach.ts) as the error the
+ * screens already know how to say: nothing answering as offline, an error of
+ * its own as a problem, a write refused for the day as the allowance.
+ */
+export function troubleAsError(trouble: DoormanTrouble | null): ApiError | null {
+  if (trouble === null) return null
+  if (trouble.kind === 'unreachable') return new ApiError(0, trouble.message, API_ERROR.offline)
+  if (trouble.kind === 'capped') return new ApiError(502, trouble.message, BUCKET_CAP_CODE)
+  return new ApiError(502, trouble.message)
+}
+
 export function bucketCapped(error: unknown): boolean {
   return error instanceof ApiError && error.isBucketCapped
 }
@@ -199,12 +310,23 @@ export function untilCapResets(now: Date, short = false): string {
 }
 
 /**
+ * Whether the library was reached and answered with an error rather than an
+ * answer: a 5xx, a proxy's error page, half an answer, a Wi-Fi sign-in page
+ * where the library should be. Not "can't reach": the device is online and
+ * something answered, and checking the connection would be the wrong advice.
+ */
+function answeredWithError(error: unknown): boolean {
+  return error instanceof ApiError && error.status >= 500 && !error.isBucketCapped
+}
+
+/**
  * The few words for a library that did not come: the profile's line, the
  * settings' status. Where the library lives — a server, a bucket — is for
  * the screens that set it up; everywhere else it is just your library.
  */
 export function unreachableLabel(error: unknown): string {
   if (bucketCapped(error)) return 'Storage allowance used up for today'
+  if (answeredWithError(error)) return 'Your library ran into a problem'
   return 'Can’t reach your library'
 }
 
@@ -214,6 +336,9 @@ export function unreachableLabel(error: unknown): string {
  * three say it the same way.
  */
 export const SHOWS_WHEN_REACHABLE = 'This shows when your library is reachable again.'
+
+/** The same place in a library with no songs yet, which was never out of reach. */
+export const NOTHING_PLAYED_YET = 'This fills in once you’ve added songs and played some.'
 
 /** The same for lyrics, on a phone's Now Playing and a computer's. */
 export const LYRICS_WHEN_REACHABLE = 'Lyrics show when your library is reachable again.'
@@ -253,6 +378,16 @@ export function unreachableCopy({
       why: `Your storage stopped downloads until its daily allowance resets. Nothing is wrong with your connection. To get your library back now, raise the cap under Caps & Alerts at backblaze.com.`,
     }
   }
+  if (answeredWithError(error)) {
+    const title = 'Your library ran into a problem'
+    return {
+      title,
+      body: compact
+        ? 'It answered with an error. It’s asked again by itself.'
+        : 'It answered with an error rather than your library. self.mp3 asks again by itself, or you can try now.',
+      why: null,
+    }
+  }
   const title = 'Can’t reach your library'
   if (compact) return { title, body: 'Check that you’re online, then try again.', why: null }
   if (fromCloud) return { title, body: 'Check that this device is online.', why: null }
@@ -269,43 +404,56 @@ export function unreachableCopy({
  * person: what still works, and what to do. Null on a normal day, when the
  * foot is only the person and a green dot.
  *
- * `held` is the storage refusing for the day, known before any read fails
- * (`useBucketHold`). `unsent` counts the edits a cloud library is still
- * holding, which go out on their own once it can reach its storage; a
- * server library keeps no such outbox, so its edits cannot be made at all.
- * `keepsSongs` is false in a browser tab, which streams and keeps nothing,
- * so it has no songs of its own that would still play.
+ * `held` is the storage refusing reads for the day, known before any read
+ * fails (`useBucketHold`); `error` may be it refusing a write, when what
+ * waits is the edits. `offline` is the device itself saying it has no network:
+ * nothing is even asked then, so no error ever arrives to say so, and the foot
+ * kept a green dot and "All saved" over an edit that had not gone. `unsent`
+ * counts the edits held back to send later — a cloud library's outbox, or a
+ * server library's edits made offline (`waitingEdits.ts`), which go out on
+ * their own once it is back. `keepsSongs` is false in a browser tab, which
+ * streams and keeps nothing, so it has no songs of its own that would still
+ * play.
  */
 export function footNotice({
   error,
   held,
+  offline = false,
   fromCloud,
   keepsSongs,
   place,
   unsent,
+  stuck = false,
   now = new Date(),
 }: {
   /** Why the library did not come; null while it has. */
   error: unknown
   held: boolean
+  offline?: boolean
   fromCloud: boolean
   keepsSongs: boolean
-  place: 'phone' | 'computer'
+  place: DevicePlace
   unsent: number
+  /** Those edits wait because sending them failed, and are being tried again. */
+  stuck?: boolean
   now?: Date
 }): { title: string; body: string } | null {
   const stillPlay = keepsSongs ? `Songs on this ${place} still play. ` : ''
   if (held || bucketCapped(error)) {
+    const until = untilCapResets(now)
+    // Reads go on, and an edit could not go up: that is the news.
+    if (!held && unsent > 0) {
+      return {
+        title: 'Storage allowance used up',
+        body:
+          unsent === 1
+            ? `Your change sends when it resets, in about ${until}.`
+            : `Your ${unsent} changes send when it resets, in about ${until}.`,
+      }
+    }
     return {
       title: 'Storage allowance used up',
-      body: `${stillPlay}The rest come back in about ${untilCapResets(now)}.`,
-    }
-  }
-  if (!error) return null
-  if (!fromCloud) {
-    return {
-      title: 'Can’t reach your library',
-      body: `${stillPlay}Changes can’t be saved until it’s back. Check that you’re online.`,
+      body: `${stillPlay}The rest come back in about ${until}.`,
     }
   }
   const changes =
@@ -314,6 +462,31 @@ export function footNotice({
       : unsent === 1
         ? 'Your change sends when you’re back.'
         : `Your ${unsent} changes send when you’re back.`
+  if (offline) return { title: 'Offline', body: `${stillPlay}${changes}` }
+  if (!error && stuck && unsent > 0) {
+    // Whatever else the doorman answers, an edit the storage did not take is
+    // not saved, and a green dot over "Saving…" said it would be any moment.
+    return {
+      title: 'Not sent yet',
+      body:
+        unsent === 1
+          ? 'Your change didn’t go through. It’s sent again by itself.'
+          : `Your ${unsent} changes didn’t go through. They’re sent again by themselves.`,
+    }
+  }
+  if (!error) return null
+  if (answeredWithError(error)) {
+    return {
+      title: 'Your library ran into a problem',
+      body: `${stillPlay}It answered with an error; it’s asked again by itself.`,
+    }
+  }
+  if (!fromCloud) {
+    return {
+      title: 'Can’t reach your library',
+      body: `${stillPlay}Changes can’t be saved until it’s back. Check that you’re online.`,
+    }
+  }
   return { title: 'Offline', body: `${stillPlay}${changes}` }
 }
 
@@ -327,12 +500,16 @@ export function footSummary({
   songs,
   here,
   place,
+  unsent = 0,
 }: {
   songs: number
   here: number
-  place: 'phone' | 'computer'
+  place: DevicePlace
+  /** Edits not sent yet: never "All saved" over one. */
+  unsent?: number
 }): string {
-  const parts = ['All saved', plural(songs, 'song', 'songs')]
+  const saved = unsent === 0 ? 'All saved' : `Saving ${plural(unsent, 'change', 'changes')}…`
+  const parts = [saved, plural(songs, 'song', 'songs')]
   if (here > 0) parts.push(`${here} on this ${place}`)
   return parts.join(' · ')
 }

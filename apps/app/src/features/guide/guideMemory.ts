@@ -43,7 +43,7 @@ export function markGuideSeen(name: GuideName): void {
   changed()
 }
 
-/** Settings › About's "Show tips again": every guide comes back, once each. */
+/** Every guide comes back, once each: what a test starts from. */
 export function forgetGuides(): void {
   seen = new Set()
   prefs.set(KEY, '')

@@ -1,28 +1,19 @@
-import { useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useMemo, useRef } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
-import {
-  failureText,
-  type,
-  useCreatePlaylist,
-  useLibrary,
-  textStyle,
-  tracking,
-  iconSize,
-  space,
-} from '@selfmp3/client'
+import { failureText, type, useLibrary, textStyle, tracking, space } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayerCommands } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { ListMusic, Sparkle } from '../../ui/components/Icons'
+import { ListMusic } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { BackButton } from '../../ui/components/BackButton'
@@ -30,20 +21,19 @@ import { MissingPage } from '../../ui/components/MissingPage'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { useListActions } from '../../ui/components/useListActions'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
-import { showToast } from '../../ui/toast'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { changeAnswer, editAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { usePlayAsItComes, useSaveAnswer } from './useAnswerLead'
+import { AskedLabel, AskedTitle } from './AskedTitle'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from './useSmartServer'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { OPACITY } from '../../ui/motion.model'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -59,22 +49,56 @@ import { OPACITY } from '../../ui/motion.model'
  * is Up next by the name of your question, and Save is there. The order you
  * put it in is the order it plays and saves in, for as long as the app is open.
  *
- * What it understood is shown as chips; taking one away and pressing
- * Different songs picks again from what is left.
+ * What it understood is shown as chips; taking one away picks again at once
+ * from what is left, where the songs shown that still fit can stay.
  */
 export function AnswerScreen(): ReactNode {
-  const router = useRouter()
-  const { wide } = useLayout()
   const { id } = useLocalSearchParams<{ id?: string }>()
+  return <AnswerView id={id} />
+}
+
+/**
+ * An answer's songs and head: its own page's, and Ask's stage when the answer
+ * is a list (R1, 2026-10-26). On the stage the question is the title, in the
+ * serif, and the list's own name joins the line under it; the corner holds
+ * Ask's way back and what was said before, and Ask's field asks about the
+ * list, so it has no Change it of its own.
+ *
+ * On the stage it does what the words led with ("Play now, rest proposes",
+ * 2026-10-27): a list asked to play starts playing as it comes, once, as a
+ * playback answer is carried out (`playNow`, the first such list of a
+ * reply); a list asked to keep leads with one Save, as a playlist by its
+ * name, of exactly the songs shown. Beside a reply's other cards it has no
+ * title of its own: the cards stand under the question.
+ */
+export function AnswerView({
+  id,
+  asked,
+  said,
+  top,
+  lead: ledWith,
+  playNow = false,
+}: {
+  id: string | undefined
+  /** On Ask's stage: what was asked, as the title; null beside a reply's cards, which carry it. */
+  asked?: string | null
+  /** On Ask's stage: the reply's own words, when it had some, under the title. */
+  said?: string | null
+  /** On Ask's stage: the way back and the trail, in the corner. */
+  top?: ReactNode
+  /** On Ask's stage: what the words asked for the list, to play it now or keep it. */
+  lead?: 'play' | 'save'
+  /** On Ask's stage: played as it comes. */
+  playNow?: boolean
+}): ReactNode {
+  const router = useRouter()
+  const { wide } = useLayoutFlags()
   const kept = useKeptAnswer(id)
   const server = useSmartServer()
   const player = usePlayerCommands()
-  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const { data: library } = useLibrary()
   const byId = useSongsById()
   const artFor = useArt()
-  const [edited, setEdited] = useState<Understanding | null>(null)
-  const [saving, setSaving] = useState(false)
   const heroRef = useRef<View>(null)
   const fly = useFlyToUpNext()
 
@@ -97,23 +121,30 @@ export function AnswerScreen(): ReactNode {
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const light = useSongColor(lead, lead ? artFor(lead) : null)
 
+  // The answer it was asked for goes with the request: the list beside Ask
+  // can be another one by the time the new songs come.
   const again = useMutation({
-    mutationFn: (understanding: Understanding) => {
-      if (!server.api || !kept) throw noServerToAsk()
-      // The songs shown, as the server knows them, stay out while others fit.
-      const shown = ids.flatMap(each => {
-        const serverId = server.onServer(each)
-        return serverId === undefined ? [] : [serverId]
+    mutationFn: (asked: {
+      answerId: string
+      text: string
+      understanding: Understanding
+      avoid: number[]
+    }) => {
+      if (!server.api) throw noServerToAsk()
+      return server.api.describePlaylist({
+        text: asked.text,
+        understanding: asked.understanding,
+        avoid: asked.avoid,
       })
-      return server.api.describePlaylist({ text: kept.text, understanding, avoid: shown })
     },
-    onSuccess: answer => {
-      if (kept) changeAnswer(kept.id, 'Different songs', answer)
-      setEdited(null)
-    },
+    onSuccess: (answer, asked) => changeAnswer(asked.answerId, answer, asked.understanding),
   })
 
+  usePlayAsItComes(kept?.id, ids, playNow)
+  const { save, saving, saved } = useSaveAnswer(result, ids)
+
   if (!kept || !result) {
+    if (asked !== undefined) return null
     return (
       <MissingPage
         testID="answer-gone"
@@ -125,6 +156,7 @@ export function AnswerScreen(): ReactNode {
     )
   }
 
+  const edited = kept.edited
   const understanding = edited ?? result.understanding
   const tags = library?.tags ?? []
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
@@ -138,31 +170,15 @@ export function AnswerScreen(): ReactNode {
     fly(heroRef.current, ids.slice(index))
     player.playFrom(ids, index, { source })
   }
+  // A chip taken away picks again at once; until the songs come (or when they
+  // could not), what is shown is still the old answer, and says so.
   const notes = edited
-    ? ['Changed. Different songs picks from what these let in.']
-    : describeNotes(result, ids.length).slice(1)
-
-  const save = async (): Promise<void> => {
-    const input = newPlaylist('manual', result.understanding.name)
-    if (!input || ids.length === 0 || saving) return
-    setSaving(true)
-    try {
-      const created = await createPlaylist({ input, songIds: ids })
-      showToast(`Saved “${created.name}”`, 'good', {
-        actions: [
-          {
-            label: 'Open',
-            onPress: () =>
-              router.navigate({ pathname: '/playlists/[id]', params: { id: String(created.id) } }),
-          },
-        ],
-      })
-    } catch (caught) {
-      showToast(failureText(`Couldn’t save “${input.name}”`, caught), 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
+    ? [
+        again.isPending
+          ? 'Picking again from what these let in…'
+          : 'Changed. Different songs picks from what these let in.',
+      ]
+    : describeNotes(result, ids.length, seconds).slice(1)
 
   const head = (
     <ListHead
@@ -171,7 +187,11 @@ export function AnswerScreen(): ReactNode {
       art={null}
       topBar={
         <>
-          <BackButton to="/search" always />
+          {top !== undefined ? (
+            <View style={styles.top}>{top}</View>
+          ) : (
+            <BackButton to="/search" always />
+          )}
           <MoreMenu
             name={result.understanding.name}
             title={result.understanding.name}
@@ -195,26 +215,53 @@ export function AnswerScreen(): ReactNode {
       cover={<PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
       titles={
         <>
-          <View style={listHeadText.kind}>
-            <Sparkle size={iconSize.tiny} />
-            <Text style={listHeadText.kindText}>Picked for you</Text>
-          </View>
-          <Text
-            style={[listHeadText.name, result.understanding.name.length > 24 && styles.nameLong]}
-            numberOfLines={2}
-            accessibilityRole="header"
-            testID="answer-name"
-          >
-            {result.understanding.name}
-          </Text>
+          {asked === null ? (
+            // Beside a reply's cards: the cards carry the question, the list its name.
+            <Text style={listHeadText.name} numberOfLines={2} testID="answer-name">
+              {result.understanding.name}
+            </Text>
+          ) : asked !== undefined ? (
+            <>
+              <AskedLabel label="You asked" />
+              <AskedTitle asked={asked} testID="answer-name" />
+              {said ? <Text style={styles.said}>{said}</Text> : null}
+            </>
+          ) : (
+            <>
+              <AskedLabel label="Picked for you" />
+              <Text
+                style={[
+                  listHeadText.name,
+                  result.understanding.name.length > 24 && styles.nameLong,
+                ]}
+                numberOfLines={2}
+                accessibilityRole="header"
+                testID="answer-name"
+              >
+                {result.understanding.name}
+              </Text>
+            </>
+          )}
           <Text style={listHeadText.summary}>
+            {typeof asked === 'string' ? `${result.understanding.name} · ` : ''}
             {plural(ids.length, 'song', 'songs')}
             {ids.length > 0 ? ` · ${formatLongDuration(seconds)}` : ''}
-            {result.fit > ids.length ? ` · picked from ${result.fit} that fit` : ''}
+            {result.fit > result.picks.length ? ` · picked from ${result.fit} that fit` : ''}
           </Text>
           <View style={styles.chips}>
             {parts(understanding, tags).map(part => {
-              const takeAway = (): void => setEdited(part.without(understanding))
+              const takeAway = (): void => {
+                const left = part.without(understanding)
+                editAnswer(kept.id, left)
+                // Nothing avoided: the songs shown that still fit may stay.
+                if (server.api)
+                  again.mutate({
+                    answerId: kept.id,
+                    text: kept.text,
+                    understanding: left,
+                    avoid: [],
+                  })
+              }
               return (
                 <Chip
                   key={part.key}
@@ -240,27 +287,49 @@ export function AnswerScreen(): ReactNode {
       }
       actions={
         <>
-          <PlayShuffle
+          <AnswerPlay
             name={`the songs picked for “${kept.text}”`}
+            answerId={kept.id}
             songIds={ids}
             // Changed and not yet picked again: what is shown is not the answer.
             disabled={edited !== null}
             heroRef={heroRef}
-            onPlay={() => player.playFrom(ids, 0, { source })}
+            onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
-            testPrefix="answer"
           />
+          {ledWith === 'save' ? (
+            <Button
+              label={
+                saved !== null
+                  ? `Saved “${saved}”`
+                  : saving
+                    ? 'Saving…'
+                    : `Save as “${result.understanding.name}”`
+              }
+              variant="primary"
+              disabled={ids.length === 0 || saving || saved !== null}
+              onPress={() => void save()}
+              testID="answer-save"
+            />
+          ) : null}
           <Button
             label="Different songs"
             disabled={!server.api}
             busy={again.isPending}
-            onPress={() => again.mutate(understanding)}
+            onPress={() =>
+              again.mutate({
+                answerId: kept.id,
+                text: kept.text,
+                understanding,
+                // Every song picked stays out while others fit, shown here or not.
+                avoid: result.picks.map(pick => pick.songId),
+              })
+            }
             testID="answer-again"
           />
         </>
       }
-      // The page is the version showing: no trail of the ones before it.
-      after={<ChangeIt answerId={kept.id} trail={false} large />}
+      after={asked !== undefined ? undefined : <ChangeIt answerId={kept.id} />}
       wideOverrides={WIDE}
     />
   )
@@ -268,7 +337,7 @@ export function AnswerScreen(): ReactNode {
   return (
     <View style={styles.screen} testID="answer-page">
       {bar.beforeList}
-      <View style={[styles.listArea, edited && styles.stale]}>
+      <View style={styles.listArea}>
         <OrderedSongList
           songs={songs}
           label={`Songs picked for ${kept.text}`}
@@ -287,12 +356,55 @@ export function AnswerScreen(): ReactNode {
 /** Words asked run longer than a tag's name, so the words take a little more of the row. */
 const WIDE = { titles: { flexBasis: 260 } } as const
 
+/**
+ * The answer's Play and Shuffle, apart from the page so a play or a pause
+ * draws them again and not the list. While Up next is this answer its Play
+ * is a Pause, and a Play that goes on where it was.
+ */
+function AnswerPlay({
+  name,
+  answerId,
+  songIds,
+  disabled,
+  heroRef,
+  onPlay,
+  onShuffle,
+}: {
+  name: string
+  answerId: string
+  songIds: readonly number[]
+  disabled: boolean
+  heroRef: RefObject<View | null>
+  onPlay: () => void
+  onShuffle: () => void
+}): ReactNode {
+  const player = usePlayer()
+  const ours =
+    player.current !== null &&
+    player.source?.kind === 'answer' &&
+    player.source.answerId === answerId
+  return (
+    <PlayShuffle
+      name={name}
+      songIds={songIds}
+      disabled={disabled}
+      playing={ours ? player.isPlaying : undefined}
+      heroRef={heroRef}
+      onPlay={ours ? player.toggle : onPlay}
+      onShuffle={onShuffle}
+      testPrefix="answer"
+    />
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  // Ask's trail takes the corner's width, the ⋯ at its end.
+  top: { flex: 1, minWidth: 0, marginRight: space.sm },
   listArea: { flex: 1, minHeight: 0 },
-  stale: { opacity: OPACITY.dim },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
   nameLong: { ...textStyle('page'), letterSpacing: tracking.page },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   note: { color: theme.colors.textMuted, fontSize: type.small },
+  said: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))

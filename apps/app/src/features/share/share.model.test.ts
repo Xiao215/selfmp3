@@ -4,12 +4,17 @@ import { libraryIndex, roomTrackId } from '@selfmp3/client'
 import {
   gettable,
   receivedLine,
-  romanizedLines,
+  removeLinksWords,
+  sentCountLine,
   sentLine,
   sentLinksHint,
+  sentSections,
+  sentSub,
+  sentTime,
   shareFromLine,
   shareHeadLine,
   shareStage,
+  shareStartOf,
   shareTimeLine,
   shareTracks,
   shareWords,
@@ -62,13 +67,14 @@ function link(changes: Partial<ShareLink> = {}): ShareLink {
     opened: [],
     guests: 0,
     asks: [],
+    lines: [],
     ...changes,
   }
 }
 
 function summary(changes: Partial<ShareSummary> = {}): ShareSummary {
   const { entries: _entries, ...rest } = link()
-  return { ...rest, songs: 1, cover: null, yours: true, ...changes }
+  return { ...rest, songs: 1, cover: null, coverSong: null, yours: true, ...changes }
 }
 
 describe('a share link’s words', () => {
@@ -140,6 +146,59 @@ describe('a share link’s words', () => {
   })
 })
 
+describe('Links you shared', () => {
+  const soon = summary({ id: '000000000000000a', endsAt: NOW + 2 * DAY })
+  const later = summary({ id: '000000000000000b', endsAt: NOW + 6 * DAY })
+  const endedLately = summary({ id: '000000000000000c', ended: { at: NOW - DAY, why: 'idle' } })
+  const endedLong = summary({
+    id: '000000000000000d',
+    ended: { at: NOW - 9 * DAY, why: 'stopped' },
+    plays: 1,
+  })
+  const ranOut = summary({ id: '000000000000000e', endsAt: NOW - 3 * DAY })
+
+  it('splits into playing, soonest to end first, and ended, latest first', () => {
+    const { playing, ended } = sentSections([endedLong, later, ranOut, soon, endedLately], NOW)
+    expect(playing.map(link => link.id)).toEqual([soon.id, later.id])
+    // A link whose time ran out is over, and ended when it ran out.
+    expect(ended.map(link => link.id)).toEqual([endedLately.id, ranOut.id, endedLong.id])
+  })
+
+  it('counts them under the title', () => {
+    expect(sentCountLine([soon, endedLately], NOW)).toBe('2 links · 1 playing')
+    expect(sentCountLine([endedLately], NOW)).toBe('1 link · none playing')
+  })
+
+  it('says who opened one while it plays, how much it played once over, and how long it has', () => {
+    expect(sentSub(summary({ opened: ['Mia'] }), NOW)).toBe('Opened by Mia')
+    expect(sentSub(endedLong, NOW)).toBe('Played 1 time')
+    expect(sentSub(endedLately, NOW)).toBe('Never played')
+    expect(sentSub(summary({ ended: { at: NOW, why: 'removed' } }), NOW)).toBe(
+      'No longer in your library',
+    )
+    expect(sentTime(later, NOW)).toBe('6 days left')
+    expect(sentTime(summary({ endsAt: NOW + 6 * 60 * 60 * 1000 }), NOW)).toBe('Ends tonight')
+    expect(sentTime(endedLately, NOW)).toMatch(/^Ended [^·]+$/)
+  })
+
+  it('asks before removing, saying which still play', () => {
+    expect(removeLinksWords([endedLately], NOW)).toEqual({
+      title: 'Remove this link?',
+      body: 'Its page goes too.',
+    })
+    expect(removeLinksWords([soon], NOW).body).toBe(
+      'It is still playing and stops for everyone. Its page goes too.',
+    )
+    expect(removeLinksWords([soon, endedLately, endedLong], NOW)).toEqual({
+      title: 'Remove 3 links?',
+      body: '1 of them is still playing and stops for everyone. Their pages go too.',
+    })
+    expect(removeLinksWords([soon, later], NOW).body).toBe(
+      '2 of them are still playing and stop for everyone. Their pages go too.',
+    )
+  })
+})
+
 describe('the words that go with a link', () => {
   it('are the song and its artist, or the list and how many songs it holds', () => {
     expect(shareWords({ name: '干杯', kind: 'song', artist: '五月天', songs: 1 })).toBe(
@@ -161,13 +220,14 @@ describe('a share link’s songs', () => {
 
   it('play from the lent file, or your own copy, and only while the link lasts', () => {
     const library = libraryIndex([{ id: 7, path: song(1).audio?.key ?? '' } as Song])
-    const tracks = shareTracks(link(), file, library, NOW)
+    const tracks = shareTracks(link(), file, library, shareStage(link(), NOW) !== 'ended')
     const track = tracks.get(roomTrackId('aaaaaaaaaaaa'))
     expect(track?.stream?.url).toBe('https://doorman/aaaaaaaaaaaa/audio')
     expect(track?.cover).toBe('https://doorman/aaaaaaaaaaaa/cover')
     expect(track?.yours).toBe(7)
 
-    const ended = shareTracks(link({ ended: { at: NOW, why: 'idle' } }), file, library, NOW)
+    const over = link({ ended: { at: NOW, why: 'idle' } })
+    const ended = shareTracks(over, file, library, shareStage(over, NOW) !== 'ended')
     expect(ended.get(roomTrackId('aaaaaaaaaaaa'))?.stream).toBeNull()
     // The card keeps its cover.
     expect(ended.get(roomTrackId('aaaaaaaaaaaa'))?.cover).toBe('https://doorman/aaaaaaaaaaaa/cover')
@@ -184,16 +244,6 @@ describe('a share link’s songs', () => {
   })
 })
 
-describe('a lent song’s romanized lines', () => {
-  it('are a list of lines, or nothing', () => {
-    expect(romanizedLines('["ni hao", ""]')).toEqual(['ni hao', ''])
-    expect(romanizedLines(null)).toBeNull()
-    expect(romanizedLines('{"a":1}')).toBeNull()
-    expect(romanizedLines('[1]')).toBeNull()
-    expect(romanizedLines('not json')).toBeNull()
-  })
-})
-
 describe('where a song came from', () => {
   it('is named by the place, not its address', () => {
     expect(sourceName('https://www.youtube.com/watch?v=x')).toBe('YouTube')
@@ -201,5 +251,38 @@ describe('where a song came from', () => {
     expect(sourceName('https://music.youtube.com/watch?v=x')).toBe('YouTube Music')
     expect(sourceName('https://music.163.com/#/song?id=1')).toBe('网易云')
     expect(sourceName('https://example.org/a')).toBe('example.org')
+  })
+})
+
+describe('where a link starts', () => {
+  const chorus = { at: 42, text: '干杯 朋友', reading: 'gān bēi péng yǒu' }
+
+  it('reads the address’s start as a time, with the line it was shared from', () => {
+    const lined = link({ lines: [chorus] })
+    expect(shareStartOf(lined, '0:42')).toEqual({ at: 42, line: chorus })
+    expect(shareStartOf(lined, '42')).toEqual({ at: 42, line: chorus })
+    // A start it kept no line for still starts there.
+    expect(shareStartOf(lined, '1:05')).toEqual({ at: 65, line: null })
+    // Expo hands a repeated parameter over as a list: the first counts.
+    expect(shareStartOf(lined, ['0:42', '0:10'])).toEqual({ at: 42, line: chorus })
+  })
+
+  it('is no start for none, a time that does not read, a list, or past the end', () => {
+    expect(shareStartOf(link(), undefined)).toBeNull()
+    for (const wrong of ['', '0:4', '0:60', '1:2:3', '-5', '4.5', 'soon', '0:42:']) {
+      expect(shareStartOf(link(), wrong)).toBeNull()
+    }
+    expect(shareStartOf(link({ kind: 'list' }), '0:42')).toBeNull()
+    // Its song is 100 seconds long.
+    expect(shareStartOf(link(), '1:40')).toBeNull()
+    expect(shareStartOf(link(), '1:39')).toEqual({ at: 99, line: null })
+    expect(shareStartOf(link(), '1:00:00')).toBeNull()
+  })
+
+  it('goes with the words a song is sent with', () => {
+    const words = { name: '干杯', kind: 'song', artist: '五月天', songs: 1 } as const
+    expect(shareWords(words)).toBe('干杯 · 五月天')
+    expect(shareWords({ ...words, start: 42 })).toBe('干杯 · 五月天 · from 0:42')
+    expect(shareWords({ ...words, artist: null, start: 3723 })).toBe('干杯 · from 1:02:03')
   })
 })

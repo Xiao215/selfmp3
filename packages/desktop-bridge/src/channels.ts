@@ -25,15 +25,19 @@ export const CHANNELS = {
   filesStat: 'selfmp3:files.stat',
   filesList: 'selfmp3:files.list',
   filesFetchTo: 'selfmp3:files.fetchTo',
+  filesUnpackTo: 'selfmp3:files.unpackTo',
   filesWrite: 'selfmp3:files.write',
   filesUsage: 'selfmp3:files.usage',
   filesReveal: 'selfmp3:files.reveal',
   filesClear: 'selfmp3:files.clear',
 
   bucketUse: 'selfmp3:bucket.use',
+  bucketRelease: 'selfmp3:bucket.release',
 
   openExternal: 'selfmp3:openExternal',
   setPlaybackState: 'selfmp3:setPlaybackState',
+  setMenuState: 'selfmp3:setMenuState',
+  setWindowGround: 'selfmp3:setWindowGround',
 
   loginItemGet: 'selfmp3:loginItem.get',
   loginItemSet: 'selfmp3:loginItem.set',

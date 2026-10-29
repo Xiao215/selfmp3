@@ -17,9 +17,10 @@ import {
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
-import { showToast } from '../../ui/toast'
+import { showFailure } from '../../ui/toast'
 import { useSmartServer } from './useSmartServer'
-import { useSmartSwitches } from './useSmartSwitches'
+import { useSmartOn } from './useSmartOn'
+import { ASKS_MODEL } from '../../connection/refetchFailed'
 import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
@@ -31,7 +32,7 @@ import { reachedConnection, viaKey } from '../../connection/via'
  */
 export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   const server = useSmartServer()
-  const { written } = useSmartSwitches()
+  const written = useSmartOn()
   const queryClient = useQueryClient()
   const via = reachedConnection(server.reach)?.baseUrl ?? null
   const key = viaKey(via, 'ai', 'written', range)
@@ -39,7 +40,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
     queryKey: key,
     queryFn: () => server.api!.written(range),
     enabled: written && server.api !== null,
-    retry: false,
+    ...ASKS_MODEL,
     staleTime: STALE.halfHour,
   })
   const [again, setAgain] = useState(false)
@@ -51,7 +52,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
       queryClient.setQueryData(key, await server.api.written(range, true))
     } catch (caught) {
       // The card keeps what it had; the press is told why nothing changed.
-      showToast(failureText('Couldn’t write it again', caught), 'error')
+      showFailure('Couldn’t write it again', caught)
     } finally {
       setAgain(false)
     }
@@ -65,7 +66,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
     <View style={styles.card} testID="report-written">
       <View style={styles.head}>
         <Sparkle size={iconSize.small} />
-        <Text style={styles.label} accessibilityRole="header">
+        <Text style={styles.label} accessibilityRole="header" aria-level={2}>
           In words
         </Text>
       </View>

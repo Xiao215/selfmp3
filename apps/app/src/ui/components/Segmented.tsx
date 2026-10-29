@@ -7,6 +7,7 @@ import { radius, type, space } from '@selfmp3/client'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { useSlidingHighlight } from './SlidingHighlight'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * A row of mutually exclusive choices. For a range or a mode, where every
@@ -127,7 +128,11 @@ function Segment({
           the pill arrives. A colour cannot be crossfaded on the native driver;
           an opacity can, and two stacked labels is what that costs.
         */}
-        <Text style={[styles.label, small && styles.labelSmall]} numberOfLines={1}>
+        <Text
+          style={[styles.label, small && styles.labelSmall]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={CONTROL_SCALE}
+        >
           {label}
         </Text>
         <Animated.View
@@ -137,7 +142,11 @@ function Segment({
           importantForAccessibility="no-hide-descendants"
           style={[styles.labelLayer, litStyle]}
         >
-          <Text style={[styles.labelActive, small && styles.labelSmall]} numberOfLines={1}>
+          <Text
+            style={[styles.labelActive, small && styles.labelSmall]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={CONTROL_SCALE}
+          >
             {label}
           </Text>
         </Animated.View>

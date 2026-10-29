@@ -3,11 +3,13 @@ import type { ReactNode, Ref } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import type { StyleProp, TextInputProps, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { ASK_TEXT_MAX } from '@selfmp3/shared'
 import { HIT_TARGET, hitSlopFor, iconSize, radius, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Search, X } from './Icons'
 import { Press } from './Press'
+import { NO_AUTOFILL } from '../noAutofill'
 
 /**
  * The one search field: a pill one step up from
@@ -66,7 +68,8 @@ export function SearchField({
         // `style` places the field in its row; the pill itself is the press.
         wrap={style}
         onPress={onPress}
-        accessibilityRole="search"
+        // A door to Search, not a field or a landmark: a button that opens it.
+        accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? placeholder}
         testID={testID}
         style={({ pressed }) => [box, pressed && styles.doorPressed]}
@@ -83,7 +86,10 @@ export function SearchField({
     <View style={[box, style, focused && { borderColor: accent.accent }]}>
       <Search size={iconSize.medium} color={focused ? accent.accent : theme.colors.textSecondary} />
       <TextInput
+        {...NO_AUTOFILL}
         ref={inputRef}
+        // A search is words, not a page: as much as Search may ask.
+        maxLength={ASK_TEXT_MAX}
         {...input}
         value={value}
         onChangeText={onChangeText}
@@ -142,6 +148,8 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
     alignSelf: 'stretch',
+    // Its words stay selectable where what is around it is not (the palette).
+    userSelect: 'text',
     color: theme.colors.textPrimary,
     fontSize: type.body,
     padding: 0,

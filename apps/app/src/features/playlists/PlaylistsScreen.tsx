@@ -11,16 +11,23 @@ import {
   type Playlist,
   type SharedSummary,
 } from '@selfmp3/shared'
-import { radius, space, type, useGems, usePlaylistSongs, iconSize } from '@selfmp3/client'
+import {
+  radius,
+  space,
+  type,
+  useGems,
+  useLibrary,
+  usePlaylistSongs,
+  iconSize,
+} from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
-import { Button } from '../../ui/components/Button'
-import { IconButton } from '../../ui/components/IconButton'
-import { Live, Play, Plus } from '../../ui/components/Icons'
+import { Heart, Live, Play, Plus } from '../../ui/components/Icons'
+import { useTileHandoff } from '../../ui/useHeroGrow'
 import { Menu } from '../../ui/components/MoreMenu'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
@@ -32,7 +39,8 @@ import { PageLoading } from '../../ui/components/PageLoading'
 import { CantReach } from '../library/CantReach'
 import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
-import { GEMS_SOURCE } from '../lists/lists.model'
+import { GEMS_SOURCE, LIKED_LINK, likedSongs, tagsWithIds } from '../lists/lists.model'
+import { followedTagIds } from '../playlistDetail/follows.model'
 import { NewPlaylist } from './NewPlaylist'
 import { DeletePlaylistDialog, usePlaylistMenu } from './playlistMenu'
 import { PlaylistCover } from './PlaylistCover'
@@ -48,6 +56,7 @@ import {
 } from './playlists.model'
 import { usePlaylistPlayback } from './usePlaylistPlayback'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useDrawnAhead } from '../../ui/useDrawnAhead'
 import { Press } from '../../ui/components/Press'
 
 /** Tiles at least this wide at desktop width, as many as fit; two across on a phone. */
@@ -58,7 +67,7 @@ const FAB = 38
 const SORT_PREF = 'playlists.sort'
 
 /**
- * Every playlist with a song in it, as tiles wearing their songs' covers
+ * Liked, then every playlist with a song in it, as tiles wearing their songs' covers
  * (docs/ui-mock `P16`, `C07`).
  *
  * In the order you last played them, so the ones in use are first without
@@ -71,9 +80,8 @@ const SORT_PREF = 'playlists.sort'
  * songs, and it exists once it has one (`NewPlaylist`).
  */
 export function PlaylistsScreen(): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const [chosenSort, setSortState] = useState<PlaylistSort>(() => {
     const stored = prefs.get(SORT_PREF)
     return isPlaylistSort(stored) ? stored : 'recent'
@@ -97,6 +105,16 @@ export function PlaylistsScreen(): ReactNode {
    */
   const now = useMemo(() => new Date(), [])
   const playback = usePlaylistPlayback()
+  // What a playlist that fills itself fills from, by name, for its tile's line.
+  const { data: library } = useLibrary()
+  const tags = library?.tags
+  const fillsFrom = useCallback(
+    (playlist: Playlist): string[] =>
+      playlist.kind === 'live'
+        ? tagsWithIds(followedTagIds(playlist.rules), tags ?? []).map(tag => tag.name)
+        : [],
+    [tags],
+  )
   const openPlaylist = useCallback(
     (playlist: Playlist) =>
       router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } }),
@@ -113,19 +131,29 @@ export function PlaylistsScreen(): ReactNode {
 
   const { data: shared } = useSharedList()
   const gems = useGems(30)
-  // One grid, in this order: the way in, the built-in list, the shared ones, then yours.
+  const likedIds = useMemo(
+    () => likedSongs(library?.songs ?? []).map(song => song.id),
+    [library?.songs],
+  )
+  // One grid, in this order: the way in, the ones from links, Liked, the
+  // built-in list, then yours. Liked is there with no song in it too: its page
+  // says how one gets there.
   const tiles: GridItem[] = [
     { kind: 'new' },
+    ...(shared ?? []).map(item => ({ kind: 'shared' as const, item })),
+    { kind: 'liked' },
     // Hidden when there are none, or the server cannot say.
     ...(gems.data && !gems.isError && gems.data.songs.length > 0
       ? [{ kind: 'gems' as const, gems: gems.data }]
       : []),
-    ...(shared ?? []).map(item => ({ kind: 'shared' as const, item })),
     ...playlists.map(playlist => ({ kind: 'playlist' as const, playlist })),
   ]
+  // A screenful or two of tiles, and more as the scroll nears the end: six
+  // hundred playlists drew every tile before the page answered (bug bash F171).
+  const { drawn, ...ahead } = useDrawnAhead(tiles.length)
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]}>
+      <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]} {...ahead}>
         <PageHeader
           title="Playlists"
           subtitle={
@@ -135,42 +163,22 @@ export function PlaylistsScreen(): ReactNode {
                 ? 'Not loaded'
                 : playlists.length === 0
                   ? 'None of your own yet'
-                  : playlistsSubline(playlists.length, sort)
+                  : playlistsSubline(playlists.length)
           }
           style={styles.head}
           actions={
-            // A phone's New sits beside the name, as Library's buttons do; a
-            // computer's goes at the far end with the order.
+            // The order, on a computer. New is the grid's first tile (and the
+            // sidebar's +), not a header button as well (I1, 2026-10-25).
             wide ? (
-              <>
-                <Select
-                  size="small"
-                  value={sort}
-                  options={PLAYLIST_SORTS}
-                  onChange={setSort}
-                  label="Sort by"
-                  testID="playlists-sort"
-                />
-                {/* White, as `C07` draws it: `active` is the pill's white. */}
-                <Button
-                  label="New"
-                  icon={<Plus color={theme.colors.onPrimary} />}
-                  active
-                  onPress={() => setNewOpen(true)}
-                  testID="playlists-new"
-                />
-              </>
-            ) : (
-              <IconButton
-                onPress={() => setNewOpen(true)}
-                label="New playlist"
-                filled
-                active={newOpen}
-                testID="playlists-new"
-              >
-                <Plus size={iconSize.nav} color={theme.colors.textPrimary} />
-              </IconButton>
-            )
+              <Select
+                size="small"
+                value={sort}
+                options={PLAYLIST_SORTS}
+                onChange={setSort}
+                label="Sort by"
+                testID="playlists-sort"
+              />
+            ) : null
           }
         />
 
@@ -181,12 +189,14 @@ export function PlaylistsScreen(): ReactNode {
           <CantReach error={model.failure} onRetry={model.retry} />
         ) : (
           <TileGrid
-            items={tiles}
+            items={tiles.slice(0, drawn)}
             columns={columns}
             gap={GAP}
             keyOf={gridKey}
             renderItem={tile =>
-              tile.kind === 'new' ? (
+              tile.kind === 'liked' ? (
+                <LikedTile songIds={likedIds} onPress={() => router.push(LIKED_LINK)} />
+              ) : tile.kind === 'new' ? (
                 <NewTile onPress={() => setNewOpen(true)} />
               ) : tile.kind === 'gems' ? (
                 // Built in, and not a playlist: nothing to delete or rename.
@@ -197,7 +207,12 @@ export function PlaylistsScreen(): ReactNode {
               ) : (
                 <PlaylistTile
                   playlist={tile.playlist}
-                  line={playlistTileLine(tile.playlist, now)}
+                  line={playlistTileLine(
+                    tile.playlist,
+                    now,
+                    fillsFrom(tile.playlist),
+                    tile.playlist.kind === 'live' ? tile.playlist.rules.match : 'any',
+                  )}
                   index={playlists.indexOf(tile.playlist)}
                   width={tileWidth}
                   finePointer={finePointer}
@@ -226,6 +241,7 @@ export function PlaylistsScreen(): ReactNode {
 
 /** What the grid holds: the way in, the built-in list, a shared playlist, or one of yours. */
 type GridItem =
+  | { kind: 'liked' }
   | { kind: 'new' }
   | { kind: 'gems'; gems: ForgottenGems }
   | { kind: 'shared'; item: SharedSummary }
@@ -264,6 +280,43 @@ function NewTile({ onPress }: { onPress: () => void }): ReactNode {
 }
 
 /**
+ * Liked, after the way in and the ones from links: every song you like, newest like first. Not a
+ * playlist you made — it keeps itself, and has nothing to rename or delete —
+ * so it opens its page and has no menu.
+ */
+function LikedTile({
+  songIds,
+  onPress,
+}: {
+  songIds: readonly number[]
+  onPress: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const { ref: coverRef, open: openFromCover } = useTileHandoff()
+  return (
+    <GridTile
+      cover={
+        <View ref={coverRef} collapsable={false}>
+          <PlaylistCover songIds={songIds} />
+          <View style={styles.fillsMark}>
+            <Heart size={iconSize.field} filled color={theme.colors.danger} />
+          </View>
+        </View>
+      }
+      title="Liked"
+      sub={
+        songIds.length === 0
+          ? 'Songs you like'
+          : `${plural(songIds.length, 'song', 'songs')} · keeps itself`
+      }
+      onPress={() => openFromCover(onPress)}
+      label="Liked"
+      testID="playlists-liked-tile"
+    />
+  )
+}
+
+/**
  * Forgotten gems, as a built-in tile among the playlists. Pressing it starts
  * the list rather than opening a page: the list is different every time it is
  * asked for. The page leaves it out when there are none.
@@ -284,7 +337,7 @@ function GemsTile({ gems }: { gems: ForgottenGems }): ReactNode {
       }
       title="Forgotten gems"
       sub={`${plural(gems.songs.length, 'song', 'songs')} · ${formatLongDuration(duration)}`}
-      onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE })}
+      onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE, whole: true })}
       label="Play forgotten gems"
       caption={`Liked or well played, quiet for ${gems.minDays}+ days`}
     />
@@ -323,22 +376,24 @@ const PlaylistTile = memo(function PlaylistTile({
 }): ReactNode {
   const { theme } = useUnistyles()
   const live = isLive(playlist)
+  // Its cover is where the playlist's page grows from (`useHeroGrow`, I1).
+  const { ref: coverRef, open: openFromCover } = useTileHandoff()
   return (
     <GridTile
       cover={
-        <View>
+        <View ref={coverRef} collapsable={false}>
           <PlaylistCover playlist={playlist} />
+          {/* A round mark: the line under the name says what it fills from. */}
           {live ? (
-            <View style={[styles.badge, styles.badgeRow]}>
-              <Live size={iconSize.tiny} color={theme.colors.textPrimary} />
-              <Text style={styles.badgeText}>{FOLLOWS_LABEL}</Text>
+            <View style={styles.fillsMark} accessibilityLabel={FOLLOWS_LABEL}>
+              <Live size={iconSize.field} color={theme.colors.textPrimary} />
             </View>
           ) : null}
         </View>
       }
       title={playlist.name}
       sub={line}
-      onPress={() => onOpen(playlist)}
+      onPress={() => openFromCover(() => onOpen(playlist))}
       onMenu={at => onMenu(playlist, at)}
       label={playlist.name}
       hint={finePointer ? 'Right-click for more actions' : 'Hold for more actions'}
@@ -435,7 +490,17 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.glass,
   },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  fillsMark: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.glass,
+  },
   badgeText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '700' },
   fabPlace: { position: 'absolute', right: 8 },
   fab: {

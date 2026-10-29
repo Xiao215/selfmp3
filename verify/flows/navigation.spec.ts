@@ -15,7 +15,8 @@ import { libraryReady, openLibrary } from './helpers.js'
 test.describe('navigation', () => {
   /**
    * The app opens on Home (docs/ui-mock `P04`, `C03`): a greeting, one search
-   * field, and Library one tap away. On a phone the bar is Home · Library ·
+   * (Home's field on a phone, the sidebar's row on a computer), and Library
+   * one tap away. On a phone the bar is Home · Library ·
    * Playlists with a search circle beside it.
    */
   test('a fresh launch lands on Home, and Library is one tap away', async ({ page }, info) => {
@@ -24,7 +25,10 @@ test.describe('navigation', () => {
     await expect(
       page.getByRole('heading', { name: /^Good (morning|afternoon|evening|night)\.$/ }),
     ).toBeVisible()
-    await expect(page.getByTestId('home-search')).toBeVisible()
+    // A computer's one search is the sidebar's row; Home's field is a phone's.
+    await expect(
+      page.getByTestId(info.project.name === 'phone' ? 'home-search' : 'nav-search'),
+    ).toBeVisible()
 
     if (info.project.name === 'phone') {
       for (const tab of ['Home', 'Library', 'Playlists']) {
@@ -58,13 +62,13 @@ test.describe('navigation', () => {
     })
     // As long as the heading: the settings query answers within a second, but
     // the dev build draws this page in about 3 s alone and 5 to 7 s in the
-    // middle of a full run, past the 5 s default.
+    // middle of a full run, past the 5 s default. The Smart features tile
+    // says "Loading…" until the server's settings come, then on, off or why
+    // it can be neither.
     await expect(
       page
-        .getByRole('spinbutton')
-        .or(page.getByRole('checkbox'))
-        .or(page.getByRole('switch'))
-        .first(),
+        .getByRole('switch', { name: /^Smart features, (On|Off)$/ })
+        .or(page.getByRole('button', { name: /^Smart features, Not set up$/ })),
     ).toBeVisible({ timeout: 30_000 })
   })
 
@@ -79,15 +83,15 @@ test.describe('navigation', () => {
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
 
     // Profile is the avatar in Home's header (`P31`): the person, this month as one
-    // card that opens Stats, then Import, Report and Settings.
+    // card that opens Stats, then Import, Stats and Settings.
     await page.getByTestId('home-you').click()
     await expect(page.getByTestId('profile-screen')).toBeVisible()
     await expect(page.getByTestId('profile-import')).toBeVisible()
-    await expect(page.getByTestId('profile-report')).toBeVisible()
+    await expect(page.getByTestId('profile-stats')).toBeVisible()
     // Tags is Home's, through its tiles and "All N tags"; not a row here.
     await expect(page.getByTestId('profile-tags')).toHaveCount(0)
 
-    await page.getByTestId('profile-stats').click()
+    await page.getByTestId('profile-month').click()
     await expect(page.getByRole('heading', { name: 'Stats', exact: true })).toBeVisible({
       timeout: 30_000,
     })

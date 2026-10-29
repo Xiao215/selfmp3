@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import type { Song } from '@selfmp3/shared'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { RomanizedLyrics, Song } from '@selfmp3/shared'
 import { CloudError } from '../bucket/store.js'
+import type { Config } from '../config.js'
 import { createLogger } from '../logger.js'
-import { romanizeLibrary } from './romanizedLines.js'
-import type { LyricsCache } from './lyricsCache.js'
+import { keepRomanizedFromBucket, romanizeLibrary } from './romanizedLines.js'
+import { LyricsCache } from './lyricsCache.js'
 import type { RomanizationService } from './romanization.js'
 
 /**
@@ -43,5 +47,49 @@ describe('romanizeLibrary', () => {
     asked.length = 0
     expect(await romanizeLibrary(broken)).toBe(0)
     expect(asked).toEqual([1, 2, 3])
+  })
+})
+
+/**
+ * The romaji a words file in the bucket carries, kept as this server's own,
+ * so a server rebuilt from the bucket does not make every song's again.
+ */
+describe('keepRomanizedFromBucket', () => {
+  let dataDir = ''
+
+  afterEach(() => {
+    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
+  })
+
+  const cache = (): LyricsCache => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-romanized-'))
+    return new LyricsCache({ dataDir } as Config, createLogger('silent'))
+  }
+  const text = '[00:01.00]你好\n[00:02.50]hello'
+  const kept = (lyricsCache: LyricsCache): Promise<RomanizedLyrics | null> =>
+    lyricsCache.read<RomanizedLyrics>(4, 'romanized', LyricsCache.hash(text))
+
+  it('keeps the lines under the text, timed as the text is', async () => {
+    const lyricsCache = cache()
+    await keepRomanizedFromBucket({ lyricsCache }, 4, text, ['nǐ hǎo', ''])
+
+    expect(await kept(lyricsCache)).toEqual({
+      language: 'zh',
+      synced: true,
+      lines: [
+        { time: 1, text: '你好', romanized: 'nǐ hǎo' },
+        { time: 2.5, text: 'hello', romanized: '' },
+      ],
+    })
+  })
+
+  it('leaves alone romaji made here, and lines that do not line up', async () => {
+    const lyricsCache = cache()
+    await keepRomanizedFromBucket({ lyricsCache }, 4, text, ['one line for two'])
+    expect(await kept(lyricsCache)).toBeNull()
+
+    await keepRomanizedFromBucket({ lyricsCache }, 4, text, ['made here', ''])
+    await keepRomanizedFromBucket({ lyricsCache }, 4, text, ['from the bucket', ''])
+    expect((await kept(lyricsCache))?.lines[0]?.romanized).toBe('made here')
   })
 })

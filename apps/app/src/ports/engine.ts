@@ -16,9 +16,8 @@ import {
 
 import { ensurePlayer } from '../player/setup'
 import { askWhyRefused } from './bucketRefusal'
-import { deviceKind } from './device'
-import { cannotPlayYet } from './streamFailure.model'
-import { devicePlace } from '../features/settings/settings.model'
+import { cannotPlayYet, LOST_CONNECTION } from './streamFailure.model'
+import { thisPlace } from './place'
 
 /**
  * The phone's engine: react-native-track-player behind `PlaybackEngine`.
@@ -98,6 +97,16 @@ class NativeEngine implements PlaybackEngine {
   #loading = false
   /** Counts loads, so one overtaken by a newer load stops at its next await. */
   #loadGeneration = 0
+  /**
+   * The song in front failed, and nothing has been loaded since. The player
+   * then moves on to the song lent behind it by itself, or ends its queue —
+   * which read as the song having finished: counted as a play, and the queue
+   * advanced and played on while the provider was retrying or had stopped, so
+   * a run of songs that would not play never stopped at three. Until the
+   * provider loads something, the player's own moves are not songs ending,
+   * and nothing is lent behind the failed song.
+   */
+  #failed = false
   #destroyed = false
   /** What each song handed to the player was shown as on the card (`cardKey`), so an unchanged one is not sent again. */
   #cardShown = new Map<number, string>()
@@ -139,6 +148,7 @@ class NativeEngine implements PlaybackEngine {
     // position on the song the person just picked.
     const generation = ++this.#loadGeneration
     const overtaken = (): boolean => generation !== this.#loadGeneration
+    this.#failed = false
     // Cleared before anything is awaited, so a failure of this load is a
     // change the provider hears even when it says what the last one did.
     this.#hub.patch({ error: null })
@@ -179,10 +189,7 @@ class NativeEngine implements PlaybackEngine {
         if (overtaken()) return
         this.#hub.patch(
           unplayableState(
-            cannotPlayYet(
-              this.#hub.wiring.trackMetadata?.(songId)?.title,
-              devicePlace(deviceKind()),
-            ),
+            cannotPlayYet(this.#hub.wiring.trackMetadata?.(songId)?.title, thisPlace()),
           ),
         )
         return
@@ -204,7 +211,9 @@ class NativeEngine implements PlaybackEngine {
       if (startAt !== undefined && startAt > 0) await TrackPlayer.seekTo(startAt)
       if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
-      this.#hub.patch({ error: null })
+      // Where it starts and no length yet: the song before's stood under this
+      // one's title until the player's first tick.
+      this.#hub.patch({ error: null, currentTime: startAt ?? 0, duration: 0 })
     } catch (error) {
       if (!overtaken()) {
         this.#hub.patch({
@@ -329,19 +338,26 @@ class NativeEngine implements PlaybackEngine {
 
     this.#subscriptions.push(
       TrackPlayer.addEventListener(Event.PlaybackError, ({ message }) => {
+        // Told once per load: the player can report one failure two or three times.
+        if (this.#failed) return
+        this.#failed = true
         // A failed item stays failed in the player: loading the same song again
         // has to build it afresh, not recognise it as the one already sounding.
         const failed = this.#currentSongId
         this.#currentSongId = null
         this.#queuedNext = null
+        // Held where it is: what plays next is the provider's to say.
+        void TrackPlayer.pause()
+        void TrackPlayer.removeUpcomingTracks().catch(() => undefined)
         void this.#explainFailure(failed, message ?? 'playback failed')
       }),
     )
 
     this.#subscriptions.push(
       TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, ({ track }) => {
-        // Our own `load` moving the player is not a song ending.
-        if (this.#loading) return
+        // Our own `load` moving the player is not a song ending, and nor is
+        // the player moving past a song that failed (`#failed`).
+        if (this.#loading || this.#failed) return
         const songId = songIdOf(track)
         if (songId === null || songId === this.#currentSongId) return
         // The player reached the song we lent it, which means the one before
@@ -355,7 +371,7 @@ class NativeEngine implements PlaybackEngine {
 
     this.#subscriptions.push(
       TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
-        if (this.#loading) return
+        if (this.#loading || this.#failed) return
         // Nothing was lent, so the song simply ran out.
         this.#hub.wiring.onTrackEnd?.()
       }),
@@ -370,7 +386,9 @@ class NativeEngine implements PlaybackEngine {
    * have to be talked out of.
    */
   async #topUpLookahead(): Promise<void> {
-    if (this.#destroyed) return
+    // Behind a failed song, a lent one is where the player would go next by
+    // itself: an Undo in Up next set the queue running from there.
+    if (this.#destroyed || this.#failed) return
     const nextId = lookaheadId(this.#hub.wiring.nextTrackId?.() ?? null, this.#currentSongId)
     // The same song from the same place is left alone. From somewhere new —
     // a copy kept on the disk since it was lent as a stream — it is lent
@@ -410,8 +428,10 @@ class NativeEngine implements PlaybackEngine {
   async #explainFailure(songId: number | null, said: string): Promise<void> {
     const url = songId === null ? null : (this.#hub.wiring.streamUrl?.(songId) ?? null)
     const headers = songId === null ? null : (this.#hub.wiring.streamHeaders?.(songId) ?? null)
-    // Only an address behind the doorman: a file here has nothing to ask.
-    const why = url && headers && /^https?:/.test(url) ? await askWhyRefused(url, headers) : null
+    // Only an address on the network: a file here has nothing to ask. A lent
+    // song's needs no header — its link's key is in the address.
+    const why =
+      url && /^https?:/.test(url) ? await askWhyRefused(url, headers ?? {}, LOST_CONNECTION) : null
     // Another song was loaded while this was asked: its own state stands.
     if (this.#destroyed || this.#currentSongId !== null) return
     this.#hub.patch({ error: why ?? said })

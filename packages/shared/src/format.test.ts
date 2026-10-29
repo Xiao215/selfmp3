@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clipText,
   plural,
   formatBytes,
   formatDuration,
@@ -113,6 +114,20 @@ describe('formatListenTime', () => {
     expect(formatListenTime(42.4)).toBe('42 min')
     expect(formatListenTime(Number.NaN)).toBe('0 min')
   })
+
+  it('groups big hours like the play counts beside them', () => {
+    expect(formatListenTime(3663 * 60 + 9)).toBe('3,663h 09')
+    expect(formatListenTime(1000 * 60)).toBe('1,000h')
+    expect(formatListenTime(999 * 60 + 59)).toBe('999h 59')
+  })
+
+  it('says under a minute for a few seconds, and 0 for none', () => {
+    expect(formatListenTime(0.1)).toBe('<1 min')
+    expect(formatListenTime(0.49)).toBe('<1 min')
+    expect(formatListenTime(0.5)).toBe('1 min')
+    expect(formatListenTime(0)).toBe('0 min')
+    expect(formatListenTime(-3)).toBe('0 min')
+  })
 })
 
 describe('plural', () => {
@@ -126,5 +141,15 @@ describe('plural', () => {
   it('takes both words, for the ones English does not make by adding an s', () => {
     expect(plural(1, 'is', 'are')).toBe('1 is')
     expect(plural(2, 'is', 'are')).toBe('2 are')
+  })
+})
+
+describe('clipText', () => {
+  it('says back a short search as it is, and a pasted page as its start', () => {
+    expect(clipText('yoasobi')).toBe('yoasobi')
+    expect(clipText('x'.repeat(5000))).toBe(`${'x'.repeat(40)}…`)
+    // By character, so a CJK or emoji search is not cut through a character.
+    expect(clipText('阿'.repeat(41))).toBe(`${'阿'.repeat(40)}…`)
+    expect(clipText('🎵'.repeat(41), 2)).toBe('🎵🎵…')
   })
 })

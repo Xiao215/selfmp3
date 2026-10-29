@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { appApi } from '../env.js'
 import {
   escaped,
+  libraryData,
   libraryReady,
   openLibrary,
   skipIfNoLibrary,
@@ -66,8 +67,17 @@ test.describe('selecting songs', () => {
       await expect(selectionCount(page, 1)).toBeVisible()
     } else {
       await rows.nth(0).hover()
+      const before = await rows.nth(1).boundingBox()
       await page.getByRole('checkbox', { name: `Select ${first}` }).click()
+      await expect(selectionCount(page, 1)).toBeVisible()
+      // The bar arriving moves no row: the next tick lands where it was aimed (X7).
+      await page.waitForTimeout(400)
+      expect((await rows.nth(1).boundingBox())?.y).toBe(before?.y)
     }
+    // What is ticked goes into Up next; the bar does not play it as a list of its own.
+    const bar = page.getByTestId('selection-bar').filter({ visible: true })
+    await expect(bar.getByRole('button', { name: 'Add to Up next' })).toBeVisible()
+    await expect(bar.getByRole('button', { name: 'Play', exact: true })).toHaveCount(0)
     await page.getByRole('checkbox', { name: `Select ${second}` }).click()
     await expect(selectionCount(page, 2)).toBeVisible()
 
@@ -98,20 +108,16 @@ test.describe('selecting songs', () => {
     await page
       .getByRole('menuitem', { name: new RegExp(`^Delete ${total} songs from library`) })
       .click()
-    await expect(page.getByText(`Delete ${total} songs from your library?`)).toBeVisible()
+    await expect(page.getByText(`Delete ${total} songs?`)).toBeVisible()
     await page.getByRole('button', { name: 'Cancel', exact: true }).last().click()
-    await expect(page.getByText(`Delete ${total} songs from your library?`)).toHaveCount(0)
+    await expect(page.getByText(`Delete ${total} songs?`)).toHaveCount(0)
 
     await page.getByRole('button', { name: /^Done selecting/ }).click()
     await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
     // Asked of the server rather than counted off the screen, which draws a
     // different number of rows once select-all has scrolled through them.
-    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
-      songs: { missing: boolean }[]
-    }
-    // Library lists, and so selects, only songs whose file is there; a song
-    // the server kept after its file vanished is not a row to select.
-    expect(library.songs.filter(song => !song.missing)).toHaveLength(total)
+    const { songs } = await libraryData(page)
+    expect(songs).toHaveLength(total)
   })
 
   /**
@@ -125,13 +131,9 @@ test.describe('selecting songs', () => {
     await libraryReady(page)
     await skipIfNoLibrary(page, 2)
 
-    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
-      songs: { tagIds: number[]; missing: boolean }[]
-      tags: { id: number; name: string }[]
-    }
-    const present = library.songs.filter(song => !song.missing)
-    const size = (id: number) => present.filter(song => song.tagIds.includes(id)).length
-    const tag = library.tags.find(entry => size(entry.id) >= 2)
+    const { songs, tags } = await libraryData(page)
+    const size = (id: number) => songs.filter(song => song.tagIds.includes(id)).length
+    const tag = tags.find(entry => size(entry.id) >= 2)
     test.skip(!tag, 'needs a tag on two songs')
     if (!tag) return
 
@@ -155,7 +157,12 @@ test.describe('selecting songs', () => {
       await expect(page.getByTestId('song-menu')).toHaveCount(0)
     } else {
       await rows.nth(0).hover()
+      const before = await rows.nth(1).boundingBox()
       await page.getByRole('checkbox', { name: `Select ${first}` }).click()
+      await expect(selectionCount(page, 1)).toBeVisible()
+      // The bar arriving moves no row: the next tick lands where it was aimed (X7).
+      await page.waitForTimeout(400)
+      expect((await rows.nth(1).boundingBox())?.y).toBe(before?.y)
     }
     await page.getByRole('checkbox', { name: `Select ${second}` }).click()
     await expect(selectionCount(page, 2)).toBeVisible()
@@ -286,10 +293,7 @@ test.describe('selecting songs', () => {
 
     // ⌘A: every song in the list, which the bar states as all of them.
     await page.keyboard.press('ControlOrMeta+a')
-    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
-      songs: { missing: boolean }[]
-    }
-    const total = library.songs.filter(song => !song.missing).length
+    const total = (await libraryData(page)).songs.length
     await expect(selectionCount(page, total)).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
@@ -433,11 +437,9 @@ test.describe('selecting songs', () => {
     test.skip(info.project.name === 'phone', 'a phone has no keyboard to select with')
     // Thirty arrows and two scrolls a step at a time take a while.
     test.setTimeout(60_000)
-    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
-      songs: { missing: boolean }[]
-    }
+    const { songs } = await libraryData(page)
     test.skip(
-      library.songs.filter(song => !song.missing).length < 90,
+      songs.length < 90,
       'needs a library of 90 songs or more, longer than the rows a list draws at once',
     )
     await page.setViewportSize({ width: 1280, height: 420 })
@@ -483,11 +485,9 @@ test.describe('selecting songs', () => {
   test('Tab comes back to a row scrolled far out of the drawn ones', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'a phone has no Tab key')
     test.setTimeout(60_000)
-    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
-      songs: { missing: boolean }[]
-    }
+    const { songs } = await libraryData(page)
     test.skip(
-      library.songs.filter(song => !song.missing).length < 90,
+      songs.length < 90,
       'needs a library of 90 songs or more, longer than the rows a list draws at once',
     )
     await page.setViewportSize({ width: 1280, height: 420 })

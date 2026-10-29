@@ -1,0 +1,930 @@
+/*
+ * The owner's admin page, framed the way the app is: its palette
+ * (packages/client/src/theme/tokens.ts, Paper in light and midnight in dark, at
+ * the default accent), its sidebar (apps/app/src/shell/Sidebar.tsx: 244 wide,
+ * a selected place on the raised tone), its page title, its cards and Settings'
+ * panels and rows, its pill buttons, segmented control, toggle and dialog. The
+ * charts are working charts in that language, not Stats' decoration.
+ * Hand-written, no build step; admin/app.test.ts keeps the colours equal to
+ * the app's tokens.
+ */
+
+:root {
+  color-scheme: light;
+  --surface0: #f6f2ea;
+  --surface1: #ffffff;
+  --surface2: #ebe5d9;
+  --surface3: #e3dccd;
+  --text-primary: #1b1a17;
+  --text-secondary: #55514a;
+  --text-muted: #625d55;
+  --accent: #3b5bd4;
+  --accent-dim: #d0deff;
+  --accent-selected: #d0deff;
+  --on-accent: #fcfcfc;
+  --on-primary: #f6f2ea;
+  --good: #2f9a5e;
+  --warning: #7f5300;
+  --danger: #f0555b;
+  --border: #e0d9cb;
+  --card-shadow: #1b1a170f;
+  /* Three series, in this order (validated for colour blindness against each surface). */
+  --series-1: #3b5bd4;
+  --series-2: #a644a0;
+  --series-3: #b25400;
+
+  --display: 'Bricolage Grotesque', 'Avenir Next', system-ui, sans-serif;
+  --body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fast: 100ms;
+  --base: 140ms;
+  --slow: 220ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --surface0: #0b0d13;
+    --surface1: #151821;
+    --surface2: #1a1d25;
+    --surface3: #1f2330;
+    --text-primary: #f4f5f9;
+    --text-secondary: #aeb1b9;
+    --text-muted: #868a93;
+    --accent: #7a9eff;
+    --accent-dim: #364983;
+    --accent-selected: #28365c47;
+    --on-accent: #080b14;
+    --on-primary: #0b0d13;
+    --good: #43c07a;
+    --warning: #ebaa2d;
+    --danger: #f0555b;
+    --border: #2a2e36;
+    --card-shadow: #00000000;
+    --series-1: #6b8cee;
+    --series-2: #c46dbd;
+    --series-3: #d37812;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--surface0);
+  color: var(--text-primary);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 21px;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- The app's sidebar ---- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.rail {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  padding: 24px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+.brand svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--accent);
+  flex: none;
+}
+.brand .word {
+  font-size: 17px;
+  font-weight: 700;
+}
+.brand .tag {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+}
+.nav {
+  display: grid;
+  gap: 2px;
+}
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  color: var(--text-secondary);
+  transition: background-color var(--base) ease;
+}
+.nav a:hover {
+  background: var(--surface2);
+}
+.nav a[aria-current='page'] {
+  background: var(--surface3);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.nav svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+/* ---- A page ---- */
+
+.page {
+  padding: 28px 40px 56px 16px;
+  min-width: 0;
+}
+.view {
+  max-width: 1280px;
+  display: grid;
+  gap: 24px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .view.entering {
+    animation: rise var(--slow) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0.4;
+    transform: translateY(6px);
+  }
+}
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-head .end {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.page-title {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 34px;
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+.sub {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 19px;
+  margin-top: 3px;
+}
+.sub .ok {
+  color: var(--good);
+}
+.sub .warn {
+  color: var(--warning);
+}
+.sub .bad {
+  color: var(--danger);
+}
+.section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.section-title {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 22px;
+  letter-spacing: -0.2px;
+  margin: 8px 0 0;
+}
+.group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 4px;
+}
+.label {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+}
+.hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  /* Each card as tall as what it holds, not as its neighbour. */
+  align-items: start;
+}
+
+/* ---- The page's own index, as Settings has one, on the right ---- */
+
+.with-index {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 196px;
+  gap: 32px;
+  align-items: start;
+}
+.index-main {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.index {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 2px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.index .label {
+  padding: 0 10px 8px;
+}
+.index a {
+  display: block;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--base) ease,
+    color var(--base) ease;
+}
+.index a.sub {
+  padding-left: 20px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.index a:hover {
+  background: var(--surface2);
+}
+.index a[aria-current='location'] {
+  background: var(--text-primary);
+  color: var(--on-primary);
+  font-weight: 600;
+}
+#overview,
+.section,
+.card[id] {
+  scroll-margin-top: 20px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+@media (max-width: 1180px) {
+  .with-index {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .index {
+    display: none;
+  }
+}
+
+/* ---- Controls ---- */
+
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface2);
+  border-radius: 999px;
+}
+.seg button {
+  border: 0;
+  background: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--base) ease,
+    color var(--base) ease;
+}
+.seg button:hover {
+  background: var(--surface3);
+}
+.seg button[aria-pressed='true'] {
+  background: var(--text-primary);
+  color: var(--on-primary);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface2);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--base) ease,
+    transform var(--fast) ease;
+}
+.btn:hover {
+  background: var(--surface3);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn.danger {
+  color: var(--danger);
+}
+.btn.small {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.btn svg,
+.icon-btn svg,
+.search svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background-color var(--base) ease,
+    color var(--base) ease;
+}
+.icon-btn:hover {
+  background: var(--surface2);
+  color: var(--danger);
+}
+/* The app's search field: a pill whose edge turns the accent while it has the focus. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 6px 0 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--surface2);
+  color: var(--text-secondary);
+  cursor: text;
+  transition: border-color var(--base) ease;
+}
+.search:focus-within {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.search input {
+  border: 0;
+  background: none;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.search > svg {
+  width: 17px;
+  height: 17px;
+}
+.search .hint {
+  white-space: nowrap;
+}
+.search .clear {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background-color var(--base) ease,
+    color var(--base) ease;
+}
+.search .clear:hover {
+  background: var(--surface3);
+  color: var(--text-primary);
+}
+.search input::placeholder {
+  color: var(--text-muted);
+}
+.switch {
+  appearance: none;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--surface3);
+  position: relative;
+  flex: none;
+  cursor: pointer;
+  transition: background-color var(--base) ease;
+}
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface1);
+  box-shadow: 0 1px 3px #0000002e;
+  transition: transform var(--slow) cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+.switch:checked {
+  background: var(--accent);
+}
+.switch:checked::after {
+  transform: translateX(18px);
+}
+
+/* ---- Surfaces: the app's card, panel and rows ---- */
+
+.card,
+.panel,
+.stat {
+  background: var(--surface1);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 2px var(--card-shadow),
+    0 8px 24px var(--card-shadow);
+  min-width: 0;
+}
+.card {
+  padding: 16px 18px 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.panel {
+  padding: 5px 16px 16px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 54px;
+  padding: 11px 0;
+}
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+.row .lbl {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.row .name {
+  overflow-wrap: anywhere;
+}
+.chip {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--surface2);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface3);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex: none;
+  color: var(--text-primary);
+}
+.notice {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--text-secondary);
+  background: var(--surface2);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.notice.bad {
+  color: var(--danger);
+}
+.empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 18px 0;
+}
+.people-list {
+  max-height: min(62vh, 640px);
+  overflow-y: auto;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+
+/* ---- Stat tiles ---- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.stat {
+  padding: 14px 16px;
+  display: grid;
+  gap: 2px;
+}
+.stat .k {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.stat .v {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+}
+.stat .d {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-muted);
+}
+.stat .d.up {
+  color: var(--good);
+}
+.stat .d.down {
+  color: var(--danger);
+}
+
+/* ---- Charts ---- */
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px 12px;
+}
+.card-head .titles {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.card-head h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 600;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: block;
+}
+.legend i.line {
+  height: 2px;
+  width: 14px;
+  border-radius: 1px;
+}
+.plot {
+  position: relative;
+  min-height: 60px;
+}
+.plot svg {
+  display: block;
+  overflow: visible;
+}
+.plot text {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--body);
+  font-variant-numeric: tabular-nums;
+}
+.plot .tick-line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.plot .value {
+  fill: var(--text-secondary);
+}
+.plot .marker {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+}
+.plot .marker-label {
+  fill: var(--text-secondary);
+  font-weight: 600;
+}
+.plot .hit {
+  fill: transparent;
+}
+.plot .hit:focus-visible {
+  outline: none;
+  fill: color-mix(in oklab, var(--text-primary) 6%, transparent);
+}
+.plot .bar {
+  transition: opacity var(--fast) ease;
+}
+.plot.hovering .bar.dim {
+  opacity: 0.45;
+}
+.crosshair {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+.hbars {
+  display: grid;
+  /* One set of columns for every row: the names as wide as the widest, up to
+     half the card, right-aligned to the edge every bar starts from. */
+  grid-template-columns: fit-content(50%) minmax(48px, 1fr) auto;
+  gap: 10px 12px;
+  padding: 4px 0;
+}
+.hbar-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  font-size: 13px;
+}
+.hbar-name {
+  color: var(--text-secondary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hbar-track {
+  height: 10px;
+  min-width: 0;
+}
+.hbar-track i {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+}
+.hbar-value {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+/* People: one field over the list, which searches it and adds to it. */
+.people {
+  display: grid;
+  gap: 12px;
+}
+.avatar.add {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.avatar.add svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.add-row .lbl .hint {
+  overflow-wrap: anywhere;
+}
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+table.data th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 0 8px 6px 0;
+}
+table.data td {
+  padding: 7px 8px 7px 0;
+  border-top: 1px solid var(--border);
+}
+table.data .num {
+  text-align: right;
+}
+.table-scroll {
+  max-height: 320px;
+  overflow: auto;
+}
+.tooltip {
+  position: fixed;
+  z-index: 10;
+  pointer-events: none;
+  background: var(--surface3);
+  color: var(--text-primary);
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 17px;
+  box-shadow: 0 10px 28px #00000040;
+  min-width: 120px;
+}
+.tooltip .when {
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.tooltip .tr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tooltip .tr i {
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  display: block;
+}
+.tooltip .tr b {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.tooltip .tr span {
+  color: var(--text-secondary);
+}
+
+/* ---- Dialog and toast, as the app draws them ---- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #00000073;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.dialog {
+  background: var(--surface1);
+  border-radius: 26px;
+  padding: 22px;
+  width: min(400px, 100%);
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 10px 28px #00000073;
+}
+.dialog h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+.dialog p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 19px;
+}
+.dialog .btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.dialog .btns .btn {
+  flex: 1;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: var(--surface3);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 28px #00000040;
+}
+
+/* ---- A phone ---- */
+
+@media (max-width: 819px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .rail {
+    position: static;
+    height: auto;
+    padding: 14px 16px 4px;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .nav {
+    display: flex;
+    gap: 4px;
+  }
+  .page {
+    padding: 12px 16px 40px;
+  }
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* iPhones: the note under the two lists. */
+.iphones-note {
+  display: block;
+  margin: 12px 4px 0;
+}

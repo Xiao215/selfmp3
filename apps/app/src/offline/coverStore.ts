@@ -2,6 +2,7 @@ import { doormanAuth, doormanFileUrl, library, session as cloudSession } from '.
 import { bucketHold } from '@selfmp3/replica'
 import { HASH_FILE_NAME, messageOf } from '@selfmp3/shared'
 import { createCoverChanges } from './coverChanges'
+import { nameFromKey, packsToFetch, type PackSlice } from './coverPacks'
 
 /**
  * What to do about a cover, without knowing where the bytes go.
@@ -46,9 +47,11 @@ const RETRY_FAILED_MS = 30_000
 export interface CoverPlatform {
   /**
    * Whether this platform can keep a cover at all. An ordinary browser tab
-   * cannot, and every export below becomes the nothing a browser has always
-   * done: a cloud library's rows keep their letter tiles, and a server's
-   * covers are drawn from the server's own address, which needs no file.
+   * cannot, and the exports below that keep one become nothing: its service
+   * worker draws a cloud library's covers from their own addresses, and a
+   * server's from the server's. What a tab's packs put in that worker's cache
+   * (`packs`) is still listed, swept and forgotten here (`listCloud`,
+   * `removeCloud`, `forgetFiles`).
    */
   readonly canKeep: () => boolean
   /**
@@ -68,7 +71,7 @@ export interface CoverPlatform {
    * a phone's file system can. Left out where it cannot.
    */
   readonly peekCloud?: (name: string) => string | null
-  /** Every cloud picture this device keeps, by name. May throw. */
+  /** Every cloud picture this device keeps, by name — a tab's, those its packs brought. May throw. */
   readonly listCloud: () => Promise<readonly string[]>
   /** Delete the cloud picture `name`. May throw. */
   readonly removeCloud: (name: string) => Promise<void>
@@ -82,6 +85,27 @@ export interface CoverPlatform {
   readonly keepServed: (name: string, url: string) => Promise<string | null>
   /** Drop everything this platform is keeping. May throw. */
   readonly forgetFiles: () => Promise<void>
+  /**
+   * Where pictures unpacked from the bucket's packs go (`fillFromPacks`), on a
+   * platform that keeps them. An ordinary tab has one even though it keeps no
+   * files: its service worker draws a cover from what is put here.
+   */
+  readonly packs?: PackSink
+}
+
+/** Somewhere to put the pictures of a pack of covers (offline/coverPacks.ts). */
+export interface PackSink {
+  /** Every bucket picture already here, by name. May throw. */
+  readonly have: () => Promise<readonly string[]>
+  /**
+   * Fetch the pack at `url` and keep each of `slices` under its name, leaving
+   * out any whose bytes are not the hash its name says. May throw.
+   */
+  readonly unpack: (
+    url: string,
+    headers: Record<string, string>,
+    slices: readonly PackSlice[],
+  ) => Promise<void>
 }
 
 interface CoverStore {
@@ -116,12 +140,14 @@ interface CoverStore {
   readonly holdPictures: (holder: string, keys: Iterable<string>) => void
   /** Delete every bucket picture kept here that `named` does not name; how many went. */
   readonly sweepPictures: (named: ReadonlySet<string>) => Promise<number>
+  /**
+   * Fill this device from the bucket's packs of covers, where a pack brings
+   * more than fetching its pictures alone would; the keys of the pictures
+   * packs were to bring and could not, which are better asked for again later
+   * than one read at a time now.
+   */
+  readonly fillFromPacks: (isCancelled: () => boolean) => Promise<ReadonlySet<string>>
   readonly forgetCovers: () => Promise<void>
-}
-
-/** `4f1c….jpg` from `covers/4f1c….jpg`: the hash is already the name. */
-function nameFromKey(key: string): string {
-  return key.slice(key.lastIndexOf('/') + 1)
 }
 
 /** A picture from the bucket, as it is kept: the hash its key is named by, and the extension. */
@@ -136,6 +162,27 @@ function servedName(songId: number, rev: string): string {
 export function parseServedName(name: string): { songId: number; rev: string } | null {
   const match = /^(\d+)-(.*)\.jpg$/.exec(name)
   return match ? { songId: Number(match[1]), rev: match[2] ?? '' } : null
+}
+
+/**
+ * Up to `limit` of a folder's covers for Welcome's fan, in the order given,
+ * one per song: a song's art kept at several revisions (or a song deleted and
+ * imported again) fanned the same picture out three times.
+ */
+export function fanOfCovers(names: readonly string[], limit: number): readonly string[] {
+  const songs = new Set<number>()
+  const fan: string[] = []
+  for (const name of names) {
+    if (fan.length >= limit) break
+    if (!isPicture(name)) continue
+    const served = parseServedName(name)
+    if (served) {
+      if (songs.has(served.songId)) continue
+      songs.add(served.songId)
+    }
+    fan.push(name)
+  }
+  return fan
 }
 
 /** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
@@ -355,7 +402,6 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
    * holds (`holdPictures`: a past room's friends' covers) stays.
    */
   const sweepPictures = async (named: ReadonlySet<string>): Promise<number> => {
-    if (!platform.canKeep()) return 0
     const keep = new Set([...named].map(nameFromKey))
     const gone = new Set<string>()
     for (const name of await platform.listCloud()) {
@@ -380,6 +426,42 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       }
     }
     return gone.size
+  }
+
+  const fillFromPacks = async (isCancelled: () => boolean): Promise<ReadonlySet<string>> => {
+    const sink = platform.packs
+    const named = sink ? library.cloudPicturesNow() : null
+    if (!sink || !named || named.packs.length === 0) return new Set()
+    const wanted = new Set(named.covers)
+    for (const artist of named.artists) wanted.add(artist.banner).add(artist.portrait)
+    let here: Set<string>
+    try {
+      here = new Set(await sink.have())
+    } catch {
+      return new Set()
+    }
+    const fetches = packsToFetch(named.packs, wanted, name => here.has(name))
+    if (fetches.length === 0) return new Set()
+    const signedIn = await cloudSession.loadSession()
+    if (!signedIn) return new Set()
+    const unfilled = new Set<string>()
+    for (const { pack, slices, keys } of fetches) {
+      // Called off, or the bucket refusing for the day: what is left waits for
+      // the next pass, rather than being fetched a picture at a time now.
+      if (isCancelled() || bucketHold('read')) {
+        for (const key of keys) unfilled.add(key)
+        continue
+      }
+      try {
+        await sink.unpack(doormanFileUrl(pack.key), doormanAuth(signedIn.token), slices)
+      } catch (error) {
+        for (const key of keys) unfilled.add(key)
+        console.warn(
+          `self.mp3: could not fetch a pack of covers (${pack.key}): ${messageOf(error)}`,
+        )
+      }
+    }
+    return unfilled
   }
 
   /**
@@ -413,6 +495,9 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
         if (!uri) return
         served.set(songId, { rev: revision, uri })
         changes.changed(songId)
+        // The art it replaces is never asked for again: it would only sit in
+        // the folder, and in Welcome's fan beside its successor.
+        if (have && have.rev !== revision) await platform.removeCloud(servedName(songId, have.rev))
       } catch {
         // The server is away. The address is drawn for now, and asked for again
         // next launch; there is a letter tile behind it either way.
@@ -505,6 +590,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     keepLent,
     holdPictures,
     sweepPictures,
+    fillFromPacks,
     forgetCovers,
   }
 }

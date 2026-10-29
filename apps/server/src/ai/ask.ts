@@ -1,60 +1,127 @@
-import { z } from 'zod/v4'
-import type { AskAnswer } from '@selfmp3/shared'
-import {
-  ASK_ACTIONS,
-  type AskAction,
-  type AskAllowed,
-  type AskContext,
-  type AskDeps,
-} from './askActions.js'
-import { none } from './askLibrary.js'
-import { FILTERS_GUIDE, PlanOut } from './describe.js'
+import type { AskReply, AskRequest, AskTurn, Song } from '@selfmp3/shared'
+import { rulesWords } from './askLibrary.js'
+import { askTools, libraryOf, type AskDeps } from './askTools.js'
 import { libraryShape, songTable } from './library.js'
-import { Remembered } from './llm.js'
+import { Remembered, tool, type LlmTool } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
+import { CARD_KINDS, respond, RespondArgs, RespondProblems, type Responding } from './respond.js'
+import { objectLines, type Held } from './scope.js'
+import { WorkingSet } from './workingSet.js'
 
 /**
- * S1 · the Search box's Ask (docs/features/ai.md).
+ * S1 · the Search box's Ask (docs/features/ai.md), as a grounded agent
+ * (AGENT-DESIGN 2.5–2.6).
  *
- * A router: one call reads the request against the library's shape and
- * chooses one of the actions in `askActions.ts`, filling in what that action
- * needs; then the action runs as code. The prompt and the form the model fills
- * are both built from that list, so this file is the same whatever the
- * actions are: route, check that the chosen action got what it needs and is
- * switched on, run it. Every answer is a proposal: nothing here writes.
+ * One model, on the smart tier, reads the request with the library's shape,
+ * the playlists, the conversation so far and what the device has playing and
+ * on its screen, and answers by calling tools: Ask's pipelines (`askTools.ts`)
+ * over the request's working set (`workingSet.ts`), then the terminal
+ * `respond` (`respond.ts`), which builds the reply's cards from the sets and
+ * proposals the tools left and checks them in code. It plans ahead: the calls
+ * it can foresee go in one reply, chained by the sets they name, ending with
+ * `respond` when it needn't see their results, so a request costs one round
+ * when nothing goes wrong. It looks again only when it must see what came
+ * back, and a check that fails goes back to it once.
  *
- * The form is one object with every action's part, those not chosen null,
- * rather than one shape per action: it is what an OpenAI-style json_schema
- * endpoint takes reliably.
- *
- * A follow-up ("only the albums", "skip the Inazuma ones") is asked again with
- * everything said before it, as one request (`followed`): the router and the
- * action it chooses read the whole of it, so the answer is the earlier one
- * changed, not a new question with nothing before it.
+ * After `ROUNDS` rounds or `BUDGET_MS` of time no tool is offered, and it
+ * writes `respond`'s arguments as its answer, which is accepted as well as it
+ * can be. Nothing here writes: every card is a proposal, except that music
+ * asked to play plays and the music playing is controlled, on the device.
  */
 
-const VERSION = 16
+/** Rounds of tool calls before it must answer. */
+const ROUNDS = 4
+/** Time from the first request after which it answers with what it has. */
+const BUDGET_MS = 60_000
+/** One round's longest wait: a round writes a plan of calls, never a long answer. */
+const ROUND_MS = 60_000
 
-const FALLBACK =
-  'Ask for music (a playlist, something to play now), to skip, pause or go back in what is playing, a song you half remember, changes to your tags or playlists, or a question about your library or your listening.'
+const SYSTEM = `You are the request box of someone's own music app. They write one request, in any language; you answer it with their own library by calling tools, and finish by calling respond, which shows them cards. You never write to their library: every card is a proposal they accept with one press, except that music they ask to play starts playing and the music already playing is controlled at once.
 
-/** What the router fills in, as this file reads it; each action's part is under its name. */
-type Route = Record<string, unknown> & {
-  action: string
-  filters: z.infer<typeof PlanOut> | null
-  say: string | null
-  try: string[] | null
-}
+The rules:
+- Only their own songs. Every song you show comes from a tool's result or a set; never name a song of theirs you have not seen. Music they do not have is only talked about (a words card) or offered to get (getMusic).
+- It proposes, they approve. Tags, names, copies and playlists change only through the proposal cards.
+- Answers are cards, chosen from the kinds below; say is a few words above them.
 
-/** Everything said, first ask first, as the one request the router and the actions read. */
-export function followed(text: string, before: readonly string[]): string {
+Sets. Songs live in named sets. The request comes with some already: playing is the song playing on their device; each earlier answer that showed songs is a set named by its handle (t2.1 is the second turn's first card), its songs numbered as listed; screen is the answer on their screen now. A tool that finds or chooses songs keeps them under the name you give in as. Every argument that takes songs is a scope: set, then pick (places in its list, 1 for the first) or drop (places to leave out), or ids a result showed you, and filters over them. When their words point at songs rather than describe them, they mean the screen's songs, or the song playing when they speak of what is playing. When their words point at one song of a list that was offered as candidates or ordered best first, it is the first.
+
+Planning. Each round costs seconds, so put every call you can foresee in one reply, in order: a later call may use a set an earlier one in the same reply makes. End that same reply with respond whenever you do not need to see the results first. Make another round only when you must see a result: to learn how the library spells a name, whether anything was found, or a number to tell them. A result that comes to nothing says which condition left none (emptiedBy) and which names the library lacks with the nearest it has (unmatched): look again with those before saying it isn't there. Never loosen what they asked for without saying so.
+
+Choosing songs:
+- What can be said as conditions (artists, albums, tags, years, plays, when added or played, lyrics or not, a playlist's songs) goes to find_songs. Names go as they wrote them; the library matches spellings, scripts and other names.
+- Songs in an order the library knows (most played, newest, longest) are find_songs with sort and limit: exact, nothing picked. An album in its own order: album_tracks lists its tracks in order with the ids of theirs, which a card can show in that order.
+- A mood, an occasion, an activity, a sound, or a quality only listening or knowing the music can tell goes to pick_by_taste, with brief (what every song must be or is for) and sound (how it should sound, in English). Narrow the scope first with conditions when the request names places. Energy is a measure of loudness, not mood: give a range only when they ask for a level of loudness or energy outright.
+- Music relative to a song (like it, calmer or livelier than it, more of it) is chosen among songs of its kind — the tags it carries, or its language — rather than the whole library, unless they ask to leave that kind, with like naming the song.
+- One particular song they half remember (its words, its story, how it goes) is find_half_remembered, answered with a find card of its candidates.
+- A count or a list of songs by meaning is judge_each, which reads every song; pick_by_taste chooses a number of the best.
+- A change to a list shown (more or fewer, longer, without some, a different feel) is a new songs card: songs left out by drop; otherwise chosen again with pick_by_taste from the scope the list was made from, keep naming the list so the songs that still fit stay in their places. A change that keeps only some kind of song, or lets more in, chooses from what the list was made from, not only from the songs shown. It keeps what the list was for.
+- Music to play one kind after another is one songs card whose from names their sets in order (sets).
+- How many: a number they say is count, a length is minutes, never one turned into the other. With neither, choose a sensible handful.
+
+Cards (respond's cards, 1 to 4, in the order the request asks for its parts; several parts about the same songs act on the same set):
+- songs: from, lead (play: they want it now; save: they want it kept as a playlist, title its name; next: after the song playing), title.
+- find: from, the set find_half_remembered made: songs they half remember.
+- library: a question about what they have (how many, which, the most or least of something, whose, on which albums), counted in code; songs cards are for music to play or keep, never the answer to a question: from (none for the whole library), show (count, songs, artists, albums, tags), sort, order, limit.
+- stats: their listening: range (7d, 30d, 90d, 365d, all), about (songs, artists, tags, totals), limit.
+- tags, tidy, copies: proposal, the as of the propose call that made it.
+- playlist: op delete or rename (playlists, newName); create (newName, from); add or remove (playlists with one name, from: the songs); sort (playlists, sort, order). A live playlist fills itself from its rules; its card says so.
+- playback: op next, previous, restart, pause, resume, or upNext with at (1 the first in Up next, -1 the last).
+- remember: text, a standing preference as one short rule in their language, when they say how things should be done from now on.
+- open: place (import, stats, tags, library, playlists, settings) and text, when they want to go somewhere in the app.
+- getMusic: text (what to search 网易云 for, as the album or song is listed) and album, when they ask to get music they don't have.
+- together: from (or none), for listening with friends in a room.
+- words: text, an answer in words, with from for the songs it is about and get for one song or album they don't have; for questions about music itself, answer from what you know as well as what you look up, and say when it is from memory.
+- clarify: question and up to three options, alone. Ask back only when the readings of their words would give materially different answers and no lookup can tell which; otherwise act on the likeliest reading and say the assumption in say.
+Each card may carry note (why it is empty or short) and expect: what the request requires of its songs (count, minutes, artists, script of their names, order). respond checks expect against the songs in code and tells you what does not hold; mend it, or answer with what there is and say what is short in note.
+
+When they ask for something this box cannot do but the app can, say where in the app it is done, and offer nothing in its place that they did not ask for.
+
+Every word you write for them (say, text, note, a question and its options) is in the language of their newest words, whatever the earlier turns, the songs' names or the playlists are in.\n\nsay: at most three short sentences, or nothing when the cards say it all. Every number in it must come from a tool's result; when respond goes in the same reply as the calls whose results it shows, say nothing about what they found. Never say you did something that is only proposed.`
+
+const WEB = `
+
+You may also search the web, for what neither their library nor the catalogue says. Say where an answer came from when it came from the web.`
+
+/**
+ * The request as the agent reads it: what they say now, after the
+ * conversation so far. Each earlier turn comes with what was shown for it, so
+ * it is context and not asked again. What the answers showed is set out by
+ * handle, the one on their screen first, each with its songs numbered
+ * (`objectLines`), so a follow-up names them by handle and place.
+ */
+export function followed(
+  text: string,
+  before: readonly AskTurn[],
+  screen: string | null = null,
+  songs: ReadonlyMap<number, Song> = new Map(),
+): string {
   if (before.length === 0) return text
-  const [first, ...then] = before
+  const objects = before.flatMap(turn => turn.objects)
+  const onScreen = objects.find(object => object.handle === screen)
+  const shown = onScreen ? [onScreen, ...objects.filter(object => object !== onScreen)] : objects
   return [
-    `They first asked: ${first}`,
-    ...then.map(said => `Then they said: ${said}`),
+    'Earlier in this conversation:',
+    ...before.flatMap(turn => [
+      `They asked: ${turn.asked}`,
+      `You answered: ${turn.answered || '(nothing)'}`,
+      ...(turn.objects.length > 0
+        ? [`It showed: ${turn.objects.map(object => object.handle).join(', ')}`]
+        : []),
+    ]),
+    ...(shown.length > 0
+      ? [
+          '',
+          'What the answers showed, by handle:',
+          ...shown.map(object => objectLines(object, songs)),
+        ]
+      : []),
+    '',
+    onScreen
+      ? `On their screen now: ${onScreen.handle} (the set screen).`
+      : 'Nothing from this conversation is on their screen now.',
+    '',
     `Now they say: ${text}`,
-    '(Answer all of it together: the latest words change what was asked before.)',
+    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Write for them in the language of what they say now.)',
   ].join('\n')
 }
 
@@ -64,101 +131,125 @@ export function withNotes(request: string, notes: readonly string[]): string {
   return `${request}\n\nTheir standing preferences (follow them unless these words say otherwise):\n${notes.map(note => `- ${note}`).join('\n')}`
 }
 
-/** The router's form for these actions: which one, the shared filters, each one's part, and a way out. */
-export function routeForm(actions: readonly AskAction<unknown>[]): z.ZodType<Route> {
-  const parts = Object.fromEntries(
-    actions.flatMap(each => (each.fields ? [[each.name, each.fields.nullable()]] : [])),
-  )
-  const [first = 'none', ...rest] = [...actions.map(each => each.name), 'none']
-  return z.object({
-    action: z.enum([first, ...rest]),
-    /** Describe's plan, for the actions that read it. */
-    filters: PlanOut.nullable(),
-    ...parts,
-    /** none: one plain sentence for the person. */
-    say: z.string().max(240).nullable(),
-    /** none: requests the box can do that come closest, in their words. */
-    try: z.array(z.string().max(120)).max(2).nullable(),
+/** The agent's `respond`: the reply built and checked, one bounce, then accepted. */
+function respondTool(
+  context: Responding,
+  answered: { reply: AskReply | null; bounces: number },
+): LlmTool {
+  return tool({
+    name: 'respond',
+    description: `Answer them: say and the cards (${CARD_KINDS.join(', ')}), as the instructions describe. Call it last; nothing after it runs. When a check fails, its error says what, once; mend it or answer with what there is.`,
+    parameters: RespondArgs,
+    ends: true,
+    run: async args => {
+      try {
+        answered.reply = await respond(context, args, answered.bounces > 0)
+      } catch (caught) {
+        if (caught instanceof RespondProblems) answered.bounces++
+        throw caught
+      }
+    },
   })
 }
 
-/** The router's instructions for these actions, each in its own words. */
-export function routeSystem(actions: readonly AskAction<unknown>[]): string {
-  const fielded = actions.filter(each => each.fields).map(each => `"${each.name}"`)
-  const filtered = actions.filter(each => each.filters !== 'unused').map(each => each.name)
-  return `You are the request box of someone's own music app. Turn one request into exactly one action over their library, as JSON in the schema given. Set every field; the fields the chosen action does not use are null (${fielded.join(', ')}, "filters", "say" and "try" alike).
-
-The actions:
-${actions.map(each => `- ${each.name}: ${each.when}`).join('\n')}
-- none: anything else, including talk that is not a request, or a request missing what it needs. "say" is one plain sentence on what you can do instead, and "try" is up to two requests, in their language, that this box can do and that come closest to what they wanted (for "tag the good ones": "tag the songs that should be 中文流行"). Empty when nothing comes close. Never pretend to do something.
-
-"filters", for ${filtered.join(', ')}:
-${FILTERS_GUIDE}`
-}
-
-const FORM = routeForm(ASK_ACTIONS)
-const SYSTEM = routeSystem(ASK_ACTIONS)
+/**
+ * How hard the brain thinks: low. On the eval set (2026-10-28, songs and
+ * several-part requests, 26 turns) it answered as well as the endpoint's own
+ * default (judge 73% against 67–76%) and sooner (a round 6.3 s against 7.3 s on
+ * average, p95 11 s against 16 s); its judgement is in the tools' own calls.
+ */
+const EFFORT = 'low'
 
 export async function ask(
   deps: AskDeps,
   text: string,
-  playingId: number | null = null,
-  allowed: AskAllowed = { tidy: true, tags: true },
+  /** The song playing on the device and the answer on its screen. */
+  where: AskRequest['context'] = { playing: null, screen: null },
   /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
   steps: Steps = NO_STEPS,
-  /** What was said before, when this follows up on an answer. */
-  before: readonly string[] = [],
-): Promise<AskAnswer> {
-  const request = withNotes(followed(text, before), deps.notes?.() ?? [])
+  /** The conversation before this, when it follows up on an answer. */
+  before: readonly AskTurn[] = [],
+): Promise<AskReply> {
   const remembered = deps.remembered ?? new Remembered()
-  const songs = deps.songs()
-  const tags = deps.tags()
-  const now = deps.now?.() ?? Date.now()
-
-  const playing = songs.find(song => song.id === playingId)
-  // "This", for the router and for the pick: the song as the table draws a row.
-  const nowPlaying = playing
-    ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
-    : ''
-  const playlists = deps.playlists?.() ?? []
-  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
-  steps.begin('Reading what you asked')
-  const route = await remembered.get(
-    Remembered.key('ask-route', VERSION, prompt),
-    async () =>
-      (
-        await deps.llm.generate({
-          task: 'ask-route',
-          tier: 'fast',
-          system: SYSTEM,
-          prompt,
-          schema: FORM,
-        })
-      ).value,
-  )
-  steps.done('Read what you asked')
-
-  const chosen = ASK_ACTIONS.find(each => each.name === route.action)
-  // An action without what it needs is not trusted: it falls through to "none".
-  const fields = chosen?.fields ? route[chosen.name] : null
-  if (
-    !chosen ||
-    (chosen.fields && (fields === null || fields === undefined)) ||
-    (chosen.filters === 'required' && route.filters === null)
-  ) {
-    return none(route.say ?? FALLBACK, route.try ?? [])
-  }
-  if (chosen.switch && !allowed[chosen.switch.key]) {
-    return none(`${chosen.switch.label} is turned off in Settings › Smart features.`)
-  }
-  const context: AskContext = {
-    deps: { ...deps, remembered },
-    text: request,
+  const all = { ...deps, remembered }
+  const library = libraryOf(deps)
+  const byId = new Map(library.songs.map(song => [song.id, song]))
+  const playing = where.playing === null ? undefined : byId.get(where.playing)
+  const held: Held = {
     playing,
+    objects: before.flatMap(turn => turn.objects),
+    screen: where.screen,
+  }
+  const set = new WorkingSet(library, held)
+  const playlists = deps.playlists?.() ?? []
+  const web = deps.web?.() ?? false
+
+  const playlistLines = playlists.map(
+    playlist =>
+      `- “${playlist.name}”: ${playlist.kind === 'live' && playlist.rules ? `live, holds ${rulesWords(playlist.rules, library.tags)}` : `manual, ${playlist.songIds().length} songs`}`,
+  )
+  const nowPlaying = playing
+    ? `Now playing (the set playing): ${songTable([playing], library.tags, library.now).replace(/^#1 \| /, '')}`
+    : 'Nothing is playing.'
+  const sets = set.listing()
+  const request = withNotes(followed(text, before, where.screen, byId), deps.notes?.() ?? [])
+  const prompt = [
+    libraryShape(library.songs, library.tags, library.names),
+    '',
+    `Their tags, exactly: ${library.tags.map(tag => tag.name).join(', ') || '(none)'}`,
+    '',
+    `Their playlists:\n${playlistLines.join('\n') || '(none)'}`,
+    '',
     nowPlaying,
+    '',
+    sets.length > 0 ? `Sets already named:\n${sets.join('\n')}` : 'No set is named yet.',
+    '',
+    `The request:\n${request}`,
+  ].join('\n')
+
+  // What the model was shown, where every number it says must come from.
+  const shown: string[] = [prompt]
+  let read = false
+  const reading = (): void => {
+    if (!read) steps.done('Read what you asked')
+    read = true
+  }
+  const tools = askTools(all, set, { question: request, steps }).map(each => ({
+    ...each,
+    run: async (args: never) => {
+      reading()
+      const result = await each.run(args)
+      shown.push(JSON.stringify(result))
+      return result
+    },
+  }))
+  const context: Responding = {
+    deps: all,
+    set,
+    words: text,
+    playing,
     playlists,
-    now,
+    seen: () => shown.join('\n'),
     steps,
   }
-  return chosen.run(context, fields, chosen.filters === 'unused' ? null : route.filters)
+  const answered = { reply: null as AskReply | null, bounces: 0 }
+  steps.begin('Reading what you asked')
+  // Not remembered: asked again, the same words are read again, so Try again can come out differently.
+  const { value } = await deps.llm.generate({
+    task: 'ask-agent',
+    tier: 'smart',
+    json: 'text',
+    effort: EFFORT,
+    system: web ? SYSTEM + WEB : SYSTEM,
+    prompt,
+    schema: RespondArgs,
+    tools: [...tools, respondTool(context, answered)],
+    maxRounds: ROUNDS,
+    budgetMs: BUDGET_MS,
+    timeoutMs: ROUND_MS,
+    webSearch: web,
+  })
+  reading()
+  // Answered in words once the tools were gone: taken as well as it can be.
+  return answered.reply ?? (await respond(context, value, true))
 }

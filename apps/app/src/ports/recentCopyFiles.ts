@@ -59,6 +59,12 @@ interface RecentFolder<Destination> {
   /** Free space on the disk, or null when it will not say. */
   free(): Promise<number | null>
   /**
+   * A download of this file under way stopped and what came of it deleted:
+   * whoever waits on it hears that it did not arrive. A phone's loopback
+   * server can (`songStream.ts`); left out, a download runs to its end.
+   */
+  cancel?(fileName: string): void
+  /**
    * Where to fetch a song's copy from, when this platform has somewhere better
    * than the bucket: the desktop shell has the song it just streamed on its
    * disk already. Left out, the bucket through the doorman (`sourceFor`).
@@ -78,10 +84,32 @@ export interface RecentCopies<Destination> {
    * now would delete the very file the download is about to want.
    */
   promoteRecent(songIds: readonly number[]): void
-  /** Removed by hand: no longer this budget's to count, and no longer here. */
+  /**
+   * Removed by hand, or a song that would not play: no longer this budget's
+   * to count, and no longer here — nor still arriving.
+   */
   forgetRecent(songIds: readonly number[]): void
   clearRecent(): void
   keepRecentlyPlayed(song: SongFile): Promise<void>
+  /**
+   * The song fetched ahead of its turn (`keepRecentlyPlayed`) is no longer
+   * coming: another was chosen, or the queue moved past it. A download of it
+   * still under way stops and is not kept, rather than sharing the connection
+   * with the song now wanted (R2-m24); a copy already whole stays, its bytes
+   * paid for. Where a download cannot be stopped it runs on, and is kept.
+   */
+  dropAhead(songId: number): void
+  /**
+   * The player's own stream of a song begun (a phone's `songStream.ts`): when
+   * it is whole (`arrived`), it is kept as played now, not when it landed.
+   */
+  streaming(song: SongFile): void
+  /**
+   * A copy the player's own stream brought whole: the play already paid for
+   * the bytes, so it is kept as if fetched for it — unless the song was removed
+   * by hand while it arrived.
+   */
+  arrived(song: SongFile, bytes: number): Promise<void>
   /**
    * A kept copy, moved to where a download belongs, and its size — or null
    * when there is none to move. Asking for a song by hand turns its copy into
@@ -150,21 +178,26 @@ export function createRecentCopies<Destination>(
     return entry && entry.fileName === fileNameFor(song) ? entry : null
   }
 
-  /** Let go of the oldest copies until the rest fit, and write down what is left. */
-  async function trim(kept: Map<number, KeptFile>): Promise<void> {
-    const present = new Set(await folder.list())
+  /**
+   * Let go of the oldest copies until the rest fit, and write down what is
+   * left. Copies gone already — cleared by the system under pressure, or by
+   * hand — are dropped first, by the same rule as at launch: two songs land
+   * together (the one playing and the next, fetched ahead), and one written
+   * down while the folder was being asked must not be lost for not being in
+   * the listing.
+   */
+  async function trim(): Promise<void> {
+    await reconcile(new Map(load()))
+    const free = await folder.free()
+    const kept = load()
     let held = 0
-    for (const [songId, entry] of kept) {
-      // Gone already: cleared by the system under pressure, or by hand.
-      if (!present.has(entry.fileName)) kept.delete(songId)
-      else held += entry.bytes
-    }
+    for (const entry of kept.values()) held += entry.bytes
     const copies = [...kept].map(([songId, entry]) => ({
       songId,
       playedAt: entry.playedAt,
       bytes: entry.bytes,
     }))
-    for (const songId of toEvict(copies, budgetForDisk(await folder.free(), held))) {
+    for (const songId of toEvict(copies, budgetForDisk(free, held))) {
       drop(kept, songId)
     }
     save(kept)
@@ -172,6 +205,52 @@ export function createRecentCopies<Destination>(
 
   /** Being fetched now, so a song played twice in a row is not fetched twice. */
   const arriving = new Set<number>()
+
+  /**
+   * When each song still arriving was last asked for: what it is kept as,
+   * once whole. A song another play overtook while it arrived is the older
+   * of the two, and one asked for again in that time the newer (the desktop
+   * shell's rule, apps/desktop/src/main/stream.ts). Forgotten when the song is
+   * removed by hand, which is how a copy that lands after that is let go.
+   */
+  const asked = new Map<number, number>()
+  /** The file each song asked for is arriving as, by song: what to stop when it is not wanted after all. */
+  const arrivingAs = new Map<number, string>()
+
+  /** A download still under way, stopped and not kept when it lands. */
+  function stop(songId: number): void {
+    const fileName = arrivingAs.get(songId)
+    asked.delete(songId)
+    arrivingAs.delete(songId)
+    if (fileName !== undefined) folder.cancel?.(fileName)
+  }
+
+  /**
+   * A whole copy, written down as played when it was last asked for — or let
+   * go, when it was removed by hand since: neither asked for any more nor in
+   * the note already (the fetch and the stream's word of the same download
+   * both land here, and the second finds the first's entry).
+   */
+  async function settle(song: SongFile, fileName: string, bytes: number): Promise<void> {
+    const kept = load()
+    const known = kept.get(song.id)
+    const playedAt = asked.get(song.id) ?? (known?.fileName === fileName ? known.playedAt : null)
+    asked.delete(song.id)
+    arrivingAs.delete(song.id)
+    if (playedAt === null) {
+      folder.delete(fileName)
+      return
+    }
+    // Of audio the song no longer has: not this copy, and not to be kept beside it.
+    if (known && known.fileName !== fileName) drop(kept, song.id)
+    kept.set(song.id, { playedAt, fileName, bytes })
+    try {
+      await trim()
+    } catch {
+      // The folder would not say; the note stands, and the next copy trims.
+      save(kept)
+    }
+  }
 
   return {
     recentIds: () => new Set(load().keys()),
@@ -187,6 +266,8 @@ export function createRecentCopies<Destination>(
       const kept = load()
       let changed = false
       for (const songId of songIds) {
+        // Still arriving: stopped where it can be, and not kept once it lands (`settle`).
+        stop(songId)
         if (!kept.has(songId)) continue
         drop(kept, songId)
         changed = true
@@ -196,17 +277,22 @@ export function createRecentCopies<Destination>(
 
     clearRecent() {
       folder.clear()
+      asked.clear()
+      arrivingAs.clear()
       save(new Map())
     },
 
     /**
      * Called as the play is counted, not at the end, so the copy is usually
-     * there before the track is — and the next play is from the disk. The song
-     * is streaming while this runs, which makes it the second request for the
-     * same file; that is the price of a player that cannot hand over what it
-     * buffered, and it is paid once per song rather than once per play.
+     * there before the track is — and the next play is from the disk. Where
+     * the song streams from one download into this folder (a phone's
+     * `songStream.ts`), the fetch joins that download or finds it done, and
+     * the bucket is asked once. Where it does not — the desktop's shell
+     * hands over its own — this is the second request for the same file,
+     * paid once per song rather than once per play.
      */
     async keepRecentlyPlayed(song) {
+      asked.set(song.id, Date.now())
       if (arriving.has(song.id)) return
       arriving.add(song.id)
       try {
@@ -214,7 +300,8 @@ export function createRecentCopies<Destination>(
         const fileName = fileNameFor(song)
         const known = kept.get(song.id)
         if (known?.fileName === fileName && (await folder.has(fileName))) {
-          kept.set(song.id, { ...known, playedAt: Date.now() })
+          kept.set(song.id, { ...known, playedAt: asked.get(song.id) ?? Date.now() })
+          asked.delete(song.id)
           save(kept)
           return
         }
@@ -228,10 +315,10 @@ export function createRecentCopies<Destination>(
         if (bucketHold('read')) return
         // Signed in is the only case this is called in, so there is no server to name.
         const from = folder.source?.(song) ?? (await sourceFor(song, null))
+        arrivingAs.set(song.id, fileName)
         const bytes = await folder.fetch(fileName, from.url, from.headers)
         if (bytes === null) return
-        kept.set(song.id, { playedAt: Date.now(), fileName, bytes })
-        await trim(kept)
+        await settle(song, fileName, bytes)
       } catch {
         // No room, no signal, the bucket unreachable: the song played regardless,
         // and the next play tries again.
@@ -239,6 +326,17 @@ export function createRecentCopies<Destination>(
         arriving.delete(song.id)
       }
     },
+
+    dropAhead(songId) {
+      if (folder.cancel && arrivingAs.has(songId)) stop(songId)
+    },
+
+    streaming(song) {
+      asked.set(song.id, Date.now())
+      arrivingAs.set(song.id, fileNameFor(song))
+    },
+
+    arrived: (song, bytes) => settle(song, fileNameFor(song), bytes),
 
     async adoptRecent(song, destination) {
       const kept = load()

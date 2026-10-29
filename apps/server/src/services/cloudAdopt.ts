@@ -16,9 +16,10 @@ import type { CloudRepository } from '../repositories/cloud.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { StampKind, SyncRepository } from '../repositories/sync.js'
+import type { NamesRepository } from '../repositories/names.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
-import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
+import { isFreeName, songKeyCandidates } from './libraryLayout.js'
 import type { SyncClock } from './localEdits.js'
 import { sha256 } from '../util/hash.js'
 
@@ -91,6 +92,7 @@ export class CloudAdopt {
   readonly #features: AudioFeaturesRepository
   readonly #cloud: CloudRepository
   readonly #sync: SyncRepository
+  readonly #names: NamesRepository
   readonly #storage: StorageDriver
   readonly #clock: SyncClock
   readonly #logger: Logger
@@ -103,6 +105,7 @@ export class CloudAdopt {
     features: AudioFeaturesRepository
     cloud: CloudRepository
     sync: SyncRepository
+    names: NamesRepository
     storage: StorageDriver
     clock: SyncClock
     logger: Logger
@@ -114,6 +117,7 @@ export class CloudAdopt {
     this.#features = deps.features
     this.#cloud = deps.cloud
     this.#sync = deps.sync
+    this.#names = deps.names
     this.#storage = deps.storage
     this.#clock = deps.clock
     this.#logger = deps.logger.child('adopt')
@@ -135,9 +139,13 @@ export class CloudAdopt {
    * library that published would be the original bug wearing a hat.
    */
   async adopt(snapshot: CloudSnapshot): Promise<AdoptionResult> {
+    this.#adoptNames(snapshot)
     const empty = this.#nothingHere()
     const { prepared, same } = await this.#prepare(snapshot.songs)
-    const newPlaylists = snapshot.playlists.filter(list => !this.#sync.playlist(list.uid))
+    // Deleted here since that snapshot was written: not the bucket's to give back.
+    const newPlaylists = snapshot.playlists.filter(
+      list => !this.#sync.playlist(list.uid) && !this.#cloud.wasPlaylistRemoved(list.uid),
+    )
     const newTags = snapshot.tags.filter(tag => !this.#sync.tag(tag.uid))
     if (
       prepared.length === 0 &&
@@ -280,8 +288,7 @@ export class CloudAdopt {
     for (const candidate of songKeyCandidates(name, extension)) {
       const folder = path.posix.dirname(candidate)
       if (taken.has(folder)) continue
-      if (this.#songs.byPath(candidate)) continue
-      if (!(await isFreeOnDisk(this.#storage, candidate))) continue
+      if (!(await isFreeName(this.#songs, this.#storage, candidate))) continue
       taken.add(folder)
       return candidate
     }
@@ -313,7 +320,37 @@ export class CloudAdopt {
       const tag = this.#sync.tag(target)
       if (tag) this.#sync.addAlias(uid, tag.id)
     }
+    // And the tags its last songs took with them, to come back as they would.
+    for (const tag of snapshot.emptiedTags ?? []) {
+      if (!this.#sync.tag(tag.uid)) this.#sync.addEmptiedTag(tag)
+    }
     return made
+  }
+
+  /**
+   * The names artists go by in the bucket, each list as the later of the two
+   * says: exactly what `artistNamed` does when it arrives in a log. Whatever
+   * else this server already has, a name set elsewhere is not left behind.
+   *
+   * And the Latin spellings of the library's names, for each name this server
+   * has not spelt yet. Spelling is the slow part of a first publish — the
+   * Japanese dictionary and pinyin over every title, artist and album — and
+   * the server that wrote the snapshot has done it already, so a rebuilt one
+   * takes its word rather than spelling the whole library again before it can
+   * write a snapshot of its own (services/spellings.ts). A name already spelt
+   * here keeps its spelling: both came out of the same dictionaries.
+   */
+  #adoptNames(snapshot: CloudSnapshot): void {
+    this.#db.transaction(() => {
+      for (const { artist, names, stamps } of snapshot.artistNames) {
+        const hlc = stamps?.['names']
+        if (hlc) this.#names.takeArtistNames(artist, names, hlc)
+      }
+      const spelt = this.#names.spellings()
+      for (const [name, spellings] of Object.entries(snapshot.spellings)) {
+        if (!spelt.has(name) && spellings.length > 0) this.#names.setSpelling(name, spellings)
+      }
+    })()
   }
 
   #adoptSong({ song, path: key, audioPresent }: Prepared): void {
@@ -332,10 +369,12 @@ export class CloudAdopt {
       lyricsKind: song.lyrics?.kind ?? 'none',
       instrumental: song.instrumental,
       loved: song.loved,
+      restUntil: song.restUntil,
       playCount: song.playCount,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
       sourceUrl: song.sourceUrl,
+      cameWith: song.cameWith ?? null,
     })
 
     for (const tagUid of song.tagUids) {
@@ -377,7 +416,6 @@ export class CloudAdopt {
       lyricsKey: song.lyrics?.key ?? null,
       lyricsSize: song.lyrics?.size ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
-      romanizedKey: song.lyrics?.romanized ?? null,
       lyricsSig: song.lyrics ? tagsLyricsSignature(audioSig) : NO_FILE_SIGNATURE,
       motionKey: song.motion,
       motionSig: NO_FILE_SIGNATURE,

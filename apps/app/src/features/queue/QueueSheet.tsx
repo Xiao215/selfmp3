@@ -9,7 +9,8 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter, type Href } from 'expo-router'
 import type { Song, Tag } from '@selfmp3/shared'
-import { fonts, hitSlopFor, motion, radius, space, type, tracking, iconSize } from '@selfmp3/client'
+import { hitSlopFor, motion, radius, space, type, tracking, iconSize } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { useEscape } from '../../shell/useEscape'
@@ -24,6 +25,7 @@ import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { sourceTagIds } from '../lists/lists.model'
 import { useSwallowSwipeClick } from '../../ports/swipeClick'
+import { useTouchTravel } from '../../ui/useTouchTravel'
 import { closeQueueSheet } from './queueSheet.store'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
@@ -39,7 +41,8 @@ import {
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
 import {
-  AutoMixRow,
+  KeepGoingNext,
+  UpNextSwitches,
   ClearRestButton,
   PlayingNow,
   UpNextList,
@@ -81,12 +84,23 @@ export function QueueSheet({ go }: { go?: (href: Href) => void }): ReactNode {
   // as `Sheet` is. Adjusted during render so opening never shows a frame without it.
   const [mounted, setMounted] = useState(shown)
   if (shown && !mounted) setMounted(true)
-  const gone = useCallback(() => setMounted(false), [])
+  /*
+   * Open before this sheet was: the rail beside an iPad's page, and the iPad
+   * turned upright. Drawn where it already is, as the page under it is,
+   * rather than rising again over the turn (R2-m17). Opened from here, it rises.
+   */
+  const [openBefore, setOpenBefore] = useState(shown)
+  const gone = useCallback(() => {
+    setMounted(false)
+    setOpenBefore(false)
+  }, [])
   // Here, above the panel, so an Undo raised before it shut still reaches the queue.
   const edits = useQueueEdits(mounted, go)
   useOnlySongEndNotice(edits.player)
 
-  return mounted ? <SheetPanel shown={shown} onGone={gone} edits={edits} go={go} /> : null
+  return mounted ? (
+    <SheetPanel shown={shown} risen={openBefore} onGone={gone} edits={edits} go={go} />
+  ) : null
 }
 
 /**
@@ -106,6 +120,8 @@ interface SheetRowActions {
   readonly move: (index: number, dy: number) => void
   readonly end: (index: number, dy: number) => void
   readonly measured: (height: number) => void
+  /** A row has been taken by a sideways swipe, or let go. */
+  readonly swiping: (swiping: boolean) => void
   /** The finger's travel, which the carried row follows without a render. */
   readonly dragY: Animated.Value
   /** The scale the held row wears (`useLiftScale`). */
@@ -114,11 +130,14 @@ interface SheetRowActions {
 
 function SheetPanel({
   shown,
+  risen,
   onGone,
   edits,
   go,
 }: {
   shown: boolean
+  /** Already up when it came to be (`QueueSheet`): it starts there. */
+  risen: boolean
   onGone: () => void
   edits: ReturnType<typeof useQueueEdits>
   go?: (href: Href) => void
@@ -131,7 +150,7 @@ function SheetPanel({
   const factsOf = useQueueRowFacts()
   const { player, rows, remove, clearRest, openTag } = edits
   const inRoom = useRoom().state !== null
-  const [progress] = useState(() => new Animated.Value(0))
+  const [progress] = useState(() => new Animated.Value(risen ? 1 : 0))
   // Pulled down by its head, as every sheet is (`useSheetPull`): only the
   // head, not the list, so a pull on the rows is still a scroll.
   const { pull, gesture: pullDown } = useSheetPull(closeQueueSheet)
@@ -146,6 +165,33 @@ function SheetPanel({
     [progress, pull, height],
   )
   useEscape(shown, closeQueueSheet, { layer: true })
+
+  /*
+   * As tall as what it holds, between half the screen and all of it (P14 A):
+   * with one song queued the full sheet was mostly empty, and the page behind
+   * it may as well stay in view. The panel less the list's frame is the head
+   * and the playing card; the list's content is the rest.
+   */
+  const [sizes, setSizes] = useState({ panel: 0, frame: 0, content: 0 })
+  const tallest = height - insets.top - SHEET_TOP
+  const wanted = sizes.panel - sizes.frame + sizes.content
+  const sheetHeight =
+    inRoom || sizes.panel === 0 || sizes.content === 0
+      ? tallest
+      : Math.min(tallest, Math.max(Math.round(height / 2), Math.ceil(wanted)))
+  /*
+   * Already up when it came to be, it waits out of sight until it knows how
+   * tall it is: drawn at once, it stood the whole height of the screen over
+   * the page until its list had been measured, a second and more on a busy
+   * iPad just turned upright.
+   */
+  const unseen = risen && !inRoom && (sizes.panel === 0 || sizes.content === 0)
+  const listHeights = useCallback((frame: number | null, content: number | null) => {
+    setSizes(now => {
+      const next = { ...now, frame: frame ?? now.frame, content: content ?? now.content }
+      return next.frame === now.frame && next.content === now.content ? now : next
+    })
+  }, [])
 
   useEffect(() => {
     // Up from the foot with a small overshoot, 300 ms, and down in 220, as
@@ -171,6 +217,8 @@ function SheetPanel({
   // which moves the lifted row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [dragY] = useState(() => new Animated.Value(0))
+  // A row under a sideways swipe: the guide waits until it is let go.
+  const [swiping, setSwiping] = useState(false)
   /*
    * The held row lifts a little towards the finger (`M2`, 6); the rows it
    * passes step aside for it (`MakeRoom`), so where it will land is a gap
@@ -200,11 +248,21 @@ function SheetPanel({
   const first = rows.next[0]?.index ?? 0
   /*
    * Swiping a song away and holding one to move it, shown once on the first
-   * song to come, in place of a line that sat under the list for good.
+   * song to come, in place of a line that sat under the list for good. Never
+   * over a row already being held or swiped: it came up mid-swipe, and the
+   * tap that closed it was the swipe's own finger. A hold still being
+   * counted, and a menu opened from a row, the guide waits out itself
+   * (`guideBusy`); the sheet is the one layer it is drawn in.
    */
   const [firstTarget, guide] = useGuide(
     'up-next',
-    shown && !inRoom && rows.next.length >= 2 && drag === null && !onlySongEnded(player),
+    shown &&
+      !inRoom &&
+      rows.next.length >= 2 &&
+      drag === null &&
+      !swiping &&
+      !onlySongEnded(player),
+    { layers: 1 },
   )
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
@@ -243,18 +301,24 @@ function SheetPanel({
         // Dropped: the scale settles back on the spring with a tap, and the
         // row keeps wearing it into its new place.
         dropRow()
+        // No travel is a hold taken away (`HoldToReorder`): the song held may
+        // be the one playing now, outside the rows a move lands among, and
+        // held to them it would have been moved there.
+        if (dy === 0) return
         const to = target(index, dy)
         if (to !== index) latest.current.player.reorderQueue(index, to)
       },
       measured: setMeasured,
+      swiping: setSwiping,
       dragY,
       lift: liftScale,
     }
   }, [dragY, liftScale, holdRow, liftRow, dropRow, editTags])
 
   const playing = rows.playing
-  // Something besides the song playing, to come or played, for Clear the rest to take.
-  const clearable = player.queue.items.length > 1
+  // Something to come for Clear the rest to take: with nothing after the song
+  // playing it is hidden, where it sat over "Nothing next" (w23).
+  const clearable = rows.next.length > 0
   const ended = onlySongEnded(player)
   const openNowPlaying = (): void => {
     closeQueueSheet()
@@ -277,7 +341,6 @@ function SheetPanel({
         measures={promised === null && entry.index === first}
         artUri={artFor(entry.song)}
         downloaded={facts.downloaded}
-        notDownloadedMark={facts.notDownloadedMark}
         unavailable={facts.unavailable}
         tags={facts.tags}
         hideTagIds={fromTags}
@@ -291,16 +354,23 @@ function SheetPanel({
         }
       />
     )
-    if (!movable || entry.index !== first) return sheetRow
+    /*
+     * The same wrapper round every row, and the guide's ref on the first only.
+     * Wrapped only when it was first, a row became something else the moment
+     * the row above it went: remounted mid-swipe, its removal was dropped and
+     * it came back; remounted mid-hold, it was left lifted and every swipe dead.
+     */
     return (
-      <View key={entry.song.id} ref={firstTarget} collapsable={false}>
+      <View ref={movable && entry.index === first ? firstTarget : undefined} collapsable={false}>
         {sheetRow}
       </View>
     )
   }
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    // Shut and sinking, it takes no touches: a tap right after closing it
+    // played the row that was still under the finger (R2-m16).
+    <View style={StyleSheet.absoluteFill} pointerEvents={shown ? 'box-none' : 'none'}>
       <SheetBackdrop opacity={dim} onClose={closeQueueSheet} label="Close Up next" />
       <Animated.View
         testID="queue-sheet"
@@ -309,11 +379,16 @@ function SheetPanel({
         style={[
           styles.panel,
           {
-            top: insets.top + SHEET_TOP,
+            top: height - sheetHeight,
             paddingBottom: insets.bottom + space.md,
             transform: [{ translateY: rise }],
           },
+          unseen && styles.unseen,
         ]}
+        onLayout={event => {
+          const panel = event.nativeEvent.layout.height
+          setSizes(now => (now.panel === panel ? now : { ...now, panel }))
+        }}
       >
         <GestureDetector gesture={pullDown}>
           <View collapsable={false} style={styles.head}>
@@ -331,7 +406,12 @@ function SheetPanel({
             </Press>
             {inRoom ? null : (
               <View style={styles.titleRow}>
-                <Text style={styles.title} accessibilityRole="header">
+                <Text
+                  style={styles.title}
+                  accessibilityRole="header"
+                  aria-level={2}
+                  numberOfLines={1}
+                >
                   Up next
                 </Text>
                 <View style={styles.pills}>
@@ -349,7 +429,7 @@ function SheetPanel({
                     active={player.queue.shuffle}
                     onPress={player.toggleShuffle}
                   />
-                  <ClearRestButton onPress={clearRest} enabled={clearable} />
+                  {clearable ? <ClearRestButton onPress={clearRest} /> : null}
                 </View>
               </View>
             )}
@@ -379,7 +459,9 @@ function SheetPanel({
             rowHeight={rowHeight}
             renderRow={row}
             raised={drag?.from ?? null}
+            onHeights={listHeights}
             labelStyle={styles.labelInset}
+            afterNext={ended ? null : <KeepGoingNext style={styles.labelInset} />}
             head={
               ended && playing ? (
                 <OnlySongEnd song={playing.song} player={player} />
@@ -387,7 +469,9 @@ function SheetPanel({
                 <Text style={[styles.label, styles.labelInset]}>{nextLabel(rows.next)}</Text>
               )
             }
-            foot={<AutoMixRow player={player} upcoming={rows.next.length} style={styles.autoMix} />}
+            foot={
+              <UpNextSwitches player={player} upcoming={rows.next.length} style={styles.autoMix} />
+            }
           />
         )}
       </Animated.View>
@@ -421,7 +505,6 @@ const SheetRow = memo(function SheetRow({
   measures,
   artUri,
   downloaded,
-  notDownloadedMark,
   unavailable,
   tags,
   hideTagIds,
@@ -443,7 +526,6 @@ const SheetRow = memo(function SheetRow({
   measures: boolean
   artUri: string | null | undefined
   downloaded: boolean
-  notDownloadedMark: boolean
   /** Not on this phone, with nothing to stream it from now: faded. */
   unavailable: boolean
   tags: readonly Tag[]
@@ -461,7 +543,12 @@ const SheetRow = memo(function SheetRow({
   const onMove = useCallback((_dx: number, dy: number) => actions.move(index, dy), [actions, index])
   const onEnd = useCallback((_dx: number, dy: number) => actions.end(index, dy), [actions, index])
   const onRemove = useCallback(() => actions.remove(index), [actions, index])
-  const onPress = useCallback(() => actions.play(index), [actions, index])
+  // A sideways drag the swipe did not take lets go as a press: not a tap, so
+  // the song is not played and Up next keeps its place.
+  const travel = useTouchTravel()
+  const onPress = useCallback(() => {
+    if (!travel.moved()) actions.play(index)
+  }, [actions, index, travel])
   // Wearing the scale without being carried: the hold is still being counted,
   // or the row has just been let go and is settling. Only the scale then —
   // `dragY` is left where the finger put it (see `end`), so a settling row that
@@ -483,7 +570,12 @@ const SheetRow = memo(function SheetRow({
             : null
       }
     >
-      <SwipeToRemove enabled={!carrying} onRemove={onRemove} peek={peek}>
+      <SwipeToRemove
+        enabled={!carrying}
+        onRemove={onRemove}
+        onSwiping={actions.swiping}
+        peek={peek}
+      >
         <HoldToReorder
           enabled={movable}
           onHolding={onHolding}
@@ -492,14 +584,13 @@ const SheetRow = memo(function SheetRow({
           onEnd={onEnd}
           onLayoutHeight={measures ? actions.measured : undefined}
         >
-          <View style={!movable && styles.played}>
+          <View style={!movable && styles.played} {...travel.handlers}>
             <SongRow
               testID={`queue-row-${index}`}
               song={song}
               artUri={artUri}
               active={false}
               downloaded={downloaded}
-              notDownloadedMark={notDownloadedMark}
               unavailable={unavailable}
               onPress={onPress}
               tags={tags}
@@ -554,11 +645,14 @@ function MakeRoom({
 function SwipeToRemove({
   enabled,
   onRemove,
+  onSwiping,
   peek,
   children,
 }: {
   enabled: boolean
   onRemove: () => void
+  /** Told when the swipe takes the row and when the finger lets go. */
+  onSwiping: (swiping: boolean) => void
   /** The guide pulling the row, the way a finger would: the ground stays put. */
   peek: object | null
   children: ReactNode
@@ -615,6 +709,7 @@ function SwipeToRemove({
         .activeOffsetX([-SWIPE_START, Number.MAX_SAFE_INTEGER])
         .failOffsetY([-SWIPE_VERTICAL_SLOP, SWIPE_VERTICAL_SLOP])
         .runOnJS(true)
+        .onStart(() => onSwiping(true))
         .onUpdate(event => {
           x.setValue(swipeOffset(event.translationX, width))
           markSwiping()
@@ -631,8 +726,9 @@ function SwipeToRemove({
           } else {
             spring(x, 0)
           }
-        }),
-    [enabled, width, x, markSwiping],
+        })
+        .onFinalize(() => onSwiping(false)),
+    [enabled, width, x, markSwiping, onSwiping],
   )
 
   return (
@@ -664,6 +760,7 @@ const GRABBER_HIT = 8
 const ROW_HEIGHT_GUESS = 64
 
 const styles = StyleSheet.create(theme => ({
+  unseen: { opacity: 0 },
   panel: {
     position: 'absolute',
     left: 0,
@@ -679,7 +776,15 @@ const styles = StyleSheet.create(theme => ({
   },
   head: { gap: space.md, paddingHorizontal: 18 },
   grabberHit: { alignSelf: 'center', paddingVertical: 2, paddingHorizontal: 20 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  // On a 320 pt phone the pills take a row of their own rather than breaking
+  // the title over two lines.
+  titleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+  },
   title: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,

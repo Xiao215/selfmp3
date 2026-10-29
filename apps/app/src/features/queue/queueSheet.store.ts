@@ -1,4 +1,6 @@
-import { useSyncExternalStore } from 'react'
+import { createValueStore } from '../../state/valueStore.model'
+import { useValueStore } from '../../state/useValueStore'
+import { countUse } from '../usage/usage'
 
 /**
  * Whether Up next is open (docs/ui-mock `P25`, `C11`): the sheet over a
@@ -8,13 +10,11 @@ import { useSyncExternalStore } from 'react'
  * pages until it is closed.
  */
 
-let open = false
-const listeners = new Set<() => void>()
+const open = createValueStore(false)
 
 function set(next: boolean): void {
-  if (open === next) return
-  open = next
-  for (const listener of listeners) listener()
+  if (next && !open.get()) countUse('up-next')
+  open.set(next)
 }
 
 export function openQueueSheet(): void {
@@ -26,21 +26,14 @@ export function closeQueueSheet(): void {
 }
 
 export function toggleQueueSheet(): void {
-  set(!open)
+  set(!open.get())
 }
 
 /** Whether it is open now, read outside a render: a message deciding whether Up next already says it. */
 export function isQueueSheetOpen(): boolean {
-  return open
+  return open.get()
 }
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-const snapshot = (): boolean => open
 
 export function useQueueSheetOpen(): boolean {
-  return useSyncExternalStore(subscribe, snapshot, snapshot)
+  return useValueStore(open)
 }

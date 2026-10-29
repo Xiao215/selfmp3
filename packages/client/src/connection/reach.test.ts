@@ -109,12 +109,6 @@ describe('answersAs', () => {
     expect(answersAs('<html>a router’s login page</html>', home)).toBe(false)
   })
 
-  it('holds a snapshot that named no server only to answering', () => {
-    const [unnamed] = candidates({ ...server, id: undefined }) as [Candidate]
-    expect(answersAs(health('any-server'), unnamed)).toBe(true)
-    expect(answersAs({ ok: true }, unnamed)).toBe(false)
-  })
-
   /*
    * 2026-10-14: the real app on the Mac, signed in to a library served from
    * the Pi, raced the Pi's addresses — `http://localhost:4600` among them,
@@ -263,6 +257,12 @@ describe('awayCopy', () => {
     expect(offer.why).toContain('The shared computer can')
     // A computer of its own that is only off is not offered a different one.
     expect(awayCopy(true, 'stats', true).title).toBe('Your library’s computer isn’t answering')
+  })
+
+  it('does not tell a library with no songs yet that its songs still play', () => {
+    expect(awayCopy(false, 'stats', true, true).body).toBe('Your library has no songs yet.')
+    // Import's line is about adding, which an empty library is there to do.
+    expect(awayCopy(false, 'import', true, true).body).toBe('You can still add a link below.')
   })
 
   it('leads with what this screen came for, so the card is not the same card everywhere', () => {

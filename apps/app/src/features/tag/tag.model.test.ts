@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
-import { libraryArtists } from '@selfmp3/shared'
+import { findArtist, joinedArtists, libraryArtists, NO_JOINS } from '@selfmp3/shared'
 
 import {
   addSheetRows,
@@ -51,16 +51,28 @@ describe('a place’s songs', () => {
     expect(placeSongs(places, songs).map(item => item.id)).toEqual([4, 1])
   })
 
-  it('adds, never narrows: a second place brings its own songs in, each once', () => {
+  it('adds unless asked for all: a second place brings its own songs in, each once', () => {
     const places: Place[] = [
       { kind: 'tag', tag: tag(1, 'chill') },
       { kind: 'artist', artist: yorushika },
     ]
     expect(placeSongs(places, songs).map(item => item.id)).toEqual([4, 3, 1])
+    // All: only the songs every one of them holds.
+    expect(placeSongs(places, songs, 'all').map(item => item.id)).toEqual([4])
   })
 
   it('is nothing with no place chosen', () => {
     expect(placeSongs([], songs)).toEqual([])
+  })
+
+  it('is the songs under either spelling of an artist joined by other names', () => {
+    const both = [...songs, song(5, { artist: 'ヨルシカ' })]
+    const names = { artistNames: { yorushika: ['ヨルシカ'] }, artistNamesFound: [] }
+    const joined = findArtist(joinedArtists(both, names), 'ヨルシカ')!
+    expect(joined.name).toBe('Yorushika')
+    expect(placeSongs([{ kind: 'artist', artist: joined }], both).map(item => item.id)).toEqual([
+      5, 4, 3,
+    ])
   })
 
   it('says how many and how long', () => {
@@ -113,8 +125,8 @@ describe('All tags', () => {
   it('counts the untagged songs for the card, newest first', () => {
     const songs = [song(1), song(2, { tagIds: [1] }), song(3)]
     expect(untaggedSongs(songs).map(item => item.id)).toEqual([3, 1])
-    expect(untaggedCardTitle(2)).toBe('2 songs have no tag yet')
-    expect(untaggedCardTitle(1)).toBe('1 song has no tag yet')
+    expect(untaggedCardTitle(2)).toBe('2 songs without a tag')
+    expect(untaggedCardTitle(1)).toBe('1 song without a tag')
   })
 })
 
@@ -126,10 +138,10 @@ describe('a new tag', () => {
 
   it('finds the artist a new tag would shadow (P11)', () => {
     const songs = [song(1, { artist: 'Yorushika' }), song(2, { artist: 'A feat. B' })]
-    expect(artistNamed(songs, 'yorushika')?.name).toBe('Yorushika')
-    expect(artistNamed(songs, 'B')?.name).toBe('B')
-    expect(artistNamed(songs, 'night drive')).toBeNull()
-    expect(artistNamed(songs, '  ')).toBeNull()
+    expect(artistNamed(songs, NO_JOINS, 'yorushika')?.name).toBe('Yorushika')
+    expect(artistNamed(songs, NO_JOINS, 'B')?.name).toBe('B')
+    expect(artistNamed(songs, NO_JOINS, 'night drive')).toBeNull()
+    expect(artistNamed(songs, NO_JOINS, '  ')).toBeNull()
   })
 })
 

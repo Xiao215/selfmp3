@@ -39,6 +39,8 @@ export function song(fields: Partial<Song> & Pick<Song, 'id' | 'title' | 'artist
     instrumental: false,
     playCount: 0,
     loved: false,
+    lovedAt: null,
+    restUntil: null,
     sourceUrl: null,
     lastPlayedAt: null,
     addedAt: '2026-09-01 12:00:00',
@@ -79,6 +81,9 @@ export function fixtureLibrary(): Library {
     ],
     tags: [tag(1, 'new', 150), tag(2, 'j-pop', 330)],
     playlists: [playlist(1, 'Gym rotation', 'manual', true), playlist(2, 'Loved', 'live', false)],
+    artistNames: {},
+    artistNamesFound: [],
+    spellings: {},
     version: 1,
     generatedAt: '2026-09-15 12:00:00',
   }
@@ -126,6 +131,7 @@ export function previewFor(url: string): {
         kind: 'playlist',
         playlistTitle: 'City pop night drive',
         from: 'youtube',
+        unread: [],
         items: [
           previewItem(
             'https://music.youtube.com/watch?v=aaaaaaaaaa1',
@@ -154,6 +160,7 @@ export function previewFor(url: string): {
         kind: 'single',
         playlistTitle: null,
         from: 'youtube',
+        unread: [],
         items: [previewItem(url, 'Hello', 'Adele', true)],
       },
     }
@@ -164,6 +171,7 @@ export function previewFor(url: string): {
       kind: 'single',
       playlistTitle: null,
       from: 'youtube',
+      unread: [],
       items: [previewItem(url, 'アイドル', 'YOASOBI')],
     },
   }

@@ -83,8 +83,15 @@ describe('the header', () => {
       text: '40 not on this phone · offline',
       action: null,
     })
-    expect(text({ ...phone, missingBytes: 1.2 * 1024 * MB })).toBe('40 not on this phone · 1.2 GB')
-    expect(text({ ...phone, autoOnWifi: false })).toBe('40 not on this phone')
+  })
+
+  // The same line on every visit to Library: Library's ⋯ has Download all (AL1).
+  it('says nothing about a wait only a tap ends', () => {
+    expect(syncHeader({ ...phone, missingBytes: 1.2 * 1024 * MB })).toEqual({ kind: 'none' })
+    expect(syncHeader({ ...phone, autoOnWifi: false })).toEqual({ kind: 'none' })
+    expect(syncHeader({ ...phone, autoOnWifi: false, network: 'cellular' })).toEqual({
+      kind: 'none',
+    })
   })
 
   it('says nothing when there is nothing to say', () => {
@@ -128,6 +135,7 @@ describe('playing a song that is not downloaded', () => {
     streamUndownloaded: true,
     fromCloud: false,
     bucketHeld: false,
+    storageUnreachable: false,
     dataAllowed: false,
   }
 
@@ -181,10 +189,34 @@ describe('playing a song that is not downloaded', () => {
       expect(playBlock({ ...cloud, bucketHeld: true })).toBe('held')
       // No signal says more than the refusal does.
       expect(playBlock({ ...cloud, bucketHeld: true, network: 'none' })).toBe('offline')
-      // A library on a server does not answer to the bucket's day, and a
-      // browser's service worker may have the song kept.
+      // A library on a server does not answer to the bucket's day.
       expect(playBlock({ ...song, bucketHeld: true })).toBeNull()
-      expect(playBlock({ ...cloud, installed: false, bucketHeld: true })).toBeNull()
+    })
+
+    it('does not try one with the storage out of reach, though the device is online', () => {
+      expect(playBlock({ ...cloud, storageUnreachable: true })).toBe('unreachable')
+      expect(playBlock({ ...cloud, storageUnreachable: true, downloaded: true })).toBeNull()
+      expect(playBlock({ ...cloud, storageUnreachable: true, bucketHeld: true })).toBe('held')
+      // A library on a server does not stream from the storage.
+      expect(playBlock({ ...song, storageUnreachable: true })).toBeNull()
+    })
+  })
+
+  /*
+   * A browser has no downloads of its own beyond those saved by hand, and its
+   * service worker's played songs: everything else comes from the bucket, so
+   * on the day it refuses, a tag's songs were each tried, refused, retried and
+   * skipped in turn.
+   */
+  describe('a browser with the bucket refusing for the day', () => {
+    const tab = { ...song, installed: false, fromCloud: true, bucketHeld: true }
+
+    it('does not try a song it would have to fetch', () => {
+      expect(playBlock(tab)).toBe('held')
+    })
+
+    it('still plays what it has: a download, or a song its worker kept', () => {
+      expect(playBlock({ ...tab, downloaded: true })).toBeNull()
     })
   })
 

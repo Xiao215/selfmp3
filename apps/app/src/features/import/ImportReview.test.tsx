@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { configureClient, reviewFrom, type Api } from '@selfmp3/client'
@@ -30,7 +30,10 @@ jest.mock('expo-router', () => ({
 }))
 
 // The floating chrome's room reads the player; there is no player here.
-jest.mock('../../shell/bottomInset', () => ({ useFootInset: () => 0 }))
+jest.mock('../../shell/bottomInset', () => ({
+  useFootInset: () => 0,
+  useFloatingChrome: () => 0,
+}))
 
 const mockClose = jest.fn()
 // One set of handlers for every render, as the real hook's keep their identity.
@@ -77,6 +80,10 @@ jest.mock('./importSource', () => {
           importAlreadyHave: () => mockAlreadyHave(),
           importNames: (request: unknown) => mockImportNames(request),
         },
+        // Look-ups go to the same server, given longer to answer.
+        get lookUp() {
+          return (this as { api: unknown }).api
+        },
         library: { songs: [], tags: mockTags, playlists: [] },
         createTag: (name: string) => mockCreateTag(name),
         tools: { ytdlp: true, ffmpeg: true },
@@ -100,7 +107,14 @@ configureClient({
   api: {
     onCloudLibraryChanged: () => () => undefined,
     answersFromCloud: () => true,
-    library: () => Promise.resolve({ songs: [], tags: [], playlists: [] }),
+    library: () =>
+      Promise.resolve({
+        songs: [],
+        tags: [],
+        playlists: [],
+        artistNames: {},
+        artistNamesFound: [],
+      }),
   } as unknown as Api,
 })
 
@@ -157,7 +171,9 @@ const draw = async (): Promise<() => unknown> => {
 describe('Import review, on a phone', () => {
   beforeEach(() => {
     // What the server answers an enqueue with, so what reads the answer has one.
-    mockEnqueue.mockReset().mockResolvedValue({ jobs: [], skipped: 0, playlistId: null })
+    mockEnqueue
+      .mockReset()
+      .mockResolvedValue({ jobs: [], skipped: 0, playlistId: null, device: null, leases: [] })
     mockAlreadyHave.mockReset().mockResolvedValue({ have: [] })
     mockCreateTag.mockClear()
     mockClose.mockClear()
@@ -165,6 +181,7 @@ describe('Import review, on a phone', () => {
     mockTags.length = 1
     patchDraft('own', {
       review: reviewFrom({
+        unread: [],
         from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',
@@ -193,7 +210,9 @@ describe('Import review, on a phone', () => {
     // The row that said so: the second in the list, the first asked about.
     expect(await screen.findByTestId('import-suggestion-1')).toBeTruthy()
     expect(screen.getByText('Album from the list')).toBeTruthy()
-    expect(screen.getByText('群青 · YOASOBI · THE BOOK')).toBeTruthy()
+    // Only the name it changes, the album: the title and artist it keeps are left out.
+    expect(within(screen.getByTestId('import-suggestion-1')).getByText('THE BOOK')).toBeTruthy()
+    expect(screen.getByLabelText('Use the suggested album THE BOOK')).toBeTruthy()
     await act(async () => {
       await fireEvent.press(screen.getByTestId('import-suggestion-use-1'))
     })
@@ -214,6 +233,25 @@ describe('Import review, on a phone', () => {
     expect(screen.getByLabelText('Deselect 群青')).toBeTruthy()
     expect(screen.queryByLabelText(/アイドル$/)).toBeNull()
     expect(screen.getByLabelText('Deselect all')).toBeTruthy()
+  })
+
+  it('says over the songs which pasted links it could not read, and why', async () => {
+    const review = draftFor('own').review!
+    patchDraft('own', {
+      review: {
+        ...review,
+        unread: [
+          { url: 'https://youtu.be/zzzzzzzzzzz', why: 'This video isn’t on YouTube any more.' },
+        ],
+      },
+    })
+    await draw()
+    expect(screen.getByText('Couldn’t read 1 link')).toBeTruthy()
+    expect(
+      within(screen.getByTestId('import-unread')).getByText(/isn’t on YouTube any more/),
+    ).toBeTruthy()
+    // The songs of the links it read are still there to import.
+    expect(screen.getByText('Import 2 songs')).toBeTruthy()
   })
 
   it('asks the server again what is yours, since the kept review may be old', async () => {
@@ -318,6 +356,7 @@ describe('Import review, on a phone', () => {
     // review is keyed by the server, not by whichever address won this time.
     patchDraft('cloud', {
       review: reviewFrom({
+        unread: [],
         from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',
@@ -356,10 +395,14 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByRole('checkbox', { name: 'jpop' }))
     })
     // The chip is the button; the row in the picker above it is the checkbox.
-    expect(screen.getByRole('button', { name: 'jpop' })).toBeTruthy()
+    // The chip is on the page under the open picker, which hides the page
+    // from a screen reader while it is up.
+    expect(screen.getByRole('button', { name: 'jpop', includeHiddenElements: true })).toBeTruthy()
 
+    // Import, on the page under the picker (which a press on it straight
+    // after opening would not put away, `BACKDROP_SETTLE_MS`).
     await act(async () => {
-      await fireEvent.press(screen.getByTestId('import-commit'))
+      await fireEvent.press(screen.getByTestId('import-commit', { includeHiddenElements: true }))
     })
     expect(mockEnqueue.mock.calls[0][0].tagIds).toEqual([7])
     // The tags were for these songs: the next link starts with none.
@@ -379,7 +422,10 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByLabelText('Create citypop'))
     })
     expect(mockCreateTag).toHaveBeenCalledWith('citypop')
-    expect(screen.getByRole('button', { name: 'citypop' })).toBeTruthy()
+    // On the page, under the picker that hides it from a screen reader.
+    expect(
+      screen.getByRole('button', { name: 'citypop', includeHiddenElements: true }),
+    ).toBeTruthy()
   })
 
   it('opens a song to rename it, album and all, and sends the new names with no playlist', async () => {

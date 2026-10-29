@@ -1,56 +1,65 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
-import { radius, type, space, iconSize } from '@selfmp3/client'
-import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
-import { Slider } from '../../ui/components/Slider'
-import { card, label as labelText, serif, hint } from '../../ui/surfaces'
+import { Circle, Svg } from 'react-native-svg'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { radius, type, space, iconSize, textStyle } from '@selfmp3/client'
+import { ChevronRight, Copy, Minus, Plus } from '../../ui/components/Icons'
+import { card, label, hint } from '../../ui/surfaces'
+import { OPACITY } from '../../ui/motion.model'
 import { Press } from '../../ui/components/Press'
+import { Button } from '../../ui/components/Button'
+import { IconButton } from '../../ui/components/IconButton'
+import { useLargeText } from '../../ui/textScale'
+import { copyText } from '../../ports/clipboard'
+import { showToast } from '../../ui/toast'
 
 /**
- * The pieces every Settings section is made of: one row anatomy — name, a
- * quiet line of explanation, the control on the right. On a phone the control
- * drops under the words.
+ * The pieces every Settings page is made of (redesign B, 2026-10-26): one row
+ * anatomy — name, a quiet line of explanation only where it adds something,
+ * the control on the right, on a phone as on a computer. Only a control that
+ * needs the width drops under the words on a phone (`stack`).
  *
- * A section is a small uppercase label over a card (`P38`, `C17`), and its rows
- * are told apart by spacing alone. The boards draw a line between rows; `S2`
- * has no hairlines anywhere, and where tone is not enough, space is the
- * second tool.
+ * An action in a row is words in the accent at its end (`Button`'s `text`
+ * variant, C1a), not a pill sitting in the card; a row that opens a page of its
+ * own is the whole row (`LinkRow`). A group is a card, with a quiet label over
+ * it when it needs one, and its rows are told apart by spacing alone.
  */
 
 const Stacked = createContext(false)
 export const StackedRows = Stacked.Provider
 
-export function Panel({
+/**
+ * A group of rows: a card, with its name over it when it has one. The page is
+ * cards and the space between them; where a row's control needs no words —
+ * the tiles, the accent's swatches — the card has no name either.
+ */
+export function Card({
   title,
   mark,
-  hint,
-  anchor,
+  flush = false,
+  testID,
   children,
 }: {
-  title: string
+  title?: string
   /** Drawn before the title: the sparkle that marks a smart feature. */
   mark?: ReactNode
-  hint?: string
-  /**
-   * The panel's own view, so the index can ask where it sits when it scrolls
-   * there. A view rather than an `onLayout` offset: in a browser a view reports
-   * its layout only when its size changes, not when a panel above it grows.
-   */
-  anchor: (node: View | null) => void
+  /** No padding of its own: rows that press edge to edge (`LinkRow`). */
+  flush?: boolean
+  testID?: string
   children: ReactNode
 }): ReactNode {
   return (
-    <View ref={anchor} style={styles.group}>
-      <View style={styles.groupHead}>
-        {mark ? <View style={styles.groupMark}>{mark}</View> : null}
-        <Text style={styles.groupLabel} accessibilityRole="header">
-          {title}
-        </Text>
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
-      </View>
-      <View style={styles.panel}>{children}</View>
+    <View style={styles.group} testID={testID}>
+      {title ? (
+        <View style={styles.groupHead}>
+          {mark ? <View style={styles.groupMark}>{mark}</View> : null}
+          <Text style={styles.groupLabel} accessibilityRole="header" aria-level={2}>
+            {title}
+          </Text>
+        </View>
+      ) : null}
+      <View style={[styles.panel, flush && styles.panelFlush]}>{children}</View>
     </View>
   )
 }
@@ -59,17 +68,26 @@ export function Row({
   label,
   hint,
   last = false,
+  stack = false,
+  disabled = false,
   children,
 }: {
   label: string
   hint?: ReactNode
   last?: boolean
+  /** The control needs the row's width, so on a phone it goes under the words. */
+  stack?: boolean
+  /** Greyed: what it sets does nothing while something above it is off. */
+  disabled?: boolean
   children?: ReactNode
 }): ReactNode {
-  const stacked = useContext(Stacked)
+  // At the largest text sizes every control goes under its words, which beside
+  // it broke "Library" into "Libra / ry" (AM1).
+  const large = useLargeText()
+  const stacked = (useContext(Stacked) && stack) || large
   return (
     <View style={[styles.row, stacked && styles.rowStacked, last && styles.rowLast]}>
-      <View style={styles.label}>
+      <View style={[styles.label, disabled && styles.labelDisabled]}>
         <Text style={styles.name}>{label}</Text>
         {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
       </View>
@@ -80,81 +98,300 @@ export function Row({
   )
 }
 
-/** A slider with its value beside it, saved once where the drag ends. */
-export function SliderSetting({
-  value,
-  min,
-  max,
-  step,
-  label,
-  format,
-  onCommit,
+/**
+ * A panel's one row while the library's settings it shows have not come: on
+ * their way, or not answered. Without it the panel was an empty card under its
+ * label, which says nothing about why.
+ */
+export function SettingsWaiting({
+  failed,
+  onRetry,
+  last = true,
 }: {
-  value: number
-  min: number
-  max: number
-  step: number
-  label: string
-  format: (value: number) => string
-  onCommit: (value: number) => void
+  failed: boolean
+  onRetry: () => void
+  last?: boolean
 }): ReactNode {
-  const [live, setLive] = useState<{ value: number; from: number } | null>(null)
-  const shown = live && live.from === value ? live.value : value
-  return (
-    <>
-      <Slider
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        label={label}
-        onChange={next => setLive({ value: next, from: value })}
-        onCommit={onCommit}
-      />
-      <Text style={styles.value}>{format(shown)}</Text>
-    </>
+  return failed ? (
+    <Row label="Can’t reach your library" last={last}>
+      <Button label="Look again" onPress={onRetry} />
+    </Row>
+  ) : (
+    <Row label="Loading…" last={last} />
   )
 }
 
-export function Stats({
-  items,
+/**
+ * A row that opens a page of its own: the whole row presses, its value at the
+ * end before the chevron. Edge to edge in a `flush` card.
+ */
+export function LinkRow({
+  label: name,
+  hint: line,
+  value,
+  lead,
+  onPress,
+  testID,
 }: {
-  items: readonly { value: string; label: string }[]
+  label: string
+  hint?: string
+  value?: string
+  /** Before the words: an avatar, an icon. */
+  lead?: ReactNode
+  onPress: () => void
+  testID?: string
 }): ReactNode {
   return (
-    <View style={styles.stats}>
-      {items.map(item => (
-        <View key={item.label}>
-          <Text style={styles.statValue}>{item.value}</Text>
-          <Text style={styles.statLabel}>{item.label}</Text>
+    <Press
+      feedback="wash"
+      depth="row"
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={value ? `${name}, ${value}` : name}
+      style={styles.link}
+      testID={testID}
+    >
+      {lead}
+      <View style={styles.label}>
+        <Text style={styles.name} numberOfLines={1}>
+          {name}
+        </Text>
+        {line ? (
+          <Text style={styles.rowHint} numberOfLines={1}>
+            {line}
+          </Text>
+        ) : null}
+      </View>
+      {value ? (
+        <Text style={styles.linkValue} numberOfLines={1}>
+          {value}
+        </Text>
+      ) : null}
+      <ChevronRight size={iconSize.field} tone="textMuted" />
+    </Press>
+  )
+}
+
+/**
+ * One of the quick tiles under the account (B): a setting turned by pressing
+ * the tile itself, its state written under its name. A switch to assistive
+ * technology when it is on or off; a button when it steps through choices
+ * (the theme). `off` with a `reason` says why it cannot be used rather than
+ * drawing a switch that does nothing (C2).
+ */
+export function Tile({
+  icon,
+  label: name,
+  state,
+  on,
+  role = 'switch',
+  disabled = false,
+  onPress,
+  testID,
+}: {
+  icon: ReactNode
+  label: string
+  /** The line under the name: "On", "Dark", "Not set up". */
+  state: string
+  on: boolean
+  role?: 'switch' | 'button'
+  disabled?: boolean
+  onPress: () => void
+  testID?: string
+}): ReactNode {
+  return (
+    // Each tile its own cell: a pressable's style does not reach the box the
+    // row lays out, so a tile sized itself to its words.
+    <View style={styles.tileCell}>
+      <Press
+        depth="row"
+        onPress={onPress}
+        disabled={disabled}
+        role={role}
+        aria-checked={role === 'switch' ? on : undefined}
+        accessibilityState={role === 'switch' ? { checked: on, disabled } : { disabled }}
+        accessibilityLabel={`${name}, ${state}`}
+        style={[styles.tile, on && styles.tileOn]}
+        testID={testID}
+      >
+        {icon}
+        <View>
+          <Text style={styles.tileName} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={[styles.tileState, on && styles.tileStateOn]} numberOfLines={1}>
+            {state}
+          </Text>
         </View>
-      ))}
+      </Press>
     </View>
   )
 }
 
-export function ButtonRow({ children }: { children: ReactNode }): ReactNode {
-  return <View style={styles.buttons}>{children}</View>
+/** The tiles, two across on a phone and four on a wide page. */
+export function TileGrid({ wide, children }: { wide: boolean; children: ReactNode }): ReactNode {
+  return <View style={[styles.tiles, wide && styles.tilesWide]}>{children}</View>
 }
 
-/** Rows that are there when asked for: shut until "Details" is pressed. */
-export function Details({ children }: { children: ReactNode }): ReactNode {
-  const [open, setOpen] = useState(false)
-  const Chevron = open ? ChevronDown : ChevronRight
+/** How far round a share of something is: what is on this device of the library. */
+export function Ring({
+  fraction,
+  size = 76,
+  label: name,
+}: {
+  fraction: number
+  size?: number
+  /** What it measures, read out with the share. */
+  label: string
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const stroke = 9
+  const r = (size - stroke) / 2
+  const round = 2 * Math.PI * r
+  const share = Math.max(0, Math.min(1, fraction))
+  const percent = Math.round(share * 100)
   return (
-    <>
-      <Press
-        feedback="dim"
-        onPress={() => setOpen(value => !value)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        style={styles.detailsRow}
+    <View
+      style={{ width: size, height: size }}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={name}
+      accessibilityValue={{ min: 0, max: 100, now: percent }}
+    >
+      <Svg width={size} height={size}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={theme.colors.surface3}
+          strokeWidth={stroke}
+        />
+        {share > 0 ? (
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={theme.colors.accent}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={`${round * share} ${round}`}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        ) : null}
+      </Svg>
+      <View style={styles.ringMiddle} pointerEvents="none">
+        <Text style={styles.ringText}>{`${percent}%`}</Text>
+      </View>
+    </View>
+  )
+}
+
+/** A small whole number, a step at a time (C5a): Downloads at once. */
+export function Stepper({
+  value,
+  min,
+  max,
+  label: name,
+  onChange,
+}: {
+  value: number
+  min: number
+  max: number
+  label: string
+  onChange: (value: number) => void
+}): ReactNode {
+  return (
+    <View
+      style={styles.stepper}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={name}
+      accessibilityValue={{ min, max, now: value }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={event => {
+        if (event.nativeEvent.actionName === 'increment') onChange(Math.min(max, value + 1))
+        if (event.nativeEvent.actionName === 'decrement') onChange(Math.max(min, value - 1))
+      }}
+    >
+      <IconButton
+        label={`Fewer: ${name}`}
+        size={34}
+        disabled={value <= min}
+        onPress={() => onChange(value - 1)}
       >
-        <Chevron size={iconSize.field} tone="textMuted" />
-        <Text style={styles.detailsRowText}>Details</Text>
-      </Press>
-      {open ? children : null}
-    </>
+        <Minus size={iconSize.field} tone="textPrimary" />
+      </IconButton>
+      <Text style={styles.stepperValue}>{value}</Text>
+      <IconButton
+        label={`More: ${name}`}
+        size={34}
+        disabled={value >= max}
+        onPress={() => onChange(value + 1)}
+      >
+        <Plus size={iconSize.field} tone="textPrimary" />
+      </IconButton>
+    </View>
+  )
+}
+
+/**
+ * A long value on one line (C6): a folder's path cut short, there whole to
+ * copy. A phone cuts it in the middle, where the folder's own name survives.
+ */
+export function PathRow({ label: name, path }: { label: string; path: string }): ReactNode {
+  return (
+    <Row label={name} hint={undefined}>
+      <Text style={styles.path} numberOfLines={1} ellipsizeMode="middle" selectable>
+        {path}
+      </Text>
+      <IconButton
+        label={`Copy ${name.toLowerCase()}`}
+        size={32}
+        onPress={() =>
+          void copyText(path).then(done =>
+            done ? showToast('Copied', 'good') : showToast('Couldn’t copy it', 'error'),
+          )
+        }
+      >
+        <Copy size={iconSize.field} tone="textMuted" />
+      </IconButton>
+    </Row>
+  )
+}
+
+/**
+ * What cannot be undone, at the foot of a page (B): Sign out as an outlined
+ * button the page's width, anything else as red words under it. Asked about
+ * before it acts, by whoever presses it.
+ */
+export function DangerButton({
+  label: name,
+  onPress,
+  outlined = false,
+  disabled = false,
+  testID,
+}: {
+  label: string
+  onPress: () => void
+  outlined?: boolean
+  disabled?: boolean
+  testID?: string
+}): ReactNode {
+  return (
+    <Press
+      feedback="dim"
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={name}
+      accessibilityState={{ disabled }}
+      style={[styles.danger, outlined && styles.dangerOutlined, disabled && styles.labelDisabled]}
+      testID={testID}
+    >
+      <Text style={[styles.dangerText, outlined && styles.dangerTextOutlined]}>{name}</Text>
+    </Press>
   )
 }
 
@@ -184,16 +421,6 @@ export const partStyles = StyleSheet.create(theme => ({
 }))
 
 const styles = StyleSheet.create(theme => ({
-  detailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: space.tight,
-    paddingVertical: space.sm,
-    paddingRight: space.sm,
-    borderRadius: radius.pill,
-  },
-  detailsRowText: { color: theme.colors.textMuted, fontSize: type.sub },
   group: { gap: space.sm },
   groupHead: {
     flexDirection: 'row',
@@ -202,7 +429,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
   },
   groupMark: { alignSelf: 'center', marginRight: -4 },
-  groupLabel: labelText(theme.colors),
+  groupLabel: label(theme.colors),
   // The first row brings its own space above it; the last needs the card's below.
   panel: {
     ...card(theme.colors),
@@ -210,6 +437,70 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.lg,
     paddingHorizontal: space.lg,
   },
+  panelFlush: { paddingTop: 0, paddingBottom: 0, paddingHorizontal: 0, overflow: 'hidden' },
+  link: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: 56,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
+  },
+  linkValue: { flexShrink: 1, color: theme.colors.textMuted, fontSize: type.sub },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
+  // Four across on a wide page, where 40% would wrap them two by two.
+  tilesWide: { flexWrap: 'nowrap' },
+  tileCell: { flexGrow: 1, flexBasis: '40%', minWidth: 0 },
+  tile: {
+    ...card(theme.colors, radius.cardLg),
+    flexGrow: 1,
+    minHeight: 96,
+    padding: space.roomy,
+    gap: space.lg,
+    justifyContent: 'space-between',
+  },
+  tileOn: { backgroundColor: theme.colors.accentPill },
+  tileName: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  tileState: { color: theme.colors.textMuted, fontSize: type.sub, marginTop: 2 },
+  tileStateOn: { color: theme.colors.accent },
+  ringMiddle: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringText: { color: theme.colors.textPrimary, ...textStyle('sub'), fontWeight: '700' },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface2,
+    borderRadius: radius.field,
+  },
+  stepperValue: {
+    minWidth: 22,
+    textAlign: 'center',
+    color: theme.colors.textPrimary,
+    fontSize: type.body,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  path: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.sub },
+  danger: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.row,
+  },
+  dangerOutlined: {
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderColor: theme.colors.dangerWash,
+  },
+  dangerText: { color: theme.colors.danger, fontSize: type.sub, fontWeight: '500' },
+  dangerTextOutlined: { fontSize: type.body, fontWeight: '600' },
   hint: { color: theme.colors.textMuted, fontSize: type.small },
   row: {
     flexDirection: 'row',
@@ -221,28 +512,22 @@ const styles = StyleSheet.create(theme => ({
   rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: space.snug },
   // The card's own padding is below the last row, so it needs none of its own.
   rowLast: { paddingBottom: 0 },
-  label: { flex: 1, minWidth: 0, gap: 3 },
+  label: { flex: 1, minWidth: 120, gap: 3 },
+  labelDisabled: { opacity: OPACITY.disabled },
   name: { color: theme.colors.textPrimary, fontSize: type.body },
   rowHint: {
     ...hint(theme.colors),
     maxWidth: 400,
   },
+  // Gives way before the words do, so a long value (a server's address) ends
+  // in an ellipsis instead of running out of the card.
   control: {
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: space.snug,
   },
   controlStacked: { justifyContent: 'flex-start', flexWrap: 'wrap' },
-  value: {
-    minWidth: 34,
-    textAlign: 'right',
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    fontVariant: ['tabular-nums'],
-  },
-  stats: { flexDirection: 'row', gap: 32, marginTop: space.lg, marginBottom: space.md },
-  statValue: serif(theme.colors, 'page'),
-  statLabel: { color: theme.colors.textMuted, fontSize: type.small },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.roomy },
 }))

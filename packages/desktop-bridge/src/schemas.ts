@@ -98,18 +98,41 @@ export const commandSchema = z.enum([
   'previous',
   'search',
   'settings',
-  'now-playing',
+  'home',
   'library',
+  'import',
+  'stats',
   'playlists',
+  'now-playing',
+  'new-playlist',
+  'start-import',
   'volume-up',
   'volume-down',
   'mute',
   'shuffle',
-  'repeat',
+  'repeat-off',
+  'repeat-all',
+  'repeat-one',
+  'like',
   'seek-forward',
   'seek-back',
 ])
 export type Command = z.infer<typeof commandSchema>
+
+/**
+ * What the menu's checkmarks show, told by the page whenever it changes:
+ * Shuffle, which Repeat mode, and whether the playing song is liked — null
+ * when nothing that can be liked is playing, which greys Like out.
+ */
+export const menuStateSchema = z.object({
+  shuffle: z.boolean(),
+  repeat: z.enum(['off', 'all', 'one']),
+  liked: z.boolean().nullable(),
+})
+export type MenuState = z.infer<typeof menuStateSchema>
+
+/** The page's ground in the theme it shows, for the window's own colour: `#rrggbb`. */
+export const windowGroundSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/)
 
 /**
  * Told to the shell so it can hold a power-save blocker and label the Dock.
@@ -198,6 +221,22 @@ export const transferIdSchema = z.string().min(1).max(128)
  * bucket carries one. Kept out of the URL on purpose: a URL ends up in logs.
  */
 export const headersSchema = z.record(z.string(), z.string())
+
+/**
+ * The pictures to cut out of a pack of covers (`files.unpackTo`): each one's
+ * name, where it starts in the pack, and how long it is. A pack is a few
+ * megabytes, and holds a few hundred pictures at most.
+ */
+export const packSlicesSchema = z
+  .array(
+    z.object({
+      name: fileNameSchema,
+      at: z.number().int().nonnegative(),
+      size: z.number().int().positive(),
+    }),
+  )
+  .max(10_000)
+export type PackSlice = z.infer<typeof packSlicesSchema>[number]
 
 /** Where a song's bytes come from: the server, or the bucket through the doorman. */
 export const downloadRequestSchema = z.object({

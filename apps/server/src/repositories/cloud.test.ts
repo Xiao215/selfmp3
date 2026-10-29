@@ -151,6 +151,31 @@ describe('the connection', () => {
     expect(cloud.hasFile(`audio/${'a'.repeat(64)}.m4a`)).toBe(false)
   })
 
+  it('keeps what was uploaded when the same folder or endpoint is only spelt another way', () => {
+    const key = `audio/${'a'.repeat(64)}.m4a`
+    // As a server before tidy spellings stored it: a folder with a trailing slash.
+    db.prepare("INSERT INTO secrets (name, value) VALUES ('cloud.target', ?)").run(
+      JSON.stringify(['file://', '/srv/bucket/', '']),
+    )
+    cloud.recordFile(key, 10)
+
+    cloud.adoptTarget({ endpoint: 'file://', bucket: '/srv/bucket', prefix: '' })
+    cloud.adoptTarget({ endpoint: 'file://', bucket: '/srv/./other/../bucket/', prefix: '' })
+    expect(cloud.hasFile(key)).toBe(true)
+
+    cloud.saveConnection(connection)
+    cloud.recordFile(key, 10)
+    cloud.adoptTarget({
+      endpoint: 'HTTPS://S3.us-west-004.backblazeb2.com/',
+      bucket: 'my-music',
+      prefix: '/selfmp3/',
+    })
+    expect(cloud.hasFile(key)).toBe(true)
+
+    cloud.adoptTarget({ endpoint: 'file://', bucket: '/srv/moved', prefix: '' })
+    expect(cloud.hasFile(key)).toBe(false)
+  })
+
   it('names this server once and keeps the name', () => {
     const first = cloud.deviceId()
     // The name starts from the platform, so the prefix depends on where the
@@ -181,7 +206,6 @@ describe('the trash', () => {
     lyricsKey: lyrics,
     lyricsSize: lyrics ? 5 : null,
     lyricsKind: lyrics ? ('plain' as const) : null,
-    romanizedKey: null,
     lyricsSig: lyrics ?? 'none',
     motionKey: null,
     motionSig: 'none',

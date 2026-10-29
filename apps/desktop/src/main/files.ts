@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { once } from 'node:events'
 import { createWriteStream } from 'node:fs'
 import { mkdir, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
@@ -11,6 +12,7 @@ import {
   type DownloadResult,
   type FileKind,
   type FileStat,
+  type PackSlice,
   type Usage,
 } from '@selfmp3/desktop-bridge'
 import { refusalWords } from '@selfmp3/shared'
@@ -25,6 +27,10 @@ import { resolveWithinRoot } from './paths.js'
  * continues from with a `Range:`. Nothing here decides *what* to download —
  * that is the shared queue in `packages/client`, unchanged — only where the
  * bytes go and how they get there.
+ *
+ * Every fetch here is `cache: 'no-store'`: the file on disk is the one copy.
+ * Chromium's HTTP cache keeping another let a song "Remove all" had deleted
+ * go on playing, from ~160 MB nothing counted.
  *
  * Every path is built here from a kind and a name the schema has already
  * narrowed, and then fenced inside its directory anyway. The renderer is a web
@@ -83,6 +89,7 @@ export async function download(
     const ask = (from: number): Promise<Response> =>
       net.fetch(request.url, {
         headers: { ...request.headers, ...(from > 0 ? { Range: `bytes=${from}-` } : {}) },
+        cache: 'no-store',
         signal: controller.signal,
       })
 
@@ -189,9 +196,33 @@ export async function fetchTo(
   headers?: Record<string, string>,
 ): Promise<void> {
   const target = await writablePathFor(kind, name)
-  const response = await net.fetch(url, { headers: headers ?? {} })
+  const response = await net.fetch(url, { headers: headers ?? {}, cache: 'no-store' })
   if (!response.ok) throw new Error(await refusal(response, url))
   await replaceWith(target, Buffer.from(await response.arrayBuffer()))
+}
+
+/**
+ * A pack of covers from the bucket, cut into the pictures it holds. Each is
+ * kept under its name only if its bytes hash to what the name says, so a
+ * pack that is not what the page was told can only fail to fill a cover,
+ * never put the wrong one under a cover's name. One already here is left.
+ */
+export async function unpackTo(
+  kind: FileKind,
+  url: string,
+  headers: Record<string, string>,
+  slices: readonly PackSlice[],
+): Promise<void> {
+  const response = await net.fetch(url, { headers, cache: 'no-store' })
+  if (!response.ok) throw new Error(await refusal(response, url))
+  const pack = Buffer.from(await response.arrayBuffer())
+  for (const slice of slices) {
+    if (slice.at + slice.size > pack.length) continue
+    if ((await statOne(kind, slice.name)) !== null) continue
+    const bytes = pack.subarray(slice.at, slice.at + slice.size)
+    if (!slice.name.startsWith(`${createHash('sha256').update(bytes).digest('hex')}.`)) continue
+    await replaceWith(await writablePathFor(kind, slice.name), bytes)
+  }
 }
 
 /**

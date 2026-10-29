@@ -1,12 +1,7 @@
-import {
-  enqueueRequest,
-  importFailure,
-  jobSubtitle,
-  type Review,
-  taken,
-} from '@selfmp3/client/core'
+import { enqueueRequest, jobSubtitle, type Review, taken } from '@selfmp3/client/core'
 import { isPendingRequest, type ImportRequestView } from '@selfmp3/replica'
 import {
+  importFailure,
   plural,
   formatDuration,
   fromSqliteTime,
@@ -328,28 +323,6 @@ export function toggleId(ids: ReadonlySet<number>, id: number): ReadonlySet<numb
   return next
 }
 
-/** Everything a form sends: the tags always added, and the ones picked. */
-export function tagIdsFor(
-  defaults: readonly number[] | undefined,
-  picked: ReadonlySet<number>,
-): ReadonlySet<number> {
-  return new Set([...(defaults ?? []), ...picked])
-}
-
-/**
- * A chip's state. A default tag is on and stays on: the server adds it to
- * every import whatever the popup sends, so offering to turn it off would be
- * offering something that does not happen.
- */
-export function chipState(
-  id: number,
-  defaults: readonly number[] | undefined,
-  picked: ReadonlySet<number>,
-): 'fixed' | 'on' | 'off' {
-  if (defaults?.includes(id)) return 'fixed'
-  return picked.has(id) ? 'on' : 'off'
-}
-
 /**
  * What "+ new" makes of what was typed: nothing, the tag of that name already
  * there (in any case — the server compares names that way, and a second
@@ -399,6 +372,7 @@ export function songRequest(
       chosen: new Set([0]),
       playlistTitle: null,
       from: 'youtube',
+      unread: [],
     },
     { tagIds, playlistId: null, createPlaylist: false },
   )

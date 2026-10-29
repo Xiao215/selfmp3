@@ -1,4 +1,4 @@
-import { clamp, type LyricsLanguage, type ParsedLyrics } from '@selfmp3/shared'
+import { clamp, type CoverTone, type LyricsLanguage, type ParsedLyrics } from '@selfmp3/shared'
 
 /**
  * Now Playing's rules, with nothing drawn: where things sit on a computer's
@@ -39,12 +39,27 @@ export function parseView(value: unknown): PhoneView {
 export const PAUSED_COVER_SCALE = 0.84
 
 /**
+ * How far a paused cover swells as it breathes, once it has shrunk: slow and
+ * small, so a paused page is still, not stopped (I2 of the Oct 27 review).
+ */
+export const PAUSED_BREATH = 1.025
+
+/**
  * The least a flick may travel and still count. How far a slow pull must go, and
  * how quick a flick has to be, are the caller's: they are `PULL` in
  * `ui/motion.model.ts`, the same two numbers a sheet's pull is let go by, and a
  * model file reads nothing from the UI — so the screen hands them in.
  */
 const SWIPE_FLICK_DISTANCE = 48
+
+/**
+ * Whether a drag on the phone page is a pull up or down, to be taken from
+ * whatever is under it: past 12 points, and mostly up or down rather than
+ * across, so a sideways swipe stays the row's or the bar's.
+ */
+export function isVerticalPull(dx: number, dy: number): boolean {
+  return Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 2
+}
 
 /**
  * What a vertical pull on the phone page does once it is let go.
@@ -156,6 +171,11 @@ export interface StageGeometry {
   readonly gutter: number
   /** Right of the words, the tools and the expand button. */
   readonly right: number
+  /**
+   * The left column's width: the cover's, until a very wide page gives the
+   * title and the tags more room than the cover takes (AJ1).
+   */
+  readonly column: number
   readonly cover: number
   readonly title: number
   readonly lyric: number
@@ -172,27 +192,58 @@ export interface StageGeometry {
 /** Past this width a page keeps its cover and its words side by side, however tall. */
 const STACK_MAX_WIDTH = 1000
 
+/**
+ * Past the first width the left column grows toward a third of the page and
+ * its cover toward half the page's height, all the way there by the second;
+ * the title steps up by `GROWN_TITLE` over the same stretch (AJ1).
+ */
+const GROW_FROM = 1800
+const GROW_FULL = 2400
+const GROWN_TITLE = 1.25
+
+/**
+ * The Romaji pill's width and a gap: what the words keep clear at their right
+ * edge beside the cover, on Now Playing's stage and a link's.
+ */
+export const TOOLS_CLEARANCE = 96
+
 /** The page's measurements, from its own size. */
 export function stageGeometry(width: number, height: number, inset = 0): StageGeometry {
   const stacked = width < STACK_MAX_WIDTH && height > width
+  const pad = clamp(width * 0.05, 28, 72)
+  // Past 2000 the cover, the title and the words keep growing with the
+  // page, so a very wide window fills with the song rather than leaving
+  // most of itself empty right of the words (P1 C).
+  const cover = stacked
+    ? clamp(width * 0.36, 200, 320)
+    : Math.max(180, Math.min(clamp(width * 0.2, 400, 600), width * 0.34, height - 290))
+  const title = Math.min(40, Math.max(clamp(width * 0.022, 22, 30), width * 0.0125))
+  // And past 1800 the song's own column grows faster than that: on a 2560
+  // window a 500-point cover in the corner left the song a footnote beside
+  // the words (AJ1). At 1800 and under nothing differs.
+  const grow = stacked ? 0 : clamp((width - GROW_FROM) / (GROW_FULL - GROW_FROM), 0, 1)
+  const third = width / 3 - pad
+  const tallest = Math.min(third, height * 0.5, height - 290)
   return {
     stacked,
     inset,
-    pad: clamp(width * 0.05, 28, 72),
+    pad,
     gutter: clamp(width * 0.05, 28, 72),
     right: clamp(width * 0.04, 20, 56),
-    cover: stacked
-      ? clamp(width * 0.36, 200, 320)
-      : Math.max(180, Math.min(400, width * 0.34, height - 290)),
-    title: clamp(width * 0.022, 22, 30),
-    lyric: clamp(width * 0.023, 22, 32),
+    column: cover + (Math.max(cover, third) - cover) * grow,
+    cover: cover + (Math.max(cover, tallest) - cover) * grow,
+    title: title * (1 + (GROWN_TITLE - 1) * grow),
+    lyric: Math.min(44, Math.max(clamp(width * 0.023, 22, 32), width * 0.0135)),
     focusLyric: clamp(width * 0.039, 30, 54),
   }
 }
 
-/** "Playing · 10 of 13", or "Shuffling · …". */
-export function contextLine(shuffle: boolean, index: number, count: number): string {
-  return `${shuffle ? 'Shuffling' : 'Playing'} · ${index + 1} of ${count}`
+/**
+ * Where in Up next the song is, "10 of 13": nothing while it is the only
+ * song, where "1 of 1" said nothing (w1). Shuffle says itself on its button.
+ */
+export function contextLine(index: number, count: number): string | null {
+  return count > 1 && index >= 0 ? `${index + 1} of ${count}` : null
 }
 
 /**
@@ -217,3 +268,30 @@ export function upNextSeconds({
   if (remaining <= 0 || remaining > UP_NEXT_LEAD) return null
   return Math.ceil(remaining)
 }
+
+/**
+ * How strongly the phone page's ground veils the blurred cover under it.
+ *
+ * A fixed veil left a pale cover under a dark theme the same mid-grey as the
+ * page's quiet ink, and "Now playing" read at 1.3 : 1. The veil thickens as the
+ * cover comes closer to the theme's own text: a light cover under the dark
+ * theme, a dark one under the light. `base` is the veil a cover far from it gets.
+ */
+export function backdropVeil(
+  tone: CoverTone | null,
+  scheme: 'dark' | 'light',
+  base: number,
+): number {
+  if (!tone) return base
+  const total = tone.palette.reduce((sum, swatch) => sum + swatch.share, 0)
+  if (total <= 0) return base
+  const lightness = tone.palette.reduce((sum, swatch) => sum + swatch.l * swatch.share, 0) / total
+  const glare = scheme === 'dark' ? lightness : 1 - lightness
+  const closeness = clamp((glare - VEIL_FROM) / (VEIL_FULL - VEIL_FROM), 0, 1)
+  return base + (VEIL_MOST - base) * closeness
+}
+
+/** The cover lightness (toward the text) where the veil starts to thicken, and where it is thickest. */
+const VEIL_FROM = 0.55
+const VEIL_FULL = 0.9
+const VEIL_MOST = 0.86

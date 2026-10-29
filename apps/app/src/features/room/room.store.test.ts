@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DOORMAN_ERROR, DoormanError } from '@selfmp3/shared'
 
 /*
  * The room's line to the doorman, over a fake socket: that a line gone quiet
@@ -13,6 +14,12 @@ const mocks = vi.hoisted(() => ({
   kind: 'wifi' as 'wifi' | 'cellular',
   mode: 'everyone' as 'everyone' | 'speaker',
   toasts: [] as string[],
+  /** What the doorman answers each action with, in turn; anything past them is refused. */
+  answers: [] as Promise<unknown>[],
+  /** Every action sent, with the room it was sent to. */
+  acts: [] as { code: string; type: string }[],
+  /** What the next join answers instead of a way in, when set. */
+  refuseJoin: null as Error | null,
 }))
 
 vi.mock('../../ports/prefs', () => ({
@@ -30,11 +37,19 @@ vi.mock('@selfmp3/client', async importActual => ({
   ...(await importActual<typeof import('@selfmp3/client')>()),
   createRoomApi: () => ({
     socketUrl: () => 'wss://doorman.example/room/socket',
-    join: async () => ({
-      ...PASS,
-      state: { code: PASS.code, you: PASS.member, mode: mocks.mode, members: [] },
-    }),
+    join: async (code: string) => {
+      if (mocks.refuseJoin) throw mocks.refuseJoin
+      return {
+        ...PASS,
+        code,
+        state: { code, you: PASS.member, mode: mocks.mode, members: [] },
+      }
+    },
     state: () => new Promise(() => undefined),
+    act: (pass: { code: string }, action: { type: string }) => {
+      mocks.acts.push({ code: pass.code, type: action.type })
+      return mocks.answers.shift() ?? Promise.reject(new Error('no answer'))
+    },
   }),
 }))
 
@@ -62,6 +77,9 @@ class FakeSocket {
     this.readyState = FakeSocket.OPEN
     this.onopen?.()
   }
+  gone(): void {
+    this.onmessage?.({ data: JSON.stringify({ type: 'gone', reason: 'ended' }) })
+  }
   pong(): void {
     const ping = this.sent.at(-1)
     if (ping)
@@ -87,6 +105,9 @@ describe('the room’s line', () => {
     mocks.kind = 'wifi'
     mocks.mode = 'everyone'
     mocks.toasts.length = 0
+    mocks.answers.length = 0
+    mocks.acts.length = 0
+    mocks.refuseJoin = null
   })
   afterEach(async () => {
     await store.leaveRoom()
@@ -132,8 +153,30 @@ describe('the room’s line', () => {
     await inRoom()
     await vi.runOnlyPendingTimersAsync()
     expect(mocks.toasts).toEqual([
-      'You’re on mobile data. A room streams every song, about 5 MB each.',
+      { say: 'You’re on mobile data', under: 'A room streams every song, about 5 MB each.' },
     ])
+  })
+
+  it('keeps a newer room over the answer to an older action', async () => {
+    await inRoom()
+    const older = Promise.withResolvers<unknown>()
+    mocks.answers.push(older.promise, Promise.resolve({ code: PASS.code, serverTime: 200 }))
+    const first = store.roomAct({ type: 'skip' })
+    await store.roomAct({ type: 'skip' })
+    expect(store.currentRoom().state?.serverTime).toBe(200)
+    // The first action's answer lands last, from before the second.
+    older.resolve({ code: PASS.code, serverTime: 100 })
+    await first
+    expect(store.currentRoom().state?.serverTime).toBe(200)
+  })
+
+  it('does not finish the room joined after the one that said it was gone', async () => {
+    const socket = await inRoom()
+    socket.gone()
+    await store.leaveRoom()
+    await inRoom()
+    vi.advanceTimersByTime(300)
+    expect(store.currentRoom().pass).not.toBeNull()
   })
 
   it('says nothing to a remote, in a room that plays on one speaker', async () => {
@@ -142,5 +185,23 @@ describe('the room’s line', () => {
     await inRoom()
     await vi.runOnlyPendingTimersAsync()
     expect(mocks.toasts).toEqual([])
+  })
+
+  it('keeps the room you are in when the one you try to join has ended', async () => {
+    await inRoom()
+    mocks.refuseJoin = new DoormanError(410, DOORMAN_ERROR.roomEnded, 'this room has ended')
+    await expect(store.joinRoom('ZZ9999', 'Xiao')).rejects.toThrow('this room has ended')
+    expect(store.currentRoom().pass?.code).toBe(PASS.code)
+    expect(mocks.acts).toEqual([])
+
+    // One that lets you in: the old room hears you leave, and you are in the new one.
+    mocks.refuseJoin = null
+    const ended: string[] = []
+    const stop = store.onRoomEnded(state => ended.push(state.code))
+    await store.joinRoom('ZZ9999', 'Xiao')
+    stop()
+    expect(mocks.acts).toEqual([{ code: PASS.code, type: 'leave' }])
+    expect(ended).toEqual([PASS.code])
+    expect(store.currentRoom().pass?.code).toBe('ZZ9999')
   })
 })

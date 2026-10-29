@@ -61,7 +61,7 @@ function fakeHandlers(patch: Partial<Record<keyof Handlers, unknown>>): {
   const enqueued: unknown[] = []
   const handlers = {
     status: () => Promise.reject(new Error('the pill reads the route, not the status')),
-    choices: () => Promise.resolve({ tags: [], defaultTagIds: [], lastTagIds: [7] }),
+    choices: () => Promise.resolve({ tags: [], lastTagIds: [7] }),
     requests: () => Promise.resolve({ imports: [] }),
     queue: () => Promise.resolve({ jobs: [], active: 0, queued: 0 }),
     songFor: () => Promise.resolve(null),
@@ -162,8 +162,7 @@ describe('what a page may ask', () => {
     const { handlers, enqueued } = fakeHandlers({})
     const state = await pageHandler(handlers)({ type: 'pillImport', url: IDOL })
     expect(state).toMatchObject({ state: 'queued' })
-    // The last import's tags and no playlist: the page chooses nothing, and
-    // the server adds the default tags itself.
+    // The last import's tags and no playlist: the page chooses nothing.
     expect(enqueued).toEqual([
       expect.objectContaining({
         request: expect.objectContaining({

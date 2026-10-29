@@ -24,9 +24,8 @@ A **room** is a shared Up next. You press **Listen together**, and your Up next 
 - **On the player.** A People button sits in the phone's Now Playing head and in a computer's
   player bar, beside Devices. It is there when a friend asks what is playing.
 - **On Home.** A People button sits in the phone's header, beside Import, so a room needs
-  nothing playing first. There is also a **Listen together** card until this device has been in
-  a room or was told *Not now*. The card is kept with the guides (`together-card`), so Show tips
-  again brings it back.
+  nothing playing first. (The **Listen together** card under it was removed 2026-10-24: the
+  header button is enough, and rooms aren't something Home pushes.)
 - **On a list.** A tag's, an artist's, a playlist's or an Ask answer's ⋯ has **Listen
   together**. In a room, that item reads **Add to Xiao's room** instead.
 - **From Ask.** "Start a room with something chill" picks the songs and offers **Start a
@@ -61,14 +60,17 @@ for Cancel. The one box works as it does everywhere: a song of yours is added by
 its +, Ask's songs answer offers **Add to Xiao's room** in place of Play, and a YouTube or
 网易云 link is looked up and added (when friends may add links). Before anything is typed it
 shows what you played last and what the room's people brought (shelves, and songs that played).
-The room's own Add sheet, with its Mine / In the room / A link tabs, is gone.
+The room's own Add sheet, with its Mine / In the room / A link tabs, is gone. A guest, who has
+no library, opens the same page without signing in, for what is in the room and links.
 
 **The start sheet (C1, S1 + P1, 2026-10-14).** Your face, *Listen together* and one line
 (*Friends add songs from their phones. Invite them once it starts.*), **Starts with**, and
 **Start**. Nothing on it looks pressable that is not: the empty seats are gone. Where it plays
 is not asked: a room starts on the host's own device. Under Start is *Have a code? Join*,
 which turns into the code field in place. Return reads Join; a code that cannot be one says so
-under the field. A press on the sheet away from the field, or a pull, puts the keyboard away,
+under the field. A link to `/join/<code>` whose code cannot be one is a centred dead end like a
+gone link's (AK1, 2026-10-25): *That isn't a room code*, how a code looks, the six boxes filled
+with what came in (a letter no code uses in red) and Join once it is a code. A press on the sheet away from the field, or a pull, puts the keyboard away,
 as on every sheet. Pressing Start keeps the sheet up, and it grows into
 the room's sheet (M1): your face springs into its seat, the code rolls in a letter at a time,
 and the rest rises in after it. A friend who joins later springs into the row with a ring of
@@ -100,8 +102,8 @@ room in Recently played.
 added. Someone signed in shows their Google profile picture, inside a thin ring of their
 colour; a guest, or anyone without a picture, shows their initial. The doorman takes the
 picture from the session, never from what a device sends, and a shared playlist's people
-show theirs the same way. Rooms and playlists kept before faces had pictures load with
-none; a shared playlist's person gets theirs the next time they open it.
+show theirs the same way. A shared playlist kept before faces had pictures was migrated to
+none the first time it was read, and each of its people gets theirs the next time they open it.
 
 What a friend or a guest may do is the host's choice under **Friends can**:
 
@@ -142,7 +144,21 @@ sheet:
 **Keeping in step.** The host's player is the clock. It reports what it is on and where.
 The room keeps the song and when it started, on the doorman's clock. Each device works the
 position out with its own clock's offset from the doorman's, measured by a ping on the
-socket. A device more than a third of a second out seeks.
+socket. A device more than a third of a second out seeks. On everyone's phones the host tells
+the room when its own song is more than half a second off the room's clock (a song that
+started late, loading after a skip); on one speaker only a jump of two seconds, a seek. A host
+whose app opens again, or whose page reloads, takes the room's song up where the room says it
+is.
+
+**A friend's own buttons.** On everyone's phones a friend's Previous, play/pause and Next,
+wherever they are pressed (the player bar, the lock screen, a key), are the room's: Next skips
+the room's song and play/pause pauses it, when **Friends can** allows; otherwise they say only
+the host can. A room only goes forward, so Previous says so.
+
+**One room at a time.** Joining or starting a room while in another leaves the one you were in,
+once the new one has let you in: an invite to a room that has ended changes nothing. When the
+host ends the room, or takes you out of it, you are told so (*Xiao's room ended*, with **See
+what played**).
 
 **A connection that drops.** A ping unanswered for six seconds is taken as the line gone, and
 the room says **Reconnecting…** (its head, Now Playing's pill, the line under the song) until
@@ -173,6 +189,8 @@ left, the room adds songs that sound like the last ones, taking turns between th
 songs were played. Its switch says *When the list runs low, plays more of what people brought*.
 
 - **Where the songs come from:** shelves, and songs that played, leaving out the last dozen.
+  A young room with nothing of its own to bring back yet takes songs from the host's library
+  that it does not have, nearest in sound where the host's vectors say.
 - **How a song is picked:** each person's turn is the song of theirs whose sound is nearest
   to the songs playing and just played.
 - **Where the sound comes from:** every member who brings songs reads their own bucket's sound
@@ -182,6 +200,9 @@ songs were played. Its switch says *When the list runs low, plays more of what p
 - **Where the room keeps them:** beside its state, never in it, so no socket carries them.
   Nobody can describe someone else's songs.
 - **Without vectors:** where the room has none for what played, it picks by turns alone.
+- **Alone:** Keep going picks the same way from your own library when Up next runs out
+  (lists.md, "Keep going"); the ordering is one function, `nearestFirst` in
+  `packages/shared/src/soundVectors.ts`.
 
 ## What friends see of you (S1)
 
@@ -219,7 +240,8 @@ keeps none, and draws the letter).
 
 A guest has no library, so they can paste a YouTube, YouTube Music or 网易云 link. It plays
 through the host's server, the same stream that import review previews from. Nothing is
-kept. *Get it* afterwards imports it properly.
+kept. *Get it* afterwards imports it properly, and the song remembers who brought it (its page
+says *from Mia, in a room*, docs/features/wrapped-and-gems.md).
 
 **How it reaches everyone.** The host's device reaches its own server directly. For everyone
 else, the first time a link comes in, the host tells the room where its server answers from
@@ -253,8 +275,10 @@ Its page:
 
 - **Play** plays it on this device: each song lent by the doorman, or your own copy.
 - **Play together** opens a room filled with it. Its songs are lent from each owner's bucket
-  even when the owner is not in the room, and named for them.
-- **Add songs** adds from your library.
+  even when the owner is not in the room, and named for them, for as long as they are in the
+  playlist: the doorman asks the playlist on every read, so a song taken out, or an owner who
+  leaves, stops playing in the room at once.
+- **Add songs** adds from your library; songs already in it are marked *Already in*.
 - **Invite** shares a link and a QR code: `/shared/<id>/join/<invite>`. Joining needs an
   account; an invite opened before signing in opens again after.
 - **More** holds Rename and Leave.
@@ -329,7 +353,7 @@ POST /v1/rooms/<code>/join           RoomJoin    → RoomJoined    a session mak
 GET  /v1/rooms/<code>?t=<token>                  → RoomState
 POST /v1/rooms/<code>/act?t=<token>  RoomAction  → RoomState     add needs the session too
 GET  /v1/rooms/<code>/socket?t=<token>           WebSocket: state down, ping up
-GET | HEAD /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics | romanized
+GET | HEAD /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics
 GET | POST /v1/rooms/<code>/vectors?t=<token>    how the room's songs sound
 PUT  /v1/rooms/<code>/link-server?t=<token>      the host's server, for links
 POST /v1/rooms/<code>/keep?t=<token>             kept as a shared playlist   signed in
@@ -360,7 +384,7 @@ and the `v2` and `v3` migrations in `apps/doorman/wrangler.toml`. `npx wrangler 
 `apps/doorman` creates them; nothing deploys the doorman automatically.
 
 **Who can sign in.** A friend who brings songs, or joins a shared playlist, signs in to
-*your* doorman, so their address must be on its list (Settings › Who can sign in). Anyone
+*your* doorman, so their address must be on its list (the admin page's People tab). Anyone
 not on it can still join a room as a guest.
 
 ## Tried on

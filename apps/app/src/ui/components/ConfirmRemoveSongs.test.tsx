@@ -15,6 +15,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
@@ -49,30 +50,28 @@ describe('ConfirmRemoveSongs', () => {
     await draw({ onConfirm })
 
     expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.getByText('Delete 2 songs from your library?')).toBeTruthy()
+    expect(screen.getByText('Delete 2 songs?')).toBeTruthy()
     expect(
-      screen.getByText(/They leave your library on every device, with their tags and plays/),
+      screen.getByText('They go from every device, with their tags and plays. There’s no undo.'),
     ).toBeTruthy()
-    expect(screen.getByText('This can’t be undone.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Delete 2 songs' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete' }))
     expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 
   it('names the first few songs and counts the rest', async () => {
     await draw({ songs: [song(1), song(2), song(3), song(4), song(5)] })
 
-    expect(screen.getByText('Song 1')).toBeTruthy()
-    expect(screen.getByText('Song 3')).toBeTruthy()
-    expect(screen.getByText('and 2 more songs')).toBeTruthy()
+    expect(screen.getByText('Song 1, Song 2, Song 3 and 2 more')).toBeTruthy()
   })
 
-  it('names one song in the question rather than listing it under it', async () => {
+  it('asks a short question about one song and names it under it', async () => {
     await draw({ songs: [song(7)] })
 
-    expect(screen.getByText('Delete “Song 7” from your library?')).toBeTruthy()
-    expect(screen.getByText(/It leaves your library on every device, with its tags/)).toBeTruthy()
-    expect(screen.queryByText('Song 7')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Delete song' })).toBeTruthy()
+    expect(screen.getByText('Delete this song?')).toBeTruthy()
+    expect(screen.getByText('Song 7')).toBeTruthy()
+    expect(screen.getByText(/It goes from every device, with its tags/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy()
   })
 })

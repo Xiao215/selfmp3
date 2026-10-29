@@ -1,26 +1,33 @@
 import type { ReactNode } from 'react'
-import { Linking, Text, View } from 'react-native'
+import { Linking, Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { useLibrary, useRemoveServerGrant, useServerGrants, space } from '@selfmp3/client'
+import { useLibrary, useRemoveServerGrant, useServerGrants } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { useAskBucketAgain } from '../../connection/useDoormanTrouble'
 import { sharedServerUrl } from '../../ports/sharedServerUrl'
+import { Avatar } from '../../ui/components/Avatar'
 import { Button } from '../../ui/components/Button'
-import { Refresh } from '../../ui/components/Icons'
-import { useLayout } from '../../shell/useLayout'
-import { BACKBLAZE_CAPS_URL, untilCapResets } from '../library/library.model'
+import { useLayoutFlags } from '../../shell/useLayout'
+import { BACKBLAZE_CAPS_URL } from '@selfmp3/shared'
+import { untilCapResets } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
+import { useAccount } from '../profile/useAccount'
 import { useCloudSession } from '../profile/useCloudSession'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
 import { JoinSharedButton } from '../../connection/ServerAway'
-import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
+import { Card, DangerButton, LinkRow, partStyles, Row } from './SettingsParts'
 import { computerRow, noComputersHint } from './computers.model'
-import type { Confirming } from './settings.model'
+import { ACCOUNT_ROUTE, type Confirming } from './settings.model'
 import { plural } from '@selfmp3/shared'
 
+/** The avatar on the account row. */
+const AVATAR = 36
+
 /**
- * Account: which library this device answers from, and how to leave it. First
- * on the page, as `P38` draws it.
+ * Account: whose library this is, as one row under About that opens the
+ * Account page (B, 2026-10-26), and on that page the storage and the
+ * computers. Signing out is at the foot of Settings itself.
  *
  * Google sign-in is the only way in on every device: the library is the
  * bucket's, and no server has to be awake or even exist. Connecting to a server
@@ -29,7 +36,7 @@ import { plural } from '@selfmp3/shared'
  * directly when it can, and finds it by the addresses in the bucket's own
  * snapshot rather than by anything typed (`packages/client/src/connection/reach.ts`).
  *
- * The address row below is for a development build, where `/onboarding` can
+ * The address rows are for a development build, where `/onboarding` can
  * still point the app at a server so the simulator flows have a library without
  * a Google account.
  *
@@ -42,13 +49,31 @@ import { plural } from '@selfmp3/shared'
  * (docs/features/shared-server.md): each can be removed here, and with none,
  * the shared one this build offers is a tap away.
  */
-export function ConnectionPanel({
-  anchor,
-  onConfirm,
-}: {
-  anchor: (node: View | null) => void
-  onConfirm: (what: Confirming) => void
-}): ReactNode {
+export function AccountRow(): ReactNode {
+  const { connection, fromCloud } = useConnection()
+  const account = useAccount()
+  const router = useRouter()
+  const line = fromCloud
+    ? (account?.email ?? 'Signed in with Google')
+    : connection
+      ? // The address itself is on the Account page it opens, with the token.
+        'Connected by address'
+      : 'Not set'
+  return (
+    <Card flush>
+      <LinkRow
+        label={account?.name ?? 'Your library'}
+        hint={line}
+        lead={<Avatar account={account} size={AVATAR} />}
+        onPress={() => router.push(ACCOUNT_ROUTE)}
+        testID="settings-account"
+      />
+    </Card>
+  )
+}
+
+/** Settings › Account, the page: the storage, the computers, and leaving the storage. */
+export function AccountCards({ onConfirm }: { onConfirm: (what: Confirming) => void }): ReactNode {
   const { connection, fromCloud } = useConnection()
   const library = useLibrary()
   const router = useRouter()
@@ -57,107 +82,104 @@ export function ConnectionPanel({
   const storage = me.isPending ? undefined : (me.data?.storage ?? null)
   // The bucket refusing for the day: said for as long as it is left alone.
   const hold = useBucketHold()
-  const { wide } = useLayout()
+  const askBucketAgain = useAskBucketAgain()
+  const { wide } = useLayoutFlags()
   const where = storage ? whereItIs(storage) : null
-  return (
-    <Panel title="Account" hint="on this device" anchor={anchor}>
-      {fromCloud ? (
-        <>
-          <Row label="Signed in" hint="With Google.">
-            <Button
-              label="Sign out"
-              variant="danger"
-              onPress={() => onConfirm('sign-out')}
-              testID="cloud-sign-out"
-            />
-          </Row>
-          <Row
-            label="Storage"
-            hint={
-              storage === undefined
-                ? 'Loading…'
-                : where === null
-                  ? 'Not connected yet.'
-                  : hold
-                    ? [
-                        `${where}\n`,
-                        <Text key="cap" style={styles.capped}>
-                          {`● Daily limit used up · ${
-                            wide
-                              ? `resets in about ${untilCapResets(new Date())}`
-                              : `${untilCapResets(new Date(), true)} left`
-                          }`}
-                        </Text>,
-                      ]
-                    : where
-            }
-          >
-            <View style={styles.pair}>
-              {hold ? (
-                <Button
-                  label="Open Backblaze"
-                  onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)}
-                  testID="cloud-storage-backblaze"
-                />
-              ) : null}
-              <Button
-                label={storage ? 'Change' : 'Connect'}
-                onPress={() => router.push(STORAGE_ROUTE)}
-                testID="cloud-storage-change"
-              />
-              {storage ? (
-                <Button
-                  label="Disconnect"
-                  variant="danger"
-                  onPress={() => onConfirm('forget-storage')}
-                  testID="cloud-storage-forget"
-                />
-              ) : null}
-            </View>
-          </Row>
-          <Computers />
-        </>
-      ) : (
+  if (!fromCloud) {
+    return (
+      <Card title="Library">
         <Row label="Address">
           <Text style={partStyles.valueText} numberOfLines={1}>
-            {connection?.baseUrl ?? 'Not set'}
+            {connection ? withoutScheme(connection.baseUrl) : 'Not set'}
           </Text>
         </Row>
-      )}
-      {/*
-        Folded away: a token and a library version are for someone working out
-        why something is wrong, and the line under Settings' title already says
-        whether the library can be reached.
-      */}
-      <Details>
-        {fromCloud ? null : (
-          <Row label="Token">
-            <Text style={partStyles.valueText}>
-              {connection?.token ? 'Saved in the keychain' : 'None'}
-            </Text>
-          </Row>
-        )}
-        <Row label="Library" last>
+        <Row label="Token">
           <Text style={partStyles.valueText}>
-            {library.isError
-              ? library.data
-                ? `Unreachable — showing the cached copy, ${plural(library.data.songs.length, 'song', 'songs')}`
-                : 'Unreachable, and nothing is cached yet'
-              : library.data
-                ? `${plural(library.data.songs.length, 'song', 'songs')} · version ${library.data.version}`
-                : 'Loading…'}
+            {connection?.token ? 'Saved in the keychain' : 'None'}
           </Text>
         </Row>
-      </Details>
-      <ButtonRow>
-        <Button
-          label="Refresh"
-          icon={<Refresh tone="textPrimary" />}
-          onPress={() => void library.refetch()}
+        <Row label="Songs" hint={songsLine(library)} last>
+          <Button label="Refresh" variant="text" onPress={() => void library.refetch()} />
+        </Row>
+      </Card>
+    )
+  }
+  return (
+    <>
+      <Card title="Storage">
+        <Row
+          label={where ?? (storage === undefined ? 'Loading…' : 'Not connected yet')}
+          hint={
+            hold ? (
+              <Text style={styles.capped}>
+                {`● Daily limit used up · ${
+                  wide
+                    ? `resets in about ${untilCapResets(new Date())}`
+                    : `${untilCapResets(new Date(), true)} left`
+                }`}
+              </Text>
+            ) : undefined
+          }
+          last={!hold}
+        >
+          <Button
+            label={storage ? 'Change' : 'Connect'}
+            variant="text"
+            onPress={() => router.push(STORAGE_ROUTE)}
+            testID="cloud-storage-change"
+          />
+        </Row>
+        {hold ? (
+          <Row label="Raise the limit" hint="On Backblaze, then try again here." last>
+            <Button
+              label="Backblaze"
+              variant="text"
+              onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)}
+              testID="cloud-storage-backblaze"
+            />
+            {/* Raised there, it is not noticed here until the hold is up. */}
+            <Button
+              label="Try again"
+              variant="text"
+              onPress={askBucketAgain}
+              testID="cloud-storage-try-again"
+            />
+          </Row>
+        ) : null}
+      </Card>
+      <Card title="Computers">
+        <Computers />
+      </Card>
+      <Card title="This library">
+        <Row label="Songs" hint={songsLine(library)} last>
+          <Button label="Refresh" variant="text" onPress={() => void library.refetch()} />
+        </Row>
+      </Card>
+      {storage ? (
+        <DangerButton
+          label="Disconnect storage"
+          onPress={() => onConfirm('forget-storage')}
+          testID="cloud-storage-forget"
         />
-      </ButtonRow>
-    </Panel>
+      ) : null}
+    </>
   )
+}
+
+/** How many songs the library has, or why it cannot say. */
+function songsLine(library: ReturnType<typeof useLibrary>): string {
+  return library.isError
+    ? library.data
+      ? `Unreachable — showing the cached copy, ${plural(library.data.songs.length, 'song', 'songs')}`
+      : 'Unreachable, and nothing is cached yet'
+    : library.data
+      ? `${plural(library.data.songs.length, 'song', 'songs')} · version ${library.data.version}`
+      : 'Loading…'
+}
+
+/** An address as people say it: "localhost:4650", the scheme left to Details. */
+function withoutScheme(address: string): string {
+  return address.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/\/+$/, '')
 }
 
 /** The servers this account has let in, each with Remove; the shared one offered when there are none. */
@@ -169,7 +191,8 @@ function Computers(): ReactNode {
   if (!list || list.length === 0) {
     return (
       <Row
-        label="Computers"
+        label="None yet"
+        last
         hint={
           grants.isPending
             ? 'Loading…'
@@ -187,10 +210,15 @@ function Computers(): ReactNode {
       {list.map(grant => {
         const row = computerRow(grant)
         return (
-          <Row key={grant.id} label={row.label} hint={failed ? failed.message : row.hint}>
+          <Row
+            key={grant.id}
+            label={row.label}
+            hint={failed ? failed.message : row.hint}
+            last={grant.id === list.at(-1)?.id}
+          >
             <Button
               label="Remove"
-              variant="danger"
+              variant="text"
               disabled={remove.isPending}
               onPress={() => remove.mutate(grant.id)}
               testID="cloud-computer-remove"
@@ -203,6 +231,5 @@ function Computers(): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  pair: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   capped: { color: theme.colors.danger },
 }))

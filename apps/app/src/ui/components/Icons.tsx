@@ -205,6 +205,20 @@ export const CloudDownload = icon(() => (
   </>
 ))
 
+/** A cloud alone: what is not on this device and plays from your storage. */
+export const Cloud = icon(() => (
+  <Path d="M7 19a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 11a4 4 0 0 1-1 8Z" />
+))
+
+export const Wifi = icon(color => (
+  <>
+    <Path d="M2.5 9a14 14 0 0 1 19 0" />
+    <Path d="M5.5 12.5a9.5 9.5 0 0 1 13 0" />
+    <Path d="M8.6 16a5 5 0 0 1 6.8 0" />
+    <Circle cx="12" cy="19.3" r="1.2" fill={color} stroke="none" />
+  </>
+))
+
 /**
  * Taking a song off this device: the same cloud, with the arrow replaced by a
  * cross rather than a different shape altogether — undownloading is the
@@ -245,19 +259,6 @@ export function Downloaded({
     </Icon>
   )
 }
-
-/**
- * A song that is not on this device: the cloud it is in, and nothing else.
- *
- * Not a download arrow, which says what you could do to the song rather than
- * where it is — and beside a row that offers downloading in its ⋯ menu, an
- * arrow reads as a button. The same cloud the download icons are drawn from,
- * without their arrow.
- */
-export const NotDownloaded = icon(
-  () => <Path d="M7 17.5a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5 3.5 3.5 0 0 1-.5 6.5Z" />,
-  'textMuted',
-)
 
 export const Info = icon(color => (
   <>
@@ -354,6 +355,19 @@ export const Sparkles = icon(() => (
 
 export const BarChart = icon(() => <Path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />)
 
+/** The sound map: songs gathered in two places, and a drift between them. */
+export const SoundMap = icon(color => (
+  <>
+    <Circle cx="6" cy="7" r="1.6" fill={color} stroke="none" />
+    <Circle cx="9.5" cy="5" r="1.6" fill={color} stroke="none" />
+    <Circle cx="8.5" cy="9.5" r="1.6" fill={color} stroke="none" />
+    <Circle cx="15.5" cy="17" r="1.6" fill={color} stroke="none" />
+    <Circle cx="19" cy="14.5" r="1.6" fill={color} stroke="none" />
+    <Circle cx="18" cy="19" r="1.6" fill={color} stroke="none" />
+    <Path d="M5 13c1 4 5 5 8 4.5M11 7c4 0 7 2 7.5 5" strokeDasharray="1.5 2.5" />
+  </>
+))
+
 export const Settings = icon(() => (
   <>
     <Circle cx="12" cy="12" r="3" />
@@ -389,6 +403,11 @@ export const More = icon(color => (
   </>
 ))
 
+/** Two links of a chain: a link you shared, or an import nothing is known about yet but its address. */
+export const Link = icon(() => (
+  <Path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1" />
+))
+
 /** An arrow out of a box: sending a link to someone. */
 export const ShareOut = icon(() => (
   <>
@@ -416,6 +435,23 @@ export const Copy = icon(() => (
   </>
 ))
 
+/** A line drawn between two places: drawing on the sound map. */
+export const DrawLine = icon(color => (
+  <>
+    <Path d="M5 18c3-1 4.5-5 7-7.5S16.5 7 19 6" />
+    <Circle cx="5" cy="18" r="1.6" fill={color} stroke="none" />
+    <Circle cx="19" cy="6" r="1.6" fill={color} stroke="none" />
+  </>
+))
+
+/** A crosshair round a dot: finding where something is, the song playing on the map. */
+export const Locate = icon(() => (
+  <>
+    <Circle cx="12" cy="12" r="4" />
+    <Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+  </>
+))
+
 export const Pencil = icon(() => (
   <>
     <Path d="M12 20h9" />
@@ -423,12 +459,15 @@ export const Pencil = icon(() => (
   </>
 ))
 
-/** A dot sending out waves: a live playlist, which keeps itself up to date. */
-export const Live = icon(color => (
+/**
+ * A circle coming round to its own start: a live playlist, which keeps itself
+ * filled. One arrow on one round, so it is not Repeat's two arrows on a loop,
+ * nor the broadcast waves that read as a radio.
+ */
+export const Live = icon(() => (
   <>
-    <Circle cx="12" cy="12" r="2.6" fill={color} stroke="none" />
-    <Path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4" />
-    <Path d="M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2" />
+    <Path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+    <Path d="M18.5 3.5v3.7h-3.7" />
   </>
 ))
 
@@ -445,10 +484,15 @@ export const Grip = icon(color => (
 
 export const ChevronDown = icon(() => <Path d="m6 9 6 6 6-6" />)
 
+export const ChevronUp = icon(() => <Path d="m6 15 6-6 6 6" />)
+
 /** The way back: a stack's back edge, and a page's own back button. */
 export const ChevronLeft = icon(() => <Path d="m15 6-6 6 6 6" />)
 
 export const ChevronRight = icon(() => <Path d="m9 6 6 6-6 6" />)
+
+/** Go: a field's own button that sends what was typed (Import's). */
+export const ArrowRight = icon(() => <Path d="M5 12h14m-6-6 6 6-6 6" />)
 
 export const Expand = icon(() => <Path d="M14 4h6v6M10 20H4v-6M20 4l-6 6M4 20l6-6" />)
 

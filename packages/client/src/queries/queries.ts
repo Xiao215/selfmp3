@@ -13,14 +13,10 @@ import type {
   Playlist,
   ApplyMetadata,
   BulkEditSongs,
-  FixCoversStatus,
   Health,
-  AnalysisStatus,
   CloudServer,
   CloudStatus,
   DeviceList,
-  DoormanAccess,
-  DoormanAccessUpdate,
   DoormanGrants,
   Library,
   Settings,
@@ -30,20 +26,25 @@ import type {
   WrappedRange,
   ForgottenGems,
   ImportQueue,
-  PlayHistory,
+  SongHistory,
+  UsualHours,
+  CloudUids,
   ScanResult,
   SimilarSongs,
+  SoundMap,
   ToolStatus,
   LyricsResponse,
   Motion,
   PlaylistSongs,
   SyncManifest,
   CreateTag,
+  SetArtistNames,
 } from '@selfmp3/shared'
-import { API_ERROR } from '@selfmp3/shared'
+import { API_ERROR, toSqliteTime } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
 import {
+  beforeAddingTo,
   clientApi,
   librarySnapshot,
   lyricsSnapshot,
@@ -79,7 +80,9 @@ import {
  *
  * Keys carry no server address: the cache is cleared when the address changes
  * (`queryClient.clear()`), and every query is gated on having an address at
- * all, which is `ClientState.ready`.
+ * all, which is `ClientState.ready`. The exceptions are what is asked of a
+ * library's server directly rather than of whatever answers this device
+ * (`devicesThrough`, `settings` and the rest), which carry its address.
  */
 
 /**
@@ -93,9 +96,15 @@ export const queryKeys = {
   cloudImports: ['cloud-imports'] as const,
   cloudServer: ['cloud-server'] as const,
   serverGrants: ['cloud-grants'] as const,
-  access: ['cloud-access'] as const,
   library: ['library'] as const,
-  settings: ['settings'] as const,
+  /**
+   * What only a library's server keeps — its settings — asked of that server directly (`useServerApi` in the
+   * app), and so kept by its address. A device's cache is cleared when its own
+   * address changes, but a cloud library reaching one server and then another
+   * (a refused one passed over, a shared library joined, a new name) keeps the
+   * same cache, and one server's answer would stand in for the next's.
+   */
+  settings: (baseUrl: string | null) => ['settings', baseUrl] as const,
   importQueue: ['import', 'queue'] as const,
   importHistory: ['import', 'history'] as const,
   importTools: ['import', 'tools'] as const,
@@ -114,7 +123,9 @@ export const queryKeys = {
    * the library; the same handful while you are looking at it.
    */
   gems: (limit: number) => ['gems', limit] as const,
-  history: ['stats', 'history'] as const,
+  /** One song's history (`SongHistory`), under stats so a play's refresh of them reaches it. */
+  songHistory: (songId: number) => ['stats', 'song', songId] as const,
+  usualHours: (zone: string) => ['usual', zone] as const,
   playlists: playlistsKey,
   playlistSongs: (id: number) => [...playlistsKey, id, 'songs'] as const,
   /** Where a members hook with no playlist to ask about sits, asking nothing. */
@@ -125,11 +136,10 @@ export const queryKeys = {
   motion: (id: number) => ['motion', id] as const,
   health: ['health'] as const,
   metadataLookup: (songId: number) => ['metadata', 'lookup', songId] as const,
-  fixCovers: ['metadata', 'fix-covers'] as const,
   lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
   /** The limit is in the key: a different count is a different answer. */
   similar: (id: number | null, limit: number) => ['similar', id ?? 'none', limit] as const,
-  analysis: ['analysis'] as const,
+  soundMap: ['sound-map'] as const,
   devices: ['devices'] as const,
   /**
    * The device list as a server reached directly from a cloud library tells
@@ -143,6 +153,74 @@ export const queryKeys = {
   /** A library's uids: `which` is this device's copy or the server being asked. */
   cloudUids: (which: 'device' | 'via-server', baseUrl?: string) =>
     ['cloud-uids', which, baseUrl] as const,
+}
+
+/**
+ * The edits that can wait for the library: made while this device cannot
+ * reach it, kept on the device and sent when it can (the app's
+ * `waitingEdits.ts`), even across a reload. A browser that goes offline holds
+ * every edit back until it is online again, and held only in memory they were
+ * lost to a reload without a word.
+ *
+ * Each is named by its key and sent by the same function from either side:
+ * the hook that made it, or the defaults a kept edit is sent with after a
+ * reload (`resumableEdits`), which knows nothing of the screen it came from.
+ * They are the taps: a tag, a heart, a song onto or off a playlist, a new
+ * order. Each says only what it changes, so sending it late cannot undo what
+ * another device did meanwhile.
+ */
+export const editKeys = {
+  songTags: ['edit', 'song-tags'],
+  loved: ['edit', 'loved'],
+  bulkTag: ['edit', 'bulk-tag'],
+  bulkLoved: ['edit', 'bulk-loved'],
+  rest: ['edit', 'rest'],
+  addToPlaylist: ['edit', 'add-to-playlist'],
+  removeFromPlaylist: ['edit', 'remove-from-playlist'],
+  reorderPlaylist: ['edit', 'reorder-playlist'],
+} as const
+
+const editFns = {
+  songTags: ({ songId, add, remove }: { songId: number; add: number[]; remove: number[] }) =>
+    clientApi().changeSongTags(songId, { add, remove }),
+  loved: ({ id, loved }: { id: number; loved: boolean }) => clientApi().setLoved(id, loved),
+  bulkTag: (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
+    clientApi().bulkTag(input),
+  bulkLoved: (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
+  rest: ({ songIds, until }: { songIds: number[]; until: string | null }) =>
+    clientApi().bulkEditSongs({
+      edits: songIds.map(songId => ({ songId, patch: { restUntil: until } })),
+    }),
+  addToPlaylist: async ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) => {
+    // A removal still waiting on its Undo goes first: added back inside the
+    // Undo's time, a song was added to a playlist that still had it, and
+    // then taken out of it when the time ran out.
+    await beforeAddingTo(playlistId)
+    return clientApi().addToPlaylist(playlistId, { songIds })
+  },
+  removeFromPlaylist: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
+    clientApi().removeManyFromPlaylist(playlistId, songIds),
+  reorderPlaylist: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
+    clientApi().reorderPlaylist(playlistId, songIds),
+} satisfies Record<keyof typeof editKeys, (variables: never) => Promise<unknown>>
+
+/**
+ * Teach a query client how to send each kind of edit by its key alone, for an
+ * edit kept from before a reload. Only the sending: what a hook does with the
+ * answer belongs to its screen, and the app asks for the library again once
+ * the kept edits have gone.
+ */
+export function resumableEdits(client: QueryClient): void {
+  for (const name of Object.keys(editKeys) as (keyof typeof editKeys)[]) {
+    client.setMutationDefaults([...editKeys[name]], {
+      mutationFn: editFns[name] as (variables: unknown) => Promise<unknown>,
+    })
+  }
+}
+
+/** Whether a mutation is a kind of edit that can wait (`editKeys`). */
+export function isResumableEdit(mutationKey: readonly unknown[] | undefined): boolean {
+  return mutationKey?.[0] === 'edit'
 }
 
 /**
@@ -304,6 +382,12 @@ export function useLibrary(): UseQueryResult<Library, Error> {
     // Keep showing the old library while a refetch runs, so the list does not
     // flash empty every time the app regains focus.
     placeholderData: previous => previous,
+    // A page opened over a library that failed says so at once, rather than
+    // asking again first: asked again, a query with nothing to show is set
+    // back to loading, error and all, and Home showed an empty "Your tags"
+    // for the seconds a server's errors took. What failed is asked again on
+    // its own (the app's retry of failed queries), and by Try again.
+    retryOnMount: false,
     // Offline, or the bucket's daily allowance used up: asking again at once
     // gets the same answer, and the screen should say why without the wait.
     retry: (failureCount, error) =>
@@ -343,12 +427,15 @@ function serverOf(api: Api | null): Api {
 /**
  * The library's settings, which only its server keeps and acts on
  * (`SettingsSchema`). `api` is that server — reached directly from a cloud
- * library (`useServerApi` in the app) — or null while it is away. One key for
- * them: a device has one server, and the cache is cleared when it changes.
+ * library (`useServerApi` in the app) — or null while it is away, and
+ * `baseUrl` its address, which the answer is kept by (`queryKeys.settings`).
  */
-export function useSettings(api: Api | null): UseQueryResult<Settings, Error> {
+export function useSettings(
+  api: Api | null,
+  baseUrl: string | null,
+): UseQueryResult<Settings, Error> {
   return useQuery({
-    queryKey: queryKeys.settings,
+    queryKey: queryKeys.settings(baseUrl),
     enabled: api !== null,
     queryFn: () => serverOf(api).settings(),
     staleTime: STALE.fiveMinutes,
@@ -406,15 +493,47 @@ export function useGems(limit = GEMS_LIMIT): UseQueryResult<ForgottenGems, Error
   })
 }
 
-/** Plays the listening history reads, from this device's server or one reached directly. */
-export const HISTORY_PLAYS = 200
-
-export function useHistory(enabled = true): UseQueryResult<PlayHistory, Error> {
+/**
+ * One song's every play and who handed it over, for its page. Only a server
+ * answers it; `enabled` is false where this device's client is a cloud
+ * library's copy, which knows only the count and the last play.
+ */
+export function useSongHistory(songId: number, enabled = true): UseQueryResult<SongHistory, Error> {
   const { ready } = useClientState()
   return useQuery({
-    queryKey: queryKeys.history,
-    queryFn: () => clientApi().history(HISTORY_PLAYS),
+    queryKey: queryKeys.songHistory(songId),
+    queryFn: () => clientApi().songHistory(songId),
     enabled: ready && enabled,
+    staleTime: STALE.minute,
+    retry: false,
+  })
+}
+
+/**
+ * What you usually play at each hour, for Home's hour tile, asked of this
+ * device's own client: a server answers, a cloud library's copy does not
+ * (the app asks that library's server directly, and keeps the answer).
+ * `zone` is this device's time zone (`readerTimeZone`), which the request
+ * sends and the answer is kept under.
+ */
+export function useUsualHours(zone: string, enabled = true): UseQueryResult<UsualHours, Error> {
+  const { ready } = useClientState()
+  return useQuery({
+    queryKey: queryKeys.usualHours(zone),
+    queryFn: () => clientApi().usualHours(),
+    enabled: ready && enabled,
+    retry: false,
+    staleTime: STALE.fiveMinutes,
+  })
+}
+
+/** This device's songs and the uids they are known by everywhere (`/api/cloud/uids`). */
+export function useDeviceUids(): UseQueryResult<CloudUids, Error> {
+  const { ready } = useClientState()
+  return useQuery({
+    queryKey: queryKeys.cloudUids('device'),
+    queryFn: () => clientApi().cloudUids(),
+    enabled: ready,
     staleTime: STALE.minute,
   })
 }
@@ -494,10 +613,15 @@ export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error
  */
 function useLibraryMutation<TArgs, TResult>(
   fn: (args: TArgs) => Promise<TResult>,
-  { failure, members = true }: { failure?: string; members?: boolean } = {},
+  {
+    failure,
+    members = true,
+    key,
+  }: { failure?: string; members?: boolean; key?: readonly unknown[] } = {},
 ): UseMutationResult<TResult, Error, TArgs> {
   const client = useQueryClient()
   return useMutation({
+    ...(key === undefined ? {} : { mutationKey: [...key] }),
     mutationFn: fn,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
@@ -612,6 +736,12 @@ export const useRenameTag = () =>
     { members: false },
   )
 
+export const useSetArtistNames = () =>
+  useLibraryMutation((input: SetArtistNames) => clientApi().setArtistNames(input), {
+    members: false,
+    failure: 'Couldn’t save the names',
+  })
+
 /**
  * Recolour a tag, applied optimistically — a swatch that waits a round trip
  * before the chips change feels like it did not take.
@@ -649,16 +779,17 @@ export function useSetTagHue() {
 }
 
 /**
- * Replace a song's tags. Each tick sends the whole set, so the requests for
- * one song run one at a time, in the order they were made: two quick ticks
- * answered out of order put the first set back over the second, and a tag
- * just taken off came back on the chips.
+ * Put tags on a song and take them off. Each tick sends only what it changes,
+ * never the whole set: a whole set worked out from a picker left open, or from
+ * an edit made offline and sent on reconnecting, took off every tag another
+ * device had put on meanwhile. The requests still run one at a time, in the
+ * order they were made, so each answer is the song as of every tick before it.
  */
-export function useSetSongTags() {
+export function useChangeSongTags() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ songId, tagIds }: { songId: number; tagIds: number[] }) =>
-      clientApi().setSongTags(songId, tagIds),
+    mutationKey: [...editKeys.songTags],
+    mutationFn: editFns.songTags,
     scope: { id: 'song-tags' },
     meta: { failure: 'Couldn’t change the song’s tags' },
     onSuccess: song => {
@@ -682,11 +813,10 @@ export function useSetSongTags() {
 }
 
 export const useBulkTag = () =>
-  useLibraryMutation(
-    (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
-      clientApi().bulkTag(input),
-    { failure: 'Couldn’t tag those songs' },
-  )
+  useLibraryMutation(editFns.bulkTag, {
+    failure: 'Couldn’t tag those songs',
+    key: editKeys.bulkTag,
+  })
 
 export function usePatchSong() {
   const client = useQueryClient()
@@ -724,10 +854,10 @@ export const useBulkEditSongs = () =>
   })
 
 export const useBulkLoved = () =>
-  useLibraryMutation(
-    (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
-    { failure: 'Couldn’t change the likes' },
-  )
+  useLibraryMutation(editFns.bulkLoved, {
+    failure: 'Couldn’t change the likes',
+    key: editKeys.bulkLoved,
+  })
 
 export const useScanLibrary = (api: Api | null) =>
   useLibraryMutation<void, ScanResult>(() => serverOf(api).scan(), {
@@ -739,6 +869,9 @@ export function useUpdatePlaylist() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: Parameters<Api['updatePlaylist']>[1] }) =>
       clientApi().updatePlaylist(id, patch),
+    // In the order made: a rule or a name goes whole, and two answered out of
+    // order would leave the first.
+    scope: { id: 'playlist-update' },
     meta: { failure: 'Couldn’t save the playlist' },
     onSuccess: (playlist, { id }) => {
       putPlaylist(client, playlist)
@@ -765,6 +898,13 @@ export function useUpdatePlaylist() {
 export function useCreatePlaylist() {
   const client = useQueryClient()
   return useMutation({
+    // Never paused for the network. Every caller waits for the new playlist's
+    // id, and a create is not an edit that can wait (`resumableEdits`): paused,
+    // it spun with no word while offline, was held only in memory, and went on
+    // when the network came back, after its sheet was cancelled (R3-M5). A
+    // cloud library makes it in the device's copy at once; a server out of
+    // reach fails it, and the caller says so.
+    networkMode: 'always',
     mutationFn: async ({
       input,
       songIds = [],
@@ -773,9 +913,11 @@ export function useCreatePlaylist() {
       songIds?: readonly number[]
       refresh?: 'background' | 'wait' | 'none'
     }) => {
-      const created = await clientApi().createPlaylist(input)
-      if (songIds.length > 0) await clientApi().addToPlaylist(created.id, { songIds: [...songIds] })
-      return created
+      // With its songs in the same request: in two, a tab closed between them
+      // left an empty playlist, and a retry after a failed second made it twice.
+      return clientApi().createPlaylist(
+        input.kind === 'manual' && songIds.length > 0 ? { ...input, songIds: [...songIds] } : input,
+      )
     },
     onSuccess: (_created, { refresh = 'background' }) => {
       if (refresh === 'none') return undefined
@@ -821,7 +963,8 @@ export function useToggleLoved() {
   const client = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, loved }: { id: number; loved: boolean }) => clientApi().setLoved(id, loved),
+    mutationKey: [...editKeys.loved],
+    mutationFn: editFns.loved,
     meta: { failure: 'Couldn’t change the like' },
 
     onMutate: async ({ id, loved }) => {
@@ -832,7 +975,12 @@ export function useToggleLoved() {
       if (previous) {
         client.setQueryData<Library>(queryKeys.library, {
           ...previous,
-          songs: previous.songs.map(song => (song.id === id ? { ...song, loved } : song)),
+          // Liked lists newest first, so the guess carries the time too.
+          songs: previous.songs.map(song =>
+            song.id === id
+              ? { ...song, loved, lovedAt: loved ? toSqliteTime(Date.now()) : null }
+              : song,
+          ),
         })
       }
 
@@ -858,14 +1006,75 @@ export function useToggleLoved() {
   })
 }
 
-export function useUpdateSettings(api: Api | null) {
+/**
+ * Rest songs until a time, or wake them with null (shared rest.ts), shown at
+ * once: the row's moon is there before the answer, and gone again if it fails.
+ */
+export function useRestSongs() {
   const client = useQueryClient()
   return useMutation({
+    mutationKey: [...editKeys.rest],
+    mutationFn: editFns.rest,
+    meta: { failure: 'Couldn’t save the change' },
+
+    onMutate: async ({ songIds, until }) => {
+      await client.cancelQueries({ queryKey: queryKeys.library })
+      const previous = client.getQueryData<Library>(queryKeys.library)
+      if (previous) {
+        const ids = new Set(songIds)
+        client.setQueryData<Library>(queryKeys.library, {
+          ...previous,
+          songs: previous.songs.map(song =>
+            ids.has(song.id) ? { ...song, restUntil: until } : song,
+          ),
+        })
+      }
+      return { previous }
+    },
+
+    onSuccess: () => void client.invalidateQueries({ queryKey: queryKeys.library }),
+
+    onError: (_error, _variables, context) => {
+      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+    },
+  })
+}
+
+/**
+ * Change the library's settings, shown at once.
+ *
+ * Optimistic, and one at a time in the order they were made. A switch that
+ * waited for the server did not move under the finger, and each tap worked out
+ * its value from the last answer: two quick taps both sent "off". A note
+ * removed while the last removal was still saving came back the same way. Now
+ * each change is applied to what is held as it is made, so the next one starts
+ * from it; the server's answer is taken only when it is the last one waiting,
+ * so an earlier answer does not put a switch back for a moment; and a failure
+ * puts back what was held before it and asks again.
+ */
+export function useUpdateSettings(api: Api | null, baseUrl: string | null) {
+  const client = useQueryClient()
+  const key = queryKeys.settings(baseUrl)
+  return useMutation({
+    mutationKey: ['settings', 'update', baseUrl],
     mutationFn: (patch: Parameters<Api['updateSettings']>[0]) =>
       serverOf(api).updateSettings(patch),
+    scope: { id: `settings:${baseUrl ?? ''}` },
     meta: { failure: 'Couldn’t save the setting' },
+    onMutate: async patch => {
+      await client.cancelQueries({ queryKey: key })
+      const previous = client.getQueryData<Settings>(key)
+      if (previous) client.setQueryData<Settings>(key, { ...previous, ...patch })
+      return { previous }
+    },
     onSuccess: settings => {
-      client.setQueryData(queryKeys.settings, settings)
+      const waiting = client.isMutating({ mutationKey: ['settings', 'update', baseUrl] })
+      if (waiting <= 1) client.setQueryData(key, settings)
+    },
+    onError: (_error, _patch, context) => {
+      if (context?.previous) client.setQueryData(key, context.previous)
+      void client.invalidateQueries({ queryKey: key })
     },
   })
 }
@@ -873,8 +1082,8 @@ export function useUpdateSettings(api: Api | null) {
 export function useAddToPlaylist() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
-      clientApi().addToPlaylist(playlistId, { songIds }),
+    mutationKey: [...editKeys.addToPlaylist],
+    mutationFn: editFns.addToPlaylist,
     meta: { failure: 'Couldn’t add to the playlist' },
     onSuccess: (playlist, { playlistId }) => {
       // The answer is the playlist with its new count and length; its members
@@ -902,8 +1111,10 @@ export function useAddToPlaylist() {
 export function useReorderPlaylist() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
-      clientApi().reorderPlaylist(playlistId, songIds),
+    mutationKey: [...editKeys.reorderPlaylist],
+    mutationFn: editFns.reorderPlaylist,
+    // The whole order each time, so the newest has to land last.
+    scope: { id: 'playlist-order' },
     meta: { failure: 'Couldn’t save the new order' },
 
     onMutate: async ({ playlistId, songIds }) => {
@@ -926,8 +1137,8 @@ export function useReorderPlaylist() {
 export function useRemoveManyFromPlaylist() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
-      clientApi().removeManyFromPlaylist(playlistId, songIds),
+    mutationKey: [...editKeys.removeFromPlaylist],
+    mutationFn: editFns.removeFromPlaylist,
     meta: { failure: 'Couldn’t remove the songs from the playlist' },
     onSuccess: ({ playlist }, { playlistId }) => {
       if (playlist) putPlaylist(client, playlist)
@@ -1010,31 +1221,6 @@ export const useApplyMetadata = () =>
     clientApi().applyMetadata(id, input),
   )
 
-/** The cover-art pass, polled only while it runs (same idea as the import queue). */
-export function useFixCoversStatus(api: Api | null): UseQueryResult<FixCoversStatus, Error> {
-  return useQuery({
-    queryKey: queryKeys.fixCovers,
-    enabled: api !== null,
-    queryFn: () => serverOf(api).fixCoversStatus(),
-    refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
-  })
-}
-
-export function useFixCovers(api: Api | null) {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (action: 'start' | 'cancel') =>
-      action === 'start' ? serverOf(api).fixCoversStart() : serverOf(api).fixCoversCancel(),
-    meta: { failure: 'Couldn’t reach the cover fixing' },
-    onSuccess: status => {
-      client.setQueryData(queryKeys.fixCovers, status)
-      void client.invalidateQueries({ queryKey: queryKeys.library })
-      // A rule can ask for art (`hasArt`), so found covers are new members.
-      refetchLivePlaylists(client)
-    },
-  })
-}
-
 /**
  * Nearest neighbours of a song. Cheap on the server, so cached only briefly.
  *
@@ -1045,6 +1231,18 @@ export function useFixCovers(api: Api | null) {
  * songs laid out around "it has none" and rearrange itself when the answer
  * lands.
  */
+/** Every heard song's place on the sound map (docs/features/sound-map.md). */
+export function useSoundMap(): UseQueryResult<SoundMap, Error> {
+  const { ready } = useClientState()
+  return useQuery({
+    queryKey: queryKeys.soundMap,
+    queryFn: () => clientApi().soundMap(),
+    enabled: ready,
+    staleTime: STALE.minute,
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function useSimilar(
   songId: number | null,
   limit = SIMILAR_LIMIT,
@@ -1056,39 +1254,6 @@ export function useSimilar(
     enabled: ready && songId !== null,
     staleTime: STALE.minute,
     placeholderData: keepPreviousData,
-  })
-}
-
-/**
- * Background analysis progress, polled only while it is running — and the
- * library is refetched once it stops, so the new BPM and key badges appear,
- * with the members of any live playlist whose rules follow those.
- */
-export function useAnalysisStatus(api: Api | null): UseQueryResult<AnalysisStatus, Error> {
-  const client = useQueryClient()
-  return useQuery({
-    queryKey: queryKeys.analysis,
-    queryFn: async () => {
-      const status = await serverOf(api).analysisStatus()
-      const previous = client.getQueryData<AnalysisStatus>(queryKeys.analysis)
-      if (previous?.running && !status.running) {
-        void client.invalidateQueries({ queryKey: queryKeys.library })
-        refetchLivePlaylists(client)
-      }
-      return status
-    },
-    enabled: api !== null,
-    refetchInterval: query => (query.state.data?.running ? 1_500 : false),
-  })
-}
-
-export function useStartAnalysis(api: Api | null) {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (force: boolean) => serverOf(api).analyze(force),
-    onSuccess: status => {
-      client.setQueryData(queryKeys.analysis, status)
-    },
   })
 }
 
@@ -1209,32 +1374,6 @@ export function useRemoveServerGrant(): UseMutationResult<unknown, Error, string
       // The server removed is passed over from now, though the snapshot still names it.
       void client.invalidateQueries({ queryKey: queryKeys.cloudServer })
     },
-  })
-}
-
-// --- who may sign in (apps/doorman/src/access.ts) -----------------------------
-
-/**
- * The allow list, for the doorman's owner. Anyone else is refused, which is
- * how Settings knows not to draw it: no retry, since a 403 is the answer.
- */
-export function useAccess(): UseQueryResult<DoormanAccess, Error> {
-  const { ready } = useClientState()
-  return useQuery({
-    queryKey: queryKeys.access,
-    enabled: ready,
-    retry: false,
-    staleTime: STALE.minute,
-    queryFn: () => clientApi().access(),
-  })
-}
-
-/** Replace the allow list, whole. */
-export function useUpdateAccess(): UseMutationResult<DoormanAccess, Error, DoormanAccessUpdate> {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (update: DoormanAccessUpdate) => clientApi().updateAccess(update),
-    onSuccess: saved => client.setQueryData(queryKeys.access, saved),
   })
 }
 

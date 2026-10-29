@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ParsedLyrics } from '@selfmp3/shared'
 
 import {
+  backdropVeil,
   contextLine,
   parseMode,
   parseTab,
@@ -106,6 +107,33 @@ describe('now playing', () => {
     expect(geometry.lyric).toBeCloseTo(29.44)
   })
 
+  it('grows the cover, the title and the words on a very wide page, and only there', () => {
+    expect(stageGeometry(1800, 1000)).toMatchObject({
+      column: 400,
+      cover: 400,
+      title: 30,
+      lyric: 32,
+    })
+    const wide = stageGeometry(2800, 1116)
+    expect(wide.cover).toBe(560)
+    expect(wide.title).toBe(43.75)
+    expect(wide.lyric).toBeCloseTo(37.8)
+    // A short window still keeps the cover clear of the bar.
+    expect(stageGeometry(2800, 700).cover).toBe(410)
+    expect(stageGeometry(3600, 1400)).toMatchObject({ cover: 700, title: 50, lyric: 44 })
+  })
+
+  it('gives the song a third of a 2560 window, its cover half the height (AJ1)', () => {
+    const screen = stageGeometry(2560, 1212)
+    expect(screen.column).toBeCloseTo(2560 / 3 - 72)
+    expect(screen.cover).toBe(606)
+    expect(screen.title).toBe(40)
+    // Halfway there at 2100.
+    const between = stageGeometry(2100, 1100)
+    expect(between.cover).toBeGreaterThan(420)
+    expect(between.cover).toBeLessThan(550)
+  })
+
   it('stacks a page taller than wide, as an iPad in portrait (T05)', () => {
     const portrait = stageGeometry(834, 1110, 24)
     expect(portrait.stacked).toBe(true)
@@ -123,9 +151,10 @@ describe('now playing', () => {
     expect(stageGeometry(900, 300).cover).toBe(180)
   })
 
-  it('says where in the queue it is', () => {
-    expect(contextLine(false, 9, 13)).toBe('Playing · 10 of 13')
-    expect(contextLine(true, 0, 2)).toBe('Shuffling · 1 of 2')
+  it('says where in the queue it is, and nothing for a song alone', () => {
+    expect(contextLine(9, 13)).toBe('10 of 13')
+    expect(contextLine(0, 2)).toBe('1 of 2')
+    expect(contextLine(0, 1)).toBeNull()
   })
 
   it('shows "Next" for the last fifteen seconds only', () => {
@@ -162,5 +191,23 @@ describe('the phone page', () => {
     expect(letGo({ view: 'cover', dy: -60, vy: -1.2 })).toBe('lyrics')
     expect(letGo({ view: 'cover', dy: 60, vy: 0.3 })).toBeNull()
     expect(letGo({ view: 'cover', dy: 30, vy: 3 })).toBeNull()
+  })
+})
+
+describe("the veil over the phone page's cover", () => {
+  const tone = (l: number) => ({ hue: 0, chroma: 0, palette: [{ l, c: 0, h: 0, share: 1 }] })
+
+  it("leaves a cover far from the text at the page's own veil", () => {
+    expect(backdropVeil(tone(0.2), 'dark', 0.56)).toBe(0.56)
+    expect(backdropVeil(tone(0.9), 'light', 0.56)).toBe(0.56)
+    expect(backdropVeil(null, 'dark', 0.56)).toBe(0.56)
+  })
+
+  it('thickens it as the cover nears the text, a white cover under the dark theme most', () => {
+    expect(backdropVeil(tone(0.95), 'dark', 0.56)).toBeCloseTo(0.86)
+    expect(backdropVeil(tone(0.05), 'light', 0.56)).toBeCloseTo(0.86)
+    const middling = backdropVeil(tone(0.7), 'dark', 0.56)
+    expect(middling).toBeGreaterThan(0.56)
+    expect(middling).toBeLessThan(0.86)
   })
 })

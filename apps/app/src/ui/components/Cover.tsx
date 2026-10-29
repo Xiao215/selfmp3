@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -6,6 +6,7 @@ import { hueFromString } from '@selfmp3/shared'
 import { motion, radius, tagColors } from '@selfmp3/client'
 import { ease, timing } from '../motion'
 import { MOVE_MS } from '../motion.model'
+import { useShownScheme } from '../theme/unistyles'
 
 /**
  * Cover art, and what stands in for it.
@@ -28,11 +29,22 @@ import { MOVE_MS } from '../motion.model'
  * drawn from the file after that — keeps the picture it had under the new one
  * until the new one has drawn, rather than going back to empty in between.
  */
+/**
+ * A picture that failed is asked for again after this, then twice as long,
+ * and given up on after `COVER_RETRIES`. One that failed for a moment — a
+ * server restarting, a 503 — otherwise stayed a letter for the rest of the
+ * session, since a row kept drawn never asks again and an image cannot say
+ * whether it failed with a 404 or a 503.
+ */
+export const COVER_RETRY_MS = 15_000
+export const COVER_RETRIES = 3
+
 export function Cover({
   uri,
   title,
   size = 44,
   radius: cornerRadius,
+  hue,
 }: {
   /** The picture; null for none to show, undefined for one on its way (`offline/useArt.ts`). */
   uri: string | null | undefined
@@ -40,10 +52,31 @@ export function Cover({
   size?: number
   /** The corners, when the size's own choice is wrong: 0 inside a mosaic. */
   radius?: number
+  /**
+   * The letter tile's hue, where the page is already washed in the picture's
+   * colour without the picture: a link's song whose cover its sender's bucket
+   * would not lend. The title's own hue would sit on it as another song's.
+   */
+  hue?: number
 }): ReactNode {
   // The address that failed, so a new one gets its own chance: the server may be back.
   const [failedUri, setFailedUri] = useState<string | null>(null)
   const failed = !!uri && failedUri === uri
+  // How often this address has been asked for again, which is also what makes
+  // the picture a new one to the platform when it is.
+  const [tries, setTries] = useState({ uri, count: 0 })
+  const tried = tries.uri === uri ? tries.count : 0
+  useEffect(() => {
+    if (!failed || tried >= COVER_RETRIES) return undefined
+    const timer = setTimeout(
+      () => {
+        setTries({ uri, count: tried + 1 })
+        setFailedUri(null)
+      },
+      COVER_RETRY_MS * 2 ** tried,
+    )
+    return () => clearTimeout(timer)
+  }, [failed, tried, uri])
   // The address that last decoded. While it is not this one, it is the picture
   // left under the one loading.
   const [loadedUri, setLoadedUri] = useState<string | null>(null)
@@ -83,14 +116,24 @@ export function Cover({
     [size, cornerRadius],
   )
 
-  const lettered = uri === null || failed
+  // A cell of a mosaic (`radius` 0) leaves its edge to the mosaic's.
+  const edged = cornerRadius !== 0
+  // A picture asked for again keeps its letter under it until it draws.
+  const lettered = uri === null || failed || (tried > 0 && loadedUri !== uri)
   // The letter tile is a tag's tile in the title's hue — deep with light ink
   // in the dark, a pale tint with dark ink on Paper — so a song with no
   // picture sits among the tag tiles as one of them, and its row's tint
   // (`tileTone`) is worked out from the same colour.
-  const tile = lettered ? tagColors(hueFromString(title)) : null
+  const tile = lettered ? tagColors(hue ?? hueFromString(title)) : null
   return (
-    <View style={[styles.cover, dimensions, tile && { backgroundColor: tile.tile }]}>
+    <View
+      style={[
+        styles.cover,
+        dimensions,
+        edged && styles.dropped,
+        tile && { backgroundColor: tile.tile },
+      ]}
+    >
       {tile ? (
         <Text
           style={[styles.letter, { color: tile.tileInk, fontSize: size * 0.4 }]}
@@ -109,6 +152,7 @@ export function Cover({
       ) : null}
       {uri && !failed ? (
         <Animated.Image
+          key={tried}
           source={{ uri }}
           style={[styles.picture, { opacity: shown }]}
           resizeMode="cover"
@@ -117,8 +161,21 @@ export function Cover({
           accessibilityIgnoresInvertColors
         />
       ) : null}
+      {edged ? <CoverEdge radius={dimensions.borderRadius} /> : null}
     </View>
   )
+}
+
+/**
+ * On Paper, a cover's edge (docs/features/design-system.md, "No hairlines"):
+ * a shade a point inside the picture, the way a printed sleeve has one, so a
+ * white cover still has a shape on cream. Laid over whatever the cover is —
+ * one picture, or a mosaic's four — and drawn only in the light theme.
+ */
+export function CoverEdge({ radius: cornerRadius }: { radius: number }): ReactNode {
+  const scheme = useShownScheme()
+  if (scheme !== 'light') return null
+  return <View pointerEvents="none" style={[styles.edge, { borderRadius: cornerRadius }]} />
 }
 
 const styles = StyleSheet.create(theme => ({
@@ -130,5 +187,16 @@ const styles = StyleSheet.create(theme => ({
   },
   // Over the letter, filling the tile, so the corners are the tile's own.
   picture: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  // A drop as soft as the edge: transparent in the dark, so it casts none.
+  dropped: { boxShadow: `0 1px 2px ${theme.colors.coverDrop}` },
+  edge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 1,
+    borderColor: theme.colors.coverEdge,
+  },
   letter: { fontWeight: '600' },
 }))

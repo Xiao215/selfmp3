@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { reviewFrom } from '@selfmp3/client'
 import type { ImportPreviewItem } from '@selfmp3/shared'
-import { rowsToAsk, suggestionFor, suggestionsByRow, suggestionWords } from './importNames.model'
+import {
+  changesWords,
+  rowsToAsk,
+  suggestionChanges,
+  suggestionFor,
+  suggestionsByRow,
+} from './importNames.model'
 
 const item = (title: string, over: Partial<ImportPreviewItem> = {}): ImportPreviewItem => ({
   url: `https://youtu.be/${title}`,
@@ -20,6 +26,7 @@ const item = (title: string, over: Partial<ImportPreviewItem> = {}): ImportPrevi
 })
 
 const review = reviewFrom({
+  unread: [],
   kind: 'playlist',
   playlistTitle: 'YOASOBI hits',
   from: 'youtube',
@@ -53,7 +60,22 @@ describe('an import’s names, as the review offers them', () => {
     expect(suggestionFor(review.items[1]!, idol)).toBe(idol)
     // Fixed by hand, or the suggestion taken: nothing left to offer.
     expect(suggestionFor({ ...review.items[1]!, title: 'アイドル' }, idol)).toBeUndefined()
-    expect(suggestionWords(idol)).toBe('アイドル · YOASOBI')
-    expect(suggestionWords({ title: 'a', artist: '', album: 'b' })).toBe('a · Unknown artist · b')
+  })
+
+  it('shows only the names a suggestion changes, and says when one would be left empty', () => {
+    const from = { title: '恋風 - Koikaze', artist: 'Lilas', album: 'Laugh' }
+    const romaji = { title: '恋風', artist: 'Lilas', album: 'Laugh', why: 'Romanization', from }
+    expect(suggestionChanges(romaji)).toEqual([
+      { name: 'title', label: 'Title', words: '恋風', empty: false },
+    ])
+    const changes = suggestionChanges({ ...romaji, artist: 'Lilas Ikuta', album: '' })
+    expect(changes.map(change => [change.name, change.words, change.empty])).toEqual([
+      ['title', '恋風', false],
+      ['artist', 'Lilas Ikuta', false],
+      ['album', 'No album', true],
+    ])
+    expect(changesWords(changes)).toBe('title 恋風, artist Lilas Ikuta, album No album')
+    // A suggestion that changes nothing is not offered.
+    expect(suggestionFor(from, { ...from, why: 'Looks right', from })).toBeUndefined()
   })
 })

@@ -1,15 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@selfmp3/client'
-import type { AskAnswer, AskProgress } from '@selfmp3/shared'
+import type { AskProgress, AskReply } from '@selfmp3/shared'
 import { askKept, type AskSent } from './askKept'
 
-const sent: AskSent = { text: 'only the albums', playing: null, ticket: 'ticket-1', before: [] }
-const answer: AskAnswer = { kind: 'none', say: 'Here it is.', try: [] }
+// What the device counts (features/usage) sits on its prefs, which need a device.
+vi.mock('../usage/usage', () => ({ countUse: () => undefined }))
+
+const sent: AskSent = {
+  text: 'only the albums',
+  context: { playing: null, screen: null },
+  ticket: 'ticket-1',
+  before: [],
+}
+const answer: AskReply = {
+  say: 'Here it is.',
+  cards: [{ kind: 'explore', say: 'Two albums.', songIds: [3, 4], get: null }],
+}
 const running: AskProgress = { steps: [], known: true, done: false, answer: null, failed: null }
 const done: AskProgress = { ...running, done: true }
 
 /** A server whose answer to the Ask itself is `posted`, and whose progress is read from `progress`. */
-function server(posted: Promise<AskAnswer>, progress: (answer: boolean) => AskProgress) {
+function server(posted: Promise<AskReply>, progress: (answer: boolean) => AskProgress) {
   return {
     ask: vi.fn(() => posted),
     askProgress: vi.fn((_ticket: string, collect = false) => Promise.resolve(progress(collect))),
@@ -17,8 +28,8 @@ function server(posted: Promise<AskAnswer>, progress: (answer: boolean) => AskPr
   }
 }
 
-const never = new Promise<AskAnswer>(() => undefined)
-const lost = (): Promise<AskAnswer> =>
+const never = new Promise<AskReply>(() => undefined)
+const lost = (): Promise<AskReply> =>
   Promise.reject(new ApiError(0, 'The network connection was lost.', 'offline'))
 const noWait = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
 

@@ -17,11 +17,13 @@ Files:
 | Tagging what is playing | `apps/app/src/shell/PlayerBar.tsx`, `apps/app/src/features/nowPlaying/SongTagsLine.tsx`, `useTagging.ts`, `apps/app/src/ui/components/TagPicker.tsx` |
 | Songs with no tag, tagged while they play | `apps/app/src/features/tag/usePlayAndTag.ts`, `apps/app/src/features/tags/TagsScreen.tsx` |
 | A tag named like an artist | `apps/app/src/features/tag/ArtistNudge.tsx`, `apps/app/src/features/tag/useArtistNudge.tsx` |
+| One artist under two spellings | `packages/shared/src/artistJoins.ts`, `apps/app/src/features/tag/SameArtistCard.tsx`, `ArtistNamesEditor.tsx` |
 
 ## Picking tags, in the library
 
-Under the Library's head runs the tag strip: **All**, **On this phone** on a phone that
-keeps songs, the tags used lately, and **More tags**, which opens the picker
+Under the Library's head runs the tag strip: **All**, **Liked** once a song is liked (it
+narrows to the songs you like, whatever else is on; docs/features/lists.md), **On this phone**
+on a phone that keeps songs, the tags used lately, and **More tags**, which opens the picker
 (`ListenTags.tsx`) — in the page, not over it, so the head grows and the songs move down.
 With nothing typed it offers the tags used most and the few made lately; with something
 typed, only the matches. Every tag you turn on *adds* its songs (`filter.ts`: a song
@@ -30,6 +32,12 @@ the panel is what you have built. Once a tag is on, the head carries **Play thes
 and Shuffle; with none on there is Shuffle alone, since a tap on a row plays that song
 alone. Saving what you built as a playlist is Up next's Save, once it has been heard
 (docs/features/lists.md).
+
+The strip and the sidebar's tags keep their order for as long as you stay on the page (X6,
+2026-10-25): turning a tag on makes it the one used last, and tagging songs changes the
+counts the rest go by, and a chip or row that moved under the pointer was pressed by mistake.
+The next visit has them in their order then — Library each time it comes back to the front,
+the sidebar on a new page once the pointer has left its tags (`useSteadyOrder`'s `visit`).
 
 On a phone the picker's lane labels sit above their chips rather than beside them, the
 chips are finger-sized, and the count and **Done** take the panel's foot.
@@ -87,19 +95,53 @@ Every tag as a place to go, most played first (`P07`), laid out as records rathe
 square covers Playlists uses: a tile is the tag's covers, its name, its songs and time. A
 tile opens the tag's own page (`/tag/<name>`). With a pointer, the record slides out and
 **Play** waits on its label; on a phone a tap opens and holding edits. A tag all of whose
-songs another tag carries is drawn inside that tag, and tags with only a song or two wait at
-the end, so the page opens on the ones in use. The header's **+** opens the new-tag card —
+songs another tag carries hangs off that tag's tile as a small chip ("Inside: ● late night
+drives… 3"), which opens it, and tags with only a song or two wait at the end, so the page opens on the ones in use. The header's **+** opens the new-tag card —
 a name field, the colours and **Create**, which stays open after each one because tags
-arrive in handfuls. The sidebar shows the four tags used last; its TAGS header opens this
+arrive in handfuls. A new tag left uncoloured — there, in Import, or from Ask's tag review —
+takes the palette's hue farthest from every tag's (`newTagHue`, `TAG_HUES` in
+`packages/shared/src/editRules.ts`; the server and a cloud library pick alike), the name
+choosing between hues as far; the first swatch shows it before Create. Its name alone once
+chose, and "calm" came out the red "live" already was (X5, 2026-10-25). The sidebar shows the four tags used last; its TAGS header opens this
 page.
 
-Combining is not here: a tag's or an artist's page has **Combine with…** (`AddSheet.tsx`),
+Combining is not here: a tag's or an artist's page has **Mix in…** (`AddSheet.tsx`),
 which puts tags and artists together on `/combined` (docs/features/lists.md). The library's
 tag strip is the one place a tag is still a filter.
 
 A tag whose name is an artist's asks first (`P11`): **Open the artist**, or **Make the tag
 anyway**. Closing the question any other way makes nothing. It runs wherever a tag is made by
 name — the new-tag card, the sidebar's **+** and the picker's **Create…**.
+
+An artist's page has, beside **Make a tag from this artist**, **Other names…**
+(`ArtistNamesEditor.tsx`): one field of names apart by commas that search finds the artist
+by too, in a popover beside the ⋯ (a sheet on a phone). Saved, it closes; a refusal keeps it
+open and says why (X8, 2026-10-25: it used to stay open with a tick on Save, and read as not
+saved).
+
+## One artist under two spellings
+
+An artist is what the songs say, so a library from YouTube and 网易云 has Yorushika (78 songs)
+and ヨルシカ (6) as two artists. An artist's **Other names…** (the ⋯ on their page) joins
+them (pick E1, 2026-10-25): when an artist's other names hold the name of an artist with
+fewer songs, the two are one artist everywhere — one page under the bigger name with the
+songs credited under either spelling, one row in Search found by either, one entry in Stats'
+top artists and the Report with the plays summed, one artist in Ask's view of the library
+and in **Mix in…**. The songs' own artist fields are never rewritten, and the other
+spelling stays listed in Other names…; taking it out there parts them again. The address of
+the smaller one opens the joined page.
+
+Only names somebody saved join artists. The names the server finds on MusicBrainz still find
+songs in Search but join nothing (`Library.artistNamesFound`); instead, the smaller artist's
+page asks once, under its head: **Same artist as Yorushika?** "6 songs here, 78 under
+Yorushika", **Join them** or **Not the same**. It asks too when the smaller artist's own
+names hold the bigger one's. Join saves the smaller name among the bigger artist's names;
+Not the same takes out the names that linked them, so the question does not come back.
+
+It is worked out from the songs and the names that travel with the library
+(`joinedArtists`, `joinedNames`, `sameArtistAsk`), the same on the server and on a device
+away from it, and a join made anywhere syncs as any change to an artist's names does
+(docs/SYNC.md).
 
 ## Tagging what is playing
 

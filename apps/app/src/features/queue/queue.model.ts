@@ -47,14 +47,23 @@ export function queueRows(
 
 /**
  * "Next · 6 songs · 24 min": what is still to come, over Up next's songs on a
- * phone's sheet and a computer's rail alike. The two had said it two ways
- * ("Next · 6 songs, 24 min" and "6 songs · 24 min"), and an empty queue as
- * "Nothing next" and "Nothing after this one".
+ * phone's sheet. It and the rail had said it two ways ("Next · 6 songs, 24
+ * min" and "6 songs · 24 min"), and an empty queue as "Nothing next" and
+ * "Nothing after this one".
  */
 export function nextLabel(next: readonly QueueRow[]): string {
-  if (next.length === 0) return 'Nothing after this one'
+  const count = nextCount(next)
+  return next.length === 0 ? count : `Next · ${count}`
+}
+
+/**
+ * "6 songs · 24 min", or "Nothing next": the same, after the name of where it
+ * came from on the computer rail's one head line.
+ */
+export function nextCount(next: readonly QueueRow[]): string {
+  if (next.length === 0) return 'Nothing next'
   const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
-  return `Next · ${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
+  return `${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
 }
 
 /**
@@ -278,8 +287,7 @@ export function withOnlyPlaying(state: QueueState): QueueState {
  * no place to mean.
  */
 export function withRestRestored(now: QueueState, before: QueueState): QueueState | null {
-  const playing = before.items[before.index]
-  if (playing === undefined || now.items[now.index] !== playing) return null
+  if (!stillRestorable(now, before)) return null
   const known = new Set(before.items)
   const added = now.items.filter(id => !known.has(id))
   const original = new Set(before.original)
@@ -290,6 +298,12 @@ export function withRestRestored(now: QueueState, before: QueueState): QueueStat
     items: [...before.items, ...added],
     original: [...before.original, ...added.filter(id => !original.has(id))],
   }
+}
+
+/** Whether Clear the rest's Undo can still put `before` back: the song it left is still the one playing. */
+export function stillRestorable(now: QueueState, before: QueueState): boolean {
+  const playing = before.items[before.index]
+  return playing !== undefined && now.items[now.index] === playing
 }
 
 // --- A song played on its own, ended ----------------------------------------------

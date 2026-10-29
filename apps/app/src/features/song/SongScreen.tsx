@@ -3,13 +3,13 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import type { Song } from '@selfmp3/shared'
+import { naturalOrder, plural, type Song } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, useSimilar, withAlpha, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBottomInset } from '../../shell/bottomInset'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
@@ -23,41 +23,30 @@ import { MissingPage } from '../../ui/components/MissingPage'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { TagPicker } from '../../ui/components/TagPicker'
-import {
-  artShadow,
-  card,
-  label as labelText,
-  pageFrame,
-  serif,
-  bodyText,
-  heroTitle,
-} from '../../ui/surfaces'
+import { artShadow, card, label, pageFrame, heroTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
 import { SimilarShelf } from './SimilarShelf'
-import { useHistoryFor, useStatsSongs } from '../stats/statsSource'
+import { useSongHistoryFor } from '../stats/statsSource'
 import { useOpenTag } from '../tag/useOpenTag'
 import { SongAbout } from './SongAbout'
-import {
-  bylineRest,
-  playStrip,
-  songPlays,
-  songStory,
-  soundWords,
-  type PlayStrip,
-} from './song.model'
+import { SoundStrip } from './SongFacts'
+import { bylineRest, songStory, unplayedLine, type WeekStrip } from './song.model'
 import { goBack } from '../../ui/useBackTo'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useStackedTitle } from '../../ui/useStackedTitle'
 
 /**
  * A song's own page, `/song/<id>` (docs/ui-mock `P15`).
  *
  * Lit by its cover, with the song's cover, name, artists and tags at the top;
- * Play, Lyrics and Play next under them; then what you and the song have done
- * together, and songs that sound like it. The song's facts follow at the end,
- * in quiet groups, with Fix metadata beside the facts it fixes.
+ * Play, Lyrics and Play next under them, and beside them "Not played yet ·
+ * added a month ago" until it has been; then, once it has plays, what you and
+ * the song have done together; its Sound as three tiles; and songs that sound
+ * like it. The song's facts follow at the end as one quiet line, with Fix
+ * song info… beside it (F1, 2026-10-25).
  *
  * On a computer it is the same page at the window's width, inside the shell:
  * there is no board for it, and the page reads as well wide (docs/UI-MIGRATION.md,
@@ -88,7 +77,7 @@ export function SongScreen(): ReactNode {
 function SongPage({ song }: { song: Song }): ReactNode {
   const router = useRouter()
   const openTag = useOpenTag()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const bottom = useBottomInset()
   const { top } = useSafeAreaInsets()
   const player = usePlayer()
@@ -103,9 +92,26 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const moreRef = useRef<View>(null)
   const addTagRef = useRef<View>(null)
 
-  const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
+  const tags = useMemo(
+    () =>
+      (library?.tags ?? [])
+        .filter(tag => song.tagIds.includes(tag.id))
+        .sort((a, b) => naturalOrder(a.name, b.name)),
+    [library?.tags, song.tagIds],
+  )
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
+  const unplayed = useMemo(() => unplayedLine(song, new Date()), [song])
+  // The cover goes above a title that would take more than two lines beside it (AM1).
+  const coverSize = wide ? 200 : 132
+  const titleStyle = [styles.title, wide && styles.titleWide]
+  const head = useStackedTitle({
+    title: song.title,
+    step: wide ? 'display' : 'page',
+    style: titleStyle,
+    cover: coverSize,
+    gap: wide ? HERO_GAP_WIDE : space.lg,
+  })
 
   return (
     <View style={styles.screen}>
@@ -139,50 +145,74 @@ function SongPage({ song }: { song: Song }): ReactNode {
           </View>
         </View>
 
-        <View style={[styles.hero, wide && styles.heroWide]}>
+        <View
+          onLayout={head.onHeadLayout}
+          style={[styles.hero, wide && styles.heroWide, head.stacked && styles.heroStacked]}
+        >
+          {head.measure}
           <View style={styles.cover}>
             <Cover
               uri={art}
               title={song.album || song.title}
-              size={wide ? 200 : 132}
+              size={coverSize}
               radius={radius.card}
             />
           </View>
-          <View style={styles.titles}>
+          <View style={[styles.titles, head.stacked && styles.titlesStacked]}>
             <Text
-              style={[styles.title, wide && styles.titleWide]}
-              numberOfLines={3}
+              style={titleStyle}
+              // Above its cover the title has the width, and is never cut.
+              numberOfLines={head.stacked ? undefined : 3}
               accessibilityRole="header"
             >
               {song.title}
             </Text>
-            <Text style={styles.byline}>
+            {/* Two lines at most: an album named at length ran on for forty. */}
+            <Text style={styles.byline} numberOfLines={2}>
               <ArtistLinks artist={song.artist} />
               {rest ? ` · ${rest}` : ''}
             </Text>
-            <View style={styles.tags}>
-              {tags.map(tag => (
-                <Chip
-                  key={tag.id}
-                  label={tag.name}
-                  hue={tag.hue}
-                  selected={false}
-                  compact
-                  onPress={() => openTag(tag)}
-                />
-              ))}
-              <View ref={addTagRef} collapsable={false}>
-                <Chip
-                  testID="song-add-tag"
-                  label="Tag"
-                  icon={<Text style={styles.plus}>+</Text>}
-                  selected={false}
-                  dashed
-                  compact
-                  onPress={() => setTagging(true)}
-                />
-              </View>
+          </View>
+        </View>
+
+        {/*
+          Under the hero, the page's width to wrap in, and a few of them: a song
+          with fifty tags had pushed the cover to the foot of a column a
+          thousand points tall. The rest are a count that opens the tag window,
+          where all of them are.
+        */}
+        <View style={styles.tags}>
+          {tags.slice(0, SHOWN_TAGS).map(tag => (
+            <View key={tag.id} style={styles.tagSlot}>
+              <Chip
+                label={tag.name}
+                hue={tag.hue}
+                selected={false}
+                compact
+                onPress={() => openTag(tag)}
+              />
             </View>
+          ))}
+          {tags.length > SHOWN_TAGS ? (
+            <Chip
+              testID="song-more-tags"
+              label={`+${tags.length - SHOWN_TAGS}`}
+              accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
+              selected={false}
+              compact
+              onPress={() => setTagging(true)}
+            />
+          ) : null}
+          <View ref={addTagRef} collapsable={false}>
+            <Chip
+              testID="song-add-tag"
+              label="Tag"
+              icon={<Text style={styles.plus}>+</Text>}
+              selected={false}
+              dashed
+              compact
+              onPress={() => setTagging(true)}
+            />
           </View>
         </View>
 
@@ -214,23 +244,30 @@ function SongPage({ song }: { song: Song }): ReactNode {
               icon={<Next tone="textPrimary" />}
               onPress={() => {
                 player.playNext([song.id])
-                showToast('Plays next', 'good')
+                showToast({ over: 'Plays next', say: song.title }, 'good', {
+                  songs: [song],
+                  group: 'plays-next',
+                })
               }}
             />
           )}
+          {unplayed ? (
+            <Text style={[styles.unplayed, wide && styles.unplayedWide]} testID="song-unplayed">
+              {unplayed}
+            </Text>
+          ) : null}
         </View>
 
-        <YouAndThisSong song={song} />
+        {/* The listening card only once there are plays to draw. */}
+        {unplayed ? null : <YouAndThisSong song={song} />}
+
+        <SoundStrip song={song} />
 
         {similarSongs.length > 0 ? (
-          <SimilarShelf
-            songs={similarSongs}
-            heading="Sounds like"
-            aside={soundWords(song.audioFeatures) ?? ''}
-          />
+          <SimilarShelf songs={similarSongs} heading="Sounds like" />
         ) : null}
 
-        <SongAbout song={song} plays={false} style={styles.facts} />
+        <SongAbout song={song} plays={false} sound={false} style={styles.facts} />
       </ScrollView>
 
       <SongMenu
@@ -248,65 +285,60 @@ function SongPage({ song }: { song: Song }): ReactNode {
 }
 
 /**
- * "You and this song": the plays and when it came, in a sentence, and a strip
- * of when those plays were.
+ * "You and this song": when it came and from where, its first play, its best
+ * week and its last, and a strip of its weeks since.
  *
- * The count and the dates are the song record's and always there. When each
- * play happened is the server's history, which a cloud library reaches only
- * while its server can be reached (`useVia`, as Stats and Home do);
- * without it the sentence says what the record knows and the strip is left out.
- * Out of reach, it asks its own client, as Home does, which has no history to
- * give.
+ * Every play of it is the server's, which a cloud library reaches only while
+ * its server can be reached (`useVia`, as Stats and Home do). Without one the
+ * card says what this device's copy of the song knows — when it came, how
+ * often and when it was last played — and nothing more.
  */
 function YouAndThisSong({ song }: { song: Song }): ReactNode {
   const via = useVia()
-  const { data: history } = useHistoryFor(via)
-  const songFor = useStatsSongs(via)
-  const { story, strip } = useMemo(() => {
-    const now = new Date()
-    const known = history ? songPlays(history.events, id => songFor(id)?.id === song.id) : null
-    return {
-      story: songStory(song, known?.playedAt ?? [], now),
-      strip: known
-        ? playStrip({
-            playedAt: known.playedAt,
-            addedAt: song.addedAt,
-            coveredFrom: known.coveredFrom,
-            now,
-          })
-        : null,
-    }
-  }, [history, songFor, song])
+  const { data: history } = useSongHistoryFor(via, song.id)
+  const story = useMemo(() => songStory(song, history ?? null, new Date()), [history, song])
 
   return (
     <View style={styles.card} testID="song-you">
       <Text style={styles.cardLabel}>You and this song</Text>
-      <Text style={styles.story}>
-        {story.count !== null ? <Text style={styles.count}>{story.count}</Text> : null}
-        {story.lead}
-        <Text style={styles.bright}>{story.when}</Text>
-        {story.tail}
-      </Text>
-      {strip ? <Strip strip={strip} /> : null}
+      <View style={styles.rows}>
+        {story.rows.map(row => (
+          <View key={row.key} style={styles.row} testID={`song-you-${row.key}`}>
+            <Text style={styles.rowLabel}>{row.label}</Text>
+            <View style={styles.rowText}>
+              <Text style={styles.rowValue} numberOfLines={1}>
+                {row.value}
+              </Text>
+              <Text style={styles.rowSub} numberOfLines={1}>
+                {row.sub}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+      {story.strip ? <Strip strip={story.strip} /> : null}
     </View>
   )
 }
 
-/** Plays over time, oldest on the left; the busiest stretch in the accent. */
-function Strip({ strip }: { strip: PlayStrip }): ReactNode {
+/** Plays a week, oldest on the left; the busiest week in the accent. */
+function Strip({ strip }: { strip: WeekStrip }): ReactNode {
   return (
-    <View style={styles.strip} accessibilityLabel="Plays over time">
-      {strip.bars.map((bar, index) => (
-        <View
-          // The bars are positions in time, and never move.
-          key={index}
-          style={[
-            styles.bar,
-            { height: `${Math.round(bar * 100)}%` },
-            index === strip.peak && styles.barPeak,
-          ]}
-        />
-      ))}
+    <View style={styles.stripWrap}>
+      <View style={styles.strip} accessibilityLabel="Plays each week" testID="song-you-strip">
+        {strip.bars.map((bar, index) => (
+          <View
+            // The bars are positions in time, and never move.
+            key={index}
+            style={[
+              styles.bar,
+              { height: `${Math.round(bar * 100)}%` },
+              index === strip.peak && styles.barPeak,
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={styles.rowSub}>{strip.caption}</Text>
     </View>
   )
 }
@@ -324,6 +356,13 @@ function SongMissing(): ReactNode {
     />
   )
 }
+
+/** Between the cover and the title on a computer. */
+const HERO_GAP_WIDE = 28
+/** The quiet names down the listening card's left: "Best week" fits on one line. */
+const ROW_LABEL_WIDTH = 76
+/** How many of a song's tags its page lays out; the rest are a count that opens them all. */
+const SHOWN_TAGS = 12
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
@@ -343,24 +382,32 @@ const styles = StyleSheet.create(theme => ({
   },
   topRight: { flexDirection: 'row', gap: space.sm },
   hero: { flexDirection: 'row', alignItems: 'flex-end', gap: space.lg },
-  heroWide: { gap: 28 },
+  heroWide: { gap: HERO_GAP_WIDE },
+  heroStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   cover: {
     borderRadius: radius.card,
     ...artShadow(theme.colors),
   },
   titles: { flex: 1, minWidth: 0, gap: space.tight },
+  titlesStacked: { flex: 0, alignSelf: 'stretch' },
   title: heroTitle(theme.colors, 'page'),
   titleWide: heroTitle(theme.colors),
   byline: { color: theme.colors.textSecondary, fontSize: type.body },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight, alignItems: 'center' },
+  // A chip never wider than the page: a long name ends in "…".
+  tagSlot: { maxWidth: '100%' },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },
-  cardLabel: labelText(theme.colors),
-  story: bodyText(theme.colors),
-  count: serif(theme.colors, 'large'),
-  bright: { color: theme.colors.textPrimary },
-  strip: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 28 },
+  cardLabel: label(theme.colors),
+  rows: { gap: space.md },
+  row: { flexDirection: 'row', alignItems: 'baseline', gap: space.md },
+  rowLabel: { width: ROW_LABEL_WIDTH, color: theme.colors.textMuted, fontSize: type.sub },
+  rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowValue: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  rowSub: { color: theme.colors.textSecondary, fontSize: type.sub },
+  stripWrap: { gap: space.sm },
+  strip: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 36 },
   bar: {
     flex: 1,
     minHeight: 2,
@@ -368,5 +415,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.12),
   },
   barPeak: { backgroundColor: theme.colors.accent },
-  facts: { maxWidth: 600, paddingTop: space.sm },
+  // Beside the buttons on a computer, at the row's far end; under them on a phone.
+  unplayed: { color: theme.colors.textMuted, fontSize: type.sub, flexBasis: '100%' },
+  unplayedWide: { flexBasis: 'auto', marginLeft: 'auto' },
+  facts: { paddingTop: space.sm },
 }))

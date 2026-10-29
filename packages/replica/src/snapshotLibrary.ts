@@ -1,5 +1,7 @@
 import {
   fromCloudRules,
+  lovedAt,
+  namesFound,
   playlistRules,
   type CloudSnapshot,
   type Library,
@@ -35,10 +37,9 @@ export const NO_IDS: LocalIds = { songs: {}, tags: {}, playlists: {}, next: 1 }
 export interface SongFiles {
   readonly audio: string
   readonly cover: string | null
+  /** The words and their romanized lines, one file (`lyrics/<sha256>.words`), or null. */
   readonly lyrics: string | null
   readonly lyricsKind: 'plain' | 'synced' | null
-  /** The words' romanized lines (`lyrics/<sha256>.json`), or null when they need none. */
-  readonly romanized: string | null
   /** The song's motion curve (`lyrics/<sha256>.json`), or null before the server analysed it. */
   readonly motion: string | null
 }
@@ -112,7 +113,6 @@ export function snapshotToLibrary(
       cover: song.cover?.key ?? null,
       lyrics: song.lyrics?.key ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
-      romanized: song.lyrics?.romanized ?? null,
       motion: song.motion,
     }
 
@@ -138,6 +138,8 @@ export function snapshotToLibrary(
       instrumental: song.instrumental,
       playCount: song.playCount,
       loved: song.loved,
+      lovedAt: lovedAt(song.loved, song.stamps?.['loved']),
+      restUntil: song.restUntil,
       sourceUrl: song.sourceUrl,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
@@ -186,6 +188,13 @@ export function snapshotToLibrary(
       songs: librarySongs,
       tags: libraryTags,
       playlists: libraryPlaylists,
+      artistNames: Object.fromEntries(
+        snapshot.artistNames.map(entry => [entry.artist, entry.names]),
+      ),
+      artistNamesFound: snapshot.artistNames.flatMap(entry =>
+        namesFound(entry.stamps?.['names']) ? [entry.artist] : [],
+      ),
+      spellings: snapshot.spellings,
       version,
       generatedAt: snapshot.writtenAt,
     },

@@ -6,6 +6,7 @@
 // where there is no `addEventListener` and no Escape to press.
 import { renderHook } from '@testing-library/react-native'
 
+import { closeLayers } from './layers'
 import { useEscape } from './useEscape.web'
 
 function pressEscape(): void {
@@ -105,6 +106,29 @@ describe('useEscape', () => {
     await sheet.unmount()
     pressEscape()
     expect(clearSelection).toHaveBeenCalledTimes(1)
+    await selection.unmount()
+  })
+
+  it('closes every layer, top first, when a page is opened from outside the page', async () => {
+    // A menu bar command over a song's menu over a sheet: neither may stay
+    // open over the page the command opens. A page-level listener is not a
+    // layer, and the selection under them stays.
+    const closed: string[] = []
+    const clearSelection = jest.fn()
+    const selection = await renderHook(() => useEscape(true, clearSelection))
+    const sheet = await renderHook(() =>
+      useEscape(true, () => closed.push('sheet'), { layer: true }),
+    )
+    const popover = await renderHook(() =>
+      useEscape(true, () => closed.push('popover'), { layer: true }),
+    )
+
+    closeLayers()
+    expect(closed).toEqual(['popover', 'sheet'])
+    expect(clearSelection).not.toHaveBeenCalled()
+
+    await popover.unmount()
+    await sheet.unmount()
     await selection.unmount()
   })
 })

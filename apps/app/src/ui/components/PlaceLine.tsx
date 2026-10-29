@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, type Artist, type Tag } from '@selfmp3/shared'
-import { radius, type, iconSize, coverSize } from '@selfmp3/client'
+import { radius, iconSize, coverSize } from '@selfmp3/client'
 import { User } from './Icons'
 import { SongLine } from './SongLine'
 import { TagDot } from './TagDot'
@@ -14,8 +14,8 @@ type Place =
 
 /**
  * A tag or an artist found by a search: a round figure where a song line has
- * its cover — the tag's dot, or a person — the name, and "12 songs · tag" at
- * the end. Search's results and the command palette draw the same line, so a
+ * its cover — the tag's dot, or a person — the name, and "Artist · 78 songs"
+ * under it. Search's results and the command palette draw the same line, so a
  * place reads the same in both and beside the song lines under it.
  *
  * Given `onPress` it is pressable; without, it is the face alone, for the
@@ -32,7 +32,8 @@ export function PlaceLine({
 }): ReactNode {
   const name = place.kind === 'tag' ? place.tag.name : place.artist.name
   const count = place.kind === 'tag' ? place.tag.songCount : place.artist.songIds.length
-  const hint = `${plural(count, 'song', 'songs')} · ${place.kind}`
+  // Under the name, beside it rather than at the far end of the row (M1).
+  const hint = `${place.kind === 'tag' ? 'Tag' : 'Artist'} · ${plural(count, 'song', 'songs')}`
   return (
     <SongLine
       cover={
@@ -45,7 +46,7 @@ export function PlaceLine({
         </View>
       }
       title={name}
-      trailing={<Text style={styles.hint}>{hint}</Text>}
+      sub={hint}
       onPress={onPress}
       accessibilityLabel={`${name}, ${place.kind}, ${plural(count, 'song', 'songs')}`}
       style={style}
@@ -63,5 +64,4 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hint: { color: theme.colors.textMuted, fontSize: type.tiny },
 }))

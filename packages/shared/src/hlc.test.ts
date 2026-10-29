@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { HLC_PATTERN, HlcClock, formatHlc, hlcTime, hlcWins, parseHlc } from './hlc.js'
+import { lovedAt } from './sync.js'
 
 describe('clock stamps', () => {
   it('read back what they were made from', () => {
@@ -99,5 +100,14 @@ describe('a device clock', () => {
 
   it('refuses a device id that could not appear in a stamp', () => {
     expect(() => new HlcClock('Web 1')).toThrow()
+  })
+})
+
+describe('when a song was liked', () => {
+  it('is the time on the stamp its love carries, while it is liked', () => {
+    const stamp = formatHlc({ ms: Date.UTC(2026, 9, 25, 12, 0, 5), counter: 0, device: 'web-1a2b' })
+    expect(lovedAt(true, stamp)).toBe('2026-10-25 12:00:05')
+    expect(lovedAt(false, stamp)).toBeNull()
+    expect(lovedAt(true, null)).toBeNull()
   })
 })

@@ -120,7 +120,7 @@ export function bestStreakHint(longest: number): string | undefined {
 
 interface ListenedCard {
   readonly value: string
-  /** "128 plays · 22 days with music". */
+  /** "128 plays · 22 days". */
   readonly line: string
   /** Minutes per day, oldest first, for the line beside the number. */
   readonly trend: readonly number[]
@@ -135,7 +135,7 @@ export function listenedCard(stats: Stats): ListenedCard {
   const active = stats.daily.filter(day => day.plays > 0).length
   return {
     value: formatListenTime(stats.totals.minutes),
-    line: `${playsLabel(stats.totals.plays)} · ${plural(active, 'day', 'days')} with music`,
+    line: `${playsLabel(stats.totals.plays)} · ${plural(active, 'day', 'days')}`,
     trend: stats.daily.map(day => day.minutes),
   }
 }
@@ -164,9 +164,15 @@ export function peakCard(hourly: readonly HourlyPlays[]): PeakCard {
   }
 }
 
-interface StreakDot {
+/** One square of the strip under Streak: a day, or a week in a long window. */
+interface StreakSquare {
+  /** Its last day, as a local day key. */
   readonly date: string
+  /** Music on it (on any of its days, for a week). */
   readonly played: boolean
+  /** Part of the run still going: drawn in the accent. */
+  readonly inRun: boolean
+  /** It holds today: ringed. */
   readonly today: boolean
 }
 
@@ -174,20 +180,26 @@ interface StreakCard {
   readonly value: string
   /** "Sep 6 to 14", or the best run when there is no run now. */
   readonly line: string | undefined
-  /** The window's days, up to the last thirty, oldest first. */
-  readonly dots: readonly StreakDot[]
+  /** The window as one strip, oldest first: a square a day, or a week for 3 months and a year. */
+  readonly squares: readonly StreakSquare[]
+  /** Under the strip's first square: "Sep 26". Its last says "today". */
+  readonly from: string
 }
 
 /**
- * The most days the dots under Streak cover: a month. A week's window has
- * seven, since the days before it were not asked about and would read as
- * days without music.
+ * The most days the strip under Streak covers a day at a time: a month. A
+ * week's window has seven, since the days before it were not asked about and
+ * would read as days without music. All time keeps to the last month.
  */
-const STREAK_DOTS = 30
+const STREAK_DAYS = 30
+
+/** A long window's squares are weeks: 13 for three months, 52 for a year. */
+const STREAK_WEEKS: Partial<Record<Stats['range'], number>> = { '90d': 13, '365d': 52 }
 
 /**
- * Streak: the run of days with music that is still going, and the month of
- * days it sits in.
+ * Streak: the run of days with music that is still going, and the window it
+ * sits in as one strip of squares — the run in the accent, the other days with
+ * music filled, today ringed (X1).
  *
  * The server counts a run as still going when its last day is today or
  * yesterday (you might still put something on this evening), so the run's
@@ -199,26 +211,55 @@ export function streakCard(
 ): StreakCard {
   const played = new Set(stats.daily.filter(day => day.plays > 0).map(day => day.date))
   const todayIso = localDayKey(today)
+  const runEnd = played.has(todayIso) ? today : daysBefore(today, 1)
+  const run = new Set(
+    Array.from({ length: stats.streakDays }, (_, back) => localDayKey(daysBefore(runEnd, back))),
+  )
+
+  const weeks = STREAK_WEEKS[stats.range]
+  const span = weeks ? 7 : 1
   // All time lists only the days with plays; every other window has a day for each day.
-  const count = stats.range === 'all' ? STREAK_DOTS : Math.min(STREAK_DOTS, stats.daily.length)
-  const dots = Array.from({ length: count }, (_, index) => {
-    const date = localDayKey(daysBefore(today, count - 1 - index))
-    return { date, played: played.has(date), today: date === todayIso }
+  const count =
+    weeks ?? (stats.range === 'all' ? STREAK_DAYS : Math.min(STREAK_DAYS, stats.daily.length))
+  const squares = Array.from({ length: count }, (_, index) => {
+    const last = daysBefore(today, (count - 1 - index) * span)
+    const days = Array.from({ length: span }, (_, back) => localDayKey(daysBefore(last, back)))
+    return {
+      date: localDayKey(last),
+      played: days.some(day => played.has(day)),
+      inRun: days.some(day => run.has(day)),
+      today: index === count - 1,
+    }
   })
+  const first = daysBefore(today, (count - 1) * span + span - 1)
+  const from = `${monthWord(first)} ${first.getDate()}`
+
   if (stats.streakDays === 0) {
-    return { value: daysLabel(0), line: bestStreakHint(stats.longestStreakDays), dots }
+    return { value: daysLabel(0), line: bestStreakHint(stats.longestStreakDays), squares, from }
   }
-  const end = played.has(todayIso) ? today : daysBefore(today, 1)
-  const start = daysBefore(end, stats.streakDays - 1)
-  return { value: daysLabel(stats.streakDays), line: spanWords(start, end), dots }
+  const start = daysBefore(runEnd, stats.streakDays - 1)
+  return { value: daysLabel(stats.streakDays), line: spanWords(start, runEnd), squares, from }
 }
 
-/** "Sep 6 to 14", "Aug 30 to Sep 3", or one day alone: "Sep 14". */
+/**
+ * A month's short name in English, as the rest of the line around it is:
+ * the reader's locale gave "10月 5 to 25" and "Okt 5 to 25" (R3-P1).
+ */
+function monthWord(date: Date): string {
+  return date.toLocaleDateString('en', { month: 'short' })
+}
+
+/**
+ * "Sep 6 to 14", "Aug 30 to Sep 3", or one day alone: "Sep 14". A run that
+ * began in another year says which: "Dec 30, 2023 to Oct 25", not a span
+ * that reads like ten months.
+ */
 export function spanWords(start: Date, end: Date): string {
-  const month = (date: Date): string => date.toLocaleDateString(undefined, { month: 'short' })
-  if (localDayKey(start) === localDayKey(end)) return `${month(end)} ${end.getDate()}`
-  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
-  return `${month(start)} ${start.getDate()} to ${sameMonth ? '' : `${month(end)} `}${end.getDate()}`
+  if (localDayKey(start) === localDayKey(end)) return `${monthWord(end)} ${end.getDate()}`
+  const sameYear = start.getFullYear() === end.getFullYear()
+  const sameMonth = sameYear && start.getMonth() === end.getMonth()
+  const from = `${monthWord(start)} ${start.getDate()}${sameYear ? '' : `, ${start.getFullYear()}`}`
+  return `${from} to ${sameMonth ? '' : `${monthWord(end)} `}${end.getDate()}`
 }
 
 /**
@@ -320,10 +361,11 @@ export function artistCoverSong<S extends { readonly artist: string; readonly ha
   name: string,
   played: readonly S[],
   library: readonly S[],
+  /** Every spelling joined to the artist (shared `joinedKeys`): theirs too. */
+  keys: readonly string[] = [artistKey(name)],
 ): S | undefined {
-  const key = artistKey(name)
   const theirs = (song: S): boolean =>
-    song.hasArt && splitArtists(song.artist).some(named => artistKey(named) === key)
+    song.hasArt && splitArtists(song.artist).some(named => keys.includes(artistKey(named)))
   return played.find(theirs) ?? library.find(theirs)
 }
 
@@ -373,6 +415,8 @@ export interface StatFigures {
    */
   readonly listenedUnit?: string
   readonly plays: string
+  /** "play" or "plays", the caption under the plays. */
+  readonly playsCaption: string
   readonly streak: string
   /** "day" or "days", drawn smaller beside the streak's number. */
   readonly streakUnit: string
@@ -380,12 +424,13 @@ export interface StatFigures {
 
 export function statFigures(stats: Pick<Stats, 'totals' | 'streakDays'>): StatFigures {
   const whole = formatListenTime(stats.totals.minutes)
-  const minutes = /^(\d+) (min)$/.exec(whole)
+  const minutes = /^(<?\d+) (min)$/.exec(whole)
   return {
     ...(minutes
       ? { listened: minutes[1] ?? whole, listenedUnit: minutes[2] }
       : { listened: whole }),
     plays: stats.totals.plays.toLocaleString(),
+    playsCaption: stats.totals.plays === 1 ? 'play' : 'plays',
     streak: stats.streakDays.toLocaleString(),
     streakUnit: stats.streakDays === 1 ? 'day' : 'days',
   }

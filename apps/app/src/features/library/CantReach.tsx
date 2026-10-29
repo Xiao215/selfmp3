@@ -1,14 +1,18 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Linking } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { space } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useLayout } from '../../shell/useLayout'
+import { askBucketAgain } from '../../ports/askBucketAgain'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
 import { NoticeCard } from '../../ui/components/NoticeCard'
-import { BACKBLAZE_CAPS_URL, bucketCapped, unreachableCopy } from './library.model'
+import { BACKBLAZE_CAPS_URL } from '@selfmp3/shared'
+import { bucketCapped, unreachableCopy } from './library.model'
+import { countShownError } from '../usage/usage'
+import { ACCOUNT_ROUTE } from '../settings/settings.model'
 
 /**
  * What stands where the library would, when it did not answer and nothing is
@@ -32,9 +36,14 @@ export function CantReach({
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { fromCloud, connection } = useConnection()
   const capped = bucketCapped(error)
+  // Counted once each time it is drawn, for the server owner's admin page
+  // (features/usage); a used-up allowance is counted where it is announced.
+  useEffect(() => {
+    if (!capped) countShownError('cloud-unreachable')
+  }, [capped])
   const copy = unreachableCopy({
     fromCloud,
     address: connection?.baseUrl ?? null,
@@ -55,7 +64,11 @@ export function CantReach({
           <Button
             label="Try again"
             icon={<Refresh color={theme.colors.textPrimary} />}
-            onPress={onRetry}
+            onPress={() => {
+              // Refused for the day, the hold would refuse the asking too.
+              if (capped) askBucketAgain()
+              onRetry()
+            }}
           />
           {capped ? (
             <Button
@@ -65,7 +78,7 @@ export function CantReach({
           ) : (
             <Button
               label={wide ? 'Connection settings' : 'Settings'}
-              onPress={() => router.push({ pathname: '/settings', params: { section: 'account' } })}
+              onPress={() => router.push(ACCOUNT_ROUTE)}
             />
           )}
         </>

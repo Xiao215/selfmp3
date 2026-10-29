@@ -1,0 +1,44 @@
+[
+  {
+    "id": "ex-count",
+    "class": "library",
+    "note": "A made-up library's count, checked against the database copy.",
+    "turns": [
+      {
+        "text": "how many aurora lane songs do i have",
+        "expect": {
+          "cards": ["library"],
+          "card": [
+            {
+              "value": [
+                {
+                  "path": "count",
+                  "sql": "SELECT COUNT(*) FROM songs WHERE artist = 'Aurora Lane'"
+                }
+              ],
+              "where": "tagged(id, 'calm')"
+            }
+          ],
+          "maxCalls": 1
+        },
+        "judge": "Two songs by Aurora Lane (Dawn and Dusk)."
+      }
+    ]
+  },
+  {
+    "id": "ex-skip",
+    "class": "playback",
+    "turns": [
+      {
+        "text": "skip this one",
+        "playing": "Rain",
+        "expect": { "cards": ["playback"], "card": [{ "op": "next" }] },
+        "judge": "Skip to the next song."
+      },
+      {
+        "text": "and the one after",
+        "expect": { "cards": ["playback"], "card": [{ "op": "next" }] }
+      }
+    ]
+  }
+]

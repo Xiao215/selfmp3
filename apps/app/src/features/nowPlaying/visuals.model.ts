@@ -43,6 +43,28 @@ export interface VisualColors {
   readonly inks: readonly [Rgb, Rgb, Rgb]
   /** The middle of the ground, then its edge. */
   readonly ground: readonly [Rgb, Rgb]
+  /** Every ring's colour, where the rings are drawn in one rather than in turn in the inks. */
+  readonly ring?: Rgb
+}
+
+/**
+ * A cover with no colour in it: the visual in the cover's own greys, a touch
+ * lighter for a light cover, and its rings in the accent (P6 A). It used to
+ * invent a hue from the album's name, so a white cover drew green rings while
+ * the page around it glowed grey; rows already wash such a cover in its grey
+ * with the accent for their text.
+ */
+export function colourlessColors(palette: readonly CoverSwatch[], accent: Rgb): VisualColors {
+  const share = palette.reduce((sum, swatch) => sum + swatch.share, 0)
+  const lightness =
+    share > 0 ? palette.reduce((sum, swatch) => sum + swatch.l * swatch.share, 0) / share : 0.5
+  const grey = (l: number): Rgb => hexToRgb(oklchToHex(clamp(l, 0, 1), 0, 0))
+  const lift = (lightness - 0.5) * 0.08
+  return {
+    inks: [grey(0.72 + lift), grey(0.62 + lift), grey(0.88 + lift)],
+    ground: [grey(0.2), grey(0.1)],
+    ring: accent,
+  }
 }
 
 export function visualColors(

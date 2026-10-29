@@ -3,10 +3,11 @@ import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, space, type, tracking } from '@selfmp3/client'
+import { space, type, tracking } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { useContentWidth } from '../../shell/contentWidth'
 import { tabbing } from '../../shell/tabbing'
-import { useLayout } from '../../shell/useLayout'
+import { useLayout, useLayoutFlags } from '../../shell/useLayout'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { rightClick, type PopoverAnchor } from '../rightClick'
@@ -36,17 +37,27 @@ export function useTileGrid({
   minTile,
   gap,
   maxColumns = Infinity,
+  maxTile = Infinity,
   reserve = 0,
+  phoneColumns = PHONE_COLUMNS,
 }: {
   /** The narrowest a computer's tile gets before the grid drops a column. */
   minTile: number
   gap: number
   maxColumns?: number
+  /**
+   * The widest a tile gets: past it the grid takes another column, beyond
+   * `maxColumns`, so a very wide page fills with tiles rather than stretching
+   * three of them (P1 C).
+   */
+  maxTile?: number
   /** What stands beside the grid on a computer: Home's card column. */
   reserve?: number
+  /** How many across on the phone's layout: two, or three on an iPad held upright (AI1). */
+  phoneColumns?: number
 }): { columns: number; tileWidth: number } {
   // The app's own width, not the window's: an iPad in Split View is handed
-  // half the screen and told about the whole of it (`shell/rootWidth.ts`).
+  // half the screen and told about the whole of it (`shell/layoutSize.model.ts`).
   const { wide, width } = useLayout()
   const column = useContentWidth()
   const rowWidth = !wide
@@ -56,12 +67,15 @@ export function useTileGrid({
       : Math.floor(column - space.gutterWide * 2 - reserve)
   const fit = Math.floor((rowWidth + gap) / (minTile + gap))
   const columns = !wide
-    ? PHONE_COLUMNS
+    ? phoneColumns
     : rowWidth <= 0
       ? Number.isFinite(maxColumns)
         ? maxColumns
         : PHONE_COLUMNS
-      : Math.min(maxColumns, Math.max(PHONE_COLUMNS, fit))
+      : Math.max(
+          Math.min(maxColumns, Math.max(PHONE_COLUMNS, fit)),
+          Math.min(fit, Math.ceil((rowWidth + gap) / (maxTile + gap))),
+        )
   const tileWidth = rowWidth > 0 ? Math.floor((rowWidth - gap * (columns - 1)) / columns) : 0
   return { columns, tileWidth }
 }
@@ -71,10 +85,6 @@ export function useTileGrid({
  * filling out a row so a lone tile keeps a column's width. Sized by the row
  * rather than by a number, so a tile is as wide as the layout makes it on
  * every frame (d822f512).
- *
- * An item can take more than one column (`spanOf`): a tag that holds others
- * stands with its panel beside it. Its cell grows by its span from a basis of
- * the gaps it covers, so it is exactly that many tiles and the gaps between.
  */
 export function TileGrid<T>({
   items,
@@ -82,7 +92,6 @@ export function TileGrid<T>({
   gap,
   rowGap = gap,
   keyOf,
-  spanOf,
   renderItem,
   style,
   testID,
@@ -92,46 +101,27 @@ export function TileGrid<T>({
   gap: number
   rowGap?: number
   keyOf: (item: T) => string | number
-  spanOf?: (item: T) => number
   renderItem: (item: T, index: number) => ReactNode
   style?: StyleProp<ViewStyle>
   testID?: string
 }): ReactNode {
-  const rows: { item: T; index: number; span: number }[][] = []
-  let row: { item: T; index: number; span: number }[] = []
-  let used = 0
-  items.forEach((item, index) => {
-    const span = Math.min(columns, Math.max(1, spanOf?.(item) ?? 1))
-    if (used + span > columns) {
-      rows.push(row)
-      row = []
-      used = 0
-    }
-    row.push({ item, index, span })
-    used += span
-  })
-  if (row.length > 0) rows.push(row)
-
-  const cell = (span: number): ViewStyle => ({
-    flexGrow: span,
-    flexShrink: 1,
-    flexBasis: (span - 1) * gap,
-    minWidth: 0,
-  })
+  const rows: { item: T; index: number }[][] = []
+  for (let at = 0; at < items.length; at += columns) {
+    rows.push(items.slice(at, at + columns).map((item, offset) => ({ item, index: at + offset })))
+  }
   return (
     <View style={[{ gap: rowGap }, style]} testID={testID}>
       {rows.map(cells => {
-        const filled = cells.reduce((sum, { span }) => sum + span, 0)
         const first = cells[0]
         return (
           <View key={first ? keyOf(first.item) : 'empty'} style={[styles.row, { gap }]}>
-            {cells.map(({ item, index, span }) => (
-              <View key={keyOf(item)} style={cell(span)}>
+            {cells.map(({ item, index }) => (
+              <View key={keyOf(item)} style={styles.cell}>
                 {renderItem(item, index)}
               </View>
             ))}
-            {Array.from({ length: columns - filled }, (_, blank) => (
-              <View key={`blank-${blank}`} style={cell(1)} />
+            {Array.from({ length: columns - cells.length }, (_, blank) => (
+              <View key={`blank-${blank}`} style={styles.cell} />
             ))}
           </View>
         )
@@ -196,7 +186,7 @@ export function GridTile({
   /** The tile's own view, for what is anchored to it. */
   tileRef?: (node: View | null) => void
 }): ReactNode {
-  const { finePointer } = useLayout()
+  const { finePointer } = useLayoutFlags()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const out = finePointer && (hovered || focused)
@@ -263,6 +253,7 @@ export function GridTile({
 
 const styles = StyleSheet.create(theme => ({
   row: { flexDirection: 'row' },
+  cell: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm },
   nameRowDisplay: { marginTop: 11 },
   name: {

@@ -223,9 +223,34 @@ describe('the calendar', () => {
     const year = of('year')
     expect(year.unit).toBe('month')
     expect(year.cells.map(cell => cell?.label)).toContain('Sep')
+    // The months say their year where one begins, and on the first cell.
+    expect(year.cells[0]?.label).toBe("Sep '25")
+    expect(year.cells.map(cell => cell?.label)).toContain("Jan '26")
     expect(calendarGrid({ wrapped: EMPTY, daily: [] }).cells.every(c => !c || c.share === 0)).toBe(
       true,
     )
+  })
+})
+
+describe('the calendar on a long all time', () => {
+  // `to` is 2026-09-19; a first play `months` months before it.
+  const since = (first: string) =>
+    calendarGrid({
+      wrapped: { ...WRAPPED, range: 'all' },
+      daily: [{ date: first, plays: 1, minutes: 3 }, ...DAILY],
+    })
+
+  it('keeps months to five rows, so the page holds its last line', () => {
+    const thirty = since('2024-04-02')
+    expect(thirty.unit).toBe('month')
+    expect(thirty.cells).toHaveLength(30)
+    expect(Math.ceil(thirty.cells.length / thirty.columns)).toBe(5)
+  })
+
+  it('folds into years past thirty months', () => {
+    const longer = since('2023-12-30')
+    expect(longer.unit).toBe('year')
+    expect(longer.cells.map(cell => cell?.label)).toEqual(['2023', '2024', '2025', '2026'])
   })
 })
 
@@ -252,6 +277,30 @@ describe('the looks', () => {
       figureLine: 'minutes',
       onRepeat: null,
     })
+  })
+
+  it('says one play, and a few seconds as under a minute', () => {
+    const one: Wrapped = {
+      ...EMPTY,
+      totals: { ...EMPTY.totals, plays: 1, minutes: 0.1, songsPlayed: 1, activeDays: 1 },
+    }
+    const paper = paperLook({ wrapped: one, daily: [] })
+    expect(paper.figure).toBe('<1')
+    expect(paper.figureLine).toBe('minute')
+    expect(paper.figures[0]).toEqual({ value: '1', label: 'play' })
+    const wall = wallLook({ wrapped: one, daily: [] })
+    expect(wall.figures[0]).toEqual({ value: '1', label: 'play' })
+    expect(wall.line).toBe('minute across 1 song')
+  })
+
+  it('groups a long streak like the days beside it', () => {
+    const long: Wrapped = { ...WRAPPED, longestStreakDays: 1031 }
+    expect(calendarLook({ wrapped: long, daily: DAILY }).figureLine).toMatch(
+      new RegExp(`${(1031).toLocaleString()} in a row$`),
+    )
+    expect(wallLook({ wrapped: long, daily: DAILY }).figures[1]?.value).toBe(
+      (1031).toLocaleString(),
+    )
   })
 
   it('itemises the receipt, with the rest on one line', () => {

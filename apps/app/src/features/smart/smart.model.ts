@@ -1,8 +1,14 @@
-import { ApiError } from '@selfmp3/client'
-import { plural, formatLongDuration, messageOf, tidyValue } from '@selfmp3/shared'
+import {
+  EVERY_SONG,
+  PLAYBACK_ASKED,
+  plural,
+  rangeWords,
+  formatLongDuration,
+  tidyValue,
+} from '@selfmp3/shared'
 import type {
-  AiCheck,
-  AskAnswer,
+  AskCard,
+  AskReply,
   AskOrder,
   AskSort,
   BulkEditSongs,
@@ -12,7 +18,6 @@ import type {
   TagChange,
   TidyChange,
   TidyCopy,
-  AskStatsRange,
   DescribeResult,
   Tag,
   Understanding,
@@ -91,6 +96,13 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
       without: u => ({ ...u, artists: u.artists.filter(other => other !== name) }),
     })
   }
+  for (const name of understanding.albums) {
+    out.push({
+      key: `album:${name}`,
+      label: name,
+      without: u => ({ ...u, albums: u.albums.filter(other => other !== name) }),
+    })
+  }
   for (const name of understanding.noTags) {
     out.push({
       key: `not:${name}`,
@@ -167,12 +179,14 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
 /**
  * Whether the understanding is tags and nothing else, which is the one kind a
  * playlist can follow and keep itself filled from. Anything more is a set of
- * picks, made once.
+ * picks, made once: "10 jpop songs" too, since a playlist following jpop
+ * holds every one of them. Every song (`EVERY_SONG`) is no number at all.
  */
 export function onlyTags(understanding: Understanding): boolean {
   return (
     understanding.anyTags.length > 0 &&
     understanding.brief === null &&
+    (understanding.size === null || understanding.size >= EVERY_SONG) &&
     parts(understanding, []).every(part => part.key.startsWith('tag:'))
   )
 }
@@ -224,33 +238,71 @@ export function answerSongs<S extends { readonly id: number }>(
   )
 }
 
-/** What a describe answer says beside its songs: what fit, and what it set aside. */
-export function describeNotes(result: DescribeResult, picked: number): string[] {
+/**
+ * What a describe answer says beside its songs: what fit, what it set aside,
+ * the songs picked that this device does not have yet (`here` is how many
+ * it shows), so a song missing here never reads as one it chose to leave out,
+ * and whatever else made the songs fewer (the server's `notes`).
+ *
+ * Fewer than were asked for is said in so many words, after the first note
+ * (which a list's head says as its own count): "about 15" that came back as
+ * one song said only "picked from 2 that fit". A length is short when what
+ * came (`seconds`, when the songs are at hand) is under nine tenths of it,
+ * since songs never add up to it exactly.
+ */
+export function describeNotes(result: DescribeResult, here: number, seconds?: number): string[] {
   const notes: string[] = []
+  const picked = Math.max(here, result.picks.length)
   notes.push(
     result.fit === picked
       ? `${plural(picked, 'song', 'songs')} fit`
       : `Picked ${picked} of the ${result.fit} that fit`,
   )
+  const { size, minutes } = result.understanding
+  const why = picked === result.fit ? 'no more fit' : `the rest that fit didn’t suit it`
+  if (size !== null && size !== EVERY_SONG && picked < size) {
+    notes.push(
+      `Only ${plural(picked, 'song', 'songs')}, not the ${size} you asked for: ${
+        result.fit < size && picked < result.fit ? `just ${result.fit} fit` : why
+      }.`,
+    )
+  } else if (minutes !== null && seconds !== undefined && seconds < minutes * 60 * 0.9) {
+    notes.push(
+      `Only ${formatLongDuration(seconds)}, not the ${formatLongDuration(minutes * 60)} you asked for: ${why}.`,
+    )
+  }
+  const away = picked - here
+  if (away > 0) {
+    notes.push(`${away === 1 ? 'One of them isn’t' : `${away} of them aren’t`} on this device yet.`)
+  }
   if (result.loosened.length > 0) {
     notes.push(`Nothing fit all of it, so it let go of ${result.loosened.join(', ')}.`)
   }
   if (result.unknown.length > 0) {
     notes.push(`Your library has no ${result.unknown.join(', ')}.`)
   }
+  notes.push(...result.notes)
   return notes
 }
 
 /** What the Ask offer says it does, in one line: Search's card and the palette's row alike. */
 export const ASK_SUB = 'Play, find, list or tag songs'
 
+/** Writing whose two characters are already a word: 情歌, 摇滚, 演歌, 발라드's first two. */
+const WORD_PER_CHARACTER =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+
 /**
- * Whether the box offers to ask (S1, I1): three letters at least. The offer
- * is always there for that much; where it sits and what Enter does depend on
- * whether anything matched (`asksOnEnter`).
+ * Whether the box offers to ask (S1, I1): three letters at least, or two in
+ * Chinese, Japanese or Korean, where two characters say a whole thing. The
+ * offer is always there for that much; where it sits and what Enter does
+ * depend on whether anything matched (`asksOnEnter`).
  */
 export function askable(text: string): boolean {
-  return text.trim().length >= 3
+  const trimmed = text.trim()
+  if (trimmed.length >= 3) return true
+  const characters = [...trimmed]
+  return characters.length === 2 && characters.every(each => WORD_PER_CHARACTER.test(each))
 }
 
 /**
@@ -262,55 +314,112 @@ export function asksOnEnter(text: string, matches: number): boolean {
   return askable(text) && matches === 0
 }
 
-export function rangeWords(range: AskStatsRange): string {
-  switch (range) {
-    case '7d':
-      return 'the last 7 days'
-    case '30d':
-      return 'the last 30 days'
-    case '90d':
-      return 'the last 90 days'
-    case '365d':
-      return 'the last year'
-    case 'all':
-      return 'all time'
+/** The longest line Ask's log gives an answer before it is cut short. */
+const LOG_LINE_MAX = 90
+
+/**
+ * A reply as one line of Ask's log (S1, 2026-10-27): what came of it, for a
+ * person and short — how many songs and their name, what is waiting to be
+ * looked over, or the start of what was said — a part for each card, in
+ * order. `told` is what a card came to on this device, by its place: a
+ * proposal done with ("Fixed 31 songs"), a playback card carried out.
+ * `answerRecap` is the model's.
+ */
+export function logLine(reply: AskReply, told: Readonly<Record<number, string>> = {}): string {
+  const line = reply.cards.map((card, index) => told[index] ?? cardLine(card)).join(' + ')
+  return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
+}
+
+/** The first line of some words, cut to fit the log. */
+function firstLine(said: string): string {
+  const line = said.split('\n')[0]?.trim() ?? ''
+  return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
+}
+
+/** One card's part of the log's line (`logLine`). */
+function cardLine(answer: AskCard): string {
+  const first = firstLine
+  const songs = (count: number): string => plural(count, 'song', 'songs')
+  switch (answer.kind) {
+    case 'songs':
+      return `${songs(answer.describe.picks.length)} · ${answer.describe.understanding.name}`
+    case 'together':
+      return answer.describe
+        ? `A listening room with ${songs(answer.describe.picks.length)}`
+        : 'A listening room'
+    case 'find':
+      return plural(answer.picks.length, 'song found', 'songs found')
+    case 'explore':
+    case 'open':
+      return first(answer.say)
+    case 'clarify':
+      return first(answer.question)
+    case 'tags':
+      return `${plural(answer.review.changes.length, 'tag change', 'tag changes')} to look over`
+    case 'tidy':
+      return `${plural(answer.tidy.changes.length, 'name change', 'name changes')} to look over`
+    case 'copies':
+      return `${songs(answer.copies.copies.length)} you have more than once`
+    case 'remember':
+      return 'Something to remember'
+    case 'getMusic':
+      return `${plural(answer.items.length, 'match', 'matches')} to get`
+    case 'playlists':
+      return answer.op === 'delete'
+        ? `${plural(answer.names.length, 'playlist', 'playlists')} to delete`
+        : 'A playlist to rename'
+    case 'playlistSongs':
+      return `A change to ${answer.playlist}`
+    case 'library':
+      return songs(answer.count)
+    case 'stats':
+      return `${plural(answer.plays, 'play', 'plays')} in ${rangeWords(answer.range)}`
+    case 'playback':
+      return `Asked to ${PLAYBACK_ASKED[answer.op]}`
   }
 }
 
-/** One leg of Settings' Test: this device to the server, or the server to the model. */
-export interface Hop {
-  readonly ok: boolean
-  readonly line: string
-  /** The endpoint's or the system's own words, under the line. */
-  readonly detail?: string
-}
-
-/** "24 ms" under a second, "1.3 s" over it. */
-export function took(ms: number): string {
-  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`
-}
-
-/** The first leg, from what asking the server for its smart setup did. */
-export function serverHop(result: { ms: number } | { error: unknown }): Hop {
-  if ('ms' in result)
-    return { ok: true, line: `This device reached your server in ${took(result.ms)}` }
-  const { error } = result
-  if (error instanceof ApiError && error.isOffline) {
-    return { ok: false, line: 'This device can’t reach your server.', detail: error.message }
+/**
+ * A card's quiet heading in a reply of several (`AnswerBody`), so each part
+ * of the reply reads as a part of it: "Songs to play", "Tag changes". Null
+ * for words, which need none, and for a question back, always alone.
+ */
+export function cardHeading(card: AskCard): string | null {
+  switch (card.kind) {
+    case 'songs':
+      return card.lead === 'play'
+        ? 'Songs to play'
+        : card.lead === 'save'
+          ? 'Songs to keep'
+          : 'To play next'
+    case 'together':
+      return 'Listening together'
+    case 'find':
+      return 'Could be it'
+    case 'tags':
+      return 'Tag changes'
+    case 'tidy':
+      return 'Name changes'
+    case 'copies':
+      return 'Songs you have twice'
+    case 'remember':
+      return 'To remember'
+    case 'getMusic':
+      return 'To get'
+    case 'playlists':
+    case 'playlistSongs':
+      return 'Playlists'
+    case 'library':
+      return 'In your library'
+    case 'stats':
+      return 'Your listening'
+    case 'playback':
+      return 'Playing'
+    case 'explore':
+    case 'open':
+    case 'clarify':
+      return null
   }
-  return {
-    ok: false,
-    line: 'Your server answered with an error.',
-    detail: messageOf(error),
-  }
-}
-
-/** The second leg: the server's one small call to the model. */
-export function modelHop(check: AiCheck): Hop {
-  if (check.ok) {
-    return { ok: true, line: `Your server reached the model (${check.model}) in ${took(check.ms)}` }
-  }
-  return { ok: false, line: check.message, detail: check.detail }
 }
 
 /**
@@ -736,6 +845,8 @@ export function sortWords(by: AskSort, order: AskOrder): string {
       return up ? 'least played first' : 'most played first'
     case 'lastPlayed':
       return up ? 'longest unplayed first' : 'most recently played first'
+    case 'track':
+      return up ? 'in album order' : 'in album order, last track first'
   }
 }
 
@@ -745,7 +856,7 @@ export function sortWords(by: AskSort, order: AskOrder): string {
  * is the new order with any song added since kept at the end.
  */
 export function playlistEditHere(
-  answer: Extract<AskAnswer, { kind: 'playlistSongs' }>,
+  answer: Extract<AskCard, { kind: 'playlistSongs' }>,
   onDevice: (serverId: number) => number | undefined,
   current: readonly number[],
 ): { songIds: number[]; why: Map<number, string> } {
@@ -764,4 +875,80 @@ export function playlistEditHere(
   }
   const adding = answer.op === 'add'
   return { songIds: mapped.filter(id => inIt.has(id) !== adding), why }
+}
+
+/**
+ * Three things to ask before the first question, made from this library (L1,
+ * 2026-10-25): music for the tag played most, the month's most played, and the
+ * songs still without a tag by whoever has most of them — or, with every song
+ * tagged, more like the artist with most songs. Fewer when the library has
+ * nothing to make one from.
+ */
+export function askSuggestions(
+  tags: readonly Pick<Tag, 'name'>[],
+  untaggedBy: string | null,
+  topArtist: string | null,
+): string[] {
+  const [tag] = tags
+  return [
+    tag ? `Something for ${tag.name}` : null,
+    'What did I play most last month?',
+    untaggedBy
+      ? `Tag my untagged ${untaggedBy} songs`
+      : topArtist
+        ? `More like ${topArtist}`
+        : null,
+  ].filter((line): line is string => line !== null)
+}
+
+/**
+ * What a tag review counts, one way everywhere on it (X4, 2026-10-25): its
+ * title, what is ticked, each band, "Review all" and the button. Songs, when
+ * every change gives songs a tag or takes one off — that is what a person
+ * asked about ("tag 5 of my untagged songs"), and a song with two tags is
+ * one song; changes, when a tag itself is renamed, merged or deleted.
+ * "7 changes", "4 ticked" and "Apply 4 changes" over three rows read as
+ * three different numbers.
+ */
+export function tagCounter(
+  all: readonly TagHere[],
+): (list: readonly TagHere[], leftOut?: ReadonlySet<string>) => number {
+  if (!all.every(each => onSongs(each.change.op))) return list => list.length
+  return (list, leftOut = new Set()) => new Set(list.flatMap(each => keptSongs(each, leftOut))).size
+}
+
+function onSongs(op: TagChange['op']): boolean {
+  return op === 'add' || op === 'remove'
+}
+
+/** "Tags for 5 songs", "2 changes to your tags": a tag review's title, in what `tagCounter` counts. */
+export function tagsTitle(ops: readonly TagChange['op'][], count: number): string {
+  const songs = count === 1 ? 'one song' : `${count} songs`
+  if (ops.every(op => op === 'add')) return `Tags for ${songs}`
+  if (ops.every(op => op === 'remove')) return `Tags to take off ${songs}`
+  if (ops.every(onSongs)) return `Tag changes for ${songs}`
+  return count === 1 ? 'One change to your tags' : `${count} changes to your tags`
+}
+
+/**
+ * The button under a tag review, naming what it does to the `ticked` of
+ * them, in what `tagCounter` counts: "Tag 5 songs", "Make 2 changes". What it
+ * does is read from all of them, so the button keeps its verb while nothing
+ * is ticked.
+ */
+export function tagsApply(ops: readonly TagChange['op'][], ticked: number): string {
+  const songs = plural(ticked, 'song', 'songs')
+  if (ops.every(op => op === 'add')) return ticked === 0 ? 'Tag' : `Tag ${songs}`
+  if (ops.every(op => op === 'remove')) return ticked === 0 ? 'Take off' : `Take tags off ${songs}`
+  if (ops.every(onSongs)) return ticked === 0 ? 'Apply' : `Change ${songs}`
+  return ticked === 0 ? 'Apply' : ticked === 1 ? 'Make the change' : `Make ${ticked} changes`
+}
+
+/** "One thing to fix", "3 things to fix", and its button: "Fix it", "Fix 3 things" (AD1). */
+export function shortTidyTitle(count: number): string {
+  return count === 1 ? 'One thing to fix' : `${count} things to fix`
+}
+
+export function shortTidyApply(count: number): string {
+  return count === 0 ? 'Fix' : count === 1 ? 'Fix it' : `Fix ${count} things`
 }

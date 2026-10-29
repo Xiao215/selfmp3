@@ -25,17 +25,24 @@ interface WorkingStep {
  *
  * Under an answer already on screen (a follow-up), without the outline: the
  * answer is the list that is there.
+ *
+ * `stage` is Ask's (R1, 2026-10-26): under the question set as the page's
+ * title, the step running now on its own line, larger, and the ones done
+ * folded into one quiet line under it, all centred.
  */
 export function Working({
   steps,
   live,
   outline = true,
+  stage = false,
   testID,
 }: {
   steps: readonly WorkingStep[]
   live?: readonly { readonly text: string; readonly done: boolean }[] | null
   /** The faint rows of a list to come, under the steps. */
   outline?: boolean
+  /** Centred under a question on Ask's stage: the step now, and the rest in one line. */
+  stage?: boolean
   testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -67,6 +74,22 @@ export function Working({
   const [since, setSince] = useState<{ key: string | null; at: number }>({ key: null, at: 0 })
   if (running !== since.key) setSince({ key: running, at: ms })
   const seconds = Math.floor((ms - since.at) / 1000)
+
+  if (stage) {
+    const now = shown.find(step => !step.done)
+    const done = shown.filter(step => step.done).map(step => step.text)
+    return (
+      <View style={styles.stage} accessibilityLiveRegion="polite" testID={testID}>
+        <View style={styles.stageNow}>
+          <Spinner />
+          <Text style={styles.stageText}>{now?.text ?? 'Getting it ready'}</Text>
+        </View>
+        <Text style={styles.stageDone}>
+          {[...done, ...(seconds > 0 ? [`${seconds} s`] : [])].join(' · ')}
+        </Text>
+      </View>
+    )
+  }
 
   return (
     <View style={styles.body} accessibilityLiveRegion="polite" testID={testID}>
@@ -116,6 +139,20 @@ const OUTLINE = [
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.snug, paddingVertical: space.xs },
+  stage: { alignItems: 'center', gap: space.sm },
+  // The spinner over the words: beside them, a wrapped line pushed it off to the side.
+  stageNow: { alignItems: 'center', gap: space.sm },
+  stageText: {
+    color: theme.colors.textPrimary,
+    fontSize: type.title,
+    textAlign: 'center',
+  },
+  stageDone: {
+    color: theme.colors.textMuted,
+    fontSize: type.sub,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
   step: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   mark: {
     width: 18,

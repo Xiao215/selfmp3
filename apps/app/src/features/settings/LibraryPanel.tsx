@@ -1,78 +1,33 @@
-import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { plural, type Song } from '@selfmp3/shared'
-import {
-  STALE,
-  queryKeys,
-  useAnalysisStatus,
-  useScanLibrary,
-  useStartAnalysis,
-  useFixCovers,
-  useFixCoversStatus,
-  useLibrary,
-  type Api,
-} from '@selfmp3/client'
+import { useQuery } from '@tanstack/react-query'
+import { STALE, useScanLibrary, type Api } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerApi } from '../../connection/useServerApi'
 import { viaKey } from '../../connection/via'
 import { Button } from '../../ui/components/Button'
-import { Refresh, Sparkles, X } from '../../ui/components/Icons'
-import { Panel, partStyles, Row } from './SettingsParts'
-import { NoticeCard } from '../../ui/components/NoticeCard'
-import { analysisProgress, scanHint, soundHint, type Confirming } from './settings.model'
-import {
-  coverArtHint,
-  coverProgress,
-  coverResult,
-  missingArtCount,
-} from '../metadata/metadata.model'
+import { Card, PathRow, Row } from './SettingsParts'
+import { scanHint } from './settings.model'
 
 /**
  * Settings › Advanced › Library: the library's folder on its server — the
  * inbox an import lands in, and where a file dropped by hand is picked up —
- * and the passes the server runs over the songs. All of it is the server's, so
- * a cloud library reaches the server for it, as Import does, and says so when
- * it cannot.
+ * and a rescan of it. All of it is the server's, so a cloud library reaches
+ * the server for it, as Import does, and says so when it cannot.
  */
-export function LibraryPanel({
-  anchor,
-  onConfirm,
-}: {
-  anchor: (node: View | null) => void
-  onConfirm: (what: Confirming) => void
-}): ReactNode {
+export function LibraryPanel(): ReactNode {
   const server = useServerApi()
-  const library = useLibrary()
-  const songs = library.data?.songs ?? []
   return (
-    <Panel title="Library" hint={plural(songs.length, 'song', 'songs')} anchor={anchor}>
+    <Card title="Library">
       {server.reach.state !== 'reachable' || !server.api ? (
         <ServerAway reach={server.reach} need="settings" row testID="library-server" />
       ) : (
-        <LibraryRows
-          api={server.api}
-          baseUrl={server.via?.baseUrl}
-          songs={songs}
-          onConfirm={onConfirm}
-        />
+        <LibraryRows api={server.api} baseUrl={server.via?.baseUrl} />
       )}
-    </Panel>
+    </Card>
   )
 }
 
-function LibraryRows({
-  api,
-  baseUrl,
-  songs,
-  onConfirm,
-}: {
-  api: Api
-  baseUrl: string | undefined
-  songs: readonly Song[]
-  onConfirm: (what: Confirming) => void
-}): ReactNode {
+function LibraryRows({ api, baseUrl }: { api: Api; baseUrl: string | undefined }): ReactNode {
   // The server's own health, for where its folder is: this device's says
   // nothing of it from a cloud library.
   const health = useQuery({
@@ -83,115 +38,18 @@ function LibraryRows({
   })
   const libraryPath = health.data?.libraryPath
   const scan = useScanLibrary(api)
-  const analysis = useAnalysisStatus(api)
-  const startAnalysis = useStartAnalysis(api)
-  const analysed = songs.filter(song => song.audioFeatures !== null).length
-  const running = analysis.data?.running === true
 
   return (
     <>
-      {libraryPath !== undefined ? <Row label="Folder" hint={libraryPath} /> : null}
-      <Row label="Rescan the folder" hint={scanHint(scan.data)}>
+      {libraryPath !== undefined ? <PathRow label="Folder" path={libraryPath} /> : null}
+      <Row label="Rescan the folder" hint={scanHint(scan.data)} last>
         <Button
           label={scan.isPending ? 'Scanning…' : 'Rescan'}
-          icon={<Refresh tone="textPrimary" />}
-          disabled={scan.isPending}
+          variant="text"
+          busy={scan.isPending}
           onPress={() => scan.mutate()}
         />
       </Row>
-      <Row
-        label="Audio analysis"
-        hint={`Tempo, key and energy · ${analysed} of ${plural(songs.length, 'song', 'songs')}`}
-      >
-        <Button
-          label={running ? 'Analysing…' : 'Analyse new songs'}
-          icon={<Sparkles tone="textPrimary" />}
-          disabled={running || startAnalysis.isPending}
-          onPress={() => startAnalysis.mutate(false)}
-        />
-        {analysed > 0 && !running ? (
-          <Button
-            label="Redo all"
-            icon={<Refresh tone="textPrimary" />}
-            onPress={() => onConfirm('redo-analysis')}
-          />
-        ) : null}
-      </Row>
-      {analysis.data ? (
-        <Row label="How songs sound" hint={soundHint(analysis.data.sound, songs.length)} />
-      ) : null}
-      {running ? (
-        <View style={partStyles.progress} accessibilityLiveRegion="polite">
-          <Text style={partStyles.progressText}>{analysisProgress(analysis.data)}</Text>
-        </View>
-      ) : null}
-      <CoverArtRow api={api} songs={songs} last />
-    </>
-  )
-}
-
-/**
- * "Find missing cover art". The pass runs on the server; this starts, stops
- * and watches it, so leaving Settings interrupts nothing. Covers land one at a
- * time, so the library is refetched as they do.
- */
-function CoverArtRow({
-  api,
-  songs,
-  last,
-}: {
-  api: Api
-  songs: readonly Song[]
-  last: boolean
-}): ReactNode {
-  const client = useQueryClient()
-  const { data: status } = useFixCoversStatus(api)
-  const fixCovers = useFixCovers(api)
-  const missingArt = missingArtCount(songs)
-  const running = status?.status === 'running'
-  const result = status ? coverResult(status) : null
-
-  const found = status?.found ?? 0
-  const state = status?.status
-  useEffect(() => {
-    if (found > 0 || state === 'done' || state === 'cancelled') {
-      void client.invalidateQueries({ queryKey: queryKeys.library })
-    }
-  }, [client, found, state])
-
-  return (
-    <>
-      <Row
-        label="Cover art"
-        hint={coverArtHint(missingArt)}
-        last={last && !running && result === null}
-      >
-        {running ? (
-          <Button
-            label="Stop looking"
-            icon={<X tone="textPrimary" />}
-            disabled={fixCovers.isPending}
-            onPress={() => fixCovers.mutate('cancel')}
-          />
-        ) : (
-          <Button
-            label="Find missing art"
-            icon={<Sparkles tone="textPrimary" />}
-            disabled={fixCovers.isPending || missingArt === 0}
-            onPress={() => fixCovers.mutate('start')}
-          />
-        )}
-      </Row>
-      {status && running ? (
-        <View style={partStyles.progress} accessibilityLiveRegion="polite">
-          <Text style={partStyles.progressText}>{coverProgress(status)}</Text>
-        </View>
-      ) : null}
-      {result ? (
-        <NoticeCard wash style={partStyles.notice} tone="good">
-          {result}
-        </NoticeCard>
-      ) : null}
     </>
   )
 }

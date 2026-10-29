@@ -33,12 +33,10 @@ describe('watching the inbox', () => {
     const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-watch-')))
     let watchLibrary = true
     const scan = vi.fn(() => Promise.resolve({ added: 1, updated: 0, total: 1, durationMs: 0 }))
-    const onChanged = vi.fn()
     const watcher = new LibraryWatcherService({
       config: { libraryDir: dir } as Config,
       settings: { get: () => ({ watchLibrary }) as Settings } as SettingsRepository,
       scanner: { isRunning: false, scan } as unknown as ScannerService,
-      onChanged,
       logger: createLogger('silent'),
     })
     try {
@@ -58,7 +56,6 @@ describe('watching the inbox', () => {
         },
         { timeout: 20_000, interval: 4_000 },
       )
-      await vi.waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
 
       // Turned off from Settings: no restart needed, and nothing more is swept.
       watchLibrary = false

@@ -32,7 +32,7 @@ interface MetadataProvider {
   search(query: LookupQuery): Promise<MetadataCandidate[]>
 }
 
-interface ProviderDeps {
+export interface ProviderDeps {
   readonly fetch: FetchLike
   readonly logger: Logger
   /** How long one request may take; a test hands in a short one. */
@@ -43,7 +43,7 @@ interface ProviderDeps {
  * GET a JSON document with a timeout. Returns null on any failure, after
  * logging why — the callers all treat "no answer" as "no candidates".
  */
-async function getJson(deps: ProviderDeps, url: string): Promise<unknown> {
+export async function getJson(deps: ProviderDeps, url: string): Promise<unknown> {
   try {
     const response = await deps.fetch(url, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
@@ -100,8 +100,11 @@ export class ItunesProvider implements MetadataProvider {
 
 // --- MusicBrainz ------------------------------------------------------------
 
+/** MusicBrainz allows one request a second from an address; a little over, to be sure. */
+export const MUSICBRAINZ_PACE_MS = 1_100
+
 /** Lucene special characters that would otherwise change the query's meaning. */
-function luceneEscape(value: string): string {
+export function luceneEscape(value: string): string {
   return value
     .replace(/[+\-!(){}[\]^"~*?:\\/&|]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -113,7 +116,7 @@ export class MusicBrainzProvider implements MetadataProvider {
   readonly #deps: ProviderDeps
   readonly #limiter: RateLimiter
 
-  constructor(deps: ProviderDeps, limiter = new RateLimiter(1_100)) {
+  constructor(deps: ProviderDeps, limiter = new RateLimiter(MUSICBRAINZ_PACE_MS)) {
     this.#deps = deps
     this.#limiter = limiter
   }
@@ -187,10 +190,19 @@ export class MetadataLookupService {
   readonly #cache = new Map<string, CacheEntry>()
   readonly #inFlight = new Map<string, Promise<MetadataCandidate[]>>()
 
-  constructor(logger: Logger, providers?: readonly MetadataProvider[], fetchImpl?: FetchLike) {
+  constructor(
+    logger: Logger,
+    providers?: readonly MetadataProvider[],
+    fetchImpl?: FetchLike,
+    /** MusicBrainz's pace, the machine's: shared with every other caller of it. */
+    musicBrainzPace?: RateLimiter,
+  ) {
     this.#logger = logger.child('lookup')
     const deps: ProviderDeps = { fetch: fetchImpl ?? fetch, logger: this.#logger }
-    this.#providers = providers ?? [new ItunesProvider(deps), new MusicBrainzProvider(deps)]
+    this.#providers = providers ?? [
+      new ItunesProvider(deps),
+      new MusicBrainzProvider(deps, musicBrainzPace),
+    ]
   }
 
   /**

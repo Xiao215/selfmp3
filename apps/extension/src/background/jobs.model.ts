@@ -1,5 +1,4 @@
-import { importFailure } from '@selfmp3/client/core'
-import { plural } from '@selfmp3/shared'
+import { importFailure, plural } from '@selfmp3/shared'
 import type { ImportJob, ImportQueue } from '@selfmp3/shared'
 
 /**

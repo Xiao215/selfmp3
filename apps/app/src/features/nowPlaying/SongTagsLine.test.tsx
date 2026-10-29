@@ -2,6 +2,7 @@ import { Text } from 'react-native'
 import { fireEvent, render, screen } from '@testing-library/react-native'
 import type { Song } from '@selfmp3/shared'
 
+import { lightTap } from '../../ports/haptics'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { SongTagsLine } from './SongTagsLine'
 
@@ -17,9 +18,16 @@ import { SongTagsLine } from './SongTagsLine'
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
   useLibrary: () => ({
-    data: { tags: [{ id: 7, name: 'Night drive', hue: 210 }] },
+    data: {
+      tags: [
+        { id: 7, name: 'Night drive', hue: 210 },
+        { id: 8, name: 'Calm', hue: 160 },
+      ],
+    },
   }),
 }))
+// A tag added in sight taps the phone; one the song came up with does not.
+jest.mock('../../ports/haptics', () => ({ lightTap: jest.fn(), firmTap: jest.fn() }))
 // Who brought a room's song reads the room and the server; here it only has to be the one drawn.
 jest.mock('../room/RoomSongLine', () => {
   const { Text: RoomText } = jest.requireActual<typeof import('react-native')>('react-native')
@@ -77,5 +85,33 @@ describe('SongTagsLine', () => {
     expect(screen.getByText('Brought by a friend')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /tags/ })).toBeNull()
     expect(screen.queryByText('Night drive')).toBeNull()
+  })
+
+  it('snaps in only a tag added while it is in sight', async () => {
+    jest.mocked(lightTap).mockClear()
+    const view = await render(
+      <SongTagsLine song={SONG} onOpen={() => undefined} onEdit={() => undefined} />,
+    )
+    expect(lightTap).not.toHaveBeenCalled()
+
+    await view.rerender(
+      <SongTagsLine
+        song={{ ...SONG, tagIds: [7, 8] }}
+        onOpen={() => undefined}
+        onEdit={() => undefined}
+      />,
+    )
+    expect(screen.getByText('Calm')).toBeTruthy()
+    expect(lightTap).toHaveBeenCalledTimes(1)
+
+    // Another song comes up with its tags: they are its own, and stand still.
+    await view.rerender(
+      <SongTagsLine
+        song={{ ...SONG, id: 5, tagIds: [7, 8] }}
+        onOpen={() => undefined}
+        onEdit={() => undefined}
+      />,
+    )
+    expect(lightTap).toHaveBeenCalledTimes(1)
   })
 })

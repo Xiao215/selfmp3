@@ -114,8 +114,9 @@ the platform.
 
 **Every device gets in the same way: sign in with Google, and the library is your
 bucket's.** There is no server address to type anywhere; the app knows the shared server's
-address as it knows the doorman's. The server's own page, on `:4600`, is not where you
-listen: it is an admin page for the server.
+address as it knows the doorman's. The server serves no page on its public port: its
+owner's admin page (Data, Access, Server) listens on the server's own machine and is opened
+through Tailscale ([docs/features/admin.md](docs/features/admin.md)).
 
 | | Server | Browser tab | iPhone and Android app | Desktop app |
 |---|---|---|---|---|
@@ -284,16 +285,19 @@ Tailscale addresses. To reach it away from home, put Tailscale Funnel in front o
 (`tailscale funnel --bg 4600`) and set `SELFMP3_PUBLIC_URL` to that `https://` address in a
 `.env` beside `docker-compose.yml` (copy `.env.example`). Then sign in with Google in
 the [web app](https://xiao215.github.io/selfmp3), the desktop app or the phone app, and
-connect your bucket in Settings.
+connect your bucket on the page that follows. Making one on Backblaze is
+**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)**, step by step.
 
 The whole walkthrough — the Raspberry Pi, Tailscale, the bucket, the AI helper, the desktop
 app and the phone — is in **[docs/INSTALL.md](docs/INSTALL.md)**. For the phone app, see
-[MOBILE.md](docs/MOBILE.md); for the bucket, [SYNC.md](docs/SYNC.md).
+[MOBILE.md](docs/MOBILE.md); for the bucket, [Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html) and, for how it
+works, [SYNC.md](docs/SYNC.md).
 
 The server also runs without Docker, on a Mac or a Linux machine with Node 22 or newer:
 `./scripts/setup-mac.sh` installs yt-dlp and ffmpeg, builds, and offers to start the server
-at login (`scripts/install-service.sh`, launchd or systemd), and `./scripts/doctor.sh`
-checks the setup and tells you the command that fixes whatever is wrong.
+at login (`scripts/install-service.sh`, with launchd; on Linux, the systemd unit in
+[INSTALL.md](docs/INSTALL.md#on-linux)), and `./scripts/doctor.sh` checks the setup and tells
+you the command that fixes whatever is wrong.
 
 ---
 
@@ -309,14 +313,17 @@ They are read in `apps/server/src/config.ts`.
 | `SELFMP3_PORT` | `4600` | Port to listen on |
 | `SELFMP3_HOST` | `0.0.0.0` | Bind address. The addresses the server finds on its network interfaces are how a device at home reaches it; `127.0.0.1` keeps it to this machine |
 | `SELFMP3_PUBLIC_URL` | none | One more address to publish: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
-| `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: the server's page links there, and with a public address its origin may call the server |
+| `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: with a public address its origin may call the server |
+| `SELFMP3_ADMIN_PORT` | `4610` | The owner's admin page, on `127.0.0.1` only whatever `SELFMP3_HOST` says; `0` turns it off |
+| `SELFMP3_ADMIN_URL` | none | The address `tailscale serve` gives the admin page, such as `https://pi.tail3d8516.ts.net:4443`: the page answers only to it and to this machine |
+| `SELFMP3_DOORMAN_ADMIN_TOKEN` | none | The doorman's `ADMIN_TOKEN`, the same value: what the admin page changes who can sign in and reads the doorman's counts with |
 | `SELFMP3_LIBRARY_DIR` | `/app/library` in Docker; `~/Music/selfmp3` otherwise | The inbox: where an import lands until it is in the bucket. Each workspace has a folder of its own inside it |
 | `SELFMP3_DATA_DIR` | `/app/data` in Docker; `~/Library/Application Support/selfmp3` on macOS, `~/.local/share/selfmp3` elsewhere | `hub.json`, each workspace's database and caches, and the listening model's files |
 | `SELFMP3_PROFILE` | none | A separate installation outside Docker: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
 | `SELFMP3_AUTH_TOKEN` | one the server makes | The token of a server whose bucket is a folder. A server working for accounts gives each library its own, kept in `hub.json` |
 | `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman the server signs in to the cloud through. Empty for none |
 | `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API, beyond the desktop app, the extension and (with a public address) the web app. `npm run dev` adds the web dev server's, `http://localhost:4601` |
-| `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features, such as cli-bridge's `http://127.0.0.1:8787/v1` ([ai.md](docs/features/ai.md)). Also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART` (both `sonnet`), and `SELFMP3_AI_TIMEOUT_SECONDS` (240). Unset, the smart features are off and say so |
+| `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features, such as cli-bridge's `http://127.0.0.1:8787/v1` ([ai.md](docs/features/ai.md)). Also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART` (both `sonnet`), `SELFMP3_AI_TIMEOUT_SECONDS` (240), and `SELFMP3_AI_CONCURRENCY` (2, requests in flight to it at once). Unset, the smart features are off and say so |
 | `SELFMP3_SOUND` | `true` | The listening model, which hears each song for "Sounds like" and for Ask. Its files, about 750 MB, are downloaded to the data folder the first time they are wanted. `false` turns it off |
 | `SELFMP3_SOUND_MODELS` | the `sound-models-v1` release | Where the model's files come from: an address, or a folder that already holds them ([scripts/sound-models](scripts/sound-models/README.md)) |
 | `SELFMP3_SOUND_THREADS` | `2` | CPU threads the model may use while it listens |
@@ -326,7 +333,7 @@ They are read in `apps/server/src/config.ts`.
 | `SELFMP3_PUBLISH_ANYWAY` | `false` | Publish this server's library to the bucket as it stands, without taking on the bucket's first or refusing to replace a bigger one. An escape hatch ([SYNC.md](docs/SYNC.md)) |
 
 The bucket each account syncs with is connected in the app's Settings, and who may sign in
-at all is kept by the doorman's owner in Settings › Who can sign in.
+at all is kept by the doorman's owner on the admin page's People tab.
 
 Day-to-day behaviour — crossfade, the watched folder, romanization, the smart features —
 lives in the app's Settings rather than in the environment.
@@ -338,9 +345,8 @@ stays off unless it is set with `PATCH /api/settings`
 **About the token.** Each library on the server has a token of its own, kept in
 `<data>/hub.json`. You never type it: it goes into that account's bucket with the server's
 addresses, and every device signed in to the account is handed it with the sync. A request
-with no token from the server's own machine (its own page at `http://localhost:4600`, the
-`selfmp3` command) goes to the only library when there is just one, because anyone at that
-keyboard could read the token anyway.
+with no token from the server's own machine (the `selfmp3` command, say) goes to the only
+library when there is just one, because anyone at that keyboard could read the token anyway.
 
 ---
 
@@ -414,7 +420,7 @@ packages/client          what every client shares: API client, React Query hooks
 packages/replica         a device's own copy of the bucket's library, and its outbox
 packages/desktop-bridge  the contract between the desktop shell and the page
 apps/server              Express 5 and better-sqlite3: the hub, then routes → services →
-                         repositories per workspace; public/ is its admin page on :4600
+                         repositories per workspace; admin/ is the owner's admin page
 apps/app                 Expo / React Native: one app for iOS, Android and the web
 apps/desktop             the Electron shell around apps/app's web export
 apps/doorman             Cloudflare Worker: Google sign-in, bucket access, grants, rooms,
@@ -489,6 +495,7 @@ Feature pages, each with what it does, how it works and where the code is:
 | [share-links.md](docs/features/share-links.md) | Sending a song or a few as a link that ends by itself |
 | [share-to-import.md](docs/features/share-to-import.md) | Importing from the share sheet on Android and iOS |
 | [shared-server.md](docs/features/shared-server.md) | One server for every account: workspaces, grants, plays in the bucket, who may sign in |
+| [sound-map.md](docs/features/sound-map.md) | The library placed by how it sounds: press to play a place, drag to drift between two |
 | [tagging.md](docs/features/tagging.md) | Picking, editing and colouring tags, tagging what plays, songs with no tag |
 | [watched-library-folder.md](docs/features/watched-library-folder.md) | The inbox folder, and sweeping it when it changes |
 | [widget.md](docs/features/widget.md) | The iOS home-screen widgets |

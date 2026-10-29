@@ -1,10 +1,11 @@
 import { z } from 'zod'
-import { CoverToneSchema } from './song.js'
+import { CameWithSchema, CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { HASH_FILE_NAME } from '../doormanWire.js'
 import { HueSchema, IdSchema } from './common.js'
 import { DoormanStorageSchema, SignInAttemptSchema, SignInCodeSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
+import { ArtistNamesSchema } from './artist.js'
 import {
   BoolRuleSchema,
   DateRuleSchema,
@@ -93,6 +94,42 @@ export const CloudArtistSchema = z.object({
 export type CloudArtist = z.infer<typeof CloudArtistSchema>
 
 /**
+ * The names an artist also goes by (`ArtistNamesSchema`), for search. Filled
+ * in by the server from MusicBrainz, changed by anyone (`artistNamed`); the
+ * latest change wins.
+ */
+export const CloudArtistNamesSchema = z.object({
+  /** The artist as `artistKey` writes them. */
+  artist: z.string().min(1),
+  names: ArtistNamesSchema,
+  /** `names`: the stamp of the change that set them. */
+  stamps: StampsSchema.optional(),
+})
+export type CloudArtistNames = z.infer<typeof CloudArtistNamesSchema>
+
+/**
+ * Many pictures in one file (the server's services/coverPacks.ts), so a
+ * device that has none of them reads a few files instead of one per picture:
+ * every read is one of the bucket's daily allowance, and a library's covers
+ * one by one were half of it. The pictures are each still in the bucket on
+ * their own, under the key they are listed by here; a pack is only the
+ * cheaper way to fetch many at once.
+ *
+ * The file is the pictures' bytes end to end, in the order listed, and
+ * nothing else: a picture starts where the ones before it end. Named by its
+ * own hash, in `covers/` with the `pack` extension, which the doorman's key
+ * rule already allows. A pack may still hold pictures the library has since
+ * let go of; a device keeps only those it names.
+ */
+export const CloudCoverPackSchema = z.object({
+  key: fileKey('covers'),
+  size: z.number().int().nonnegative(),
+  /** Each picture's key and size, in the order the file holds them. */
+  covers: z.array(z.tuple([fileKey('covers'), z.number().int().nonnegative()])).min(1),
+})
+export type CloudCoverPack = z.infer<typeof CloudCoverPackSchema>
+
+/**
  * Every song's sound vector, in one file (the server's sound/pack.ts), keyed
  * inside by each song's audio key. Made on the server, the one device with the
  * listening model, and kept in the bucket so a server that starts again from
@@ -105,6 +142,18 @@ export const CloudSoundSchema = z.object({
   size: z.number().int().nonnegative(),
 })
 export type CloudSound = z.infer<typeof CloudSoundSchema>
+
+/**
+ * Where every heard song sits on the sound map (docs/features/sound-map.md),
+ * as one small file beside the vectors it was folded from
+ * (`lyrics/<sha256>.map`, shared soundMap.ts). Made on the server whenever
+ * the vectors change, and read by a device once a change.
+ */
+export const CloudSoundMapSchema = z.object({
+  key: fileKey('lyrics'),
+  size: z.number().int().nonnegative(),
+})
+export type CloudSoundMap = z.infer<typeof CloudSoundMapSchema>
 
 /**
  * One month of the library's plays, as one file in the bucket beside the
@@ -137,18 +186,25 @@ export const CloudPlaysFileSchema = z.object({
 export type CloudPlaysFile = z.infer<typeof CloudPlaysFileSchema>
 
 export const CloudLyricsSchema = z.object({
+  /** The words file (`wordsKey`): the text and its romanized lines, as one read. */
   key: fileKey('lyrics'),
   size: z.number().int().nonnegative(),
   kind: z.enum(['plain', 'synced']),
-  /**
-   * The words' romanized lines — romaji or pinyin, one per line of the text,
-   * empty where a line needs none — as a JSON array beside them. Made on the
-   * server, which has the dictionaries, so every device shows what the server's own
-   * lyrics answer carries. Null when the words are not Chinese or Japanese.
-   */
-  romanized: fileKey('lyrics').nullable(),
 })
 export type CloudLyrics = z.infer<typeof CloudLyricsSchema>
+
+/**
+ * What a words file holds (`wordsKey`): the lyric text, as a sidecar holds it,
+ * and its romanized lines — romaji or pinyin, one per line of the text, empty
+ * where a line needs none. Made on the server, which has the dictionaries, so
+ * every device shows what the server's own lyrics answer carries. `romanized`
+ * is null when the words are not Chinese or Japanese.
+ */
+export const CloudWordsSchema = z.object({
+  text: z.string(),
+  romanized: z.array(z.string()).nullable(),
+})
+export type CloudWords = z.infer<typeof CloudWordsSchema>
 
 export const CloudSongSchema = z.object({
   uid: UidSchema,
@@ -173,10 +229,18 @@ export const CloudSongSchema = z.object({
   motion: fileKey('lyrics').nullable(),
   instrumental: z.boolean(),
   loved: z.boolean(),
+  /**
+   * Resting until then, or null (schemas/song.ts). A bucket written before
+   * songs could rest names none, and reads as awake: a server must read its
+   * own last snapshot before it may publish the next one.
+   */
+  restUntil: z.string().nullable().default(null),
   playCount: z.number().int().nonnegative(),
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),
   sourceUrl: z.string().nullable(),
+  /** The friend it came from (schemas/song.ts), for a song someone handed over. */
+  cameWith: CameWithSchema.optional(),
   tagUids: z.array(UidSchema),
   /** How the song sounds, as the server's analyser measured it (schemas/audioFeatures.ts). Null until it has. */
   audioFeatures: AudioFeaturesSchema.nullable(),
@@ -305,13 +369,8 @@ export const CloudServerSchema = z.object({
    * server, not this one, and a Wi-Fi address on someone else's Wi-Fi is
    * someone else's. A device takes an address only when what answers there
    * says this id (`packages/client/src/connection/reach.ts`).
-   *
-   * Optional because a bucket has to stay readable whatever wrote its newest
-   * snapshot: one from a server that did not name itself yet, or from a server
-   * that is gone, is still the library. Without an id a device takes any
-   * address that answers, as it always has.
    */
-  id: z.string().min(1).optional(),
+  id: z.string().min(1),
   addresses: z.array(z.string().url()).max(16),
   token: z.string().nullable(),
 })
@@ -337,8 +396,25 @@ export const CloudSnapshotSchema = z.object({
   playlists: z.array(CloudPlaylistSchema),
   /** Every artist of the library's songs the server has a picture for. */
   artists: z.array(CloudArtistSchema),
+  /** The names artists also go by, for search. */
+  artistNames: z.array(CloudArtistNamesSchema),
+  /**
+   * The library's Chinese and Japanese titles, artists and albums, each as it
+   * is written and in Latin letters — pinyin, romaji, or both for a name in
+   * characters alone, which could be either — so search finds 周杰伦 typed as
+   * "zhou jie lun". Made on the server, which has the dictionaries; a name it
+   * has not spelt yet is simply not in it.
+   */
+  spellings: z.record(z.string(), z.array(z.string())),
+  /**
+   * The covers and artists' pictures, packed a few megabytes to a file, for a
+   * device filling its covers from nothing. Empty before the server first packs.
+   */
+  coverPacks: z.array(CloudCoverPackSchema),
   /** How every song sounds, as the server heard it; null before it has heard any. */
   sound: CloudSoundSchema.nullable(),
+  /** Where each heard song sits on the sound map; absent before a server first made one. */
+  soundMap: CloudSoundMapSchema.optional(),
   /** When each song was played, a file a month; absent before a server first sent any. */
   plays: z.array(CloudPlaysSchema).optional(),
   /**
@@ -347,6 +423,12 @@ export const CloudSnapshotSchema = z.object({
    * that names the second uid still finds its tag.
    */
   aliases: z.record(UidSchema, UidSchema).optional(),
+  /**
+   * Tags that went when their last songs were removed (`tagEmptied`), as
+   * they were then. A song tagged with one, by a change that arrives late,
+   * brings it back.
+   */
+  emptiedTags: z.array(CloudTagSchema).optional(),
   /**
    * Songs folded into another copy of themselves (`songMerged`): the extra
    * copy's uid, and the song it went into. A late play, tag or playlist place

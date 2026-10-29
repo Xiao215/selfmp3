@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts, radius } from '@selfmp3/client'
+import { radius } from '@selfmp3/client'
+import { fonts } from '../../../ports/fonts'
 import { Cover } from '../../../ui/components/Cover'
 import { calendarLook, lookInk } from '../looks.model'
-import { DayDot, mono, type LookProps } from './parts'
+import { DayDot, mono, type LookProps, LookText } from './parts'
 
 /** `P36`'s page. */
 export const CALENDAR_SIZE = { width: 480, height: 720 } as const
@@ -27,66 +28,77 @@ export function CalendarLook({ input, hue, art }: LookProps): ReactNode {
   return (
     <View style={[styles.page, { backgroundColor: ink.ground }]}>
       <View style={styles.head}>
-        <Text style={[styles.title, { color: ink.accent }]} numberOfLines={1}>
+        <LookText style={[styles.title, { color: ink.accent }]} numberOfLines={1}>
           {look.title}
-        </Text>
-        <Text style={[styles.label, { color: ink.quiet }]}>self.mp3</Text>
+        </LookText>
+        <LookText style={[styles.label, { color: ink.quiet }]}>self.mp3</LookText>
       </View>
 
       <View>
         {grid.headers.length > 0 ? (
           <View style={styles.row}>
             {grid.headers.map((header, i) => (
-              <Text key={i} style={[styles.weekday, { width: cell, color: ink.quiet }]}>
+              <LookText key={i} style={[styles.weekday, { width: cell, color: ink.quiet }]}>
                 {header}
-              </Text>
+              </LookText>
             ))}
           </View>
         ) : null}
         <View style={[styles.row, styles.grid]}>
-          {grid.cells.map((day, i) => (
-            <View key={day?.key ?? `blank-${i}`} style={{ width: cell, height: cell }}>
-              {day ? (
-                <>
-                  <DayDot
-                    share={day.share}
-                    cell={cell}
-                    dot={ink.accent}
-                    empty={ink.well}
-                    smallest={8}
-                    largest={Math.min(30, cell * 0.55)}
-                    fade
-                    cover={
-                      day.songId !== null && record ? (
-                        <Cover
-                          uri={art(day.songId)}
-                          title={record.title}
-                          size={cell}
-                          radius={radius.cover}
-                        />
-                      ) : null
-                    }
-                  />
-                  <Text style={[styles.date, { color: ink.quiet }]}>{day.label}</Text>
-                </>
-              ) : null}
-            </View>
-          ))}
+          {grid.cells.map((day, i) => {
+            const covered = day?.songId != null && record != null
+            return (
+              <View key={day?.key ?? `blank-${i}`} style={{ width: cell, height: cell }}>
+                {day ? (
+                  <>
+                    <DayDot
+                      share={day.share}
+                      cell={cell}
+                      dot={ink.accent}
+                      empty={ink.well}
+                      smallest={8}
+                      largest={Math.min(30, cell * 0.55)}
+                      fade
+                      cover={
+                        day.songId !== null && record ? (
+                          <Cover
+                            uri={art(day.songId)}
+                            title={record.title}
+                            size={cell}
+                            radius={radius.cover}
+                          />
+                        ) : null
+                      }
+                    />
+                    {/* On the cover the label sits on a scrap of the page, or it is lost in the picture. */}
+                    <LookText
+                      style={[
+                        covered ? styles.dateOnCover : styles.date,
+                        { color: ink.quiet, backgroundColor: covered ? ink.ground : undefined },
+                      ]}
+                    >
+                      {day.label}
+                    </LookText>
+                  </>
+                ) : null}
+              </View>
+            )
+          })}
         </View>
       </View>
 
-      <Text style={[styles.caption, { color: ink.second }]}>{look.caption}</Text>
+      <LookText style={[styles.caption, { color: ink.second }]}>{look.caption}</LookText>
 
       <View style={styles.foot}>
         <View style={styles.footFigure}>
-          <Text style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
+          <LookText style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
             {look.figure}
-          </Text>
-          <Text style={[styles.figureLine, { color: ink.second }]} numberOfLines={1}>
+          </LookText>
+          <LookText style={[styles.figureLine, { color: ink.second }]} numberOfLines={1}>
             {look.figureLine}
-          </Text>
+          </LookText>
         </View>
-        <Text style={[styles.traits, { color: ink.second }]}>{look.traits.join('\n')}</Text>
+        <LookText style={[styles.traits, { color: ink.second }]}>{look.traits.join('\n')}</LookText>
       </View>
     </View>
   )
@@ -117,6 +129,16 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   date: { position: 'absolute', left: 2, top: 0, fontSize: 9, fontFamily: mono },
+  dateOnCover: {
+    position: 'absolute',
+    left: 3,
+    top: 3,
+    paddingHorizontal: 3,
+    borderRadius: 3,
+    overflow: 'hidden',
+    fontSize: 9,
+    fontFamily: mono,
+  },
   caption: { fontSize: 12, lineHeight: 17 },
   foot: {
     marginTop: 'auto',

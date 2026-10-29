@@ -15,7 +15,7 @@ Files:
 | Dropdown | `apps/app/src/ui/components/Select.tsx` |
 | The song row | `apps/app/src/ui/components/SongRow.tsx` |
 | The song menu | `apps/app/src/ui/components/SongMenu.tsx`, what it offers in `apps/app/src/ui/songActions.model.ts` |
-| The shared parts | `apps/app/src/ui/components/SearchField.tsx`, `EmptyState.tsx`, `SectionHead.tsx`, `SongLine.tsx`, `Chip.tsx`, `Button.tsx`, `Press.tsx` |
+| The shared parts | `apps/app/src/ui/components/SearchField.tsx`, `EmptyState.tsx`, `Skeleton.tsx`, `SectionHead.tsx`, `SongLine.tsx`, `Chip.tsx`, `Button.tsx`, `Press.tsx` |
 | Floating-layer shell | `apps/app/src/ui/components/Popover.tsx`, `Sheet.tsx`, `apps/app/src/shell/Overlay.tsx` |
 | Hover captions | `apps/app/src/ui/tip.ts`, `apps/app/src/shell/TooltipHost.web.tsx` |
 | Tokens | `packages/client/src/theme/tokens.ts`; shared shapes in `apps/app/src/ui/surfaces.ts`; themes in `apps/app/src/ui/theme/unistyles.ts` |
@@ -112,14 +112,16 @@ The same part looks the same wherever it is. A screen uses these; it does not dr
 | Part | What it is | Where |
 |---|---|---|
 | `SearchField` | The one search field: a pill one step up from what it sits on, a magnifier, a × once there are words. Its edge and magnifier turn the accent with the focus. 48 high with a finger, 40 with a mouse. `raised` on a card, a sheet or a panel. Given `onPress` and no `value` it is a **door** to the real search (Home, Library); `trailing` takes the ×'s place (Ask's Stop, the palette's count) | Search, Home and Library (as doors), the palette, Import's search, a tag's Add, the song picker, the tag picker, the listen-tags panel |
-| `EmptyState` | What stands where a list would be: an optional icon, a title, one short line, and the button that fixes it (children). `compact` in a sheet, a panel or the palette | Library, a playlist, Home, Stats, the Report, Search, the palette, the add sheets, Now Playing |
+| `EmptyState` | What stands where a list would be: an optional icon on a round mark one step up, a title, one short line, and the button that fixes it (children). `compact` in a sheet, a panel or the palette | Library, a playlist, Home, Stats, the Report, Search, the palette, the add sheets, Now Playing, Links you shared, a room when you are in none |
 | `SectionHead` | A section's heading: its name in the display face at 18, and a link to the rest at the other end ("All 9", "See all"). `aside` for quiet words beside it, `collapsible`, `end` for buttons, `look="label"` for a quiet group inside a sheet or list | Home, Search, Settings, Stats, Import, Up next's rail, a song's similar shelf, a room's sheets |
+| `Skeleton` | What a list or a grid is while it is on its way: its shapes (`Bone`) in `surface1`, drawn only after 300 ms (`MOVE_MS.skeletonWait`) so a quick answer never flashes them, with one slow light across them that stands still under Reduce Motion. `SongRowsSkeleton` is a song list's | Home's tiles and Recently played, Library, a playlist, Stats, Tags, the sidebar's lists |
 | `SongLine` | The compact song line: a 36 cover (`coverSize.line`), the title, a line under it, and what the place needs at the end. Pressable with `onPress`, or the face alone for a row whose press a screen owns | Up next's rail, the palette, the song picker, Profile, a room, Ask's answers, Tidy up's review |
 
 `SongLine` is not `SongRow`. A list of songs — Library, a playlist, a tag, Search's Songs, the
-phone's Up next — draws `SongRow`; `SongLine` names a song somewhere else. The small uppercase
-label (`label()`) is not a section heading either: it names a group of settings or a card's
-figure.
+phone's Up next — draws `SongRow`; `SongLine` names a song somewhere else. The quiet label
+(`label()`, sentence case: "Playlists", "On this page", "Last 30 days") is not a section
+heading either: it names a group. Small spaced capitals are kept for one thing, a figure's
+name on a stat card (`figureLabel()`: LISTENED, PEAK HOUR, STREAK).
 
 **Chips** come in two kinds: the filter pill (`Chip`: a tag strip, Search's tags before
 typing, Settings' sections on a phone) and the row label (`SongRow`'s tag chips, `rowTags`).
@@ -230,7 +232,10 @@ states, and the flows that assert them. Sentence case, plain words.
 | A whole playlist or tag | **Delete** | Remove |
 | A device in Settings | **Remove** | Forget |
 | Kept on this device | **On this phone** / **On this computer** (`onThisDevice`, `devicePlace`); the action stays **Download**, its undo is **Remove from this phone** | Downloaded, Offline, saved offline, kept |
-| A playlist that fills itself | **Fills from** [tags]; "Stop filling" | Follow tags, a tag to follow |
+| A playlist that fills itself | **Live** by its loop mark; its row "Keeps itself filled with songs tagged …"; "Stop adding" | Fills from, Stop filling, Follow tags, a broadcast mark |
+| Putting another tag or artist with this one | **Mix in…** | Combine with… |
+| A tag whose songs all sit in another | **Includes** [tag] (n), under the one it is in | Inside: |
+| The stale sign-ins a browser leaves in Devices | **N old sign-ins** · Clear | older sessions, Remove all |
 | A song's page | **Song details** (Now Playing's tab on a computer: **Details**) | About this song, About |
 | The weekly page | **Report**; "Open the report" ("Your week" may head a card) | Wrapped, View Report |
 | Where songs are stored | **your storage** (Backblaze only in its setup steps) | bucket, cloud, cloud library |
@@ -267,7 +272,7 @@ on every build (`apps/extension/scripts/theme.mjs`).
 
 | Token | Size | `leading` | For |
 |---|---|---|---|
-| `type.tiny` | 11 | 15 | counts, times, the small uppercase label |
+| `type.tiny` | 11 | 15 | counts, times, a stat card's figure name |
 | `type.small` | 12 | 17 | captions and hints |
 | `type.sub` | 13 | 19 | the line under a title, a chip, secondary words |
 | `type.body` | 15 | 21 | body text, a song row's title, a button, a field |
@@ -296,13 +301,18 @@ The rules from `S2`, as the code keeps them:
   cream have no tone to separate them, so a card casts a soft shadow there (`card()` in
   `apps/app/src/ui/surfaces.ts`); in the dark it casts none. Only floating things (sheets,
   menus, the bars, a lifted row) cast a shadow in both (`floating()`).
+  A cover on Paper has a shade a point inside its own edge and a drop as soft, so a
+  white cover still has a shape on cream (`CoverEdge` in `Cover.tsx`, once round a
+  mosaic); in the dark it has neither.
 - **Shapes** are named: `radius.pill` for buttons, search fields, chips and segments; `field`
   12 for a text field that is not a search; `item` 12 for a menu's line or a caption; `card`
   18 and `cardLg` 22; `sheet` 26; `mini` 16; `row` 14; covers `cover` 10 and `coverSm` 8.
 - **Type**: the system font for rows and body; `fonts.display` (Bricolage Grotesque 600) for
-  page titles at `type.page` and sections at `type.section`; `fonts.serif` (Instrument Serif)
-  for greetings and big numbers. Neither face takes a `fontWeight`: the weight is in the file.
-  `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `heroTitle()`, `label()` and `serif()`,
+  page titles at `type.page` and sections at `type.section` — Profile's name, an artist's and
+  "Where it lives." included; `fonts.serif` (Instrument Serif) for greetings and big numbers
+  only. Neither face takes a `fontWeight`: the weight is in the file.
+  `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `heroTitle()`, `label()`, `figureLabel()`
+  and `serif()`,
   and `card()`, `floating()`, `dialogPanel()` and `menuItem` for the shapes around them.
 - **Buttons** come in four shapes (`Button.tsx`): the round white `PlayButton`, at most one
   per page; the tonal pill; the text action; the accent pill, kept for the one button that
@@ -361,6 +371,12 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   and a segmented control's pill are springs, so a second tap turns them rather than
   restarting; a stage exit or a page's own close plays once, however many times it is asked
   (`shell/stageExit.ts`).
+- The Up next button wears how many songs wait after the one playing, a small count in the
+  accent on its shoulder, which ticks up (and swells once) as flying covers land on it rather
+  than the moment the songs are queued (`UpNextTarget`, `flightsUnderway`).
+- Liking a song pops its heart — in to 0.82, out past its size to 1.22, home, over
+  `MOVE_MS.likePop` — and one ring in the song's colour goes out from it (`likeRing`);
+  unliking just turns it back (`LikeButton`).
 - Play and pause turn through each other, out on `ease.in` and in on `ease.out`, with a light
   tap on a phone (`ports/haptics.ts`); a spinner that
   replaces the glyph crossfades in and stays at least `MOVE_MS.busyHold`.
@@ -405,6 +421,26 @@ instead, which is the same picture on every device the app runs on. Looping indi
 spinner, the equaliser — are left alone under Reduce Motion, because they are saying that
 something is still happening.
 
+## Text size
+
+The system's text size (iOS Dynamic Type, Android's font scale) is followed, by these rules
+(`ui/textScale.ts`, AM1). A browser zooms the whole page instead, so a tab never sees them.
+
+- Song titles, page titles and reading text scale fully.
+- Controls stop at about 1.3× (`CONTROL_SCALE`, as `maxFontSizeMultiplier`): tab bar labels,
+  chips, segmented choices, small badges and key caps, and the mini player, whose icons and
+  height do not grow with its words.
+- A big number shrinks to fit its card (`FIT_FIGURE`) and is never cut to "18h…": Stats' cards,
+  This week, You's month. It grows no more than about 1.75×, as iOS's own large titles do. At
+  the Accessibility sizes each Stats card takes the full width, and This week's and You's three
+  figures stand one under another (`StatFigures`).
+- A one-line page title is set smaller rather than cut (`PageHeader`), and at the
+  Accessibility sizes a Settings row puts its control under its words.
+- A head's title that would need more than two lines beside its cover puts the cover above it
+  (`useStackedTitle` on a song's page; a place's name tells `ListHead` the same).
+- The Report's looks are pictures: their print keeps the board's size, and the page around
+  them grows.
+
 ## Focus and interaction
 
 - In a browser, `shell/FocusStyle.web.tsx` turns the browser's own ring off once and draws
@@ -417,6 +453,10 @@ something is still happening.
   press target, which lies under the cover and title only; with the ring on, it shows its
   controls as the pointer would. Space on such a row is its tick, not play and pause
   ([multi-select.md](multi-select.md)).
+- In a list that clips what it holds (the sidebar, a shelf, Library's tag strip) every ring is
+  drawn just inside its edge, as a song row's is: spread `FOCUS_INSIDE` (`shell/tabbing.ts`) on
+  such a list. On a computer the first Tab stop is "Skip to the page" (`shell/SkipToPage.web.tsx`),
+  out of sight until focused, which moves the focus past the sidebar to the page's first control.
 - A song list is one Tab stop (a roving tabindex, as WAI-ARIA's grid): its rows' controls are
   out of Tab's way, ↑ ↓ move between rows and ← → along a row's controls, and Tab from anywhere
   in a row goes on past the list (`selection/useListKeys.web.ts`). Anything else that draws a
@@ -430,8 +470,8 @@ something is still happening.
 ## The toast row
 
 Toasts are one layer of the app shell (`Toasts` in `shell/Shell.tsx`): centred near the foot of
-the content, with the resume offer and every message raised with `showToast` (`ui/toast.ts`),
-drawn by `ToastHost`. The layer takes no touches itself, and on a phone it lifts above the
+the content, with the resume offer (on a phone; a computer's waits at the foot of the sidebar,
+`ResumeCard`) and every message raised with `showToast` (`ui/toast.ts`), drawn by `ToastHost`. The layer takes no touches itself, and on a phone it lifts above the
 floating selection bar rather than covering its buttons; each toast is dismissible. Put new
 transient messages in that row rather than positioning them by hand.
 

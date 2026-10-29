@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Href } from 'expo-router'
-import { plural } from '@selfmp3/shared'
+import { plural, type QueueState } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
-import { showUndoToast } from '../../ui/toast'
+import { dismissToast, showUndoToast } from '../../ui/toast'
 import { useOpenTag } from '../tag/useOpenTag'
 import { closeQueueSheet } from './queueSheet.store'
-import { queueRows, removalOf, restoreMoves } from './queue.model'
+import { queueRows, removalOf, restoreMoves, stillRestorable } from './queue.model'
 import { songsById } from '../../ui/songsById'
 
 /** No rows: what a shut Up next is handed, so it does not resolve the whole queue for nothing. */
@@ -47,8 +47,20 @@ export function useQueueEdits(
    * stay mounted (drawing nothing while shut) so this is always current.
    */
   const latest = useRef(player)
+  /*
+   * The Clear the rest message up, and the queue it cleared. Its Undo puts the
+   * songs back only while the same song plays (`stillRestorable`); once
+   * another has started, Undo was still offered and did nothing at all, so the
+   * message goes instead.
+   */
+  const cleared = useRef<{ id: number; before: QueueState } | null>(null)
   useEffect(() => {
     latest.current = player
+    const up = cleared.current
+    if (up && !stillRestorable(player.queue, up.before)) {
+      cleared.current = null
+      dismissToast(up.id)
+    }
   })
 
   const rows = useMemo(
@@ -62,25 +74,46 @@ export function useQueueEdits(
     if (!removal) return
     const song = now.songs.find(entry => entry.id === removal.id)
     now.removeFromQueue(index)
-    showUndoToast(song ? `Removed ${song.title}` : 'Removed from Up next', () => {
-      const live = latest.current
-      const moves = restoreMoves(live.queue, removal)
-      if (!moves) return
-      // Both go through the player's own queue edits, which read and write
-      // its queue synchronously, so the move sees the song just put back.
-      live.playNext([removal.id])
-      if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
-    })
+    // Swiped out one after another, they fold into one message whose Undo
+    // puts all of them back, newest first.
+    showUndoToast(
+      { over: 'Removed from Up next', say: song?.title ?? 'A song' },
+      () => {
+        const live = latest.current
+        const moves = restoreMoves(live.queue, removal)
+        if (!moves) return
+        // Both go through the player's own queue edits, which read and write
+        // its queue synchronously, so the move sees the song just put back.
+        // A song put back is not one added: Up next keeps the name it had.
+        const source = live.source
+        live.playNext([removal.id])
+        live.setSource(source)
+        if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
+      },
+      { songs: song ? [song] : [], group: 'up-next-removed' },
+    )
   }, [])
 
   const clearRest = useCallback(() => {
-    const before = latest.current.clearRest()
-    const cleared = before.items.length - 1
-    if (cleared <= 0) return
+    const now = latest.current
+    const before = now.clearRest()
+    const count = before.items.length - 1
+    if (count <= 0) return
+    // The covers of the songs that were next, the first of them in front.
+    const next = before.items
+      .slice(before.index + 1, before.index + 4)
+      .reverse()
+      .flatMap(id => now.songs.find(song => song.id === id) ?? [])
     // Put back through the player as it is at the press, as a single removal is.
-    showUndoToast(`Cleared ${plural(cleared, 'song', 'songs')}`, () =>
-      latest.current.restoreRest(before),
+    const id = showUndoToast(
+      { over: 'Cleared from Up next', say: plural(count, 'song', 'songs') },
+      () => {
+        cleared.current = null
+        latest.current.restoreRest(before)
+      },
+      { songs: next },
     )
+    cleared.current = { id, before }
   }, [])
 
   // Up next is one of the lists that shows a song's tags (`S3`); a chip opens the tag.

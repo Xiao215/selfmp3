@@ -26,14 +26,14 @@ storage — no code runs there — so every rule about how changes combine lives
 
 | Piece | Where | Cost |
 |---|---|---|
-| Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB, no card. $0.005/GB-month past that |
+| Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB. $6.95/TB-month past that |
 | Signing in, and the bucket's key | The doorman, a [Cloudflare Worker](https://workers.cloudflare.com/) (`apps/doorman`) | Free |
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
 | Fetching YouTube links (yt-dlp), Stats, the smart features | The server, one that works for anyone signed in ([features/shared-server.md](features/shared-server.md)), on a computer at home | The computer's electricity |
 
-**Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. It
-needs no card for the free tier. Uploads are free API calls; downloads, reads of a file's
-headers and listings are counted, with 2,500 of each free per day. Downloads are free up to
+**Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. Its
+first 10 GB are free, and since 1 May 2026 it charges nothing for API calls (uploads, reads,
+listings) — though the daily caps below still apply. Downloads are free up to
 three times what you store each month — 30 GB for a full 10 GB library, which is a great deal
 more listening than one person does. And it is not tied to your Google account, so nothing that
 happens to the bucket can touch your email.
@@ -56,6 +56,16 @@ Account › Storage (with Open Backblaze), and the sidebar under the library's n
 like a hundred other things — songs skipped one after another, letter tiles for covers, a song
 remembered for the session as having no words — and each of those asked the bucket again.
 
+**A busy bucket.** Backblaze answers a burst of requests with 503 SlowDown (or a 429): nothing is
+wrong with what was asked for, only the moment. The doorman passes it on as `bucket_busy`
+(packages/shared `classifyBucketRefusal`'s `busy`), and the player says "Storage is busy, trying
+again" and asks for the same song again after 2, 4, 8, 15 and then every 30 seconds, for about
+four minutes, before it stops and waits for Play (`recoverPlayback`'s `retry-later`). It never
+skips: the next song would get the same answer, and skipping it as a broken song walked three good
+songs in a second (bug bash R3-M2). A song already on the device plays as usual; Next lands on it.
+The server's upload pass stops at the first busy answer, as it does for a cap, rather than trying
+every song against it.
+
 What a song costs on its way up is kept small on purpose: the server sends each of its files
 without asking the bucket about it first, and so does the doorman (Backblaze takes
 `If-None-Match` on an upload and ignores it, and the server knows from its listing what the
@@ -75,10 +85,10 @@ log file is written or deleted through it, and `GET /v1/changes` reads it withou
 bucket. A device's look asks the counter first and lists `log/` and `snapshots/` only when it
 has moved — or when its last listing is half an hour old, since a server holding the bucket's
 own key writes past the doorman — and each write is answered with the counter before and
-after it (`Selfmp3-Changes`), so a device's own uploads never make it list. A look is due a
-minute after the last when the counter answers, and five minutes after it when the doorman
-keeps none, and when it last looked is kept with the device's copy, so a new tab or a relaunch
-does not look again at once. The routes asked every few seconds — where the server is, which
+after it (`Selfmp3-Changes`), so a device's own uploads never make it list. A look is due
+twenty seconds after the last when the counter answers, and five minutes after it when the
+doorman keeps none, and asked for whenever the app comes back to the front; when it last looked
+is kept with the device's copy, so a new tab or a relaunch does not look again at once. The routes asked every few seconds — where the server is, which
 uid is which song — answer from the device's copy and never start a look. The server's own
 ten-minute poll asks the counter the same way. Measured before (2026-10-07): an open tab
 listed both folders every eighty seconds, about 2,160 of the day's 2,500 listings on its own.
@@ -147,7 +157,10 @@ stream through it without it holding them.
    asks the shell's own `app://selfmp3/_stream/<key>`, which the main process answers as
    the worker does: one download of the whole song per play, every range read from it as it
    arrives, and the last ten kept in a `played` folder (`apps/desktop/src/main/stream.ts`).
-   A phone's player asks the doorman for each range itself.
+   A phone, iOS or Android, does the same through a loopback server of the app's own
+   (`apps/app/modules/song-stream`): its player is pointed at `127.0.0.1`, the first range
+   starts one download of the whole song into the played-songs cache, and the copy is kept,
+   under the phone's budget, the moment it is all here (`apps/app/src/ports/recentCopies.ts`).
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
    bucket until a device that can do it picks it up. The server is special only because it can
@@ -165,10 +178,11 @@ selfmp3/
   format.json                        which version of this layout the bucket uses
   audio/<sha256>.<ext>               the music. Never changes.
   covers/<sha256>.<ext>              cover art, and each artist's picture (banner and portrait). Never changes.
-  lyrics/<sha256>.lrc | .txt         lyrics, timed (.lrc) or plain (.txt). Never changes.
-  lyrics/<sha256>.json               the romanized lines (romaji, pinyin) of one lyric text. Never changes.
+  covers/<sha256>.pack               those pictures again, a few megabytes of them end to end. Never changes.
+  lyrics/<sha256>.words              one song's words and their romanized lines (romaji, pinyin), as JSON. Never changes.
   lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
   lyrics/<sha256>.vec                every song's sound vector, as the server heard it. Never changes.
+  lyrics/<sha256>.map                where every heard song sits on the sound map. Never changes.
   lyrics/<sha256>.plays              one month of plays: which song, when, for how long. Never changes.
   snapshots/<time>-<device>.json     the whole library at one moment
   log/<device>/<seq>.json            changes, one folder per device
@@ -197,6 +211,23 @@ every artist of the library (`services/artistBackdrops.ts`, `fill`, after each p
 next pass puts it up; the snapshot's `artists` names each pair by `artistKey` of the artist's
 name, and a device keeps them the way it keeps a cover.
 
+**Packs of covers** are the covers and artists' pictures again, about 8 MB of them to a file,
+end to end (`apps/server/src/services/coverPacks.ts`). Every read is one of the bucket's daily
+allowance, and a device with no covers yet used to read every picture alone: half the day's
+reads for a library of 1,500 songs, again for every new device and every friend let in. A
+fresh device now reads the packs instead, a read per 8 MB, and only what no pack holds alone
+(`apps/app/src/offline/coverPacks.ts`); one missing only a few pictures of a pack fetches
+those alone rather than the whole file. Each picture is still in the bucket on its own, so a
+single cover, a room's lent cover or a share link's picture is fetched as before. The
+snapshot's `coverPacks` lists each pack's pictures in order with their sizes, which is where
+each one starts. A pack is full at 8 MB and kept while half of it is still the library's;
+the covers in no full pack — new ones, and those of a pack mostly let go — are packed again
+in key order, so an unchanged tail comes out the same file and is not sent twice. Devices
+keep what they unpack under each picture's own hash, so packing again costs a device that
+has the pictures nothing, and a slice whose bytes are not the hash its name says is never
+kept. A server packs only what it has on its disk; one that took its library on from the
+bucket keeps the bucket's packs as they are.
+
 **Sound vectors** are how each song sounds to the server's listening model (docs/features/
 audio-intelligence.md), all of them in one file (`apps/server/src/sound/pack.ts`), keyed by each
 song's audio key. One file rather than one a song: a server starting again from the bucket
@@ -205,6 +236,15 @@ when they change — at most once an hour while songs are still being heard — 
 snapshot's `sound` names it; the one it replaces goes in the trash. Before it sends any, a
 server reads back the file the bucket's snapshot names, so a new server hears only the songs
 nobody has heard, and a file it could not read is never replaced by one without its vectors.
+
+**The sound map** is where every heard song sits when the vectors are folded down to two
+numbers (docs/features/sound-map.md), one small JSON file (about 120 KB for 1,500 songs) beside
+the vectors, keyed by each song's audio key like them. The server folds it again only when
+the vectors change, at most once an hour while songs are still being heard, starting from the
+last map so it holds still; the snapshot's `soundMap` names it, the one it replaces goes in the
+trash, and a device reads it once a change and keeps it by its hash, as it keeps a song's
+words. A server starting from the bucket with no map of its own reads it back once and starts
+from it.
 
 **Plays** are a file a month (`apps/server/src/services/playsArchive.ts`): each play as its
 song's uid, when it happened, how long it was heard, whether it ran to the end, and an id
@@ -273,8 +313,7 @@ that account, which it is given when one of the account's devices joins it — b
 first time the device looks for a server and the bucket names none
 ([features/shared-server.md](features/shared-server.md)). Each account it works for is a
 workspace of its own, with its own database and inbox, and everything below happens once per
-workspace. The server's own page (port 4600, opened on the server itself) lists the
-workspaces, each with how its publishing is going and **Publish now**. Everything that
+workspace. Everything that
 changes a library's way into its bucket — signing in, connecting a bucket by its key when
 there is no doorman, disconnecting, publishing now — is taken from that machine alone. A
 library's token is on every one of its account's devices, and none of them should be able to
@@ -285,10 +324,14 @@ nothing (an SSH tunnel to port 4600 is the way in on a server with no screen).
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and
 uploaded under its hash — skipped if the bucket already has that file — the cover, and the
-lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. Beside Chinese or
-Japanese lyrics go their romanized lines, a JSON list with one line per line of the words, made
-here (romaji needs a dictionary only the server has) and named in the snapshot's lyrics entry, so a
-device signed in to the cloud shows them exactly as a device talking to the server does.
+lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. The words go up
+as one JSON file, `{ text, romanized }` (`CloudWordsSchema`): the text as the sidecar holds it, and
+for Chinese or Japanese words their romanized lines, one per line of the text, made here (romaji
+needs a dictionary only the server has). One file, so a device reads a song's words with one call
+to the bucket rather than two, and shows them exactly as a device talking to the server does.
+Words sent before this were a `.lrc`/`.txt` file with the romanized lines in a `.json` beside it;
+migration 45 dropped the second from `cloud_songs`, and a one-off step of the pass, since removed,
+put each such song's words up again as one file.
 
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
 so a rescan, a restart or a tag edit does not re-hash two thousand files. That bookkeeping is
@@ -326,7 +369,9 @@ default outside it), and a file dropped there by hand is an import too (`service
 at boot). The pass uploads what it finds. Once a song is wholly in the bucket — audio, cover,
 words, motion curve — and analysis is done with it, and the snapshot naming it is up, **the
 pass deletes the copy here** (`#letGo` in `services/cloudSync.ts`) — the audio, the words
-beside it, and the folder. From then on the server reads a song's words from the bucket like
+beside it, and the folder. Not while something may still be writing it: a copy is sent once it
+has been still for a minute, and deleted once it has been still for ten minutes and is the
+size and time it was when it was read and sent. From then on the server reads a song's words from the bucket like
 every other device (`fetchLyrics`; the lyrics routes, the search index and the romanization
 pass all go through `LyricsService.stored`), and the pass knows the bucket's words are current
 because nothing here can have changed them. A folder with nothing new in it is a folder with
@@ -383,7 +428,7 @@ anything**, and takes on every song in it that it does not already have
 | | |
 |---|---|
 | **When** | Once per bucket, on the first pass after connecting, signing in, or starting up — and again when you press *Publish now*, which starts over. Nothing is published until it has finished, an import's own publish included. |
-| **What it makes** | A whole song row per song: uid, title, artist, album, year, track, duration, loved, play count, when it was added and last played, where it came from, its tags, its place in each manual playlist, its analysed features, its cover's colour, and the per-field stamps that decide how a later edit combines with it. Tags and playlists it does not have, likewise. The bucket's file keys go into `cloud_songs`, so publishing re-emits the song it was handed instead of uploading files that are already up there. |
+| **What it makes** | A whole song row per song: uid, title, artist, album, year, track, duration, loved, resting until, play count, when it was added and last played, where it came from, its tags, its place in each manual playlist, its analysed features, its cover's colour, and the per-field stamps that decide how a later edit combines with it. Tags and playlists it does not have, likewise. The bucket's file keys go into `cloud_songs`, so publishing re-emits the song it was handed instead of uploading files that are already up there. |
 | **Matching** | By uid first, and then by the audio itself. A song already here under the same uid is left exactly as it is, field for field — a snapshot is not a change with a stamp, so it must never win an edit; anything genuinely later still arrives through the other device's log. A song here under a *different* uid whose audio is the same file — the bucket names audio by the hash of its bytes, so the same key is the same song — is left alone too, and the other uid is kept as an alias (`song_aliases`), so a change or a playlist that names it still finds the song. Ten of the bucket's fifty-two here ends at fifty-two, not sixty-two, whatever the two sides call the ten, and a second run adopts nothing. |
 | **A song the bucket has no audio for** | Gets its row — its tags, its plays and its place in a playlist are all still true — but nothing in `cloud_songs`, so it is left out of what this server publishes. No device is ever pointed at a file it cannot download. |
 | **When it cannot read the bucket** | It stops, and publishes nothing. "I could not read the library" must never come out the far side as "there is no library": that is the reading that publishes over it. |
@@ -418,8 +463,9 @@ business.
 The app's web export builds for GitHub Pages (under `/selfmp3/`, which the Pages workflow
 passes as `EXPO_PUBLIC_BASE`), with no server behind
 it. Whatever is in `apps/app/public/` is published beside it as it is. `privacy.html` is the
-privacy policy Google's OAuth consent screen points at, written at export from
-`packages/shared/src/privacy.ts` (the one place its words live); `index.html` is the page's template (Expo's own, plus a link to that policy
+privacy policy Google's OAuth consent screen points at, and `bucket.html` the guide to making a
+bucket, both written at export (`apps/app/scripts/pages.mjs`) from
+`packages/shared/src/privacy.ts` and `bucketGuide.ts` (the one place their words live); `index.html` is the page's template (Expo's own, plus a link to that policy
 for the crawler that checks the home page for one); and a Search Console verification file
 dropped there is served at the site's root too. It signs in with Google, connects the account's bucket if no device has yet, and shows the
 library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the
@@ -429,7 +475,8 @@ from that one download as it arrives, and the last ten played kept by the worker
 request to the bucket is one read against the day's count, so a
 song loaded to sit paused — the queue restored when the tab opens, Next pressed while paused —
 fetches nothing until it is played (`ports/engine.web.ts`, `#startWhenPlayed`). What a tab does
-keep is small and named by hash: covers, and the words and motion curve of every song played,
+keep is small and named by hash: covers — filled from the packs of covers into the worker's
+cache, where it looks for a song's cover before the bucket — and the words and motion curve of every song played,
 in Cache Storage, which a new build leaves alone. In an installed app — the desktop app, the phone — a song listened to all
 the way through is kept, up to a budget, oldest let go first, unless that device is
 downloading everything anyway; a song downloaded by hand is kept for good.
@@ -450,13 +497,15 @@ changes moves its own clock past it.
 | Data | Rule |
 |---|---|
 | Audio, covers, lyrics | Files never change, so there is nothing to combine. A song points at a file; the latest pointer wins. |
-| Song fields, loved, tag names and colours, playlist names and rules | The change with the latest stamp wins, per field. Editing the title on the phone and the artist on the server keeps both. |
+| Song fields, loved, resting, tag names and colours, playlist names and rules | The change with the latest stamp wins, per field. Editing the title on the phone and the artist on the server keeps both. |
 | A tag on a song, a song in a playlist | The latest of "on" and "off" wins, so a tag taken off after it was put on stays off. |
 | Playlist order | The latest order wins; songs it does not mention keep their place after the ones it does, so reordering an old view never drops a song another device added. |
 | Plays | Only ever added. The same one twice counts once. |
 | A song folded into another copy of itself (`songMerged`) | Its tags, love and playlist places go to the song kept, each unless the kept song's own was changed later, and never twice in one playlist; an empty name or number, the cover and the words are filled in from it, never written over; the plays add up. Then it is gone as a removal is, and a late play, tag or playlist place naming it lands on the song kept (the snapshot's `merged`); a late edit or removal of it is about the copy, and is ignored. The server moves its play history to the song kept as well (`services/songMerge.ts`), so Stats and the plays files count them there. |
+| The names an artist also goes by (`artistNamed`) | The latest list wins, as a field does. An artist has no uid, so the list is kept under `artistKey` of the artist's name. The server fills in names from MusicBrainz for an artist nobody has named, stamped as the earliest change there could be, so whatever a person sets on any device wins. A list cleared is kept cleared. Those names join one artist under two spellings into one (shared `artistJoins.ts`); names still as MusicBrainz found them, told apart by that earliest stamp, only ask first. |
 | New tags and playlists | The device makes the `uid`, so a playlist can be made offline and have songs added to it before any other device has heard of it. A tag made twice under one name on two devices becomes one tag, and the second uid still finds it. |
-| Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist. A removed song's files are deleted from the bucket by the next pass after the snapshot without it, unless another song still names them, and every device deletes the copy it kept. |
+| A tag whose last songs were removed (`tagEmptied`) | It goes with them, unless a song has it by the time the change is applied — another device may be filling it that moment. Gone this way, it is kept aside (the snapshot's `emptiedTags`, the server's `emptied_tags`), and a song tagged with it brings it back, whichever change arrives first; a tag made under its name since takes it in, as a tag made twice does. Only a tag someone deletes (`tagRemoved`) is gone for good. |
+| Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist, and the server notes each one it deletes (`removed_playlists`) until the snapshot without it is up, so reading the bucket's older snapshot again — a restart, *Publish now* — does not take it back on. A removed song's files are deleted from the bucket by the next pass after the snapshot without it, unless another song still names them, and every device deletes the copy it kept. |
 
 Because the latest stamp wins whenever a change is applied, the same changes give every device
 the same library, in whatever order they arrive. Snapshots carry the stamp of anything a change
@@ -559,8 +608,8 @@ edits and plays, and stays small. This is worth deciding again with that.
 in the bucket with no song naming them, and a server that lost its database leaves whatever
 it had not published. The pass that lists the bucket — the first after the server starts, and
 *Publish now* — leaves it to the first pass after it that reads every log (`#trashOrphans`),
-which puts in the trash each file in `audio/` and `lyrics/` (words, romanized lines, motion
-curves, sound vectors, months of plays) that:
+which puts in the trash each file in `audio/` and `lyrics/` (words, motion curves, sound
+vectors, months of plays) that:
 
 - no song, artist, sound vectors or month of plays here names, and nothing put in the trash
   already (`unnamedFiles` in `repositories/cloud.ts`);
@@ -634,9 +683,7 @@ run. So the snapshot names the server as well (`id`), `/api/health` answers with
 `serverId` without a token, and a device keeps only an address whose answer matches
 (`answersAs` in `packages/client/src/connection/reach.ts`). The token goes nowhere until one
 has. Before this (2026-10-14) the real app on the Mac took the development server on 4600,
-which answered first, and every request after was refused. The `id` is optional in the
-schema: a bucket has to stay readable whatever wrote its newest snapshot, and a snapshot that
-names no server is held only to an answer, as before.
+which answered first, and every request after was refused.
 
 **The name has to outlive the data folder** (`serverIdOf` in `apps/server/src/shared.ts`). A
 server with a public address (`SELFMP3_PUBLIC_URL`) is named by that address. Any other —
@@ -776,8 +823,12 @@ libraries that deliberately number different songs the same.
 
 ### 1. The bucket
 
+Each account makes its own. For someone who has never seen a bucket, the steps are
+**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)**, published beside the web app from
+`packages/shared/src/bucketGuide.ts`, which the app's *Don't have a bucket yet?* on Where it
+lives reads too: one place for the words. What they come to, and why:
+
 1. Sign up for **B2 Cloud Storage** at [backblaze.com](https://www.backblaze.com/sign-up/cloud-storage).
-   No card is needed.
 2. **Create a bucket.** Private. Any name — bucket names are global across B2, so something
    like `selfmp3-<yourname>`. Default encryption on is fine; leave Object Lock off.
 3. **Lifecycle settings → "Keep only the last version of the file".** B2 keeps every version
@@ -786,10 +837,12 @@ libraries that deliberately number different songs the same.
    for one bucket cannot change this setting (Backblaze allows `writeBuckets` only on a key for
    the whole account), so the doorman reads it when the key is pasted and refuses a bucket
    without it, saying what to set. A rule that keeps old versions some days longer passes too.
-4. **Application Keys → Add a New Application Key.** Allow access to this bucket only, *Read
-   and Write*. Copy the `keyID` and `applicationKey` — the second is shown only once.
-5. The bucket's page shows its **Endpoint**, like `s3.us-west-004.backblazeb2.com`. The
-   region (`us-west-004`) is worked out from it.
+4. **Application Keys → Add a New Application Key.** *Allow Access to Bucket(s)*: this bucket,
+   not *All* (the doorman refuses a key for every bucket, a master key, and a key limited to a
+   file name prefix). *Read and Write*. Copy the `keyID` and `applicationKey` — the second is
+   shown only once. The doorman works out the bucket, its endpoint and region from the key.
+5. **Before a big first import, Caps & Alerts → Edit Caps.** A first import of hundreds of
+   songs can reach a day's cap ("Caps", above), and the library then waits for midnight GMT.
 
 ### 2. The doorman
 
@@ -845,13 +898,16 @@ given a grant to, with *Remove* on each.
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
 | Plays and sound vectors in the bucket | `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
+| The sound map in the bucket | `apps/server/src/sound/soundMap.ts`, `packages/shared/src/soundMap.ts` |
+| Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `#uploadCoverPacks` in `apps/server/src/services/cloudSync.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |
 | Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
 | Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |
 | Tidying the log, old snapshots, and audio and words nothing names | `apps/server/src/services/cloudSync.ts` (`#tidyLogs`, `#trashOrphans`), `unnamedFiles` and `unplacedSongSizes` in `apps/server/src/repositories/cloud.ts`, `othersSnapshotsToPrune` and `snapshotFileKeys` in `packages/shared/src/cloud.ts` |
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (the `uid` columns, `sync_stamps`, `import_requests`) |
-| The server's cloud API and its own page | `apps/server/src/routes/cloud.ts`, `apps/server/public/admin.js` |
+| The server's cloud API | `apps/server/src/routes/cloud.ts` |
+| The owner's admin page | `apps/server/src/admin/`, `apps/server/admin/`, [features/admin.md](features/admin.md) |
 | A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/welcome/WelcomeScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
 | Finding the server from a cloud library, and what each screen says when it is away | `packages/client/src/connection/reach.ts`; `apps/app/src/connection/useServerDirect.ts`, `ServerAway.tsx`; `apps/server/src/services/addresses.ts` |

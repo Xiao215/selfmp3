@@ -8,17 +8,19 @@ import {
   MOTION_VERSION,
   PlayEventSchema,
   SONG_FIELDS,
-  SetSongTagsSchema,
+  ChangeSongTagsSchema,
   SimilarQuerySchema,
   similarSongs,
   SongPatchSchema,
   tagFlips,
+  tagsAfter,
   type Affected,
   type BulkDeleteResult,
   type MergeSongsResult,
   type LyricsResponse,
   type PlayRecorded,
   type SimilarSongs,
+  type SongHistory,
   type Song,
   type SongFields,
   API_ERROR,
@@ -28,7 +30,7 @@ import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
 import { transact } from '../db/index.js'
-import { sqliteTime } from '../repositories/stats.js'
+import { heardMs, impossiblePlay, sqliteTime } from '../repositories/stats.js'
 import { romanizedLines } from '../services/romanizedLines.js'
 
 /** The fields a patch sets, in `SONG_FIELDS` order: what an edit to it is stamped with. */
@@ -94,8 +96,8 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/bulk/delete',
     route({ body: BulkDeleteSongsSchema }, async ({ body }): Promise<BulkDeleteResult> => {
-      const { removed, failed } = await container.songRemoval.remove(body.songIds)
-      return { removed: removed.length, failed }
+      const { removed, alreadyGone, failed } = await container.songRemoval.remove(body.songIds)
+      return { removed: removed.length + alreadyGone.length, failed }
     }),
   )
 
@@ -109,11 +111,16 @@ export function songRoutes(container: Container): Router {
     '/songs/merge',
     route({ body: MergeSongsSchema }, async ({ body }): Promise<MergeSongsResult> => {
       const hlc = container.clock.tick()
-      const merged = container.db.transaction(() =>
-        [...new Set(body.songIds)].filter(id => container.songMerge.merge(id, body.keep, hlc)),
+      // The copies' rows go in the same transaction as the fold: left alive
+      // while their files are tidied, a second merge of them (a double tap, or
+      // the other direction) would fold them again, or delete the kept song.
+      const taken = container.db.transaction(() =>
+        container.songRemoval.take(
+          [...new Set(body.songIds)].filter(id => container.songMerge.merge(id, body.keep, hlc)),
+        ),
       )()
-      if (merged.length > 0) await container.songRemoval.remove(merged)
-      return { merged: merged.length }
+      await container.songRemoval.settle(taken)
+      return { merged: taken.songs.length }
     }),
   )
 
@@ -167,13 +174,13 @@ export function songRoutes(container: Container): Router {
     }),
   )
 
-  router.put(
+  router.patch(
     '/songs/:id/tags',
-    route({ params: ParamsWithId, body: SetSongTagsSchema }, ({ params, body }) => {
+    route({ params: ParamsWithId, body: ChangeSongTagsSchema }, ({ params, body }) => {
       const song = songOrThrow(params.id)
       // Silently drop ids for tags that no longer exist rather than 400ing —
       // a phone working from a stale library should not hit an error wall.
-      const valid = container.tags.exists(body.tagIds)
+      const valid = container.tags.exists(tagsAfter(song.tagIds, body.add, body.remove))
       transact(container.db, () => container.tags.setSongTags(params.id, valid))
       // Stamped: the tags that went on, and the ones that came off.
       const { on, off } = tagFlips(song.tagIds, valid)
@@ -200,27 +207,51 @@ export function songRoutes(container: Container): Router {
    * The client decides when a play "counts" — it is the only party that knows
    * about seeking, pausing and tab switches — and the server records both the
    * event (for history and stats) and the running counter (for smart playlists
-   * and sorting).
+   * and sorting). It holds what it is sent to the same rule, though: a play
+   * nobody could have made is refused (`impossiblePlay`), and one across the
+   * same stretch of time as a play of the song already here is that play.
    */
   router.post(
     '/songs/:id/played',
     route({ params: ParamsWithId, body: PlayEventSchema }, ({ params, body }): PlayRecorded => {
-      songOrThrow(params.id)
+      const song = songOrThrow(params.id)
+      const impossible = impossiblePlay(body, song.duration)
+      if (impossible) throw HttpError.unprocessable(impossible)
       // A play sent late carries when it happened; one sent twice carries the
       // same client id both times, and the second changes nothing.
       const playedAt = sqliteTime(body.playedAt)
+      const heard = heardMs(body.msPlayed, song.duration)
+      const clientId = body.clientId ?? null
       const recorded = transact(container.db, () => {
+        if (container.stats.overlaps(params.id, heard, playedAt, clientId)) return false
         const inserted = container.stats.record(
           params.id,
-          body.msPlayed,
+          heard,
           body.completed,
           playedAt,
-          body.clientId ?? null,
+          clientId,
         )
         if (inserted) container.songs.recordPlay(params.id, playedAt)
         return inserted
       })
       return { ok: true, duplicate: !recorded }
+    }),
+  )
+
+  /**
+   * One song's history with you, for its page: every play of it this server
+   * keeps, and who handed it over. Only a server has every play; a device's
+   * copy knows the count and the last.
+   */
+  router.get(
+    '/songs/:id/history',
+    route({ params: ParamsWithId }, ({ params }): SongHistory => {
+      songOrThrow(params.id)
+      return {
+        songId: params.id,
+        cameWith: container.songs.cameWith(params.id),
+        ...container.stats.songPlays(params.id),
+      }
     }),
   )
 

@@ -9,7 +9,6 @@ import {
   CreateTagSchema,
   DOORMAN_ERROR,
   DOORMAN_PATHS,
-  DoormanAccessUpdateSchema,
   DoormanError,
   DoormanHealthSchema,
   GemsQuerySchema,
@@ -17,8 +16,9 @@ import {
   PlayEventSchema,
   RemoveFromPlaylistSchema,
   RenameTagSchema,
+  SetArtistNamesSchema,
   ReorderPlaylistSchema,
-  SetSongTagsSchema,
+  ChangeSongTagsSchema,
   SimilarQuerySchema,
   SongPatchSchema,
   UpdatePlaylistSchema,
@@ -119,20 +119,15 @@ function parseInput<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output
  */
 export const SERVER_ONLY_ROUTES: readonly string[] = [
   'POST /api/library/scan',
-  'GET /api/library/analyze',
-  'POST /api/library/analyze',
-  'GET /api/library/fix-covers',
-  'POST /api/library/fix-covers',
-  'POST /api/library/fix-covers/cancel',
   'GET /api/lyrics/search',
   'GET /api/songs/:id/lookup',
+  'GET /api/songs/:id/history',
   'POST /api/songs/:id/apply-metadata',
   'DELETE /api/songs/:id/cover',
   'GET /api/ai',
-  'POST /api/ai/check',
   'POST /api/ai/describe',
-  'POST /api/ai/refine',
   'POST /api/ai/ask',
+  'POST /api/usage',
   'GET /api/ai/ask/progress',
   'POST /api/ai/ask/stop',
   'GET /api/ai/tags/untagged',
@@ -164,7 +159,7 @@ export const SERVER_ONLY_ROUTES: readonly string[] = [
   'GET /api/cloud',
   'GET /api/stats',
   'GET /api/stats/wrapped',
-  'GET /api/stats/history',
+  'GET /api/stats/usual',
   'GET /api/artists/backdrop',
   'GET /api/settings',
   'PATCH /api/settings',
@@ -202,7 +197,9 @@ export function createCloudRoutes(
     cloudLyrics,
     cloudManifest,
     cloudMotion,
+    cloudSoundMap,
     cloudPlaylistSongs,
+    cloudAllPlaylistSongs,
     loadCloudLibrary,
     markPlaylistPlayed,
     peekCloudLibrary,
@@ -224,11 +221,28 @@ export function createCloudRoutes(
     ],
     [
       'GET',
+      '/api/playlists/songs',
+      async ({ session }) => {
+        const view = await loadCloudLibrary(session)
+        const all = await cloudAllPlaylistSongs()
+        return {
+          playlists: view.library.playlists.map(playlist => ({
+            playlistId: playlist.id,
+            songIds: [...(all[playlist.id] ?? [])],
+          })),
+        }
+      },
+    ],
+    [
+      'GET',
       '/api/playlists/:id/songs',
-      async ({ params }) => ({
-        playlistId: id(params),
-        songIds: await cloudPlaylistSongs(id(params)),
-      }),
+      async ({ session, params }) => {
+        // Opened first: a device that has never held the library has no
+        // playlists until it does, and answered every one empty (a link to a
+        // playlist opened in a new browser said "Nothing here yet").
+        await loadCloudLibrary(session)
+        return { playlistId: id(params), songIds: await cloudPlaylistSongs(id(params)) }
+      },
     ],
     [
       'GET',
@@ -273,6 +287,7 @@ export function createCloudRoutes(
         return { source: 'cloud', kind: found.kind, text: found.text, romanized: found.romanized }
       },
     ],
+    ['GET', '/api/sound-map', ({ session }) => cloudSoundMap(session)],
     [
       'GET',
       '/api/songs/:id/motion',
@@ -341,12 +356,12 @@ export function createCloudRoutes(
       },
     ],
     [
-      'PUT',
+      'PATCH',
       '/api/songs/:id/tags',
       ({ session, params, body }) => {
-        const { tagIds } = parseInput(SetSongTagsSchema, body)
+        const { add, remove } = parseInput(ChangeSongTagsSchema, body)
         return recordChanges(session, ctx => ({
-          changes: edits.setSongTags(ctx, id(params), tagIds),
+          changes: edits.changeSongTags(ctx, id(params), add, remove),
           answer: view => songOf(view, id(params)),
         }))
       },
@@ -376,14 +391,12 @@ export function createCloudRoutes(
       ({ session, body }) => {
         const input = parseInput(BulkDeleteSongsSchema, body)
         return recordChanges(session, ctx => {
-          const asked = [...new Set(input.songIds)]
-          const removed = asked.filter(songId => ctx.view.uids.songs.has(songId)).length
-          const failed = asked
-            .filter(songId => !ctx.view.uids.songs.has(songId))
-            .map(songId => ({ songId, reason: `no song with id ${songId}`, removed: false }))
+          // A song not here is gone already, which is what was asked (the
+          // server's `songRemoval.remove`).
+          const removed = new Set(input.songIds).size
           return {
             changes: edits.removeSongs(ctx, input.songIds),
-            answer: () => ({ removed, failed }),
+            answer: () => ({ removed, failed: [] }),
           }
         })
       },
@@ -397,6 +410,20 @@ export function createCloudRoutes(
         return recordChanges(session, ctx => {
           const changes = edits.mergeSongs(ctx, input.keep, input.songIds)
           return { changes, answer: (): MergeSongsResult => ({ merged: changes.length }) }
+        })
+      },
+    ],
+
+    // --- Artists ---------------------------------------------------------------------
+
+    [
+      'PUT',
+      '/api/artists/names',
+      ({ session, body }) => {
+        const input = parseInput(SetArtistNamesSchema, body)
+        return recordChanges(session, ctx => {
+          const { changes, named } = edits.nameArtist(ctx, input.artist, input.names)
+          return { changes, answer: () => named }
         })
       },
     ],
@@ -614,14 +641,6 @@ export function createCloudRoutes(
       'POST',
       '/api/cloud/server/join',
       async ({ session }) => ({ server: await shared.join(session) }),
-    ],
-    // Who may sign in, for the doorman's owner (apps/doorman/src/access.ts).
-    ['GET', '/api/cloud/access', ({ session }) => shared.access(session)],
-    [
-      'PUT',
-      '/api/cloud/access',
-      ({ session, body }) =>
-        shared.updateAccess(session, parseInput(DoormanAccessUpdateSchema, body)),
     ],
     // The servers this account has let into its bucket, from the doorman.
     ['GET', '/api/cloud/grants', ({ session }) => shared.grants(session)],

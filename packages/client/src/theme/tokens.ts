@@ -189,7 +189,7 @@ const DARK = {
 
   textPrimary: NATIVE_TEXT_PRIMARY,
   textSecondary: NATIVE_TEXT_SECONDARY,
-  textMuted: '#7c8089',
+  textMuted: '#868a93',
 
   danger: '#f0555b',
   warning: '#ebaa2d',
@@ -249,8 +249,29 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
      * page's own words, still legible, once it is not.
      */
     glassSolid: '#1f222c',
+    /**
+     * A message floating over the page (`ToastHost`): a step lighter than
+     * anything it can sit on, the Up next sheet included, which `surface2`
+     * was not — it read as part of the list under it.
+     */
+    toast: '#262b3a',
+    /**
+     * A good, warning or failed message's ground: the tone mixed into the
+     * dark itself, a step brighter than a wash over the grey card, which made
+     * amber read as brown (the notifications restyle, C).
+     */
+    toastGood: '#1c4430',
+    toastWarn: '#45380f',
+    toastError: '#4d1f28',
     /** The shadow under a card. Dark cards are told apart by tone, and cast none. */
     cardShadow: '#00000000',
+    /**
+     * A cover's own edge, a shade just inside it, and the soft drop under it:
+     * on Paper a pale cover vanished into the cream round it. In the dark the
+     * ground is darker than any cover, and they are drawn as nothing.
+     */
+    coverEdge: '#00000000',
+    coverDrop: '#00000000',
     /** The shadow under anything that floats: the bar, the mini player, a sheet. */
     floatShadow: '#00000073',
     /**
@@ -287,12 +308,14 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     surface1: '#ffffff',
     surface2: '#ebe5d9',
     surface3: '#e3dccd',
-    surfaceSelected: '#ffffff',
+    // A switch's empty track sits on white cards (Settings, Up next), so it
+    // takes the raised control's tone rather than vanishing into them.
+    surfaceSelected: '#e3dccd',
     textPrimary: '#1b1a17',
     // Muted ink reads at 4.5 : 1 or better on every Paper surface a small
     // label sits on; secondary stays a step darker so the two still differ.
     textSecondary: '#55514a',
-    textMuted: '#67625a',
+    textMuted: '#625d55',
     ...buildAccent(hue, 'light'),
     danger: DARK.danger,
     // The dark theme's amber is 1.5–2 : 1 on cream, and warning is mostly
@@ -305,7 +328,13 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     onPrimary: '#f6f2ea',
     glass: '#ffffffe6',
     glassSolid: '#ffffff',
+    toast: '#ffffff',
+    toastGood: '#dcefe3',
+    toastWarn: '#f5e6c4',
+    toastError: '#f6d9d8',
     cardShadow: '#1b1a170f',
+    coverEdge: '#1b1a171a',
+    coverDrop: '#1b1a1714',
     floatShadow: '#1b1a1724',
     coverShade: '#0a08108c',
     backdrop: backdropFor(hue),

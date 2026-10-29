@@ -1,6 +1,11 @@
-import { importFailure } from '@selfmp3/client/core'
 import { isPendingRequest, type ImportRequestView } from '@selfmp3/replica'
-import { sameLink, youtubeVideoId, youtubeWatchUrl, type ImportJob } from '@selfmp3/shared'
+import {
+  importFailure,
+  sameLink,
+  youtubeVideoId,
+  youtubeWatchUrl,
+  type ImportJob,
+} from '@selfmp3/shared'
 import type { Handlers, PageRequest, PillState } from '../bridge.js'
 import type { Route } from './connection.js'
 
@@ -9,8 +14,8 @@ import type { Route } from './connection.js'
  *
  * The narrow half of the worker: a content script hands over a link and gets
  * back what to draw. It never learns the server's address, its token, your tags
- * or your playlists — an import from the pill takes your defaults, as the
- * right-click item does.
+ * or your playlists — an import from the pill takes the last import's tags,
+ * with no questions.
  */
 
 /** A state with nothing else to say: no percentage, no job, no reason. */
@@ -101,8 +106,8 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
     }
 
     /*
-     * pillImport: your defaults, no questions — the server adds the default
-     * tags itself, so nothing about your library crosses into the page.
+     * pillImport: no questions, and nothing about your library crosses into
+     * the page.
      *
      * Through the bucket there is no reading the link first, because only the
      * server can read it: the link goes in as it is and the server works out

@@ -8,7 +8,7 @@
 # the two must answer the same, and config.test.ts pins the TypeScript side.
 # Change one, change the other.
 #
-# Sets LIBRARY_DIR, DATA_DIR, PORT, SERVICE_LABEL, SERVICE_LOG and
+# Sets LIBRARY_DIR, DATA_DIR, PORT, ADMIN_PORT, SERVICE_LABEL, SERVICE_LOG and
 # SERVICE_ERROR_LOG.
 
 # A profile is a whole separate installation: its own music, its own database,
@@ -41,6 +41,11 @@ unset _default_library _default_data _profile _suffix
 # The server's port: SELFMP3_PORT, or the default the server itself picks
 # (DEFAULT_SERVER_PORT in packages/shared/src/origins.ts).
 PORT="${SELFMP3_PORT:-4600}"
+
+# The admin page's port, on 127.0.0.1 only: SELFMP3_ADMIN_PORT, or the server's
+# own default (DEFAULT_ADMIN_PORT in apps/server/src/config.ts). The public port
+# serves the API and no page, so this is the one address there is to open.
+ADMIN_PORT="${SELFMP3_ADMIN_PORT:-4610}"
 
 # The background service (scripts/install-service.sh) and where its output goes.
 SERVICE_LABEL="com.selfmp3.server"

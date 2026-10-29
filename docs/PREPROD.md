@@ -46,11 +46,13 @@ libraries. This is how a real library reached three rows a song on 2026-09-17.
 
 A test server is a throwaway one: an empty data folder, its own library folder, a folder
 standing in for the bucket, and a port of its own. `npm run dev` is exactly that (the `dev`
-profile with `SELFMP3_CLOUD_DIR=bucket`; [verify/README.md](../verify/README.md)). By hand:
+profile with `SELFMP3_CLOUD_DIR=bucket`; [verify/README.md](../verify/README.md)). By hand,
+with its admin page off, since every server opens one on `127.0.0.1:4610`:
 
 ```bash
-SELFMP3_PORT=4610 SELFMP3_DATA_DIR=/tmp/scratch/data SELFMP3_LIBRARY_DIR=/tmp/scratch/library \
-  SELFMP3_CLOUD_DIR=bucket npm run dev --workspace @selfmp3/server
+SELFMP3_PORT=4620 SELFMP3_ADMIN_PORT=0 SELFMP3_DATA_DIR=/tmp/scratch/data \
+  SELFMP3_LIBRARY_DIR=/tmp/scratch/library SELFMP3_CLOUD_DIR=bucket \
+  npm run dev --workspace @selfmp3/server
 ```
 
 If a test really needs a copy of a workspace's database, take the cloud session out of the
@@ -182,7 +184,8 @@ cli-bridge on the same computer:
 ssh pi 'systemctl --user is-active cli-bridge.service; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8787/v1/models'
 ```
 
-- [ ] `active` and 200; Settings → Smart features → Test says it answered.
+- [ ] `active` and 200, and an Ask from the app answers
+      ([INSTALL.md](INSTALL.md#smart-features-cli-bridge-beside-the-server)).
 
 **YouTube.** Imports fail in ways that look like bugs and are not. If one fails with
 "needs a signed-in account", compare the address families on the server before believing it:
@@ -289,8 +292,8 @@ Once per phone:
    Xcode has seen the phone**; afterwards it is at the very bottom of Settings → Privacy &
    Security. Turn it on; the phone restarts. `xcrun devicectl list devices` should then
    say `connected`.
-3. After the first install: Settings → General → VPN & Device Management → the developer
-   certificate → **Trust**. Until then the app installs and refuses to launch ("invalid
+3. After the first install from a free Apple ID: Settings → General → VPN & Device
+   Management → the developer certificate → **Trust**. A paid team's build skips this. Until then the app installs and refuses to launch ("invalid
    code signature … not been explicitly trusted").
 
 Every time:
@@ -305,7 +308,8 @@ The UDID is in `xcrun xctrace list devices`. The first build is 15–20 minutes,
 a few. It generates `apps/app/ios/`, which is ignored by git and by Prettier. The phone
 must be plugged in and unlocked at the install step, or it waits on *Connecting to…*
 for ever. A build signed with a free Apple ID stops launching after seven days; build it
-again.
+again. Signing with a friend's team instead is in
+[MOBILE.md](MOBILE.md#signing-with-a-friends-team).
 
 When iOS asks whether the app may **find devices on your local network, say no.** A user
 does not need it — the library is the bucket's and the server is reached at its public

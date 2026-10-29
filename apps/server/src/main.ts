@@ -1,5 +1,7 @@
 import { messageOf } from '@selfmp3/shared'
-import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
+import { APP_NAME, APP_VERSION, loadConfig, type Config } from './config.js'
+import { createAdminApp } from './admin/app.js'
+import { fullDiskProblem, keepRoomToStart } from './db/fullDisk.js'
 import { createHubApp } from './hub/app.js'
 import { Hub } from './hub/hub.js'
 import { speakHttp1 } from './http/outgoing.js'
@@ -19,7 +21,7 @@ function main(): void {
   speakHttp1()
   const config = loadConfig()
   const logger = createLogger(config.logLevel)
-  const hub = new Hub(config, logger)
+  const hub = openHub(config, logger)
 
   const app = createHubApp(hub)
   let shuttingDown = false
@@ -88,6 +90,25 @@ function main(): void {
     process.exit(1)
   })
 
+  /*
+   * The owner's admin page: this machine only, whatever SELFMP3_HOST says,
+   * and reached from elsewhere through `tailscale serve` (docs/features/admin.md).
+   * A port already taken costs the page, not the API: the server carries on.
+   */
+  const admin =
+    config.adminPort > 0
+      ? createAdminApp(hub).listen(config.adminPort, '127.0.0.1', () => {
+          const shown = config.adminUrl ?? `http://localhost:${config.adminPort}`
+          logger.info(`admin page on ${shown} (this machine only: SELFMP3_ADMIN_PORT)`)
+        })
+      : null
+  admin?.on('error', (error: NodeJS.ErrnoException) => {
+    logger.error(`the admin page could not listen on ${config.adminPort}`, {
+      message: error.message,
+      code: error.code,
+    })
+  })
+
   // Streaming a track over a slow phone connection can legitimately take a
   // while; the defaults would cut it off.
   server.keepAliveTimeout = 65_000
@@ -115,6 +136,8 @@ function main(): void {
     // closed in that callback. Stop first and what is left to wait for is
     // ordinary requests, which do finish.
     hub.stop()
+    admin?.close()
+    admin?.closeAllConnections()
 
     server.close(() => {
       hub.close()
@@ -145,6 +168,27 @@ function main(): void {
     logger.error('uncaught exception', { message: error.message, stack: error.stack })
     shutdown('uncaughtException', 1)
   })
+}
+
+/**
+ * Every library's database, opened, or the reason it could not be in words
+ * that say what to do: on a full disk SQLite's own is a bare "disk I/O error".
+ * On a full disk it opens them in the room kept aside for that, and says so.
+ */
+function openHub(config: Config, logger: Logger): Hub {
+  if (keepRoomToStart(config.dataDir)) {
+    logger.warn(
+      `the disk holding ${config.dataDir} is full: started in the room kept aside for that. ` +
+        'Free some space there, or edits and imports will soon fail again.',
+    )
+  }
+  try {
+    return new Hub(config, logger)
+  } catch (error) {
+    const full = fullDiskProblem(config.dataDir)
+    if (full) throw new Error(`${APP_NAME} could not start: ${full} (${messageOf(error)})`)
+    throw error
+  }
 }
 
 /**

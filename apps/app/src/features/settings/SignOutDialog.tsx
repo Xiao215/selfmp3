@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { deviceKind } from '../../ports/device'
 import { library as cloudLibrary } from '../../replica'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { devicePlace } from './settings.model'
 import { signOutWarning } from './signOut'
 import { useSignOut } from './useSignOut'
+import { thisPlace } from '../../ports/place'
 
 /**
  * "Sign out?", before this device signs out: what goes with it, and the
@@ -30,7 +29,7 @@ export function SignOutDialog({
   if (open !== shown) {
     setShown(open)
     if (open) {
-      setWarning(signOutWarning(cloudLibrary.pendingCloudChanges(), devicePlace(deviceKind())))
+      setWarning(signOutWarning(cloudLibrary.pendingCloudChanges(), thisPlace()))
     }
   }
   return (

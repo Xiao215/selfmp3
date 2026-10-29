@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pageOwnsScreen } from './pageChrome'
+import { pageHidesTabs, pageOwnsScreen } from './pageChrome'
 
 describe('pageOwnsScreen', () => {
   it('gives the whole display to the pages that own it everywhere', () => {
@@ -19,7 +19,9 @@ describe('pageOwnsScreen', () => {
     for (const path of [
       '/profile',
       '/settings',
+      '/links',
       '/search',
+      '/ask',
       '/import',
       '/import/review',
       '/stats',
@@ -30,7 +32,7 @@ describe('pageOwnsScreen', () => {
   })
 
   it('keeps a computer’s sidebar and player bar on all of them', () => {
-    for (const path of ['/profile', '/settings', '/search', '/import', '/stats/report']) {
+    for (const path of ['/profile', '/settings', '/links', '/search', '/import', '/stats/report']) {
       expect(pageOwnsScreen(path, true)).toBe(false)
     }
   })
@@ -38,5 +40,18 @@ describe('pageOwnsScreen', () => {
   it('does not take a page whose name merely starts the same way', () => {
     expect(pageOwnsScreen('/searching', false)).toBe(false)
     expect(pageOwnsScreen('/importable', false)).toBe(false)
+  })
+})
+
+describe('pageHidesTabs', () => {
+  it('puts the tab bar away on a phone’s Sound map, keeping the chrome', () => {
+    expect(pageHidesTabs('/sound-map', false)).toBe(true)
+    expect(pageOwnsScreen('/sound-map', false)).toBe(false)
+  })
+
+  it('leaves the tabs everywhere else, and a computer has none to put away', () => {
+    expect(pageHidesTabs('/', false)).toBe(false)
+    expect(pageHidesTabs('/library', false)).toBe(false)
+    expect(pageHidesTabs('/sound-map', true)).toBe(false)
   })
 })

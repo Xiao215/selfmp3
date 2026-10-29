@@ -87,8 +87,8 @@ export function Menu({
 }: {
   open: boolean
   onClose: () => void
-  /** What it hangs off: a ⋯, a row, or the point a right-click was at. */
-  anchorRef: RefObject<PopoverAnchor | null>
+  /** What it hangs off: a ⋯, a row, or the point a right-click was at. Left out, a sheet. */
+  anchorRef: RefObject<PopoverAnchor | null> | undefined
   items: readonly MenuItem[]
   /** Shown over the items when the menu is a phone's sheet. */
   title?: string
@@ -102,6 +102,7 @@ export function Menu({
       onClose={onClose}
       anchorRef={anchorRef}
       title={title}
+      role="menu"
       width={MENU_WIDTH}
       align={align}
       testID={testID}

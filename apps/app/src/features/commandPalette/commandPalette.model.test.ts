@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fuzzyRank } from '@selfmp3/shared'
+import { NO_NAMES, fuzzyRankNames, songSearchNames } from '@selfmp3/shared'
 
 import {
   paletteCommands,
@@ -16,6 +16,9 @@ const library = {
   songs: [song(1, 'アイドル'), song(2, 'Racing into the Night'), song(3, 'Monster')],
   playlists: [{ id: 1, name: 'Reference — evening' }] as never,
   tags: [{ id: 7, name: 'yoasobi' }] as never,
+  artistNames: {},
+  artistNamesFound: [],
+  spellings: {},
 }
 
 describe('the command palette', () => {
@@ -109,18 +112,29 @@ describe('the command palette', () => {
         ),
       ),
     }
-    const ranked = fuzzyRank(
+    const ranked = fuzzyRankNames(
       'night',
       many.songs as { title: string; artist: string; album: string }[],
-      s => `${s.title} ${s.artist} ${s.album}`,
+      s => songSearchNames(s, NO_NAMES),
     )
     expect(paletteResults('night', many).songs).toEqual(ranked.slice(0, 8).map(match => match.item))
+    // And says how many matched in all, not the eight it kept.
+    expect(paletteResults('night', many).songsFound).toBe(ranked.length)
   })
 
   it('counts untagged songs once per library', () => {
     const songs = [song(1, 'a'), { ...(song(2, 'b') as object), tagIds: [] } as never]
     expect(untaggedCount(songs)).toBe(1)
     expect(paletteResults('', { ...library, songs }).commands[5]?.hint).toBe('1 untagged')
+  })
+
+  it('does not count tags only some of the words name as a match', () => {
+    const moods = { ...library, tags: [{ id: 2, name: 'calm' }] as never }
+    const found = paletteResults('calm evening', moods)
+    expect(found.songs).toEqual([])
+    expect(found.named.map(tag => tag.name)).toEqual(['calm'])
+    expect(paletteMatches(found, 0)).toBe(0)
+    expect(paletteMatches(paletteResults('calm', moods), 0)).toBe(1)
   })
 
   it('counts every row a find draws, and only the lyric lines it shows', () => {

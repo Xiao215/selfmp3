@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  boxMoved,
+  fingersLeft,
   hasSeen,
   holeAround,
   layerPath,
   parseSeen,
   placeWords,
+  stepAfter,
+  takesTyping,
   withSeen,
   writeSeen,
 } from './guide.model'
@@ -79,5 +83,54 @@ describe('the spotlight', () => {
       { width: 1280, height: 860 },
     )
     expect(place).toMatchObject({ kind: 'below', left: 924, width: 340 })
+  })
+})
+
+describe('the steps of a guide', () => {
+  it('moves on, then closes after the last', () => {
+    expect(stepAfter(0, 2)).toBe(1)
+    expect(stepAfter(1, 2)).toBe(-1)
+    expect(stepAfter(0, 1)).toBe(-1)
+  })
+
+  it('stays closed once closed: a tap as it fades does not start it again', () => {
+    expect(stepAfter(-1, 2)).toBe(-1)
+  })
+})
+
+describe('following what a guide lights', () => {
+  const box = { x: 10, y: 100, width: 300, height: 60 }
+
+  it('follows a move or a change of size', () => {
+    expect(boxMoved(box, { ...box, y: 130 })).toBe(true)
+    expect(boxMoved(box, { ...box, height: 120 })).toBe(true)
+  })
+
+  it('stays put for less than a point, so the spotlight does not shiver', () => {
+    expect(boxMoved(box, { ...box, x: 10.3, y: 100.4 })).toBe(false)
+  })
+})
+
+describe('how many fingers are down', () => {
+  it('leaves out the finger this touch lifted, wherever the platform counts it', () => {
+    expect(fingersLeft([{ identifier: 1 }], [{ identifier: 1 }])).toBe(0)
+    expect(fingersLeft([], [{ identifier: 1 }])).toBe(0)
+    expect(fingersLeft([{ identifier: 1 }, { identifier: 2 }], [{ identifier: 2 }])).toBe(1)
+  })
+})
+
+describe('what is typed in', () => {
+  it('is a text box, a text area, or something editable', () => {
+    expect(takesTyping({ tagName: 'TEXTAREA' })).toBe(true)
+    expect(takesTyping({ tagName: 'INPUT', type: 'text' })).toBe(true)
+    expect(takesTyping({ tagName: 'input', type: 'url' })).toBe(true)
+    expect(takesTyping({ tagName: 'INPUT' })).toBe(true)
+    expect(takesTyping({ tagName: 'DIV', isContentEditable: true })).toBe(true)
+  })
+
+  it('is not a button, a box to tick, or nothing', () => {
+    expect(takesTyping({ tagName: 'INPUT', type: 'checkbox' })).toBe(false)
+    expect(takesTyping({ tagName: 'DIV' })).toBe(false)
+    expect(takesTyping(null)).toBe(false)
   })
 })

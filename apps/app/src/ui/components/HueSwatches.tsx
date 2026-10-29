@@ -1,15 +1,15 @@
+import { useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { hueFromString } from '@selfmp3/shared'
+import { newTagHue, TAG_HUES } from '@selfmp3/shared'
 import { radius, tagColors, space } from '@selfmp3/client'
 import { Check } from './Icons'
+import { hueName } from '../hueNames.model'
+import { browserKeys } from '../../ports/browserKeys'
 
-/**
- * Thirteen hues around the wheel, skipping the muddy stretch between yellow and
- * green where chips stop looking like different colours from each other.
- */
-const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as const
+/** A tag's thirteen hues (`TAG_HUES`), the ones a new tag is given too. */
+const HUES = TAG_HUES
 
 /** One colour on offer: its hue, its name, and how it is drawn. */
 interface Swatch {
@@ -26,7 +26,7 @@ interface Swatch {
 /** A tag's colour as a swatch: the dot every chip and row draws, ringed in its ink. */
 function tagSwatch(hue: number): Swatch {
   const tone = tagColors(hue)
-  return { hue, name: `Hue ${hue}`, fill: tone.dot, ring: tone.ink, tick: tone.onDot }
+  return { hue, name: hueName(hue), fill: tone.dot, ring: tone.ink, tick: tone.onDot }
 }
 
 /**
@@ -42,7 +42,9 @@ function tagSwatch(hue: number): Swatch {
  * `options` is any other set, each with its own fill, ring and tick.
  *
  * A radio group to assistive technology, named by `label`: one colour is
- * chosen, and choosing another unchooses it.
+ * chosen, and choosing another unchooses it. To a keyboard it is one Tab stop,
+ * the chosen colour, and the arrows choose the next or the one before, as a
+ * radio group's do; Space chooses the one focused.
  */
 export function HueSwatches({
   value,
@@ -62,16 +64,54 @@ export function HueSwatches({
 }): ReactNode {
   const swatches: readonly Swatch[] =
     options ??
-    (first === undefined || HUES.some(hue => hue === first) ? HUES : [first, ...HUES]).map(
-      tagSwatch,
-    )
+    (first === undefined || HUES.some(hue => hue === first)
+      ? HUES.map(tagSwatch)
+      : // Named apart from the palette's own colour nearest it, which it
+        // would otherwise share a name with: two choices both called "Teal".
+        [
+          { ...tagSwatch(first), name: `${hueName(first)}, this tag’s own` },
+          ...HUES.map(tagSwatch),
+        ])
+  const nodes = useRef(new Map<number, View | null>())
+  // The Tab stop: the chosen colour, or the first when none of these is chosen.
+  const stop = swatches.some(swatch => swatch.hue === value) ? value : swatches[0]?.hue
+  const keys = browserKeys
+    ? {
+        onKeyDown: (event: { key: string; target: unknown; preventDefault: () => void }) => {
+          const at = swatches.findIndex(swatch => nodes.current.get(swatch.hue) === event.target)
+          if (at === -1) return
+          if (event.key === ' ') {
+            event.preventDefault()
+            const here = swatches[at]
+            if (here) onChange(here.hue)
+            return
+          }
+          const by =
+            event.key === 'ArrowRight' || event.key === 'ArrowDown'
+              ? 1
+              : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                ? -1
+                : 0
+          if (by === 0) return
+          event.preventDefault()
+          const next = swatches[(at + by + swatches.length) % swatches.length]
+          if (!next) return
+          onChange(next.hue)
+          nodes.current.get(next.hue)?.focus()
+        },
+      }
+    : null
   return (
-    <View style={styles.swatches} role="radiogroup" aria-label={label}>
+    <View style={styles.swatches} role="radiogroup" aria-label={label} {...(keys as object)}>
       {swatches.map(swatch => {
         const on = value === swatch.hue
         return (
           <Pressable
             key={swatch.hue}
+            ref={node => {
+              nodes.current.set(swatch.hue, node)
+            }}
+            tabIndex={swatch.hue === stop ? 0 : -1}
             accessibilityRole="radio"
             accessibilityState={{ checked: on }}
             // react-native-web turns `accessibilityState` into nothing a browser reads.
@@ -101,12 +141,17 @@ export function HueSwatches({
 }
 
 /**
- * The colour a tag of this name is given when none is chosen: the server's
- * own rule (`hueFromString` of the normalised name), so the first swatch shows
- * what pressing Enter would make.
+ * The colour a tag of this name is given when none is chosen, among the
+ * library's `tags`: the server's own rule (`newTagHue` — the hue farthest from
+ * the ones in use, the name deciding between equals), so the first swatch
+ * shows what pressing Enter would make.
  */
-export function autoTagHue(name: string): number {
-  return hueFromString(name.trim().replace(/\s+/g, ' ').toLowerCase())
+export function autoTagHue(name: string, tags: readonly { readonly hue: number }[]): number {
+  return newTagHue(
+    name.trim().replace(/\s+/g, ' '),
+    undefined,
+    tags.map(tag => tag.hue),
+  )
 }
 
 const styles = StyleSheet.create(() => ({

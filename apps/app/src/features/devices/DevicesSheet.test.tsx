@@ -20,6 +20,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: false, finePointer: false }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 390, height: 844, scale: 3, fontScale: 1 }),
@@ -132,6 +133,20 @@ describe('DevicesSheet from a cloud library', () => {
     await draw()
 
     expect(screen.getByText('Last seen 2m ago')).toBeTruthy()
+  })
+
+  it('tells apart several tabs of the same browser (R3-m2)', async () => {
+    const me = device({ id: 'this-device-1', name: 'Mac · Chrome' })
+    const tabs = [
+      device({ id: 'this-device-1-2', name: 'Mac · Chrome · tab 2' }),
+      device({ id: 'this-device-1-3', name: 'Mac · Chrome · tab 3' }),
+    ]
+    mockContext = base({ devices: [me, ...tabs], others: tabs })
+    await draw()
+
+    expect(screen.getByText('Mac · Chrome')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /Mac · Chrome · tab 2/ })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /Mac · Chrome · tab 3/ })).toBeTruthy()
   })
 
   it('lists the other devices once the server is in reach', async () => {

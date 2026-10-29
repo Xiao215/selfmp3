@@ -18,12 +18,34 @@ import { sha256 } from '../util/hash.js'
  * Every reply is parsed and checked against the task's schema here, whatever
  * the endpoint promised: asking for JSON is not receiving it. A reply that
  * fails gets one repair turn with the validation error, then the call fails.
+ * So a task may ask for its JSON as text (`json: 'text'`): the schema goes in
+ * the system prompt and `response_format` is plain `json_object`. Through
+ * cli-bridge that is the faster way: a `json_schema` there becomes a tool the
+ * model fills in, at about twice the output tokens, and re-asked out of our
+ * sight when it does not fit (~/ask-eval-selfmp3/PERF.md, 2026-10-27). A
+ * task says how hard the model should think (`effort`, sent as
+ * `reasoning_effort`); the fast tier thinks little unless it says otherwise.
+ * Each call's tokens are logged, so a retry nobody asked for shows.
  *
  * A task may offer tools (`LlmTool`): the model calls them, they run here and
  * their results go back, a few rounds at most, and then it answers in the
  * schema. That is OpenAI's own `tools` with `response_format`, so any
- * endpoint that takes both will do. `webSearch` asks the endpoint to let the
- * model search the web itself (`web_search_options`); one that cannot ignores it.
+ * endpoint that takes both will do. The calls of one reply run one after
+ * another in the order the model wrote them, so a later one can use what an
+ * earlier one made (a set of songs it named, `workingSet.ts`): a plan of
+ * several steps costs one round. A call that fails, its arguments wrong or
+ * its tool throwing, goes back as that call's result for the model to read,
+ * never as the task's failure. A task's tools stop being offered after its
+ * rounds or its time (`maxRounds`, `budgetMs`), so it answers with what it has.
+ * `webSearch` asks the endpoint to let the model search the web itself
+ * (`web_search_options`); one that cannot ignores it.
+ *
+ * At most a few requests are in flight to one endpoint at a time
+ * (`SELFMP3_AI_CONCURRENCY`, 2 to match cli-bridge's own limit), the rest
+ * queued here in the order they were made: a tool that asks a model of its
+ * own, or a pipeline that asks several at once, waits in this process rather
+ * than in the endpoint, where a queued request's time would count against
+ * its timeout.
  *
  * Schemas are zod v4 (`zod/v4`, shipped inside the zod already installed),
  * because v4 turns a schema into the JSON Schema the request carries; the rest
@@ -31,6 +53,7 @@ import { sha256 } from '../util/hash.js'
  */
 
 type Tier = 'fast' | 'smart'
+type Effort = 'low' | 'medium' | 'high'
 
 interface LlmSettings {
   /** Up to and including `/v1`. */
@@ -38,6 +61,8 @@ interface LlmSettings {
   readonly apiKey: string | null
   readonly models: Readonly<Record<Tier, string>>
   readonly timeoutMs: number
+  /** Requests in flight to this endpoint at once, from every library on the server. */
+  readonly concurrency?: number
 }
 
 export interface GenerateRequest<T> {
@@ -48,12 +73,21 @@ export interface GenerateRequest<T> {
   readonly system: string
   readonly prompt: string
   readonly schema: z.ZodType<T>
-  /** Shorter than the settings' for a call someone is watching, like Settings' test. */
+  /**
+   * Each request's longest wait, shorter than the settings' for a call that
+   * should be quick (a route, a plan) or that someone is watching.
+   */
   readonly timeoutMs?: number
+  /** How the JSON is asked for: in `response_format` (the default), or as text, the schema in the prompt. */
+  readonly json?: 'schema' | 'text'
+  /** How hard the model thinks: `low` unless said for the fast tier, the endpoint's own for smart. */
+  readonly effort?: Effort
   /** What the model may look up before it answers, run here (`tool`). */
   readonly tools?: readonly LlmTool[]
   /** Rounds of tool calls before it must answer. */
   readonly maxRounds?: number
+  /** Time, from the first request, after which no more tool calls are offered. */
+  readonly budgetMs?: number
   /** Let the model search and read the web itself for this call. */
   readonly webSearch?: boolean
   /** Aborted once nobody waits for the answer: the call in flight is dropped, and no more are made. */
@@ -61,11 +95,18 @@ export interface GenerateRequest<T> {
 }
 
 /** Something the model may call: its arguments are checked against `parameters` before `run`. */
-interface LlmTool {
+export interface LlmTool {
   readonly name: string
   readonly description: string
   readonly parameters: z.ZodType
   readonly run: (args: never) => unknown
+  /**
+   * The call that answers (a terminal tool, Ask's `respond`): when it runs
+   * without throwing, the task is done and its arguments are the answer, read
+   * with the task's schema; the calls after it in that reply are not run. When
+   * it throws, the error goes back like any tool's, for the model to mend.
+   */
+  readonly ends?: boolean
 }
 
 /** A tool, with its arguments' type read off its schema. */
@@ -74,11 +115,21 @@ export function tool<A>(entry: {
   description: string
   parameters: z.ZodType<A>
   run: (args: A) => unknown
+  ends?: boolean
 }): LlmTool {
   return entry
 }
 
 const DEFAULT_ROUNDS = 6
+/**
+ * How long a call that should be quick may take: one that writes a short form
+ * (a route, a plan) takes 2–9 s, so past this it has failed, not slowed down.
+ */
+export const QUICK_MS = 30_000
+/** How long a pick from a table may take: 5–12 s measured. */
+export const PICK_MS = 60_000
+/** Requests in flight to one endpoint at once, when the settings do not say. */
+const DEFAULT_CONCURRENCY = 2
 /** The most of one tool result sent back, so one big answer cannot fill the context. */
 const RESULT_CHARS = 24_000
 
@@ -139,7 +190,17 @@ type ChatMessage =
     }
   | { readonly role: 'tool'; readonly tool_call_id: string; readonly content: string }
 
+/** What a reply says it cost, where the endpoint says (cli-bridge does). */
+const UsageSchema = z
+  .object({
+    prompt_tokens: z.number().optional(),
+    completion_tokens: z.number().optional(),
+    prompt_tokens_details: z.object({ cached_tokens: z.number().optional() }).nullish(),
+  })
+  .nullish()
+
 const ChatReplySchema = z.object({
+  usage: UsageSchema,
   choices: z
     .array(
       z.object({
@@ -152,27 +213,139 @@ const ChatReplySchema = z.object({
     .min(1),
 })
 
-/** One call run: its arguments checked, its answer as JSON, a failure said as an error. */
-async function runCall(tools: readonly LlmTool[], call: ToolCall): Promise<string> {
+/**
+ * One call run: its arguments checked, its answer as JSON, a failure said as
+ * an error for the model to read. Only a stop is thrown: nobody is waiting.
+ */
+async function runCall(
+  tools: readonly LlmTool[],
+  call: ToolCall,
+  stop: AbortSignal | undefined,
+): Promise<{ content: string; failed: boolean; ended?: unknown }> {
+  const failed = (error: string) => ({ content: JSON.stringify({ error }), failed: true })
   const found = tools.find(each => each.name === call.function.name)
-  if (!found) return JSON.stringify({ error: `There is no tool called ${call.function.name}.` })
+  if (!found) return failed(`There is no tool called ${call.function.name}.`)
   let args: unknown
   try {
     args = JSON.parse(call.function.arguments || '{}')
   } catch {
-    return JSON.stringify({ error: 'The arguments were not JSON.' })
+    return failed('The arguments were not JSON.')
   }
   const parsed = found.parameters.safeParse(args)
-  if (!parsed.success)
-    return JSON.stringify({ error: `Wrong arguments: ${issuesOf(parsed.error)}` })
+  if (!parsed.success) return failed(`Wrong arguments: ${issuesOf(parsed.error)}`)
   try {
-    const result = JSON.stringify(await found.run(parsed.data as never))
-    return result.length > RESULT_CHARS
-      ? `${result.slice(0, RESULT_CHARS)}… (cut short: ask for less)`
-      : result
+    const ran = await found.run(parsed.data as never)
+    if (found.ends) return { content: '{"ok":true}', failed: false, ended: args }
+    const result = JSON.stringify(ran) ?? 'null'
+    return {
+      content:
+        result.length > RESULT_CHARS
+          ? `${result.slice(0, RESULT_CHARS)}… (cut short: ask for less)`
+          : result,
+      failed: false,
+    }
   } catch (caught) {
-    return JSON.stringify({ error: messageOf(caught) })
+    if (stop?.aborted || (caught instanceof LlmError && caught.kind === 'stopped')) throw caught
+    return failed(messageOf(caught))
   }
+}
+
+/**
+ * At most `size` pieces of work at once; the rest wait their turn, first come
+ * first served. A wait given up (`stop`) leaves the queue.
+ */
+export class Gate {
+  #free: number
+  readonly #waiting: (() => void)[] = []
+  constructor(readonly size: number) {
+    this.#free = size
+  }
+
+  run<T>(work: () => Promise<T>, stop?: AbortSignal): Promise<T> {
+    // With a turn free the work starts now, not a tick later, as a call with no gate would.
+    if (this.#free > 0 && !stop?.aborted) {
+      this.#free--
+      return this.#during(work)
+    }
+    return this.#enter(stop).then(() => this.#during(work))
+  }
+
+  async #during<T>(work: () => Promise<T>): Promise<T> {
+    try {
+      return await work()
+    } finally {
+      this.#leave()
+    }
+  }
+
+  /** How many are waiting for a turn. */
+  get queued(): number {
+    return this.#waiting.length
+  }
+
+  #enter(stop: AbortSignal | undefined): Promise<void> {
+    if (stop?.aborted) return Promise.reject(new Error('stopped while waiting'))
+    return new Promise((resolve, reject) => {
+      const go = () => {
+        stop?.removeEventListener('abort', leave)
+        resolve()
+      }
+      const leave = () => {
+        const at = this.#waiting.indexOf(go)
+        if (at >= 0) this.#waiting.splice(at, 1)
+        reject(new Error('stopped while waiting'))
+      }
+      this.#waiting.push(go)
+      stop?.addEventListener('abort', leave, { once: true })
+    })
+  }
+
+  #leave(): void {
+    const next = this.#waiting.shift()
+    if (next) next()
+    else this.#free++
+  }
+}
+
+/**
+ * One gate per endpoint for the whole process: on a server working for
+ * several libraries each has its own `Llm`, and the endpoint's limit is one.
+ */
+const gates = new Map<string, Gate>()
+
+function gateFor(url: string, size: number): Gate {
+  const key = `${url} ${size}`
+  let gate = gates.get(key)
+  if (!gate) {
+    gate = new Gate(size)
+    gates.set(key, gate)
+  }
+  return gate
+}
+
+/** What one request is: its messages and how the reply's JSON is asked for. */
+interface Sending {
+  readonly task: string
+  readonly model: string
+  readonly messages: readonly ChatMessage[]
+  /** The schema for `response_format`, or null for JSON as text. */
+  readonly schema: Record<string, unknown> | null
+  readonly timeoutMs: number
+  readonly offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean }
+  readonly effort: Effort | undefined
+  readonly stop: AbortSignal | undefined
+}
+
+/** A reply: its text, its tool calls, and the tokens it cost. */
+interface Replied {
+  readonly content: string
+  readonly calls: ToolCall[]
+  readonly tokens: { readonly in: number; readonly out: number; readonly cached: number }
+}
+
+/** A system prompt that asks for JSON as text, with the schema it must fit (`json: 'text'`). */
+export function asksForText(system: string, task: string, schema: Record<string, unknown>): string {
+  return `${system}\n\nReply with one JSON object and nothing else, no code fence, fitting this JSON Schema ("${task}"):\n${JSON.stringify(schema)}`
 }
 
 /** The JSON Schema a request carries: no `$schema` key, which some endpoints refuse. */
@@ -208,17 +381,30 @@ export function openAiCompatible(
   const fetchImpl = deps.fetch ?? fetch
   const logger = deps.logger.child('ai')
   const url = `${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`
+  const gate = gateFor(url, Math.max(1, settings.concurrency ?? DEFAULT_CONCURRENCY))
 
-  async function ask(
-    task: string,
-    model: string,
-    messages: readonly ChatMessage[],
-    schema: Record<string, unknown>,
-    timeoutMs: number,
-    offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean },
-    stop: AbortSignal | undefined,
-  ): Promise<{ content: string; calls: ToolCall[] }> {
+  async function ask(sending: Sending): Promise<Replied> {
+    const { task, stop } = sending
     if (stop?.aborted) throw stopped(task)
+    try {
+      return await gate.run(() => send(sending), stop)
+    } catch (caught) {
+      if (stop?.aborted) throw stopped(task)
+      throw caught
+    }
+  }
+
+  /** One request, sent once the gate lets it through, and its reply read. */
+  async function send({
+    task,
+    model,
+    messages,
+    schema,
+    timeoutMs,
+    offer,
+    effort,
+    stop,
+  }: Sending): Promise<Replied> {
     let response: Response
     try {
       response = await fetchImpl(url, {
@@ -230,10 +416,13 @@ export function openAiCompatible(
         body: JSON.stringify({
           model,
           messages,
-          response_format: {
-            type: 'json_schema',
-            json_schema: { name: task.replace(/[^a-zA-Z0-9_-]/g, '_'), strict: true, schema },
-          },
+          response_format: schema
+            ? {
+                type: 'json_schema',
+                json_schema: { name: task.replace(/[^a-zA-Z0-9_-]/g, '_'), strict: true, schema },
+              }
+            : { type: 'json_object' },
+          ...(effort ? { reasoning_effort: effort } : {}),
           ...(offer.tools.length > 0
             ? {
                 tools: offer.tools.map(each => ({
@@ -276,7 +465,16 @@ export function openAiCompatible(
     if (!reply.success)
       throw new LlmError('invalid', 'The model sent something that is not a chat reply')
     const { message } = reply.data.choices[0]!
-    return { content: message.content ?? '', calls: message.tool_calls ?? [] }
+    const usage = reply.data.usage
+    return {
+      content: message.content ?? '',
+      calls: message.tool_calls ?? [],
+      tokens: {
+        in: usage?.prompt_tokens ?? 0,
+        out: usage?.completion_tokens ?? 0,
+        cached: usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      },
+    }
   }
 
   return {
@@ -284,28 +482,46 @@ export function openAiCompatible(
       const started = Date.now()
       const model = settings.models[request.tier]
       const schema = jsonSchemaOf(request.schema)
+      const asText = request.json === 'text'
+      const effort = request.effort ?? (request.tier === 'fast' ? 'low' : undefined)
       const messages: ChatMessage[] = [
-        { role: 'system', content: request.system },
+        {
+          role: 'system',
+          content: asText ? asksForText(request.system, request.task, schema) : request.system,
+        },
         { role: 'user', content: request.prompt },
       ]
+      // Every request's tokens, the hidden ones included: what the call cost.
+      const tokens = { in: 0, out: 0, cached: 0, requests: 0 }
       const tools = request.tools ?? []
       const maxRounds = request.maxRounds ?? DEFAULT_ROUNDS
       let rounds = 0
       let called = 0
+      let failed = 0
+      const toolNames: string[] = []
+      // Within its rounds and its time, the model may call; after either, it answers.
+      const mayCall = () =>
+        rounds < maxRounds &&
+        (request.budgetMs === undefined || Date.now() - started < request.budgetMs)
       for (let attempt = 1; attempt <= 2; attempt++) {
         let text: string
         // The model's tool calls, run and answered, until it replies or runs out of rounds.
         for (;;) {
-          const reply = await ask(
-            request.task,
+          const reply = await ask({
+            task: request.task,
             model,
             messages,
-            schema,
-            request.timeoutMs ?? settings.timeoutMs,
-            { tools, callable: rounds < maxRounds, webSearch: request.webSearch === true },
-            request.signal,
-          )
-          if (reply.calls.length === 0 || rounds >= maxRounds) {
+            schema: asText ? null : schema,
+            timeoutMs: Math.min(request.timeoutMs ?? settings.timeoutMs, settings.timeoutMs),
+            offer: { tools, callable: mayCall(), webSearch: request.webSearch === true },
+            effort,
+            stop: request.signal,
+          })
+          tokens.in += reply.tokens.in
+          tokens.out += reply.tokens.out
+          tokens.cached += reply.tokens.cached
+          tokens.requests++
+          if (reply.calls.length === 0 || !mayCall()) {
             text = reply.content
             break
           }
@@ -316,12 +532,22 @@ export function openAiCompatible(
             content: reply.content || null,
             tool_calls: reply.calls,
           })
+          // In the order written: a later call may use what an earlier one made.
+          let ended: { value: unknown } | null = null
           for (const call of reply.calls) {
-            messages.push({
-              role: 'tool',
-              tool_call_id: call.id,
-              content: await runCall(tools, call),
-            })
+            const ran = await runCall(tools, call, request.signal)
+            toolNames.push(call.function.name)
+            if (ran.failed) failed++
+            messages.push({ role: 'tool', tool_call_id: call.id, content: ran.content })
+            // The answering call ran: the task is done, whatever was written after it.
+            if (ran.ended !== undefined) {
+              ended = { value: ran.ended }
+              break
+            }
+          }
+          if (ended) {
+            text = JSON.stringify(ended.value)
+            break
           }
         }
         let problem: string
@@ -336,7 +562,14 @@ export function openAiCompatible(
               model,
               ms,
               attempts: attempt,
-              ...(tools.length > 0 ? { rounds, toolCalls: called } : {}),
+              requests: tokens.requests,
+              tokensIn: tokens.in,
+              tokensOut: tokens.out,
+              tokensCached: tokens.cached,
+              ...(asText ? { json: 'text' } : {}),
+              ...(tools.length > 0
+                ? { rounds, toolCalls: called, tools: toolNames, toolErrors: failed }
+                : {}),
             })
             return { value: parsed.data, ms }
           }
@@ -388,6 +621,11 @@ export class Remembered {
     const hit = this.#entries.get(key)
     if (hit && now - hit.at < this.ttlMs) return hit.value as T
     return this.put(key, make, now)
+  }
+
+  /** An answer not to give again: the next `get` asks afresh. */
+  forget(key: string): void {
+    this.#entries.delete(key)
   }
 
   /** A fresh answer, kept in place of the one before: "write it again". */

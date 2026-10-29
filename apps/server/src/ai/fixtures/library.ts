@@ -31,6 +31,7 @@ export function song(
     instrumental: false,
     playCount: 0,
     loved: false,
+    restUntil: null,
     sourceUrl: null,
     lastPlayedAt: null,
     addedAt: '2026-09-01 10:00:00',
@@ -209,38 +210,81 @@ export function scriptedLlm(
   }
 }
 
+/** A scripted reply that calls tools instead of answering: each call's tool name and arguments. */
+interface ScriptedCalls {
+  readonly calls: readonly { readonly name: string; readonly args: unknown }[]
+}
+
+/** How many fake endpoints there have been, for each its own address. */
+let fakes = 0
+
+/** What one request to the fake endpoint carried. */
+interface Sent {
+  readonly messages: { role: string; content: string | null; tool_call_id?: string }[]
+  readonly tool_choice?: string
+}
+
 /**
  * A model behind a real OpenAI-style endpoint, faked only at its HTTP door:
  * each request is answered with the next reply scripted for its task (the
  * schema's name), as chat-completion JSON, so `llm.ts` parses and checks it
- * exactly as it would a real one's. A number answers with that HTTP status.
- * `prompts` keeps what each task was asked, in order.
+ * exactly as it would a real one's. A number answers with that HTTP status;
+ * `{ calls }` answers with tool calls, all in one reply. `prompts` keeps what
+ * each task was asked, in order, and `sent` every request whole, tool results
+ * and all. `concurrency` is the endpoint's gate (`llm.ts`).
  */
 export function endpointLlm(
-  replies: Record<string, unknown[]>,
-): Llm & { prompts: Record<string, string[]> } {
+  replies: Record<string, (unknown | ScriptedCalls)[]>,
+  options: { concurrency?: number; delayMs?: number } = {},
+): Llm & { prompts: Record<string, string[]>; sent: Record<string, Sent[]>; most: () => number } {
   const prompts: Record<string, string[]> = {}
+  const sent: Record<string, Sent[]> = {}
+  let inFlight = 0
+  let most = 0
   const fetch = async (_url: string, init?: RequestInit): Promise<Response> => {
-    const body = JSON.parse(String(init?.body)) as {
-      messages: { role: string; content: string }[]
-      response_format: { json_schema: { name: string } }
+    const body = JSON.parse(String(init?.body)) as Sent & {
+      response_format: { json_schema?: { name: string } }
     }
-    const task = body.response_format.json_schema.name
+    // The schema's name, or for JSON asked as text, the name the prompt gives it.
+    const task =
+      body.response_format.json_schema?.name ??
+      /JSON Schema \("([^"]+)"\)/.exec(body.messages[0]?.content ?? '')?.[1] ??
+      '(unnamed)'
     ;(prompts[task] ??= []).push(body.messages.find(each => each.role === 'user')?.content ?? '')
-    const next = replies[task]?.shift()
-    if (next === undefined) return new Response(`nothing scripted for ${task}`, { status: 500 })
-    if (typeof next === 'number') return new Response('scripted failure', { status: next })
-    const content = JSON.stringify(next)
-    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 })
+    ;(sent[task] ??= []).push(body)
+    inFlight++
+    most = Math.max(most, inFlight)
+    try {
+      if (options.delayMs) await new Promise(resolve => setTimeout(resolve, options.delayMs))
+      const next = replies[task]?.shift()
+      if (next === undefined) return new Response(`nothing scripted for ${task}`, { status: 500 })
+      if (typeof next === 'number') return new Response('scripted failure', { status: next })
+      const message =
+        next !== null && typeof next === 'object' && 'calls' in next
+          ? {
+              content: null,
+              tool_calls: (next as ScriptedCalls).calls.map((call, index) => ({
+                id: `call-${index}`,
+                type: 'function',
+                function: { name: call.name, arguments: JSON.stringify(call.args) },
+              })),
+            }
+          : { content: JSON.stringify(next) }
+      return new Response(JSON.stringify({ choices: [{ message }] }), { status: 200 })
+    } finally {
+      inFlight--
+    }
   }
   const llm = openAiCompatible(
     {
-      baseUrl: 'http://127.0.0.1:9/v1',
+      // Its own address per fake, so each has a gate of its own.
+      baseUrl: `http://127.0.0.1:9/${++fakes}/v1`,
       apiKey: null,
       models: { fast: 'fast', smart: 'smart' },
       timeoutMs: 5000,
+      ...(options.concurrency ? { concurrency: options.concurrency } : {}),
     },
     { fetch, logger: createLogger('silent') },
   )
-  return { ...llm, prompts }
+  return { ...llm, prompts, sent, most: () => most }
 }

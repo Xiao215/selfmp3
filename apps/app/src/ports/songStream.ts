@@ -1,0 +1,53 @@
+import { requireNativeModule } from 'expo'
+import { HASH_FILE_NAME } from '@selfmp3/shared'
+
+interface Subscription {
+  remove(): void
+}
+
+interface SongStreamModule {
+  address(
+    name: string,
+    url: string,
+    headers: Readonly<Record<string, string>>,
+    directory: string,
+  ): string | null
+  fetch(
+    name: string,
+    url: string,
+    headers: Readonly<Record<string, string>>,
+    directory: string,
+  ): Promise<number | null>
+  /** The download of that file under way stopped, and what came of it deleted: it is not wanted. */
+  cancel(name: string): void
+  stopAll(): void
+  addListener(
+    event: 'onArrived',
+    listener: (arrived: { name: string; bytes: number }) => void,
+  ): Subscription
+}
+
+/**
+ * A bucket song played from one download of it: the app's own module,
+ * `apps/app/modules/song-stream`, a loopback server the player is pointed at
+ * instead of the doorman. The first range the player asks for starts one
+ * download of the whole file into the played-songs folder, and every range —
+ * that one, the next, a seek — is read from it as it arrives, as a tab's
+ * service worker and the desktop shell do. Once whole the file is told of
+ * (`onArrived`), and kept like any played song (`recentCopies.ts`).
+ *
+ * Only a file named by the hash of its bytes goes through it: that name is the
+ * song's for as long as it is kept.
+ *
+ * Built for iOS (`ios/SongStreamModule.swift`) and Android
+ * (`android/.../SongStreamModule.kt`), which answer alike, and required: a
+ * phone build without it is a build to redo, not a case to stream around.
+ */
+export const songStream = requireNativeModule<SongStreamModule>('SongStream')
+
+const HASH_NAMED = new RegExp(`^${HASH_FILE_NAME}$`)
+
+/** What the module will take: `<sha256>.<extension>`, as `fileNameFor` names a bucket song. */
+export function streamsOnce(fileName: string): boolean {
+  return HASH_NAMED.test(fileName)
+}

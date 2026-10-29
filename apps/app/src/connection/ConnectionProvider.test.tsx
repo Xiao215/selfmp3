@@ -2,10 +2,10 @@ import { render, screen } from '@testing-library/react-native'
 import { Text } from 'react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useGems, useHealth } from '@selfmp3/client'
-import type { CloudSession } from '@selfmp3/replica'
+import type { CloudSession, EndedSession } from '@selfmp3/replica'
 
 import '../api/client'
-import { ConnectionProvider } from './ConnectionProvider'
+import { ConnectionProvider, useConnection } from './ConnectionProvider'
 
 /**
  * Queries wait for the connection to be read before they ask anything.
@@ -19,6 +19,7 @@ import { ConnectionProvider } from './ConnectionProvider'
  */
 
 let mockSessionArrives: (session: CloudSession | null) => void = () => undefined
+let mockEnd: (ended: EndedSession) => void = () => undefined
 const mockCloudRequest = jest.fn((_method: string, path: string): Promise<unknown> => {
   if (path === '/api/health') {
     return Promise.resolve({ ok: true, version: 'web', uptimeSeconds: 0 })
@@ -38,6 +39,11 @@ jest.mock('../replica', () => ({
         mockSessionArrives = resolve
       }),
     refreshSession: (session: CloudSession) => Promise.resolve(session),
+    endedSession: () => Promise.resolve(null),
+    onSessionEnded: (listener: (ended: EndedSession) => void) => {
+      mockEnd = listener
+      return () => undefined
+    },
   },
 }))
 jest.mock('./storedConnection', () => ({
@@ -96,5 +102,27 @@ describe('ConnectionProvider', () => {
 
     expect(await screen.findByText('self.mp3 web')).toBeTruthy()
     expect(await screen.findByText('answered')).toBeTruthy()
+  })
+
+  it('goes back to Welcome when the doorman ends the session, keeping whose it was', async () => {
+    // It read as "Offline" for good: every look refused, and no way back in.
+    function Where() {
+      const { status, fromCloud, sessionEnded } = useConnection()
+      return (
+        <Text>{`${status} ${fromCloud ? 'cloud' : 'none'} ${sessionEnded?.email ?? '-'}`}</Text>
+      )
+    }
+    await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ConnectionProvider>
+          <Where />
+        </ConnectionProvider>
+      </QueryClientProvider>,
+    )
+    mockSessionArrives(SESSION)
+    expect(await screen.findByText('ready cloud -')).toBeTruthy()
+
+    mockEnd({ account: '0'.repeat(32), email: 'sim@example.com' })
+    expect(await screen.findByText('missing none sim@example.com')).toBeTruthy()
   })
 })

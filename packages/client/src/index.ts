@@ -7,7 +7,7 @@
  */
 export type { ApiTransport, ClientRequestInit } from './platform.js'
 
-export { ApiError, failureText } from './api/error.js'
+export { ApiError, failureText, failureWords } from './api/error.js'
 export { createApi, type Api } from './api/api.js'
 export { createMediaUrl, type MediaUrl } from './api/media.js'
 
@@ -22,7 +22,6 @@ export * from './connection/reach.js'
 export * from './connection/serverIds.js'
 // Importing without a screen: review, choices, the queue's words.
 export * from './import/model.js'
-export * from './import/failure.js'
 
 export { configureClient, clientApi } from './runtime.js'
 
@@ -42,6 +41,7 @@ export * from './queue/playable.js'
 export * from './queue/recovery.js'
 // Auto-mix: the upcoming queue in a smooth order, and the fade for each handover.
 export * from './queue/autoMix.js'
+export * from './soundMap/soundMap.js'
 
 /** Filtering and sorting a library, which every client does the same way. */
 export * from './library/filter.js'

@@ -1,6 +1,14 @@
 import { describe as group, expect, it } from 'vitest'
-import type { Understanding } from '@selfmp3/shared'
-import { describe, groundPicks, narrowAndPick, songsFitting } from './describe.js'
+import { NO_JOINS, type Understanding } from '@selfmp3/shared'
+import {
+  PlanOut,
+  describe,
+  groundPicks,
+  groundPlan,
+  narrowAndPick,
+  songsFitting,
+} from './describe.js'
+import { Remembered } from './llm.js'
 import { AskProgress } from './progress.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 import { libraryShape, songTable } from './library.js'
@@ -11,6 +19,7 @@ const nothing: Understanding = {
   name: 'Test',
   anyTags: [],
   artists: [],
+  albums: [],
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
@@ -67,6 +76,121 @@ group('songsFitting', () => {
     const words = { ...nothing, anyTags: ['jpop', '古典'], words: 'with' as const }
     expect(ids(songsFitting(SONGS, TAGS, words, NOW))).toEqual([7, 8, 9])
   })
+
+  it('counts an album as a place, every song on it in', () => {
+    const album = { ...nothing, albums: ['七里香'] }
+    expect(ids(songsFitting(SONGS, TAGS, album, NOW))).toEqual([14, 15])
+    const widened = { ...album, artists: ['YOASOBI'] }
+    expect(ids(songsFitting(SONGS, TAGS, widened, NOW))).toEqual([7, 8, 14, 15])
+  })
+})
+
+group('groundPlan', () => {
+  it('spells an album the library’s way and sets aside one it lacks', () => {
+    const { understanding, unknown } = groundPlan(
+      { ...nothing, albums: ['best of CHOPIN', 'Jukebox'] },
+      SONGS,
+      TAGS,
+      NO_JOINS,
+    )
+    expect(understanding.albums).toEqual(['Best of Chopin'])
+    expect(unknown).toEqual(['Jukebox'])
+  })
+
+  it('takes a range left out whole as no range, so the model never has to write it again', () => {
+    const plan = PlanOut.parse({ ...nothing, energy: null, bpm: null, year: null })
+    const { understanding } = groundPlan(plan, SONGS, TAGS, NO_JOINS)
+    const none = { min: null, max: null }
+    expect(understanding).toMatchObject({ energy: none, bpm: none, year: none })
+  })
+
+  it('reads an empty sound or brief as none', () => {
+    const { understanding } = groundPlan(
+      { ...nothing, sound: '', brief: '  ' },
+      SONGS,
+      TAGS,
+      NO_JOINS,
+    )
+    expect(understanding).toMatchObject({ sound: null, brief: null })
+  })
+
+  it('keeps an artist the library lacks as a wish when no place asked for is here', () => {
+    const lacking = groundPlan({ ...nothing, artists: ['Taylor Swift'] }, SONGS, TAGS, NO_JOINS)
+    expect(lacking.understanding.brief).toBe('by or from Taylor Swift')
+    expect(lacking.unknown).toEqual(['Taylor Swift'])
+    const alongside = groundPlan(
+      { ...nothing, artists: ['Taylor Swift', 'yoasobi'] },
+      SONGS,
+      TAGS,
+      NO_JOINS,
+    )
+    expect(alongside.understanding).toMatchObject({ artists: ['YOASOBI'], brief: null })
+  })
+
+  it('finds an artist under another script, another name or a slip of a letter, never calling it missing', () => {
+    const names = { artistNames: { 周杰倫: ['Jay Chou'] }, artistNamesFound: [] }
+    const { understanding, unknown } = groundPlan(
+      { ...nothing, artists: ['周杰伦', 'jay chou', 'Yorushka', 'Taylor Swift'] },
+      SONGS,
+      TAGS,
+      names,
+    )
+    expect(understanding.artists).toEqual(['周杰倫', 'Yorushika'])
+    expect(unknown).toEqual(['Taylor Swift'])
+  })
+
+  it('takes both spellings of one artist the library holds apart, when they name each other', () => {
+    const songs = [
+      ...SONGS,
+      { ...SONGS[0]!, id: 98, artist: 'Kenshi Yonezu' },
+      { ...SONGS[0]!, id: 99, artist: '米津玄師' },
+    ]
+    const names = {
+      artistNames: { 'kenshi yonezu': ['米津玄師'], 米津玄師: ['Kenshi Yonezu'] },
+      artistNamesFound: ['kenshi yonezu', '米津玄師'],
+    }
+    const { understanding, unknown } = groundPlan(
+      { ...nothing, artists: ['米津玄师'] },
+      songs,
+      TAGS,
+      names,
+    )
+    expect([...understanding.artists].sort()).toEqual(['Kenshi Yonezu', '米津玄師'])
+    expect(unknown).toEqual([])
+  })
+
+  it('takes an album or tag spelt in the other Chinese script', () => {
+    const { understanding, unknown } = groundPlan(
+      { ...nothing, albums: ['叶惠美'] },
+      SONGS,
+      TAGS,
+      NO_JOINS,
+    )
+    expect(understanding.albums).toEqual(['葉惠美'])
+    expect(unknown).toEqual([])
+  })
+
+  it('leaves a near spelling that fits two names unresolved', () => {
+    const { understanding } = groundPlan(
+      { ...nothing, artists: ['Henrik Mawe'] },
+      [
+        ...SONGS,
+        { ...SONGS[0]!, id: 99, artist: 'Henrik Mawes' },
+        { ...SONGS[0]!, id: 98, artist: 'Henrik Mawet' },
+      ],
+      TAGS,
+      NO_JOINS,
+    )
+    // Folded, "Henrik Måwe" is the same name: that one answers alone.
+    expect(understanding.artists).toEqual(['Henrik Måwe'])
+    const two = groundPlan(
+      { ...nothing, artists: ['Henrik Mawex'] },
+      [...SONGS, { ...SONGS[0]!, id: 99, artist: 'Henrik Mawes' }],
+      TAGS,
+      NO_JOINS,
+    )
+    expect(two.unknown).toEqual(['Henrik Mawex'])
+  })
 })
 
 group('describe', () => {
@@ -117,6 +241,21 @@ group('describe', () => {
       { songId: 8, why: null },
     ])
     expect(llm.asked).toHaveLength(1)
+  })
+
+  it('passes over resting songs, while any other song fits', async () => {
+    const yoasobi = { ...nothing, artists: ['YOASOBI'] }
+    const until = new Date(NOW + 86_400_000).toISOString()
+    const resting = (rest: readonly number[]) => ({
+      ...deps(scriptedLlm({})),
+      songs: () =>
+        SONGS.map(song => (rest.includes(song.id) ? { ...song, restUntil: until } : song)),
+    })
+    const one = await narrowAndPick(resting([7]), 'YOASOBI', yoasobi, [])
+    expect(one.picks.map(pick => pick.songId)).toEqual([8])
+    // Both resting: they come back rather than nothing.
+    const both = await narrowAndPick(resting([7, 8]), 'YOASOBI', yoasobi, [])
+    expect(both.picks.map(pick => pick.songId)).toEqual([7, 8])
   })
 
   it('loosens one part at a time when together they let nothing in', async () => {
@@ -243,6 +382,127 @@ group('describe', () => {
     expect(llm.asked).toHaveLength(0)
   })
 
+  it('only orders the songs of the tags asked for by how they sound, never leaving one', async () => {
+    const llm = scriptedLlm({})
+    // "比较温和的jpop": song 8 stands well above the other jpop for "calm".
+    const scores = new Map([
+      [7, 0.18],
+      [8, 0.3],
+      [9, 0.2],
+    ])
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.filter(id => scores.has(id)).map(id => [id, scores.get(id)!]))),
+      closeTo: () => null,
+    }
+    const calmJpop = { ...nothing, anyTags: ['jpop'], sound: 'calm, soft Japanese pop' }
+    const result = await narrowAndPick({ ...deps(llm), sound }, '比较温和的jpop', calmJpop, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([8, 9, 7])
+    expect(result.fit).toBe(3)
+    expect(llm.asked).toHaveLength(0)
+  })
+
+  it('answers a pick of no song with no songs and why, and asks the model again next time', async () => {
+    const llm = scriptedLlm({
+      'describe-pick': [{ picks: [] }, { picks: [{ n: 1, why: 'rain' }] }, { picks: [] }],
+    })
+    const both = { ...deps(llm), remembered: new Remembered() }
+    const rain = { ...nothing, brief: 'named for rain', minutes: 20 }
+    const none = await narrowAndPick(both, 'rain songs', rain, [])
+    // Not filled to the length from the songs it turned down.
+    expect(none.picks).toEqual([])
+    expect(none.notes).toEqual(['None of the 17 songs that fit seemed to be “named for rain”.'])
+    expect((await narrowAndPick(both, 'rain songs', rain, [])).picks.length).toBeGreaterThan(0)
+  })
+
+  it('says what made the songs fewer: the sound line, resting songs and a size nobody asked for', async () => {
+    const until = new Date(NOW + 86_400_000).toISOString()
+    const songs = SONGS.map(song => (song.id === 3 ? { ...song, restUntil: until } : song))
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, id <= 2 ? 0.3 : 0.1]))),
+      closeTo: () => null,
+    }
+    const violin = { ...nothing, sound: 'solo violin' }
+    const result = await narrowAndPick(
+      { ...deps(scriptedLlm({})), songs: () => songs, sound },
+      'violin',
+      violin,
+      [],
+    )
+    expect(result.notes).toEqual([
+      'Left out 1 song you’ve set to rest.',
+      'Kept the 2 of 16 songs that sound closest to what you described.',
+    ])
+    const many = Array.from({ length: 30 }, (_, index) => ({
+      ...SONGS[6]!,
+      id: 100 + index,
+    }))
+    const all = Array.from({ length: 30 }, (_, index) => ({ n: index + 1, why: 'yes' }))
+    const capped = await narrowAndPick(
+      { ...deps(scriptedLlm({ 'describe-pick': [{ picks: all }] })), songs: () => many },
+      'yoasobi',
+      { ...nothing, artists: ['YOASOBI'] },
+      [],
+    )
+    expect(capped.picks).toHaveLength(25)
+    expect(capped.notes).toEqual(['No number was asked for, so it stopped at 25.'])
+  })
+
+  it('marks the songs inside a place that sound like it, for a pick that keeps only those', async () => {
+    const llm = scriptedLlm({ 'describe-pick': [{ picks: [{ n: 1, why: 'erhu' }] }] })
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, id === 5 ? 0.3 : 0.1]))),
+      closeTo: () => null,
+    }
+    const parts = {
+      ...nothing,
+      anyTags: ['原神纯音乐'],
+      sound: 'erhu',
+      brief: 'only songs with erhu',
+    }
+    const result = await narrowAndPick({ ...deps(llm), sound }, 'liyue, only erhu', parts, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([5])
+    const prompt = String(llm.asked[0]?.prompt)
+    expect(prompt).toMatch(/#1 \| Liyue \|[^\n]* \| sound 100 close\n/)
+    expect(prompt).toContain('| sound 50\n')
+  })
+
+  it('draws the sound line from every song before leaving out the ones shown', async () => {
+    // Song 1 and 2 sound like it; 3 only nearly. "Different songs" after 1 is 2, not 2 and 3.
+    const scores = new Map([
+      [1, 0.3],
+      [2, 0.27],
+      [3, 0.22],
+    ])
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, scores.get(id) ?? 0.1]))),
+      closeTo: () => null,
+    }
+    const violin = { ...nothing, sound: 'solo violin' }
+    const result = await narrowAndPick(
+      { ...deps(scriptedLlm({})), sound },
+      'violin',
+      violin,
+      [],
+      [1],
+    )
+    expect(result.picks.map(pick => pick.songId)).toEqual([2])
+  })
+
+  it('only orders the songs of an album asked for by how they sound, too', async () => {
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, id === 15 ? 0.3 : 0.1]))),
+      closeTo: () => null,
+    }
+    const calmAlbum = { ...nothing, albums: ['七里香'], sound: 'calm Mandarin pop' }
+    const result = await narrowAndPick({ ...deps(scriptedLlm({})), sound }, '七里香', calmAlbum, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([15, 14])
+  })
+
   it('gives the model the best-sounding songs, in that order, with a sound column', async () => {
     const llm = scriptedLlm({ 'describe-pick': [{ picks: [{ n: 1, why: 'calm' }] }] })
     const sound = {
@@ -257,7 +517,7 @@ group('describe', () => {
     expect(prompt).toContain('How it should sound: calm')
     expect(prompt).toContain('| plays | sound):')
     expect(prompt).toMatch(
-      /#1 \| [^\n]* \| sound 100\n#2 \| [^\n]* \| sound 50\n#3 \| [^\n]* \| sound 0/,
+      /#1 \| [^\n]* \| sound 100 close\n#2 \| [^\n]* \| sound 50 close\n#3 \| [^\n]* \| sound 0 close/,
     )
   })
 
@@ -324,6 +584,12 @@ group('library', () => {
       '- 古典 · 3 songs · by Henrik Måwe 2, Vitaly Margulis 1 · albums Best of Chopin 3',
     )
     expect(shape).toContain('17 songs')
+  })
+
+  it('names the albums of two songs or more, most songs first', () => {
+    expect(libraryShape(SONGS, TAGS)).toContain(
+      'Albums of two songs or more, most songs first: Best of Chopin 4, 七里香 2',
+    )
   })
 
   it('gives the spread of years by decade', () => {

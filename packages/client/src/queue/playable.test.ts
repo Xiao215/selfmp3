@@ -1,7 +1,7 @@
 import { EMPTY_QUEUE, type QueueState } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
-import { advancePlayable, peekPlayable } from './playable.js'
+import { advancePlayable, peekPlayable, skipFailed } from './playable.js'
 
 const queue = (
   items: number[],
@@ -51,5 +51,31 @@ describe('moving past songs that cannot play', () => {
     expect(peekPlayable(queue([1, 2, 3], 0), except(2))).toBe(3)
     expect(peekPlayable(queue([1, 2, 3], 0), except(2, 3))).toBeNull()
     expect(peekPlayable(queue([1, 2], 0, 'one'), except())).toBe(1)
+  })
+})
+
+describe('skipping a song that failed', () => {
+  it('stops at the end of the queue rather than going back to the top', () => {
+    expect(skipFailed(queue([1, 2, 3], 2), except()).stop).toBe(true)
+    expect(skipFailed(queue([1, 2, 3], 0), except(2))).toMatchObject({
+      stop: false,
+      state: { index: 2 },
+    })
+  })
+
+  it('goes round with Repeat all', () => {
+    expect(skipFailed(queue([1, 2, 3], 2, 'all'), except())).toMatchObject({
+      stop: false,
+      state: { index: 0 },
+    })
+  })
+
+  it('moves on with Repeat one, rather than starting the failed song again, and keeps it on', () => {
+    expect(skipFailed(queue([1, 2, 3], 1, 'one'), except())).toMatchObject({
+      stop: false,
+      state: { index: 2, repeat: 'one' },
+    })
+    expect(skipFailed(queue([1, 2, 3], 2, 'one'), except()).state.index).toBe(0)
+    expect(skipFailed(queue([1], 0, 'one'), except()).stop).toBe(false)
   })
 })

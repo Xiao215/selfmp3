@@ -111,7 +111,7 @@ text field, where it selects the words (the palette's box, Library's search), in
 dialog or list box, and while a sheet, popover or dialog is open over the page
 (`shell/layers.ts`), so the songs under an open More are not changed beneath it. Only the
 page in front listens: a page pushed over Library leaves Library mounted, and its ⌘A must not
-select Library's songs. Settings › Keyboard shortcuts lists these keys after the menu's.
+select Library's songs. Settings › Advanced › Keyboard shortcuts lists these keys after the menu's.
 
 On an iPad or an iPhone with a hardware keyboard, ⌘A and Escape alone, as key commands
 (`useListKeys.ts`, [MOBILE.md](../MOBILE.md), "A hardware keyboard"): ⌘A stands aside in a
@@ -161,20 +161,27 @@ a view you have left is the sort of leftover state that gets songs deleted by ac
 ## The bar
 
 On a computer the bar never floats over the list: the row it would land on is the one just
-ticked. Library and Search give it a lane of its own above the list, so the list is that much
-shorter. A tag's, an artist's, a playlist's and an answer's page draw it in the list at the foot
-of the page head, and it stays at the top once the head has scrolled away. The lane opens
-rather than appearing, and the bar comes down into it. Left to right: the tri-state checkbox,
-the count and what "all" means, then Play, Add to Up next and, in a playlist you made,
+ticked. Nor does it move the list: ticking the first row pushed every row down by the bar's
+height, and the next tick landed on the song above the one aimed at (X7, 2026-10-25). Library's
+bar takes the place of its title row — the title, the search, the order and Shuffle, which are
+about the view, gone under the page's ground while you act on what is ticked in it — so the tag
+strip and the rows stay where they are (`overHead`). A tag's, an artist's, a playlist's and an
+answer's page draw it in the list at the foot of the page head, and it stays at the top once the
+head has scrolled away; as its room opens the list scrolls by as much (`SongList`'s
+`onPinnedLayout`), so the head gives up the room and the rows hold still, and closing gives it
+back. Search, and Library in a window too short for its head to stay put, still give it a lane
+of its own above the list, which is that much shorter. The bar fades in rather than appearing,
+and a lane opens to it. Left to right: the tri-state checkbox,
+the count and what "all" means, then Add to Up next and, in a playlist you made,
 Remove from this playlist, then More, then Done.
 
 On a phone it floats at the bottom, above the mini player or the tabs, where a thumb is, and
-the toast row (`apps/app/src/shell/Shell.tsx`) steps up above it: the count, then Play, Add to
+the toast row (`apps/app/src/shell/Shell.tsx`) steps up above it: the count, then Add to
 Up next, More and Done as icons on one line, with Select all and a playlist's Remove moved into
 More.
 
-- **Play** and **Add to Up next** are in the bar: frequent and harmless. Play names Up next
-  "Songs you picked", so Save can keep them ([lists.md](lists.md)).
+- **Add to Up next** is in the bar: frequent and harmless. There is no Play (Xiao,
+  2026-10-26): what you ticked is not a list to play.
 - **Remove from this playlist** happens at once, with **Undo** for five seconds that puts the
   songs back in their places (`usePlaylistRemoval`); a song's menu removes one song the same
   way. A playlist that fills from tags has no membership to edit, so it offers none.
@@ -228,7 +235,8 @@ POST /api/playlists/:id/songs/remove  { songIds: number[] } -> { removed, playli
 ```
 
 `POST /api/tags/bulk` and `POST /api/playlists/:id/songs` take id lists for tagging and adding.
-A batch is at most 2000 ids. The bulk song routes are registered **before** `/songs/:id/…`, or
+A batch is at most 2000 ids (`BULK_IDS_MAX`); the client sends a bigger selection as several
+batches, one after another, and adds up their answers. The bulk song routes are registered **before** `/songs/:id/…`, or
 `/songs/bulk/loved` would be matched by `/songs/:id/loved` with an id of `"bulk"` and 400
 instead of reaching the handler. Removing from a playlist refuses a playlist that fills from
 tags.
@@ -237,7 +245,9 @@ tags.
 song: its cover, lyrics, motion curve, lyrics-index rows, any copy of its audio still on the
 server's disk, and its files in the bucket, which are put in the cloud trash and deleted once
 the snapshot without the song is up and no other song names them. A tag the removed songs were
-the last songs of goes too.
+the last songs of goes too. The rows go 50 at a time, with the event loop let go between, and
+files are tidied after the rows are gone; a merge takes its copies' rows inside its own
+transaction, so a second merge of the same songs finds nothing to fold.
 
 - The rows go in **one transaction** (`SongRepository.deleteMany`) and the library version is
   bumped **once**, so a client settles in a single refetch instead of flickering N times.

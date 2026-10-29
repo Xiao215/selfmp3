@@ -1,0 +1,198 @@
+# The iPhone app for friends: built, signed and put on the `ios` release, where
+# the install page and the installed apps find it (docs/MOBILE.md, "Sharing the
+# iPhone app").
+#
+# On every push that changes the app, so a fix reaches "Check for updates"
+# within the hour rather than the next morning (Xiao, 2026-10-26). One build at
+# a time: while one runs, GitHub keeps only the newest push waiting and drops
+# the ones before it, so a busy day is a few builds, the last one main's. The
+# app says so in a toast at most once a day (`announcesBuild`). Nightly
+# too, which builds only when the app has changed since the build on the
+# release; and at once from "Run workflow". The signing is the repository's
+# secrets, set from a Mac that has it by apps/app/scripts/ios-signing-secrets.mjs.
+
+name: iPhone
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/app/**'
+      - 'packages/**'
+      - 'package-lock.json'
+  schedule:
+    # 08:00 UTC: four in the morning in Toronto, midnight in Vancouver.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ios
+  cancel-in-progress: false
+
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.since.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: since
+        name: Has the app changed, or an iPhone been added, since the build on the release?
+        env:
+          EVENT: ${{ github.event_name }}
+          LATEST: https://github.com/${{ github.repository }}/releases/download/ios/ios.json
+          DOORMAN: ${{ vars.DOORMAN_URL || 'https://selfmp3-doorman.xiaozhang20030215.workers.dev' }}
+          DOORMAN_ADMIN_TOKEN: ${{ secrets.DOORMAN_ADMIN_TOKEN }}
+        run: |
+          latest=$(curl -fsSL "$LATEST" || echo '{}')
+          published=$(printf '%s' "$latest" | jq -r '.commit // empty')
+
+          # An iPhone added on the admin page that the build on the release leaves out.
+          waiting=0
+          if [ -n "$DOORMAN_ADMIN_TOKEN" ]; then
+            added=$(curl -fsSL -H "authorization: Bearer $DOORMAN_ADMIN_TOKEN" "$DOORMAN/v1/iphones" \
+              | jq -r '.iphones[] | select(.state == "added") | .udid' || true)
+            for udid in $added; do
+              key=$(printf '%s' "$udid" | tr '[:lower:]' '[:upper:]' | shasum -a 256 | cut -d' ' -f1)
+              printf '%s' "$latest" | jq -e --arg key "$key" '(.devices // []) | index($key)' > /dev/null \
+                || waiting=$((waiting + 1))
+            done
+          fi
+
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "Asked for by hand, or by adding an iPhone."
+            echo build=true >> "$GITHUB_OUTPUT"
+          elif [ -z "$published" ]; then
+            echo "Nothing on the release yet."
+            echo build=true >> "$GITHUB_OUTPUT"
+          elif [ "$waiting" -gt 0 ]; then
+            echo "$waiting added iPhone(s) not in the build on the release."
+            echo build=true >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$published" HEAD -- apps/app packages package-lock.json 2>/dev/null; then
+            echo "The app is as it was at ${published:0:8}; nothing to build."
+            echo build=false >> "$GITHUB_OUTPUT"
+          else
+            echo "The app has changed since ${published:0:8}."
+            echo build=true >> "$GITHUB_OUTPUT"
+          fi
+
+  check:
+    needs: changed
+    if: needs.changed.outputs.build == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check.yml
+
+  build:
+    needs: [changed, check]
+    if: needs.changed.outputs.build == 'true'
+    # Xcode 26: the icon is an Icon Composer file, which older Xcodes cannot build.
+    runs-on: macos-26
+    timeout-minutes: 75
+    permissions:
+      # The release, and moving its tag to the commit built.
+      contents: write
+    env:
+      # A step's `if` cannot read secrets; this can.
+      APPLE_KEY_SET: ${{ secrets.ASC_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # All of it: the build number is the commit count (app.config.js), and
+          # a shallow clone would count one.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build:packages
+
+      - name: Put the signing in a keychain of its own
+        env:
+          IOS_SIGNING: ${{ secrets.IOS_SIGNING }}
+          IOS_P12: ${{ secrets.IOS_P12 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_PROFILE_APP: ${{ secrets.IOS_PROFILE_APP }}
+          IOS_PROFILE_WIDGET: ${{ secrets.IOS_PROFILE_WIDGET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IOS_SIGNING" ] || [ -z "$IOS_P12" ]; then
+            echo "::error::No signing secrets. Run apps/app/scripts/ios-signing-secrets.mjs on a Mac that has them."
+            exit 1
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 16)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$IOS_P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$IOS_P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+
+          for profile in "$IOS_PROFILE_APP" "$IOS_PROFILE_WIDGET"; do
+            printf '%s' "$profile" | base64 --decode > "$RUNNER_TEMP/one.mobileprovision"
+            uuid=$(security cms -D -i "$RUNNER_TEMP/one.mobileprovision" | plutil -extract UUID raw -)
+            for folder in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
+                          "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+              mkdir -p "$folder"
+              cp "$RUNNER_TEMP/one.mobileprovision" "$folder/$uuid.mobileprovision"
+            done
+          done
+          rm "$RUNNER_TEMP/one.mobileprovision"
+
+          printf '%s' "$IOS_SIGNING" > "$RUNNER_TEMP/release.json"
+          xcodebuild -version
+
+      - name: Register added iPhones with Apple, and make the profiles again
+        # Only once the App Store Connect key is set up; until then the
+        # profiles are the ones in IOS_PROFILE_APP and IOS_PROFILE_WIDGET.
+        if: env.APPLE_KEY_SET == 'true'
+        working-directory: apps/app
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          SELFMP3_DOORMAN_ADMIN_TOKEN: ${{ secrets.DOORMAN_ADMIN_TOKEN }}
+          SELFMP3_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+          SELFMP3_IOS_SIGNING: ${{ runner.temp }}/release.json
+          IOS_P12: ${{ secrets.IOS_P12 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$IOS_P12" | base64 --decode \
+            | openssl pkcs12 -nokeys -clcerts -passin env:IOS_P12_PASSWORD \
+            > "$RUNNER_TEMP/certificate.pem"
+          node scripts/ios-provision.mjs --certificate "$RUNNER_TEMP/certificate.pem"
+          rm "$RUNNER_TEMP/certificate.pem"
+
+      - name: Build, sign and publish
+        working-directory: apps/app
+        env:
+          SELFMP3_IOS_SIGNING: ${{ runner.temp }}/release.json
+          SELFMP3_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+          SELFMP3_SERVER_URL: ${{ vars.SERVER_URL }}
+          GH_TOKEN: ${{ github.token }}
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+        run: node scripts/ios-release.mjs --publish
+
+      - name: Let the keychain go
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

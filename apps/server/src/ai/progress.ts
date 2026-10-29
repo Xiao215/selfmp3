@@ -1,4 +1,4 @@
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskReply } from '@selfmp3/shared'
 
 /**
  * What a smart answer is doing while it is asked for (docs/features/ai.md,
@@ -42,7 +42,7 @@ export const NO_STEPS: Steps = {
 }
 
 /** What an Ask came to: its answer, or what stopped it (an error, as thrown). */
-type Outcome = { readonly answer: AskAnswer } | { readonly failed: unknown }
+type Outcome = { readonly answer: AskReply } | { readonly failed: unknown }
 
 /** An Ask as the device sees it when it asks after the ticket. */
 export interface Seen {
@@ -91,8 +91,8 @@ export class AskProgress {
   outlast(
     ticket: string | undefined,
     gone: AbortSignal | undefined,
-    work: (steps: Steps, signal: AbortSignal | undefined) => Promise<AskAnswer>,
-  ): Promise<AskAnswer> {
+    work: (steps: Steps, signal: AbortSignal | undefined) => Promise<AskReply>,
+  ): Promise<AskReply> {
     if (!ticket) return work(NO_STEPS, gone)
     const entry = this.#open(ticket)
     const stop = new AbortController()

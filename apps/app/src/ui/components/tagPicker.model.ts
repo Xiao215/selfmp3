@@ -1,4 +1,34 @@
-import type { Song } from '@selfmp3/shared'
+import { naturalOrder, type Song, type Tag } from '@selfmp3/shared'
+
+/**
+ * A tag in a picker's list, and whether it is one of the ticked library's yet
+ * — or only this device's.
+ */
+export interface Offered {
+  readonly tag: Tag
+  readonly there: boolean
+}
+
+const byName = (a: Offered, b: Offered): number => naturalOrder(a.tag.name, b.tag.name)
+
+/**
+ * What a picker lists before anything is typed, in the order a person reads
+ * names: "manytag-2" before "manytag-10", as a song's own chips are (R2-P16).
+ * With `from` — another library's tags, when the ticks are not this device's —
+ * those first, then this device's whose names it has not got, which ticking
+ * makes there.
+ */
+export function offeredTags(own: readonly Tag[], from?: readonly Tag[]): Offered[] {
+  if (!from) return own.map(tag => ({ tag, there: true })).sort(byName)
+  const named = new Set(from.map(tag => tag.name.toLowerCase()))
+  return [
+    ...from.map(tag => ({ tag, there: true })).sort(byName),
+    ...own
+      .filter(tag => !named.has(tag.name.toLowerCase()))
+      .map(tag => ({ tag, there: false }))
+      .sort(byName),
+  ]
+}
 
 /**
  * What a tag is to a set of songs: on every one of them, on some, or on none.
@@ -66,4 +96,65 @@ export function undoTagChange(
   }
   if (current.all.has(tagId) || current.some.has(tagId)) return current
   return { all: new Set([...current.all, tagId]), some: current.some }
+}
+
+/** A tick on one song not yet answered: whether it put the tag on, and which tick it was. */
+export interface PendingTick {
+  readonly on: boolean
+  readonly tick: number
+}
+
+/**
+ * What the picker on one song shows: the song's tags as the library has them
+ * now, with the ticks still on their way laid over them. Read from the library
+ * rather than kept from when the picker opened, so a tag another device put on
+ * meanwhile shows ticked — and stays on, since each tick sends only itself.
+ */
+export function songPickerTicks(
+  held: readonly number[],
+  pending: ReadonlyMap<number, PendingTick>,
+): ReadonlySet<number> {
+  const ticked = new Set(held)
+  for (const [tagId, { on }] of pending) {
+    if (on) ticked.add(tagId)
+    else ticked.delete(tagId)
+  }
+  return ticked
+}
+
+/** The ticks on their way with this one's tags added. */
+export function withPendingTicks(
+  pending: ReadonlyMap<number, PendingTick>,
+  change: { readonly add: readonly number[]; readonly remove: readonly number[] },
+  tick: number,
+): ReadonlyMap<number, PendingTick> {
+  const next = new Map(pending)
+  for (const tagId of change.add) next.set(tagId, { on: true, tick })
+  for (const tagId of change.remove) next.set(tagId, { on: false, tick })
+  return next
+}
+
+/**
+ * The ticks on their way once this one is answered, or refused: its tags go
+ * back to what the song says, unless a later tick has taken them since.
+ */
+export function settledTicks(
+  pending: ReadonlyMap<number, PendingTick>,
+  tagIds: readonly number[],
+  tick: number,
+): ReadonlyMap<number, PendingTick> {
+  const next = new Map(pending)
+  for (const tagId of tagIds) if (next.get(tagId)?.tick === tick) next.delete(tagId)
+  return next
+}
+
+/** The tags to put on and take off one song, to go from what is shown to what was ticked. */
+export function songTagChange(
+  shown: ReadonlySet<number>,
+  next: ReadonlySet<number>,
+): { readonly add: number[]; readonly remove: number[] } {
+  return {
+    add: [...next].filter(id => !shown.has(id)),
+    remove: [...shown].filter(id => !next.has(id)),
+  }
 }

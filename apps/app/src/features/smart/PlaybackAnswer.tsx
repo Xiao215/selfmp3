@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskCard } from '@selfmp3/shared'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { useSongsById } from '../../ui/songsById'
 import { playbackStep, type PlaybackStep } from './playbackAnswer.model'
@@ -24,8 +24,11 @@ const carriedOut = new WeakMap<object, PlaybackStep>()
  */
 export function PlaybackAnswer({
   answer,
+  onCarriedOut,
 }: {
-  answer: Extract<AskAnswer, { kind: 'playback' }>
+  answer: Extract<AskCard, { kind: 'playback' }>
+  /** What it came to, said once it is done: the Ask page tells the follow-ups that. */
+  onCarriedOut?: (said: string) => void
 }): ReactNode {
   const { queue, isPlaying } = usePlayer()
   const player = usePlayerCommands()
@@ -37,6 +40,10 @@ export function PlaybackAnswer({
       carriedOut.get(answer) ??
       playbackStep(answer, queue, isPlaying, id => songsById.get(id)?.title ?? null),
   )
+
+  useEffect(() => {
+    onCarriedOut?.(step.say)
+  }, [onCarriedOut, step])
 
   useEffect(() => {
     if (carriedOut.has(answer)) return

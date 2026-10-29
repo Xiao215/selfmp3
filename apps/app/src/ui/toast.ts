@@ -1,4 +1,6 @@
-import { failureText } from '@selfmp3/client'
+import type { ReactNode } from 'react'
+import { plural, type Song } from '@selfmp3/shared'
+import { failureWords } from '@selfmp3/client'
 
 /**
  * Short messages about what just happened.
@@ -10,7 +12,22 @@ import { failureText } from '@selfmp3/client'
  * appeared.
  */
 
-type ToastTone = 'info' | 'good' | 'warn' | 'error'
+export type ToastTone = 'info' | 'good' | 'warn' | 'error'
+
+/**
+ * What a message says, in up to three lines.
+ *
+ * `say` is the line in bold: the whole of a short message ("Link copied"), or
+ * the thing a message is about — a song's title, a playlist's name — with
+ * `over` saying what happened to it ("Removed from Up next"). Put into one
+ * sentence, a long title wrapped the message onto two lines with the verb
+ * lost at the front of it. `under` says why, or what comes next.
+ */
+export interface ToastWords {
+  readonly say: string
+  readonly over?: string
+  readonly under?: string
+}
 
 /**
  * A word in the message you can press.
@@ -24,13 +41,43 @@ interface ToastAction {
   readonly onPress: () => void
 }
 
-export interface Toast {
+export interface Toast extends ToastWords {
   readonly id: number
   readonly tone: ToastTone
-  readonly text: string
   /** Zero keeps it until dismissed: for anything that went wrong. */
   readonly autoDismissMs: number
+  /** When its time began: the bar along its foot empties from here, and a fold starts it again. */
+  readonly since: number
   readonly actions: readonly ToastAction[]
+  /** The songs it is about, drawn as their covers where it starts. */
+  readonly songs: readonly Song[]
+  /** Something else drawn there instead: the face of a friend who came into the room. */
+  readonly art?: ReactNode
+  /** Swept in its songs' colours, over the plain card (`tinted`). */
+  readonly tinted: boolean
+  readonly group?: string
+  /** How many messages are folded into it: the count its `say` names once there are two. */
+  readonly count: number
+}
+
+interface ToastOptions {
+  readonly autoDismissMs?: number
+  readonly actions?: readonly ToastAction[]
+  readonly songs?: readonly Song[]
+  readonly art?: ReactNode
+  /**
+   * A plain message about songs swept faintly in their covers' colours: one
+   * that is news rather than good news, a song deleted, which on the green
+   * ground read as a celebration (B, 2026-10-26).
+   */
+  readonly tinted?: boolean
+  /**
+   * Messages of one kind raised while the last is still up fold into it
+   * rather than piling up: three swipes in Up next are one "Removed from Up
+   * next · 3 songs", whose Undo puts all three back. The songs add up, and
+   * the time starts again.
+   */
+  readonly group?: string
 }
 
 let toasts: readonly Toast[] = []
@@ -41,84 +88,142 @@ function emit(): void {
   for (const listener of listeners) listener()
 }
 
+/** The message up of this kind, to fold a new one into. */
+function upIn(group: string | undefined): Toast | undefined {
+  return group === undefined ? undefined : toasts.find(toast => toast.group === group)
+}
+
 /** Raises a message, and hands back its id for one that may stop being true before it times out. */
 export function showToast(
-  text: string,
+  message: string | ToastWords,
   tone: ToastTone = 'info',
-  options: { autoDismissMs?: number; actions?: readonly ToastAction[] } = {},
+  options: ToastOptions = {},
 ): number {
+  const words = typeof message === 'string' ? { say: message } : message
   const actions = options.actions ?? []
-  const id = nextId++
-  toasts = [
-    ...toasts,
-    {
-      id,
-      tone,
-      text,
-      // A message you can act on is given longer: five seconds is enough to
-      // read "Saved", and not enough to decide you would rather it was called
-      // something else.
-      autoDismissMs:
-        options.autoDismissMs ?? (tone === 'error' ? 0 : actions.length > 0 ? 9000 : 5000),
-      actions,
-    },
-  ]
+  const earlier = upIn(options.group)
+  const songs = [...(earlier?.songs ?? []), ...(options.songs ?? [])]
+  const count = (earlier?.count ?? 0) + 1
+  const toast: Toast = {
+    ...words,
+    // Folded together it is about all of them, and the count names them:
+    // every kind that folds is about songs.
+    say: earlier ? plural(count, 'song', 'songs') : words.say,
+    count,
+    id: earlier?.id ?? nextId++,
+    tone,
+    // A message you can act on is given longer: five seconds is enough to
+    // read "Saved", and not enough to decide you would rather it was called
+    // something else.
+    autoDismissMs:
+      options.autoDismissMs ?? (tone === 'error' ? 0 : actions.length > 0 ? 9000 : 5000),
+    since: Date.now(),
+    actions,
+    songs,
+    art: options.art,
+    tinted: options.tinted ?? earlier?.tinted ?? false,
+    group: options.group,
+  }
+  toasts = earlier ? toasts.map(up => (up === earlier ? toast : up)) : [...toasts, toast]
   emit()
-  return id
+  return toast.id
+}
+
+/** A failed edit's message: what did not happen, and why under it (`failureWords`). */
+export function showFailure(failure: string, caught: unknown): number {
+  return showToast(failureWords(failure, caught), 'error')
 }
 
 /** How long a removal can be taken back: five seconds, wherever it was made (`C12`). */
 const UNDO_MS = 5000
 
+/** The Undo of a message that holds several folded together. */
+function undoLabel(count: number): string {
+  return count > 1 ? 'Undo all' : 'Undo'
+}
+
+/** Each undo message's undos, oldest first, so a fold can put back all of them. */
+const undoing = new Map<number, readonly (() => unknown)[]>()
+
 /**
  * Something done, said with an Undo for `UNDO_MS`: Up next's rows and its
- * Clear the rest, a playlist's songs, downloads, an Ask's changes. Removals
- * that would have to be put back on every device — a song from the library, a
- * whole playlist or tag — ask first instead.
+ * Clear the rest, a playlist saved, an Ask's changes. Removals that are
+ * easier not sent than sent and taken back wait for their Undo to go instead
+ * (`showPendingToast`), and ones that would have to be put back on every
+ * device ask first.
  *
  * `undo` may be work that takes a while: once it has finished, `after` says
  * so ("Put your tags back"); if it fails, `failed` says that ("Couldn't undo
  * that, …"), or nothing does when the edit that failed has said so itself.
  * `also` goes before Undo: Open, beside a playlist just saved.
+ *
+ * Hands back the message's id, for one whose Undo can stop being possible
+ * before its time is up.
  */
 export function showUndoToast(
-  text: string,
+  message: string | ToastWords,
   undo: () => unknown,
   options: {
     tone?: ToastTone
     after?: string
     failed?: string
     also?: readonly ToastAction[]
+    songs?: readonly Song[]
+    group?: string
   } = {},
-): void {
-  const { tone = 'info', after, failed, also = [] } = options
+): number {
+  const { tone = 'info', after, failed, also = [], songs, group } = options
+  const earlier = upIn(group)
+  const undos = [...((earlier && undoing.get(earlier.id)) ?? []), undo]
   const run = (): void => {
     Promise.resolve()
-      .then(undo)
+      .then(async () => {
+        // Newest first: each puts its song back into the list the later one left.
+        for (const each of [...undos].reverse()) await each()
+      })
       .then(
         () => {
           if (after) showToast(after, 'info')
         },
         (caught: unknown) => {
-          if (failed) showToast(failureText(failed, caught), 'error')
+          if (failed) showFailure(failed, caught)
         },
       )
   }
-  showToast(text, tone, {
+  const id = showToast(message, tone, {
     autoDismissMs: UNDO_MS,
-    actions: [...also, { label: 'Undo', onPress: run }],
+    songs,
+    group,
+    actions: [...also, { label: undoLabel(undos.length), onPress: run }],
   })
+  undoing.set(id, undos)
+  return id
 }
 
-/** What `showPendingToast` has said is done and not sent yet: each sends itself when called. */
-const pending = new Set<() => void>()
+/** A send waiting on its Undo. */
+interface Waiting {
+  /** Sends it now, unless it was sent or undone already: what it sent, or nothing. */
+  readonly go: () => Promise<void>
+  timer: ReturnType<typeof setTimeout>
+  readonly undone?: () => void
+}
+
+/**
+ * What `showPendingToast` has said is done and not sent yet, each by the kind
+ * of message it was raised with: each sends itself when called. Its message
+ * may have been dismissed already; the send still waits its time.
+ */
+const pending = new Map<() => Promise<void>, string | undefined>()
+/** Each pending message's sends, so a fold can wait for all of them and undo all of them. */
+const waiting = new Map<number, readonly Waiting[]>()
 
 /**
  * Something said done that is only sent once its Undo has gone, as an email
- * client's undo-send: for what cannot be taken back once made — an extra copy
- * of a song folded into the one kept, its file deleted. Undo within `UNDO_MS`
- * cancels it before anything was written, and `undone` puts back whatever
- * the caller set aside meanwhile.
+ * client's undo-send: songs out of a playlist, downloads off this device,
+ * playlists an Ask deleted, an extra copy folded into the one kept. The caller
+ * shows it done at once (hides the rows); Undo within `UNDO_MS` cancels it
+ * before anything was written, and `undone` puts back whatever the caller set
+ * aside meanwhile. Nothing goes to the server and back for a change of mind.
  *
  * Otherwise `send` runs when the time is up, wherever the app is by then, or
  * sooner when the app is leaving (`sendPending`): a phone sent to the
@@ -126,49 +231,91 @@ const pending = new Set<() => void>()
  * `failed` says so.
  */
 export function showPendingToast(
-  text: string,
+  message: string | ToastWords,
   send: () => unknown,
-  options: { tone?: ToastTone; failed?: string; undone?: () => void } = {},
+  options: {
+    tone?: ToastTone
+    failed?: string
+    undone?: () => void
+    songs?: readonly Song[]
+    art?: ReactNode
+    group?: string
+  } = {},
 ): void {
-  const { tone = 'info', failed, undone } = options
+  const { tone = 'info', failed, undone, songs, art, group } = options
+  const earlier = upIn(group)
+  const together = (earlier && waiting.get(earlier.id)) ?? []
+  // Folded in, the earlier ones wait as long as the message now says, and
+  // are still sent first.
+  for (const each of together) {
+    clearTimeout(each.timer)
+    each.timer = setTimeout(() => void each.go(), UNDO_MS)
+  }
   let id = 0
   /** Takes it out of the waiting; false when it was sent or undone already. */
-  const settle = (): boolean => {
-    if (!pending.delete(go)) return false
-    clearTimeout(timer)
+  const settle = (entry: Waiting): boolean => {
+    if (!pending.delete(entry.go)) return false
+    clearTimeout(entry.timer)
     return true
   }
-  function go(): void {
-    if (!settle()) return
-    // Its Undo would be a promise broken: the message goes as it is sent.
-    dismissToast(id)
-    Promise.resolve()
-      .then(send)
-      .catch((caught: unknown) => {
-        if (failed) showToast(failureText(failed, caught), 'error')
-      })
+  const entry: Waiting = {
+    go: async () => {
+      if (!settle(entry)) return
+      // Its Undo would be a promise broken: the message goes as it is sent.
+      dismissToast(id)
+      /*
+       * Started here, in the same turn, not a tick later: a tab closing gets
+       * one event to send from, and a request begun after it has returned is
+       * begun on a page already gone (`appLeaving`).
+       */
+      try {
+        await send()
+      } catch (caught: unknown) {
+        if (failed) showFailure(failed, caught)
+      }
+    },
+    timer: setTimeout(() => void entry.go(), UNDO_MS),
+    undone,
   }
-  pending.add(go)
-  const timer = setTimeout(go, UNDO_MS)
-  id = showToast(text, tone, {
+  pending.set(entry.go, group)
+  const all = [...together, entry]
+  id = showToast(message, tone, {
     autoDismissMs: UNDO_MS,
+    songs,
+    art,
+    group,
     actions: [
       {
-        label: 'Undo',
+        label: undoLabel(all.length),
         onPress: () => {
-          if (settle()) undone?.()
+          for (const each of [...all].reverse()) if (settle(each)) each.undone?.()
         },
       },
     ],
   })
+  waiting.set(id, all)
 }
 
 /** Sends everything still waiting on its Undo, now: the app is going to the background or closing. */
 export function sendPending(): void {
-  for (const go of [...pending]) go()
+  for (const go of [...pending.keys()]) void go()
+}
+
+/**
+ * Sends now what waits on the Undo of the message of kind `group`, and
+ * settles once it has been sent: for an edit that has to come after it.
+ * Songs taken out of a playlist and added straight back were added to a
+ * playlist the server had not yet heard they had left, and then taken out
+ * when the Undo's time ran out.
+ */
+export function sendPendingIn(group: string): Promise<void> {
+  const sends = [...pending].flatMap(([go, kind]) => (kind === group ? [go()] : []))
+  return Promise.all(sends).then(() => undefined)
 }
 
 export function dismissToast(id: number): void {
+  undoing.delete(id)
+  waiting.delete(id)
   toasts = toasts.filter(toast => toast.id !== id)
   emit()
 }

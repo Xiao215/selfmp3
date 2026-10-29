@@ -21,6 +21,8 @@ const song = (id: number, extra: Partial<Song> = {}): Song => ({
   instrumental: false,
   playCount: 0,
   loved: false,
+  lovedAt: null,
+  restUntil: null,
   sourceUrl: null,
   lastPlayedAt: null,
   addedAt: '2026-09-01 00:00:00',

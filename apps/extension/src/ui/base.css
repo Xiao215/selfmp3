@@ -62,8 +62,10 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-family: var(--font-display);
-  font-size: var(--type-body);
+  /* The name in the serif, as the app's sidebar and the install page set it. */
+  font-family: var(--font-serif);
+  font-size: var(--type-large);
+  font-weight: 400;
 }
 
 .logo svg {
@@ -200,11 +202,6 @@ code {
   background: var(--text-primary);
   color: var(--on-primary);
   font-weight: 600;
-}
-
-/* A default tag is on and stays on: drawn as on, not as disabled. */
-.chip:disabled {
-  opacity: 1;
 }
 
 /*

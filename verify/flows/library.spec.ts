@@ -34,7 +34,11 @@ test.describe('library', () => {
     await expect(page.getByRole('combobox', { name: 'Sort by' })).toContainText('Title')
     const first = await titleOf(await topRow(page))
 
-    await page.getByLabel(/^Sort (ascending|descending)$/).click()
+    // Which way round lives in the sort list, named for the field (R1).
+    await page.getByRole('combobox', { name: 'Sort by' }).click()
+    await page.getByRole('button', { name: 'Z–A', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('combobox', { name: 'Sort by' })).toContainText('Z–A')
     await expect.poll(async () => titleOf(await topRow(page))).not.toBe(first)
   })
 })

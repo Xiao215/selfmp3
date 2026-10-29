@@ -1,16 +1,52 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Text } from 'react-native'
+import { Animated, PanResponder, StyleSheet as RNStyleSheet, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { hitSlopFor, leading, motion, radius, space, type, iconSize } from '@selfmp3/client'
+import { Circle, Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg'
+import Reanimated, {
+  cancelAnimation,
+  Easing,
+  ReduceMotion,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated'
+import { hueFromString, type Song } from '@selfmp3/shared'
+import {
+  coverSweep,
+  currentColorScheme,
+  hitSlopFor,
+  leading,
+  motion,
+  radius,
+  space,
+  type,
+  iconSize,
+  tileTone,
+  type SweepTone,
+  type ThemePalette,
+} from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
+import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useAccent } from '../accent'
-import { currentToasts, dismissToast, subscribeToasts, type Toast } from '../toast'
+import { useSvgId } from '../useSvgId'
+import {
+  currentToasts,
+  dismissToast,
+  subscribeToasts,
+  type Toast,
+  type ToastTone,
+  type ToastWords,
+} from '../toast'
+import { Cover } from './Cover'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
 import { Press } from './Press'
 import { floating } from '../surfaces'
-import { ease, motionMs, nativeDriver } from '../motion'
+import { ease, motionMs, nativeDriver, spring, timing } from '../motion'
 
 /**
  * Mounted once, in the shell's toast row: every message raised with `showToast`.
@@ -62,19 +98,21 @@ function ToastItem({
   leaving: boolean
   onGone: (id: number) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
-  const finePointer = useLayoutValue(layout => layout.finePointer)
   // From 0, and the animated value from the first render: swapping a plain
   // number for an Animated value after mount leaves react-native-web drawing
   // the number (see Popover).
   const [shown] = useState(() => new Animated.Value(0))
 
+  // `since` too: a message folded into this one starts its time again.
   useEffect(() => {
     if (leaving || toast.autoDismissMs <= 0) return undefined
-    const timer = setTimeout(() => dismissToast(toast.id), toast.autoDismissMs)
+    const left = toast.autoDismissMs - (Date.now() - toast.since)
+    const timer = setTimeout(() => dismissToast(toast.id), Math.max(0, left))
     return () => clearTimeout(timer)
-  }, [toast.id, toast.autoDismissMs, leaving])
+  }, [toast.id, toast.autoDismissMs, toast.since, leaving])
+
+  // When it was answered by a press: its ✕, or one of its buttons.
+  const answeredAt = useRef<number | null>(null)
 
   useEffect(() => {
     const animation = Animated.timing(shown, {
@@ -83,76 +121,522 @@ function ToastItem({
       easing: ease.out,
       useNativeDriver: nativeDriver,
     })
+    let held: ReturnType<typeof setTimeout> | undefined
     animation.start(({ finished }) => {
-      if (finished && leaving) onGone(toast.id)
+      if (!finished || !leaving) return
+      // Answered by a press, it stays a moment past its fade, unseen and still
+      // taking the pointer, for the rest of a double tap (`answered`).
+      const at = answeredAt.current
+      const left = at === null ? 0 : ANSWERED_CATCH_MS - (Date.now() - at)
+      if (left <= 0) onGone(toast.id)
+      else held = setTimeout(() => onGone(toast.id), left)
     })
-    return () => animation.stop()
+    return () => {
+      animation.stop()
+      clearTimeout(held)
+    }
   }, [leaving, shown, onGone, toast.id])
 
+  const dismiss = useCallback(() => {
+    answeredAt.current = Date.now()
+    dismissToast(toast.id)
+  }, [toast.id])
+  const last = toast.actions.length - 1
+  const clock = toast.autoDismissMs > 0 ? { since: toast.since, ms: toast.autoDismissMs } : null
   return (
     <Animated.View
       style={[
-        styles.toast,
+        styles.slot,
         {
           opacity: shown,
           transform: [
-            { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) },
+            { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
           ],
         },
       ]}
-      pointerEvents={leaving ? 'none' : 'auto'}
-      role="status"
+      pointerEvents="box-none"
     >
-      <Text
-        style={[styles.text, toast.tone === 'error' && { color: theme.colors.danger }]}
-        numberOfLines={2}
+      <ToastCard
+        tone={toast.tone}
+        words={toast}
+        art={toast.art ?? (toast.songs.length > 0 ? <ToastCovers songs={toast.songs} /> : null)}
+        ground={toast.tinted ? <ToastSweep songs={toast.songs} /> : null}
+        // With a button to press, the button runs the clock and the ✕ is plain.
+        timed={last < 0 ? clock : null}
+        onDismiss={dismiss}
+        answered={leaving}
       >
-        {toast.text}
-      </Text>
-      {toast.actions.map(action => (
-        <Press
-          key={action.label}
-          feedback="wash"
-          onPress={() => {
-            // The message has been answered; leaving it up invites a second press.
-            dismissToast(toast.id)
-            action.onPress()
-          }}
-          hitSlop={hitSlopFor(leading.sub + space.xs * 2)}
-          accessibilityRole="button"
-          accessibilityLabel={action.label}
-          style={styles.action}
-        >
-          <Text style={[styles.actionLabel, { color: accent.accent }]}>{action.label}</Text>
-        </Press>
-      ))}
-      <IconButton
-        onPress={() => dismissToast(toast.id)}
-        label="Dismiss"
-        size={finePointer ? 28 : 40}
-      >
-        <X size={iconSize.field} color={theme.colors.textMuted} />
-      </IconButton>
+        {toast.actions.map((action, index) => (
+          <ToastButton
+            key={action.label}
+            label={action.label}
+            tone={toast.tone}
+            filled={index === last}
+            clock={index === last ? clock : null}
+            onPress={() => {
+              // The message has been answered; leaving it up invites a second press.
+              dismiss()
+              action.onPress()
+            }}
+          />
+        ))}
+      </ToastCard>
     </Animated.View>
   )
 }
 
+/** How long a message answered by a press goes on taking the pointer: a slow double tap's length. */
+const ANSWERED_CATCH_MS = 400
+
+/** Past this, a message let go of goes; short of it, it springs back. */
+const SWIPE_AWAY = 72
+
+/**
+ * One message as it is drawn (the notifications restyle, C): a card a step
+ * lighter than anything under it, with what it is about at its start — a
+ * song's cover, a friend's face — then its words, then what you can do. Its
+ * tone is its ground: a good, warning or failed message sits on its tone's
+ * own dark (or light) ground, so it is told apart before it is read. A
+ * message with nothing but a few words is a capsule its own width.
+ *
+ * Every one ends in a ✕. One that goes by itself shows its time: its button
+ * empties (`ToastButton`), or, with no button, a ring round its ✕ does. A
+ * failure, which stays until it is dismissed, has the ✕ alone. On a phone it
+ * can be swiped down or sideways too.
+ *
+ * Shared with the offer to continue from another device (`ResumeToast`), which
+ * is drawn beside these but is not one of them.
+ */
+export function ToastCard({
+  tone,
+  words,
+  art,
+  ground,
+  timed,
+  onDismiss,
+  answered = false,
+  children,
+}: {
+  tone: ToastTone
+  words: ToastWords
+  art?: ReactNode
+  /** Drawn under everything on the card, edge to edge: its songs' colours (`ToastSweep`). */
+  ground?: ReactNode
+  /** Its time, for the ring round its ✕: from `since`, `ms` long. Null for one that stays. */
+  timed: { since: number; ms: number } | null
+  onDismiss: () => void
+  /**
+   * Gone from the store and fading out. The card still takes the pointer then
+   * and does nothing with it: a double tap on Undo put the songs back, and the
+   * second tap, let through a toast already on its way out, played the row
+   * under it — the queue jumped seven songs on, or all of Up next went.
+   */
+  answered?: boolean
+  /** Its buttons (`ToastButton`). */
+  children?: ReactNode
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const finePointer = useLayoutValue(layout => layout.finePointer)
+  const swipe = useSwipeAway(onDismiss)
+  const close = finePointer ? 32 : 40
+  // The tone's ground is a variant of the stylesheet, not a colour beside it:
+  // on a theme change (a new accent) Unistyles writes its own entry back
+  // natively, over any inline colour, and a failure turned grey.
+  styles.useVariants({ tone })
+  const capsule = !art && !words.over && !words.under && !children
+  return (
+    <Animated.View
+      {...swipe.handlers}
+      // One stylesheet entry beside the drag: an animated view flattens its
+      // styles into one object, which Unistyles cannot follow two of.
+      style={[capsule ? styles.capsule : art ? styles.card : styles.cardWordsFirst, swipe.style]}
+      pointerEvents={answered ? 'box-only' : 'auto'}
+      role={tone === 'error' ? 'alert' : 'status'}
+      accessibilityActions={DISMISS_ACTIONS}
+      onAccessibilityAction={onDismiss}
+      onAccessibilityEscape={onDismiss}
+    >
+      {ground}
+      {art}
+      <View style={styles.words}>
+        {words.over ? (
+          <Text style={styles.over} numberOfLines={1}>
+            {words.over}
+          </Text>
+        ) : null}
+        <Text style={[styles.say, words.over && styles.subject]} numberOfLines={words.over ? 1 : 2}>
+          {words.say}
+        </Text>
+        {words.under ? (
+          <Text style={styles.under} numberOfLines={2}>
+            {words.under}
+          </Text>
+        ) : null}
+      </View>
+      {children}
+      <View>
+        <IconButton onPress={onDismiss} label="Dismiss" size={close}>
+          <X size={iconSize.field} color={theme.colors.textSecondary} />
+        </IconButton>
+        {timed ? (
+          <TimeRing
+            since={timed.since}
+            ms={timed.ms}
+            size={close}
+            color={theme.colors.textSecondary}
+          />
+        ) : null}
+      </View>
+    </Animated.View>
+  )
+}
+
+const DISMISS_ACTIONS = [{ name: 'dismiss', label: 'Dismiss' }]
+
+/**
+ * A word on a message. The last of them is the answer most people want —
+ * Undo — and is filled; one before it (Open) is the words alone.
+ *
+ * With `clock` the filled one is the message's timer too: its fill empties
+ * towards its end as the time runs out, so the one thing to press says how
+ * long it can be pressed (the restyle's C). On a toned ground the fill is the
+ * ink's own, since the accent on green or red reads as a third colour.
+ */
+export function ToastButton({
+  label,
+  tone,
+  filled,
+  clock = null,
+  onPress,
+  children,
+}: {
+  label: string
+  tone: ToastTone
+  filled: boolean
+  clock?: { since: number; ms: number } | null
+  onPress: () => void
+  /** Drawn instead of the label: Continue's play mark. */
+  children?: ReactNode
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const accent = useAccent()
+  const pill = filled && !children
+  const plain = tone === 'info'
+  // The label's ink, the time gone, and the time left a clear step above it.
+  const ink = plain ? accent.accent : theme.colors.textPrimary
+  const gone = clock ? `${ink}12` : plain ? accent.accentPill : theme.colors.veil
+  const left = plain ? `${ink}3d` : `${ink}26`
+  return (
+    <Press
+      feedback="wash"
+      onPress={onPress}
+      hitSlop={hitSlopFor(BUTTON_HEIGHT)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={[children ? styles.round : styles.button, pill && { backgroundColor: gone }]}
+    >
+      {pill && clock ? <Draining since={clock.since} ms={clock.ms} color={left} /> : null}
+      {children ?? (
+        <Text style={[styles.buttonLabel, { color: filled ? ink : theme.colors.textPrimary }]}>
+          {label}
+        </Text>
+      )}
+    </Press>
+  )
+}
+
+/** The fill of a button that keeps a message's time, emptying towards its end: its edge sweeps left to right. */
+function Draining({ since, ms, color }: { since: number; ms: number; color: string }): ReactNode {
+  const left = useClock(since, ms)
+  const width = useAnimatedStyle(() => ({ width: `${left.value * 100}%` }))
+  return (
+    <Reanimated.View
+      pointerEvents="none"
+      style={[styles.draining, { backgroundColor: color }, width]}
+    />
+  )
+}
+
+const BUTTON_HEIGHT = 36
+
+/** The covers of what a message is about: one, or the last three fanned when several were folded together. */
+function ToastCovers({ songs }: { songs: readonly Song[] }): ReactNode {
+  const artFor = useArt(ROW_COVER_SIZE)
+  const fanned = songs.slice(-3)
+  if (fanned.length === 1) {
+    const [song] = fanned
+    return song ? <Cover uri={artFor(song)} title={song.title} size={ART} /> : null
+  }
+  const step = 14
+  return (
+    <View style={{ width: ART + step * (fanned.length - 1), height: ART }}>
+      {fanned.map((song, index) => {
+        // The newest in front and whole; the ones before it smaller behind it.
+        const size = ART - (fanned.length - 1 - index) * 6
+        return (
+          <View
+            key={`${song.id}-${index}`}
+            style={[styles.fanned, { left: index * step, top: (ART - size) / 2 }]}
+          >
+            <Cover uri={artFor(song)} title={song.title} size={size} />
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
+/**
+ * A plain message's songs, as a faint sweep across its card: one song's two
+ * main colours, or each of several songs' own, left to right as their covers
+ * are fanned (`coverSweep`). A song whose cover has not been read yet adds
+ * nothing; one with no cover, its letter tile's colour.
+ */
+function ToastSweep({ songs }: { songs: readonly Song[] }): ReactNode {
+  // Heard so a change of theme draws the sweep again in the new one.
+  useUnistyles()
+  const id = useSvgId('toastsweep')
+  const scheme = currentColorScheme()
+  const colours = coverSweep(songs.slice(-3).flatMap(sweepToneOf), scheme)
+  if (colours.length === 0) return null
+  // Fainter on Paper's white card, where the same colour shows more.
+  const strength = scheme === 'light' ? 0.14 : 0.18
+  return (
+    <View pointerEvents="none" style={RNStyleSheet.absoluteFill}>
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0.2">
+            {colours.map((colour, index) => (
+              <Stop
+                key={index}
+                offset={index / (colours.length - 1)}
+                stopColor={colour}
+                stopOpacity={strength}
+              />
+            ))}
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" rx={radius.card} fill={`url(#${id})`} />
+      </Svg>
+    </View>
+  )
+}
+
+function sweepToneOf(song: Song): SweepTone[] {
+  if (!song.hasArt) return [tileTone(hueFromString(song.album || song.title))]
+  return song.coverTone ? [song.coverTone] : []
+}
+
+/** A message's picture: a cover, or a face. */
+export const ART = 44
+
+/**
+ * A message's time left, as a ring round its ✕ that empties clockwise: for
+ * one with no button to carry it (`useClock`).
+ */
+function TimeRing({
+  since,
+  ms,
+  size,
+  color,
+}: {
+  since: number
+  ms: number
+  size: number
+  color: string
+}): ReactNode {
+  const r = size / 2 - 2
+  const around = 2 * Math.PI * r
+  const left = useClock(since, ms)
+  const dash = useAnimatedProps(() => ({ strokeDashoffset: around * (1 - left.value) }))
+  return (
+    <View pointerEvents="none" style={RNStyleSheet.absoluteFill}>
+      <Svg width={size} height={size}>
+        <RunningCircle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeOpacity={0.55}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeDasharray={`${around} ${around}`}
+          animatedProps={dash}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+    </View>
+  )
+}
+
+const RunningCircle = Reanimated.createAnimatedComponent(Circle)
+
+/**
+ * A message's time left, 1 to 0, run by Reanimated on the UI thread every
+ * frame: a clock stepped from React four times a second read as laggy, and on
+ * a phone it would stall whenever the JavaScript side was busy. From `since`,
+ * so a message folded into this one starts it again. Linear, and not skipped
+ * under Reduce Motion: it is a clock, not a flourish.
+ */
+function useClock(since: number, ms: number): SharedValue<number> {
+  const left = useSharedValue(1)
+  useEffect(() => {
+    const already = Math.min(1, Math.max(0, (Date.now() - since) / ms))
+    left.value = 1 - already
+    left.value = withTiming(0, {
+      duration: ms * (1 - already),
+      easing: Easing.linear,
+      reduceMotion: ReduceMotion.Never,
+    })
+    return () => cancelAnimation(left)
+  }, [since, ms, left])
+  return left
+}
+
+/**
+ * A message dragged down or sideways, and let go: past `SWIPE_AWAY` (or
+ * flung) it carries on out and is dismissed; short of it, it springs back.
+ * On the JavaScript side, as a drag is, and on its own view, apart from the
+ * fade in and out the native driver moves.
+ */
+function useSwipeAway(onAway: () => void): {
+  handlers: ReturnType<typeof PanResponder.create>['panHandlers']
+  style: object
+} {
+  const [x] = useState(() => new Animated.Value(0))
+  const [y] = useState(() => new Animated.Value(0))
+  // Made again only when `onAway` is (its callers keep it steady): a
+  // responder made anew mid-drag forgets the drag.
+  const responder = useMemo(
+    () =>
+      PanResponder.create({
+        // A tap belongs to the button under it; only a drag is the message's.
+        onMoveShouldSetPanResponder: (_, drag) => Math.abs(drag.dx) > 8 || drag.dy > 8,
+        onPanResponderMove: (_, drag) => {
+          x.setValue(drag.dx)
+          y.setValue(Math.max(0, drag.dy))
+        },
+        onPanResponderRelease: (_, drag) => {
+          const sideways = Math.abs(drag.dx) > SWIPE_AWAY || Math.abs(drag.vx) > 0.6
+          const down = drag.dy > SWIPE_AWAY / 2 || drag.vy > 0.6
+          if (sideways) {
+            timing(x, Math.sign(drag.dx || 1) * 480, motion.fast, onAway, {
+              easing: ease.out,
+              native: false,
+            })
+          } else if (down) {
+            timing(y, 160, motion.fast, onAway, { easing: ease.out, native: false })
+          } else {
+            spring(x, 0, { native: false })
+            spring(y, 0, { native: false })
+          }
+        },
+        onPanResponderTerminate: () => {
+          spring(x, 0, { native: false })
+          spring(y, 0, { native: false })
+        },
+      }),
+    [x, y, onAway],
+  )
+  const [style] = useState(() => ({
+    opacity: x.interpolate({
+      inputRange: [-240, 0, 240],
+      outputRange: [0, 1, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [{ translateX: x }, { translateY: y }],
+  }))
+  return { handlers: responder.panHandlers, style }
+}
+
+/** A message's ground by its tone: good, warning and failed have their own; news has none. */
+function grounds(colors: ThemePalette) {
+  return {
+    info: {},
+    good: { backgroundColor: colors.toastGood },
+    warn: { backgroundColor: colors.toastWarn },
+    error: { backgroundColor: colors.toastError },
+  }
+}
+
 const styles = StyleSheet.create(theme => ({
-  toast: {
+  slot: { width: '100%', alignItems: 'center' },
+  card: {
+    width: '100%',
+    maxWidth: 440,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.sm,
-    maxWidth: 560,
-    paddingVertical: space.sm,
-    paddingRight: space.sm,
-    paddingLeft: space.roomy,
-    // A floating pill with no edge: its shadow lifts it off the page. An error
-    // says so in its red text; the other tones are told by what they say.
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
+    gap: space.md,
+    padding: space.snug,
+    borderRadius: radius.card,
+    backgroundColor: theme.colors.toast,
+    // A drag on it is a swipe, not a selection of its words.
+    userSelect: 'none',
     ...floating(theme.colors),
+    variants: { tone: grounds(theme.colors) },
   },
-  text: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  action: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.pill },
-  actionLabel: { fontSize: type.sub, fontWeight: '600' },
+  /** With no picture to start it, the words keep off the rounded edge. */
+  cardWordsFirst: {
+    width: '100%',
+    maxWidth: 440,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.snug,
+    paddingLeft: space.lg,
+    borderRadius: radius.card,
+    backgroundColor: theme.colors.toast,
+    // A drag on it is a swipe, not a selection of its words.
+    userSelect: 'none',
+    ...floating(theme.colors),
+    variants: { tone: grounds(theme.colors) },
+  },
+  capsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 46,
+    paddingVertical: space.xs,
+    paddingLeft: space.gutter,
+    paddingRight: space.xs,
+    gap: space.sm,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.toast,
+    ...floating(theme.colors),
+    variants: { tone: grounds(theme.colors) },
+  },
+
+  words: { flexShrink: 1, flexGrow: 1, gap: 1 },
+  over: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  // Plain weight: a message is read in passing, not shouted. Only the thing
+  // one is about (a song's title under "Removed from Up next") stands out a little.
+  say: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  subject: { fontWeight: '500' },
+  under: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
+  draining: { position: 'absolute', right: 0, top: 0, bottom: 0 },
+  button: {
+    height: BUTTON_HEIGHT,
+    minWidth: 72,
+    paddingHorizontal: space.roomy,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  round: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.textPrimary,
+  },
+  buttonLabel: { fontSize: type.body, fontWeight: '600' },
+  fanned: {
+    position: 'absolute',
+    borderRadius: radius.cover + 2,
+    borderWidth: 2,
+    borderColor: theme.colors.toast,
+    margin: -2,
+  },
 }))

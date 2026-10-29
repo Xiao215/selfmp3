@@ -12,52 +12,47 @@ import {
   RoomMemberNameSchema,
   type Song,
 } from '@selfmp3/shared'
-import {
-  failureText,
-  iconSize,
-  libraryIndex,
-  queryKeys,
-  space,
-  useCreatePlaylist,
-  useLibrary,
-  yoursOf,
-} from '@selfmp3/client'
+import { iconSize, queryKeys, space, useCreatePlaylist, yoursOf } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { prefs } from '../../ports/prefs'
-import { label, pageTitle, lineSub } from '../../ui/surfaces'
-import { showToast } from '../../ui/toast'
+import { label, pageFrame, pageTitle, lineSub } from '../../ui/surfaces'
+import { showFailure, showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { openRoomSheet } from './roomSheets.store'
 import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useCloudSession } from '../profile/useCloudSession'
+import { nameToJoinWith } from '../shared/shared.model'
 import { newPlaylist } from '../playlists/playlists.model'
-import { forgetPastRoom, pastRoomFaces, usePastRooms, withYourPicture } from './pastRooms.store'
+import { forgetPastRoom, pastRoomFaces, usePastRooms } from './pastRooms.store'
 import { usePastRoomCovers } from './usePastRoomCovers'
 import { FacesCover } from './RoomFace'
 import { GetIt } from './GetIt'
+import { BadRoomCode } from './BadRoomCode'
 import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
-import { useGetSongs } from './useGetSongs'
-import { joinRoom, leaveRoom, useRoom } from './room.store'
+import { useGetSongs, type GetSong } from './useGetSongs'
+import { joinRoom, useRoom } from './room.store'
+import { GUEST_NAME_KEY, type PastRoom } from './room.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { useFootInset } from '../../shell/bottomInset'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { Download, ListMusic, People, Trash } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { useListActions } from '../../ui/components/useListActions'
-import { useSongsById } from '../../ui/songsById'
+import { useLibraryIndex, useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-
-/** The name a guest last joined with, offered again. */
-const GUEST_NAME_KEY = 'room.name'
 
 // --- Join -------------------------------------------------------------------------
 
@@ -76,8 +71,7 @@ export function JoinScreen(): ReactNode {
   const signedIn = status === 'ready' && me !== null && me !== undefined
   // What you typed, or else the name you joined with last, or your own.
   const [typed, setName] = useState<string | null>(null)
-  const suggested =
-    prefs.get(GUEST_NAME_KEY) ?? (me ? ((me.name ?? me.email).trim().split(/\s+/)[0] ?? '') : '')
+  const suggested = prefs.get(GUEST_NAME_KEY) ?? (me ? nameToJoinWith(me) : '')
   const name = typed ?? suggested
   const [busy, setBusy] = useState(false)
 
@@ -91,8 +85,7 @@ export function JoinScreen(): ReactNode {
     if (!code.success || !name.trim()) return
     setBusy(true)
     try {
-      // One room at a time: the one you are in hears you leave first.
-      if (room.pass && room.pass.code !== code.data) await leaveRoom()
+      // One room at a time: the one you are in hears you leave once this one lets you in.
       await joinRoom(code.data, name.trim().slice(0, 40))
       if (!signedIn) prefs.set(GUEST_NAME_KEY, name.trim())
       router.replace('/room')
@@ -105,20 +98,19 @@ export function JoinScreen(): ReactNode {
 
   if (!code.success) {
     // A guest in a browser has nowhere in the app to go back to.
-    return (
-      <MissingPage
-        title="That is not a room code"
-        line="A code is six letters and digits, like KQ7 482."
-        back={status === 'ready' ? '/' : undefined}
-        action={
-          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
-        }
-      />
-    )
+    return <BadRoomCode key={given} given={given ?? ''} back={status === 'ready'} />
   }
 
+  // Connected to a library (cloud or a server address) there is somewhere to go back to,
+  // and this page has no sidebar to go there by.
+  const connected = status === 'ready'
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      {connected ? (
+        <View style={styles.joinBack}>
+          <BackButton to="/" always testID="room-join-back" />
+        </View>
+      ) : null}
       <View style={styles.centre} testID="room-join">
         <Text style={styles.label}>Room {formatRoomCode(code.data)}</Text>
         <Text style={styles.big} accessibilityRole="header">
@@ -127,7 +119,9 @@ export function JoinScreen(): ReactNode {
         <Text style={styles.text}>
           {signedIn
             ? 'You join as yourself, and can bring songs from your own library.'
-            : 'No app or account needed. You can add songs that are in the room, or a link.'}
+            : connected
+              ? 'You join with a name and can add songs that are in the room. Bringing your own needs a self.mp3 sign-in.'
+              : 'No app or account needed. You can add songs that are in the room, or a link.'}
         </Text>
         {room.pass && !already ? (
           <Text style={styles.text}>Joining leaves the room you are in now.</Text>
@@ -149,7 +143,7 @@ export function JoinScreen(): ReactNode {
           onPress={() => void join()}
           testID="room-join-go"
         />
-        {!signedIn && status !== 'loading' ? (
+        {status === 'missing' ? (
           <Text style={styles.text}>
             Have self.mp3?{' '}
             <Text style={styles.link} onPress={() => router.push('/welcome')}>
@@ -170,24 +164,42 @@ export function JoinScreen(): ReactNode {
  * browser sees, and where anyone lands after joining.
  */
 export function RoomScreen(): ReactNode {
-  const router = useRouter()
   const { state, link } = useRoom()
   const { status } = useConnection()
+  const { wide } = useLayoutFlags()
+  // The room owns the display, so this is the home indicator's room on a phone.
+  const foot = useFootInset()
   if (!state) {
+    // Not in one: what a room is for, and the way into a friend's (L1).
     return (
-      <MissingPage
-        title="You are not in a room"
-        line="A room is Up next, shared: open one with Listen together beside the song playing, or join with a friend’s code."
-        back={status === 'ready' ? '/' : undefined}
-        action={
-          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
-        }
-      />
+      <SafeAreaView style={styles.screen} edges={['top']}>
+        <View style={[styles.page, pageFrame(wide)]}>
+          {status === 'ready' ? <BackButton to="/" /> : null}
+          <EmptyState
+            icon={<People size={iconSize.large} tone="textMuted" />}
+            title="Listen together"
+            line="Start a room from the player, or join a friend’s."
+            testID="room-none"
+          >
+            {status === 'ready' ? (
+              <Button
+                label="Join with a code"
+                active
+                onPress={() => openRoomSheet()}
+                testID="room-none-join"
+              />
+            ) : null}
+          </EmptyState>
+        </View>
+      </SafeAreaView>
     )
   }
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.page} testID="room-screen">
+      <ScrollView
+        contentContainerStyle={[styles.page, pageFrame(wide), { paddingBottom: space.xl + foot }]}
+        testID="room-screen"
+      >
         {status === 'ready' ? <BackButton to="/" /> : null}
         <RoomHead state={state} link={link} />
         <RoomList head={false} />
@@ -216,15 +228,13 @@ export function RoomScreen(): ReactNode {
 export function PastRoomScreen(): ReactNode {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { code } = useLocalSearchParams<{ code: string }>()
   const past = usePastRooms().find(room => room.code === code)
-  const { data: library } = useLibrary()
-  const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const index = useLibraryIndex()
   const byId = useSongsById()
   const covers = usePastRoomCovers(past)
   const artFor = useArt()
-  const yourPicture = useCloudSession().data?.picture
   const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const heroRef = useRef<View>(null)
@@ -265,6 +275,11 @@ export function PastRoomScreen(): ReactNode {
     fly(heroRef.current, ids.slice(at))
     player.playFrom(ids, at, { source })
   }
+  // Who brought each song, which the song keeps once it is got.
+  const gotFrom = (entry: PastRoom['songs'][number]): GetSong => ({
+    song: entry.song,
+    cameWith: { kind: 'room', from: entry.by },
+  })
   const seconds = past.songs.reduce((sum, entry) => sum + entry.song.duration, 0)
   const waiting = gettable.filter(
     entry => !getting.has(entry.song.sourceUrl ?? '') && !jobFor(entry.song.sourceUrl),
@@ -287,7 +302,7 @@ export function PastRoomScreen(): ReactNode {
         ],
       })
     } catch (error) {
-      showToast(failureText('Couldn’t save it', error), 'error')
+      showFailure('Couldn’t save it', error)
     } finally {
       setSaving(false)
     }
@@ -324,7 +339,7 @@ export function PastRoomScreen(): ReactNode {
                       label: `Get ${plural(waiting.length, 'song', 'songs')} from friends`,
                       icon: <Download tone="textSecondary" />,
                       testID: 'past-room-get-all',
-                      onPress: () => void get(waiting.map(entry => entry.song)),
+                      onPress: () => void get(waiting.map(gotFrom)),
                     },
                   ]
                 : []),
@@ -346,7 +361,7 @@ export function PastRoomScreen(): ReactNode {
       heroRef={heroRef}
       cover={
         <FacesCover
-          people={pastRoomFaces(past, yourPicture)}
+          people={pastRoomFaces(past)}
           size={wide ? 176 : 196}
           covers={past.songs.map((entry, at) => ({
             uri: covers[at],
@@ -383,7 +398,7 @@ export function PastRoomScreen(): ReactNode {
             songIds={ids}
             empty={false}
             heroRef={heroRef}
-            onPlay={() => player.playFrom(ids, 0, { source })}
+            onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
             testPrefix="past-room"
           />
@@ -414,10 +429,7 @@ export function PastRoomScreen(): ReactNode {
                 key={`${at}-${entry.song.title}`}
                 song={entry.song}
                 uri={covers[at]}
-                face={withYourPicture(
-                  { name: entry.by, colour: entry.colour, picture: entry.picture },
-                  yourPicture,
-                )}
+                face={{ name: entry.by, colour: entry.colour, picture: entry.picture }}
                 // The room that lent a friend's song has gone: it can only be got.
                 faded={id === null}
                 onPress={id !== null ? () => play(id) : undefined}
@@ -428,7 +440,7 @@ export function PastRoomScreen(): ReactNode {
                       title={entry.song.title}
                       asked={getting.has(sourceUrl)}
                       job={jobFor(sourceUrl)}
-                      onGet={() => void get([entry.song])}
+                      onGet={() => void get([gotFrom(entry)])}
                       onRetry={job => void retry(job)}
                       testID={`past-room-get-${at}`}
                     />
@@ -438,6 +450,7 @@ export function PastRoomScreen(): ReactNode {
             )
           })}
         </View>
+        <ChromeSpacer />
       </ScrollView>
     </View>
   )
@@ -445,6 +458,7 @@ export function PastRoomScreen(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  joinBack: { paddingHorizontal: space.gutter },
   centre: {
     flex: 1,
     width: '100%',
@@ -454,19 +468,12 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     padding: space.xl,
   },
-  page: {
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
-    gap: space.lg,
-    padding: space.gutter,
-    paddingBottom: 120,
-  },
+  page: { width: '100%', maxWidth: 640, alignSelf: 'center', gap: space.lg },
   big: pageTitle(theme.colors),
   label: label(theme.colors),
   text: lineSub(theme.colors),
   link: { color: theme.colors.textPrimary, fontWeight: '600', textDecorationLine: 'underline' },
-  pastList: { paddingBottom: 120 },
+  pastList: { paddingBottom: space.xl },
   rows: { paddingHorizontal: space.gutter, gap: space.sm },
   rowsWide: { paddingHorizontal: space.gutterWide },
 }))

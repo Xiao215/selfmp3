@@ -6,6 +6,9 @@ import { migrate } from './migrate.js'
 
 export type Db = Database.Database
 
+/** How long a write waits on a lock held elsewhere before it is refused. */
+const BUSY_TIMEOUT_MS = 250
+
 /**
  * Open the database and bring the schema up to date.
  *
@@ -15,8 +18,13 @@ export type Db = Database.Database
  *    it is durable across application crashes, just not a power cut mid-write.
  *  - `foreign_keys` is off by default in SQLite, which would silently let
  *    orphaned tag links accumulate.
- *  - `busy_timeout` turns "database is locked" into "wait a moment", which is
- *    the difference between a rare hard failure and no failure at all.
+ *  - `busy_timeout` turns "database is locked" into "wait a moment" — but a
+ *    short moment (`BUSY_TIMEOUT_MS`). better-sqlite3 waits on the event loop,
+ *    so every request waits with it: at 5 s, a lock held from outside (a
+ *    `sqlite3` shell left in a transaction) kept /api/health waiting 7-14 s
+ *    and every device said the library was unreachable. This server is the
+ *    only writer, and the error middleware answers a write still refused with
+ *    a 503 the app retries (http/errors.ts `databaseTrouble`).
  */
 export function openDatabase(config: Config, logger: Logger): Db {
   const file = path.join(config.dataDir, 'selfmp3.db')
@@ -25,7 +33,7 @@ export function openDatabase(config: Config, logger: Logger): Db {
   db.pragma('journal_mode = WAL')
   db.pragma('synchronous = NORMAL')
   db.pragma('foreign_keys = ON')
-  db.pragma('busy_timeout = 5000')
+  db.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`)
   db.pragma('temp_store = MEMORY')
   // ~64 MB of page cache. Trivial on any modern machine, and it keeps the
   // whole index set resident for a library of realistic size.

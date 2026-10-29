@@ -11,13 +11,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 // The place word is the browser's own (device.web.ts); here it is a computer.
-vi.mock('./device', () => ({ deviceKind: () => 'desktop' }))
+vi.mock('./device', () => ({ deviceKind: () => 'desktop', deviceModel: () => 'browser' }))
 
 class FakeAudio extends EventTarget {
   preload = 'metadata'
   crossOrigin: string | null = null
   src = ''
   currentTime = 0
+  readyState = 0
   duration = NaN
   volume = 1
   muted = false
@@ -110,6 +111,27 @@ describe('a song loaded to sit paused', () => {
     await playing
     await Promise.resolve()
     expect(primary.currentTime).toBe(203)
+  })
+
+  it('is not sent back to where it was left once it has played on', async () => {
+    vi.useFakeTimers()
+    try {
+      const { audioEngine, primary } = await engine()
+      await audioEngine.load(7, { autoplay: false, startAt: 60 })
+      // Chrome fetches the metadata despite preload="none": no event is coming.
+      primary.readyState = 4
+      await audioEngine.play()
+      expect(primary.currentTime).toBe(60)
+
+      // Played on, paused, played again — all inside the old five-second wait.
+      primary.currentTime = 62
+      audioEngine.pause()
+      await audioEngine.play()
+      await vi.advanceTimersByTimeAsync(6_000)
+      expect(primary.currentTime).toBe(62)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('leaves a played load as it was: preload on, seek awaited', async () => {

@@ -17,6 +17,27 @@ const { NATIVE_BACKGROUND, DEEP_LINK_SCHEME } = require('@selfmp3/shared')
 /** The version is the package's, as the desktop app's and the extension's are. */
 const { version } = require('./package.json')
 
+/*
+ * The build number is the commit count, so a later commit is always a larger
+ * number: an installed app compares its own with the shared build's
+ * (packages/shared/src/phoneBuilds.ts) to offer the newer one, and Android
+ * refuses to put a build with a smaller versionCode over a larger. Outside a checkout,
+ * or in a shallow one, it is whatever git says, and 1 without git at all.
+ */
+const buildNumber = (() => {
+  try {
+    return require('node:child_process')
+      .execSync('git rev-list --count HEAD', {
+        cwd: __dirname,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+      .toString()
+      .trim()
+  } catch {
+    return '1'
+  }
+})()
+
 /** @type {import('@expo/config-types').ExpoConfig} */
 const config = {
   name: 'self.mp3',
@@ -37,6 +58,7 @@ const config = {
 
   ios: {
     bundleIdentifier: 'com.selfmp3.app',
+    buildNumber,
     supportsTablet: true,
     // The same mark as layers (an Icon Composer file: the notes over a
     // ground), so the home screen's Dark, Clear and Tinted looks are drawn on
@@ -72,6 +94,7 @@ const config = {
 
   android: {
     package: 'com.selfmp3.app',
+    versionCode: Number(buildNumber),
     // The same mark with its background dropped: Android masks the foreground
     // to whatever shape the launcher uses and paints this colour behind it.
     adaptiveIcon: {
@@ -83,9 +106,14 @@ const config = {
       monochromeImage: './assets/monochrome-icon.png',
     },
     // FOREGROUND_SERVICE* come from react-native-track-player's own manifest;
-    // these two are ours: network access and the wake lock the player holds
-    // while the screen is off.
-    permissions: ['android.permission.INTERNET', 'android.permission.WAKE_LOCK'],
+    // these are ours: network access, the wake lock the player holds while
+    // the screen is off, and handing a newer shared build to the system's
+    // installer (src/ports/appUpdate.ts) — without it Android refuses to open it.
+    permissions: [
+      'android.permission.INTERNET',
+      'android.permission.WAKE_LOCK',
+      'android.permission.REQUEST_INSTALL_PACKAGES',
+    ],
   },
 
   plugins: [
@@ -112,6 +140,10 @@ const config = {
     // Android blocks cleartext HTTP in release builds; the server is a
     // Tailscale host on plain HTTP. See the plugin for the reasoning.
     './plugins/withCleartextTraffic',
+    // The one key every shared Android build is signed with, when given one.
+    './plugins/withReleaseSigning',
+    // Fixes to the player's iOS code (a deadlock that stopped every animation).
+    './plugins/withPlayerPatches',
     // The month as a page, saved as an image, goes out through the share sheet.
     'expo-sharing',
     // The home-screen widget's Xcode target, from targets/widget (docs/ui-mock `P28`).

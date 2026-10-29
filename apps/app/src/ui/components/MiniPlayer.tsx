@@ -9,16 +9,10 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
-import {
-  MINI_PLAYER_HEIGHT,
-  motion,
-  NAV_HEIGHT,
-  radius,
-  space,
-  type,
-  iconSize,
-} from '@selfmp3/client'
-import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
+import { MINI_PLAYER_HEIGHT, motion, radius, space, type, iconSize } from '@selfmp3/client'
+import { miniPlayerBottom, useFloatingBarSide } from '../../shell/bottomInset'
+import { usePageTabs } from '../../shell/pageChrome'
+import { useLayoutValue } from '../../shell/useLayout'
 import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
 import { UpNextTarget } from './CoverFlight'
@@ -30,6 +24,7 @@ import { PlayPauseButton } from './PlayPauseButton'
 import { useOpenNowPlaying } from '../useOpenNowPlaying'
 import { ease, session, timing, usePressScale } from '../motion'
 import { MOVE_MS, overshootRange, PRESS } from '../motion.model'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * The mini player: a card floating over the page, above the tab bar
@@ -46,8 +41,13 @@ function MiniPlayerInner(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
   const player = usePlayer()
+  // On a 320 pt phone three 44 pt buttons left the song's name 84 pt: drawn
+  // at 36 there, each still answers a finger over 44 (P13 B).
+  const button = useLayoutValue(layout => (layout.width < NARROW_PHONE ? NARROW_BUTTON : undefined))
+  const side = useFloatingBarSide(EDGE)
   const song = player.current
   const insets = useSafeAreaInsets()
+  const tabs = usePageTabs()
 
   // The first song of a session: the card rises from under the tab bar and
   // runs a few points past its place before settling (`M1`, 3). After that the
@@ -143,7 +143,11 @@ function MiniPlayerInner(): ReactNode {
       testID="mini-player"
       style={[
         styles.bar,
-        { bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP },
+        {
+          bottom: miniPlayerBottom(insets.bottom, tabs),
+          left: side,
+          right: side,
+        },
         arrival,
       ]}
       pointerEvents={song ? 'auto' : 'none'}
@@ -181,7 +185,12 @@ function MiniPlayerInner(): ReactNode {
 
       {/* Up next: the sheet over this card and the tab bar (docs/ui-mock `P25`). */}
       <UpNextTarget>
-        <IconButton testID="mini-player-queue" onPress={openQueueSheet} label="Up next">
+        <IconButton
+          testID="mini-player-queue"
+          onPress={openQueueSheet}
+          label="Up next"
+          size={button}
+        >
           <UpNext size={iconSize.nav} color={theme.colors.textSecondary} />
         </IconButton>
       </UpNextTarget>
@@ -192,15 +201,20 @@ function MiniPlayerInner(): ReactNode {
       */}
       <PlayPauseButton
         bare
+        size={button}
         glyph={iconSize.large}
         testID={playing => (playing ? 'mini-player-playing' : 'mini-player-paused')}
       />
-      <IconButton testID="mini-player-next" onPress={player.next} label="Next">
+      <IconButton testID="mini-player-next" onPress={player.next} label="Next" size={button}>
         <Next size={iconSize.nav} color={theme.colors.textSecondary} />
       </IconButton>
     </Animated.View>
   )
 }
+
+/** Under this width the card's buttons are drawn smaller, and the button they draw. */
+const NARROW_PHONE = 360
+const NARROW_BUTTON = 36
 
 /** What the session remembers once the card has risen. */
 const RISE_KEY = 'mini-player-rise'
@@ -217,10 +231,11 @@ const WORDS_STEP = 8
 function Words({ song }: { song: Song }): ReactNode {
   return (
     <>
-      <Text style={styles.title} numberOfLines={1}>
+      {/* The card is a control of a set height: its words stop at the controls' size. */}
+      <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={CONTROL_SCALE}>
         {song.title}
       </Text>
-      <Text style={styles.artist} numberOfLines={1}>
+      <Text style={styles.artist} numberOfLines={1} maxFontSizeMultiplier={CONTROL_SCALE}>
         {artistOr(song.artist)}
       </Text>
     </>
@@ -233,6 +248,8 @@ const styles = StyleSheet.create(theme => ({
     left: EDGE,
     right: EDGE,
     height: MINI_PLAYER_HEIGHT,
+    // Chrome, as the computer's player bar is: nothing in it to select.
+    userSelect: 'none',
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,

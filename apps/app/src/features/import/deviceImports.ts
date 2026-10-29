@@ -50,7 +50,7 @@ export async function enqueueImport(
   const waiting = deviceHandBackOn() && refusing(deviceBudget, Date.now())
   const onDevice = youtube !== null && !waiting && !api.answersFromCloud()
   const result = await api.importEnqueue(onDevice ? { ...request, fetchOnDevice: true } : request)
-  if (result.device) deviceImports.take(api, result.device, result.jobs)
+  for (const lease of result.leases) deviceImports.take(api, lease, result.jobs)
   return result
 }
 
@@ -60,7 +60,12 @@ export async function enqueueImport(
  * or when the device could not. The server is told not to look for the rows'
  * audio when this device would be the one listening.
  */
-export async function previewImport(api: Api, input: string): Promise<ImportPreview> {
+export async function previewImport(
+  api: Api,
+  input: string,
+  /** `api`'s look-up, waiting as long as a look-up takes (importSource.ts). */
+  lookUp: Pick<Api, 'importPreview'> = api,
+): Promise<ImportPreview> {
   // Whether this device can ask YouTube at all first: on a phone it cannot, and nothing else is asked.
   const youtube = deviceDownloadsOn() ? await deviceDownloader() : null
   const onDevice = youtube !== null && !api.answersFromCloud()
@@ -80,7 +85,7 @@ export async function previewImport(api: Api, input: string): Promise<ImportPrev
       console.warn('[device import] the server looks this one up instead:', error)
     }
   }
-  return onDevice ? api.importPreview(input, { warmListen: false }) : api.importPreview(input)
+  return onDevice ? lookUp.importPreview(input, { warmListen: false }) : lookUp.importPreview(input)
 }
 
 /**

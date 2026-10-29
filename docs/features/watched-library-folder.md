@@ -40,8 +40,13 @@ names the folder, as the server sees it.
 - Events are **debounced** (`services/debounce.ts`): 1.5 s of quiet after the last event,
   with a 15 s ceiling so a very long copy still gets a sweep partway through. A folder of
   forty files becomes one sweep.
-- A file still being copied is harmless: the sweep is incremental (an unchanged time is
-  skipped) and idempotent, so the next write event simply reads it again once it settles.
+- A file still being copied is left alone: the sweep reads a file only once it has been
+  still for 10 s (`SETTLE_MS` in `services/scanner.ts`), and keeps what it read only if the
+  file has the same size and time after the read as before it. A writer that pauses longer
+  than that is read early, but the song only changes until it goes up: the cloud pass sends a
+  copy once it has been still for a minute and is exactly what was read, and deletes it only
+  once it has been still for ten (`services/cloudSync.ts`). An encoder fed slowly writes in
+  bursts seconds apart, and a 2 s wait once lost the rest of an hour-long song.
 - The watcher is applied by `startContainer` (`apps/server/src/start.ts`) after the import
   queue starts, again whenever settings change, and stopped when the container closes.
 

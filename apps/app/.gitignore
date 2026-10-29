@@ -4,6 +4,9 @@
 /ios
 /android
 
+# xcodebuild's derived data for a device build (docs/MOBILE.md).
+/build
+
 /.expo
 *.jks
 *.p8
@@ -18,9 +21,18 @@ public/sw.js
 # The YouTube sandbox frame's script, bundled by build:ytsandbox (docs/features/client-download.md).
 public/yt-sandbox.js
 
-# The privacy policy, written from packages/shared/src/privacy.ts by `npm run build:privacy`.
+# The privacy policy, the bucket guide and the iPhone app's install page with its fonts,
+# written from packages/shared/src/privacy.ts, bucketGuide.ts and installPage.ts by
+# `npm run build:pages`.
 public/privacy.html
+public/bucket.html
+public/install/
+public/fonts/
 
 # The widget's asset catalog, written by `expo prebuild` from the colours in
 # targets/widget/expo-target.config.js (@bacons/apple-targets).
 /targets/*/Assets.xcassets
+
+# What Gradle builds of a local module's Android half (modules/*/android).
+/modules/*/android/build
+/modules/*/android/.cxx

@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native'
-import type { Tag } from '@selfmp3/shared'
+import { API_ERROR, type Tag } from '@selfmp3/shared'
+import { ApiError } from '@selfmp3/client'
 
 import { useNewTagForm } from './useNewTagForm'
 
@@ -10,7 +11,8 @@ import { useNewTagForm } from './useNewTagForm'
  */
 
 const mockCreate = jest.fn()
-let mockRefuse = false
+/** What the next try fails with; null makes the tag. */
+let mockRefusal: Error | null = null
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }))
 jest.mock('@selfmp3/client', () => {
@@ -20,15 +22,17 @@ jest.mock('@selfmp3/client', () => {
     ...jest.requireActual('@selfmp3/client'),
     useLibrary: () => ({ data: undefined }),
     useCreateTag: () => {
-      const [state, setState] = useState({ isPending: false, isError: false })
+      const idle = { isPending: false, isError: false, error: null as Error | null }
+      const [state, setState] = useState(idle)
       return {
         ...state,
-        reset: () => setState({ isPending: false, isError: false }),
+        reset: () => setState(idle),
         mutateAsync: async (tag: { name: string; hue?: number }) => {
           mockCreate(tag)
-          if (mockRefuse) {
-            setState({ isPending: false, isError: true })
-            throw new Error('refused')
+          if (mockRefusal) {
+            const error = mockRefusal
+            setState({ isPending: false, isError: true, error })
+            throw error
           }
           return { id: 9, ...tag }
         },
@@ -42,7 +46,7 @@ const LATE: Tag = { id: 1, name: 'Late night', hue: 200, songCount: 3 } as Tag
 describe('useNewTagForm', () => {
   beforeEach(() => {
     mockCreate.mockClear()
-    mockRefuse = false
+    mockRefusal = null
   })
 
   it('opens the tag that is already there, whatever its case and spaces, and makes nothing', async () => {
@@ -56,19 +60,43 @@ describe('useNewTagForm', () => {
   })
 
   it('keeps the name and says so when the server refuses it', async () => {
-    mockRefuse = true
+    mockRefusal = new Error('refused')
     const onMade = jest.fn()
     const hook = await renderHook(() => useNewTagForm({ tags: [], onExisting: jest.fn(), onMade }))
     await act(() => hook.result.current.setName('gym'))
     await act(async () => hook.result.current.submit())
     expect(mockCreate).toHaveBeenCalledWith({ name: 'gym' })
-    expect(hook.result.current.failed).toBe(true)
+    expect(hook.result.current.failure).toBe('Couldn’t make that tag')
     expect(hook.result.current.name).toBe('gym')
     expect(onMade).not.toHaveBeenCalled()
 
     // Typing again takes the refusal back.
     await act(() => hook.result.current.setName('gym2'))
-    expect(hook.result.current.failed).toBe(false)
+    expect(hook.result.current.failure).toBeNull()
+  })
+
+  it('says why when the server said: its database busy, not the name', async () => {
+    mockRefusal = new ApiError(
+      503,
+      'the server is busy, try again in a moment',
+      API_ERROR.databaseBusy,
+    )
+    const hook = await renderHook(() => useNewTagForm({ tags: [], onExisting: jest.fn() }))
+    await act(() => hook.result.current.setName('gym'))
+    await act(async () => hook.result.current.submit())
+    expect(hook.result.current.failure).toBe(
+      'Couldn’t make that tag: the server is busy, try again in a moment',
+    )
+  })
+
+  it('offers a colour far from the tags there are, as the server would give it', async () => {
+    const red = { ...LATE, id: 2, name: 'live', hue: 0 }
+    const orange = { ...LATE, id: 3, name: 'rock', hue: 22 }
+    const hook = await renderHook(() =>
+      useNewTagForm({ tags: [red, orange], onExisting: jest.fn() }),
+    )
+    await act(() => hook.result.current.setName('calm'))
+    expect(hook.result.current.hue).toBe(192)
   })
 
   it('makes it in the colour picked, then clears for the next', async () => {

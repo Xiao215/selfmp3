@@ -8,6 +8,7 @@ import { Check, sizedIcon } from './Icons'
 import { Press } from './Press'
 import { TagDot } from './TagDot'
 import { plural } from '@selfmp3/shared'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * A chip (docs/ui-mock `S2`, "Parts, as drawn"): a neutral pill. A tag carries
@@ -77,7 +78,11 @@ export function Chip({
   const padding = compact ? styles.labelCompact : styles.labelStrip
 
   const name = (
-    <Text style={[styles.label, { color: text }]} numberOfLines={1}>
+    <Text
+      style={[styles.label, { color: text }]}
+      numberOfLines={1}
+      maxFontSizeMultiplier={CONTROL_SCALE}
+    >
       {label}
     </Text>
   )
@@ -119,7 +124,11 @@ export function Chip({
           <Check size={compact ? iconSize.tiny : iconSize.small} color={text} />
         ) : null}
         {name}
-        {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
+        {count === undefined ? null : (
+          <Text style={[styles.count, { color: text }]} maxFontSizeMultiplier={CONTROL_SCALE}>
+            {count}
+          </Text>
+        )}
       </Pressable>
       {onRemove ? (
         // Its own press: the chip around it is a separate target with a separate answer.
@@ -131,7 +140,9 @@ export function Chip({
           hitSlop={hitSlopFor(leading.body)}
           style={styles.remove}
         >
-          <Text style={[styles.removeGlyph, { color: text }]}>×</Text>
+          <Text style={[styles.removeGlyph, { color: text }]} maxFontSizeMultiplier={CONTROL_SCALE}>
+            ×
+          </Text>
         </Press>
       ) : null}
     </Animated.View>
@@ -139,10 +150,12 @@ export function Chip({
 }
 
 const styles = StyleSheet.create(theme => ({
+  // Never wider than its row: a long tag ends in an ellipsis, its × still on the pill.
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: radius.pill,
+    maxWidth: '100%',
   },
   chipOff: { backgroundColor: theme.colors.surface2 },
   chipSelected: { backgroundColor: theme.colors.textPrimary },
@@ -153,10 +166,14 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
+  // Both give way in a chip held narrower than its name (a song page's long
+  // tag), so the name ends in "…" rather than running off the display.
   press: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.tight,
+    flexShrink: 1,
+    minWidth: 0,
   },
   labelStrip: { paddingHorizontal: space.roomy, paddingVertical: space.sm },
   labelCompact: { paddingHorizontal: space.snug, paddingVertical: 5 },
@@ -168,6 +185,7 @@ const styles = StyleSheet.create(theme => ({
   label: {
     fontSize: type.sub,
     fontWeight: '500',
+    flexShrink: 1,
   },
   remove: { paddingLeft: 2, paddingRight: space.snug },
   removeGlyph: { fontSize: type.body, opacity: 0.6 },

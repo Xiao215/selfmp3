@@ -30,6 +30,10 @@ jest.mock('./importSource', () => {
       importPreview: (input: string) => mockImportPreview(input),
       importAlreadyHave: () => Promise.resolve({ have: [] }),
     },
+    // Look-ups go to the same server, given longer to answer.
+    get lookUp() {
+      return (this as { api: unknown }).api
+    },
     library: { songs: [], tags: [], playlists: [] },
     tools: { ytdlp: true, ffmpeg: true },
     refetchTools: () => Promise.resolve(),
@@ -71,7 +75,7 @@ describe('Import, coming back after a look-up', () => {
       await fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abc')
     })
     await act(async () => {
-      await fireEvent.press(screen.getByText('Look it up'))
+      await fireEvent.press(screen.getByLabelText('Look it up'))
     })
   }
 
@@ -121,6 +125,17 @@ describe('Import, coming back after a look-up', () => {
 
     await act(async () => draw())
     expect(screen.getByLabelText('Links to import').props['value']).toBe('https://youtu.be/abc')
+  })
+
+  it('lets go of what went wrong once the box is edited', async () => {
+    mockImportPreview.mockRejectedValue(new ApiError(400, 'That is not a link this can read.'))
+    await act(async () => draw())
+    await lookUp()
+    await waitFor(() => expect(screen.getByText('That is not a link this can read.')).toBeTruthy())
+    await act(async () => {
+      await fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abd')
+    })
+    expect(screen.queryByText('That is not a link this can read.')).toBeNull()
   })
 })
 

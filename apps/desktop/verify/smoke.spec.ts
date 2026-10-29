@@ -731,11 +731,11 @@ test.describe('an application, not a page', () => {
         },
         [
           ['Playback', 'Play / Pause'],
-          ['View', 'Now playing'],
+          ['View', 'Now Playing'],
         ] as [string, string][],
       )
 
-      expect(clicked).toEqual(['Space', 'CmdOrCtrl+3'])
+      expect(clicked).toEqual(['Space', 'CmdOrCtrl+0'])
       await expect
         .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
         .toEqual(['play-pause', 'now-playing'])
@@ -768,7 +768,7 @@ test.describe('an application, not a page', () => {
             ?.items.find(one => one.label === section)
             ?.submenu?.items.find(one => one.label === label)
         const playPause = find('Playback', 'Play / Pause')
-        const nowPlaying = find('View', 'Now playing')
+        const nowPlaying = find('View', 'Now Playing')
         if (!playPause || !nowPlaying) return 'missing'
         // `MenuItem.click(event, focusedWindow, focusedWebContents)`.
         const click = (item: Electron.MenuItem, byKey: boolean): void =>
@@ -776,7 +776,7 @@ test.describe('an application, not a page', () => {
             triggeredByAccelerator: byKey,
           })
         click(playPause, true) // Space, left unhandled by a text field: nothing.
-        click(nowPlaying, true) // ⌘3 is the menu's own key: sent.
+        click(nowPlaying, true) // ⌘0 is the menu's own key: sent.
         click(playPause, false) // The pointer: sent.
         return 'clicked'
       })
@@ -807,16 +807,15 @@ test.describe('an application, not a page', () => {
         })),
       )
       const playback = menu?.find(section => section.label === 'Playback')
+      // Shuffle, Repeat's submenu and Like are not plain items: their own test is below.
       expect(playback?.items.map(item => item.label)).toEqual([
         'Play / Pause',
         'Next',
         'Previous',
-        'Seek forward',
-        'Seek back',
-        'Shuffle',
-        'Repeat',
-        'Volume up',
-        'Volume down',
+        'Seek Forward',
+        'Seek Back',
+        'Volume Up',
+        'Volume Down',
         'Mute',
       ])
       // Space and the ⌘-arrows are drawn but not taken: registering them would
@@ -832,6 +831,175 @@ test.describe('an application, not a page', () => {
       // Everything else is a real accelerator.
       const view = menu?.find(section => section.label === 'View')
       expect(view?.items.every(item => item.registered !== false)).toBe(true)
+      // The sidebar's order, Home first, then the OS's own Full Screen, whose
+      // key Electron picks by platform: ⌃⌘F on a Mac, F11 elsewhere.
+      expect(view?.items.map(item => `${item.label} ${item.accelerator ?? ''}`.trim())).toEqual([
+        'Home CmdOrCtrl+1',
+        'Library CmdOrCtrl+2',
+        'Import CmdOrCtrl+3',
+        'Stats CmdOrCtrl+4',
+        'Playlists CmdOrCtrl+5',
+        'Now Playing CmdOrCtrl+0',
+        'Search CmdOrCtrl+K',
+        'Reload CmdOrCtrl+R',
+        `Toggle Full Screen ${process.platform === 'darwin' ? 'Control+Command+F' : 'F11'}`,
+      ])
+      const file = menu?.find(section => section.label === 'File')
+      // New Window brings back a window the red button hid: a Mac's only.
+      // Elsewhere there is no app menu, so Quit sits in File, and Electron
+      // calls the close role "Close" rather than "Close Window".
+      expect(file?.items.map(item => item.label)).toEqual([
+        'New Playlist',
+        'Import…',
+        ...(process.platform === 'darwin' ? ['New Window', 'Close Window'] : ['Close', 'Quit']),
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+
+  /*
+   * Shuffle and Like are checkboxes and Repeat a submenu of three radio items,
+   * ticked as the page says the player has them (AO1). The page is the only
+   * one that knows, so a click sends the command and leaves the tick as it
+   * was until the page answers.
+   */
+  test('ticks Shuffle, Repeat and Like as the page says', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      const ticks = () =>
+        app.evaluate(({ Menu }) => {
+          const menu = Menu.getApplicationMenu()
+          const item = (id: string) => menu?.getMenuItemById(id)
+          return {
+            shuffle: item('shuffle')?.checked,
+            repeat: ['repeat-off', 'repeat-all', 'repeat-one'].find(id => item(id)?.checked),
+            like: item('like')?.checked,
+            likeEnabled: item('like')?.enabled,
+            types: [item('shuffle')?.type, item('repeat-one')?.type, item('like')?.type],
+          }
+        })
+      const tell = (state: { shuffle: boolean; repeat: string; liked: boolean | null }) =>
+        page.evaluate(async next => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          await desktop.setMenuState(next)
+        }, state)
+
+      await tell({ shuffle: true, repeat: 'one', liked: true })
+      expect(await ticks()).toEqual({
+        shuffle: true,
+        repeat: 'repeat-one',
+        like: true,
+        likeEnabled: true,
+        types: ['checkbox', 'radio', 'checkbox'],
+      })
+      await tell({ shuffle: false, repeat: 'all', liked: null })
+      expect(await ticks()).toMatchObject({
+        shuffle: false,
+        repeat: 'repeat-all',
+        like: false,
+        likeEnabled: false,
+      })
+      await tell({ shuffle: false, repeat: 'off', liked: false })
+      expect(await ticks()).toMatchObject({ repeat: 'repeat-off', likeEnabled: true })
+    } finally {
+      await app.close()
+    }
+  })
+
+  // The window's own colour shows at its edges while it is resized: Paper's on Paper.
+  test('wears the ground of the theme the page shows', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      const ground = () =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.getBackgroundColor().toLowerCase(),
+        )
+      const tell = (colour: string) =>
+        page.evaluate(async next => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          await desktop.setWindowGround(next)
+        }, colour)
+      await tell('#f6f2ea')
+      expect(await ground()).toBe('#f6f2ea')
+      await tell('#0b0d13')
+      expect(await ground()).toBe('#0b0d13')
+    } finally {
+      await app.close()
+    }
+  })
+
+  /*
+   * The router changes pages with `pushState`, which Electron reports as a
+   * load that starts and never finishes. Links were held from the first such
+   * change until the next reload: the window came forward and the page never
+   * moved, a sign-in return included.
+   */
+  test('a link reaches the page after the page has changed pages', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('load')
+      await page.evaluate(() => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const seen: string[] = []
+        ;(window as unknown as { seen: string[] }).seen = seen
+        desktop.onDeepLink(url => seen.push(url))
+        history.pushState(null, '', '/playlists')
+        history.replaceState(null, '', '/library')
+      })
+
+      // As macOS hands a running app a link: `open-url`.
+      await app.evaluate(({ app: electronApp }) => {
+        electronApp.emit('open-url', { preventDefault: () => {} }, 'selfmp3://now-playing')
+      })
+      await expect
+        .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
+        .toEqual(['selfmp3://now-playing'])
+    } finally {
+      await app.close()
+    }
+  })
+
+  /*
+   * On a Mac the red button hides the window, so ⇧⌘N is how it comes back
+   * without the Dock; ⌘W is the red button's key, and Reload is the way out
+   * of a page that has got itself stuck.
+   */
+  test('has a File menu that brings the window back, and a Reload', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      const items = await app.evaluate(({ Menu }) => {
+        const menu = Menu.getApplicationMenu()
+        const of = (section: string) =>
+          menu?.items
+            .find(one => one.label === section)
+            ?.submenu?.items.filter(item => item.type === 'normal')
+            .map(item => ({ label: item.label, role: item.role ?? null })) ?? []
+        return { file: of('File'), view: of('View') }
+      })
+      expect(items.view.map(item => item.role)).toContain('reload')
+      expect(items.file.map(item => item.role)).toContain('close')
+      if (process.platform !== 'darwin') return
+
+      const shown = await app.evaluate(({ BrowserWindow, Menu }) => {
+        const window_ = BrowserWindow.getAllWindows()[0]
+        if (!window_) return 'no window'
+        window_.hide()
+        const newWindow = Menu.getApplicationMenu()
+          ?.items.find(one => one.label === 'File')
+          ?.submenu?.items.find(one => one.label === 'New Window')
+        if (!newWindow) return 'missing'
+        ;(newWindow.click as unknown as () => void)()
+        return BrowserWindow.getAllWindows().length === 1 && window_.isVisible()
+      })
+      expect(shown).toBe(true)
     } finally {
       await app.close()
     }
@@ -1135,9 +1303,11 @@ test.describe('streams from the bucket', () => {
 })
 
 /**
- * The window once the app has drawn: it tells the shell it is signed out as
- * it mounts (`bucket.use(null)`), and a session a test hands over before that
- * would be taken back from under it.
+ * The window once the app has drawn, so the bridge a test calls is there and the
+ * page has started. The page tells the shell about a session only when its own
+ * changes (`apps/app/src/ports/desktop/bucketMedia.desktop.ts`), and signed out
+ * from the start it has none to change, so it sends nothing that would take a
+ * test's session back.
  */
 async function settledPage(app: Awaited<ReturnType<typeof launchApp>>) {
   const page = await app.firstWindow()
@@ -1242,6 +1412,7 @@ test.describe('connects and plays', () => {
 /** Only what these tests call, so the page evaluations can be typed at all. */
 interface DesktopForTest {
   info: Record<string, unknown>
+  onDeepLink(listener: (url: string) => void): () => void
   mediaUrl(kind: string, name: string): string
   bucket: {
     use(session: { doormanUrl: string; token: string } | null): Promise<void>
@@ -1257,6 +1428,8 @@ interface DesktopForTest {
     title: string | null
     artist: string | null
   }): Promise<void>
+  setMenuState(state: { shuffle: boolean; repeat: string; liked: boolean | null }): Promise<void>
+  setWindowGround(colour: string): Promise<void>
   updates: {
     check(): Promise<{ state: string; canInstall: boolean; version: string | null }>
   }

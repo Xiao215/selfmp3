@@ -1,14 +1,19 @@
 import {
+  DOORMAN_COUNT,
   DEEP_LINK_SCHEME,
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanClaimRequestSchema,
   DoormanError,
   SIGN_IN_TTL_MS,
+  DEFAULT_APP_URL,
   SIGN_IN_CODE_FRAGMENT,
+  SIGN_IN_REFUSAL,
   SignInAttemptSchema,
   formatSignInCode,
+  signInRefusalFragment,
   type DoormanClaimResult,
+  type SignInRefusal,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
@@ -20,6 +25,7 @@ import { forbidden, isLoopbackHost, json, noContent, readJson, unauthorized } fr
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord } from './kv.js'
 import { IdentitySchema, bearerToken, type Identity } from './sessions.js'
+import { tallyOf } from './tally.js'
 import {
   codeMatches,
   codeTag,
@@ -146,11 +152,15 @@ export async function callback(ctx: Context): Promise<Response> {
   if (refused !== null) {
     // Google's reason is a short code, like access_denied. Anything else is not shown.
     const reason = /^[a-z_]{1,40}$/.test(refused) ? ` (${refused})` : ''
-    return page({
-      status: 400,
-      title: 'Not signed in',
-      lines: [`Google did not sign you in${reason}.`, 'Start again from self.mp3.'],
-    })
+    return refusedPage(
+      state.returnTo,
+      { reason: SIGN_IN_REFUSAL.cancelled, email: null },
+      {
+        status: 400,
+        title: 'Not signed in',
+        lines: [`Google did not sign you in${reason}.`],
+      },
+    )
   }
   const code = params.get('code')
   if (!code) return expiredPage()
@@ -173,15 +183,33 @@ export async function callback(ctx: Context): Promise<Response> {
     if (!(error instanceof GoogleError)) throw error
     // The reason goes to the Worker's log, for the owner; the page stays plain.
     ctx.log.warn('a sign-in failed', { reason: error.message })
-    return page({
-      status: error.status,
-      title: 'Not signed in',
-      lines: ['Google could not finish signing you in.', 'Start again from self.mp3.'],
-    })
+    return refusedPage(
+      state.returnTo,
+      { reason: SIGN_IN_REFUSAL.failed, email: null },
+      {
+        status: error.status,
+        title: 'Not signed in',
+        lines: ['Google could not finish signing you in.'],
+      },
+    )
   }
 
-  if (await ctx.access.nobody()) return nobodyAllowedPage()
-  if (!(await ctx.access.allows(identity.email))) return notAllowedPage(identity.email)
+  if (await ctx.access.nobody()) {
+    return refusedPage(
+      state.returnTo,
+      { reason: SIGN_IN_REFUSAL.nobodyAllowed, email: null },
+      NOBODY_ALLOWED,
+    )
+  }
+  if (!(await ctx.access.allows(identity.email))) {
+    // Counted for the owner's admin page; the address itself is not kept.
+    tallyOf(ctx).count(DOORMAN_COUNT.refused)
+    return refusedPage(
+      state.returnTo,
+      { reason: SIGN_IN_REFUSAL.notAllowed, email: identity.email },
+      notAllowed(identity.email),
+    )
+  }
 
   // Google has vouched for an address on the list: the sign-in's first write.
   const signInCode = newSignInCode()
@@ -245,6 +273,7 @@ export async function claim(ctx: Context): Promise<Response> {
 
   const { token, session } = await ctx.sessions.create(live)
   await ctx.env.KV.delete(key)
+  tallyOf(ctx).count(DOORMAN_COUNT.signedIn)
   const result: DoormanClaimResult = {
     status: 'signed-in',
     token,
@@ -351,33 +380,73 @@ function withFragment(address: string, fragment: string): string {
   return url.toString()
 }
 
+/** The way back from a page that ends a sign-in: to the web app, which starts one again. */
+const BACK_TO_APP = { href: `${DEFAULT_APP_URL}/`, label: 'Back to self.mp3' } as const
+
 function expiredPage(): Promise<Response> {
   return page({
     status: 400,
     title: 'This sign-in has expired',
     lines: ['Start again from self.mp3.'],
+    link: BACK_TO_APP,
   })
 }
+
+const NOBODY_ALLOWED = {
+  status: 403,
+  title: 'Nobody can sign in yet',
+  lines: [
+    'This self.mp3 has no owner, and nobody on its list of who may sign in.',
+    'Whoever runs it sets the OWNER_EMAILS secret, then adds people in self.mp3’s Settings.',
+  ],
+} as const
 
 function nobodyAllowedPage(): Promise<Response> {
-  return page({
-    status: 403,
-    title: 'Nobody can sign in yet',
-    lines: [
-      'This self.mp3 has no owner, and nobody on its list of who may sign in.',
-      'Whoever runs it sets the OWNER_EMAILS secret, then adds people in self.mp3’s Settings.',
-    ],
-  })
+  return page({ ...NOBODY_ALLOWED, link: BACK_TO_APP })
 }
 
-function notAllowedPage(email: string): Promise<Response> {
-  return page({
+function notAllowed(email: string): { status: number; title: string; lines: string[] } {
+  return {
     status: 403,
     title: 'Not allowed',
     lines: [
       `This Google account (${email}) is not allowed on this self.mp3.`,
       'Sign in with the account its owner added, or ask them to add this one.',
     ],
+  }
+}
+
+/**
+ * A sign-in Google did not finish, or finished for an account that may not
+ * sign in. With somewhere to go back to, the browser goes back there, saying
+ * why in the fragment (shared's `signInRefusalFromUrl`): the app says so
+ * itself, offers Google again — which asks which account every time — and a
+ * device waiting for the sign-in stops waiting. This page, which used to have
+ * no way back at all, is for a sign-in with nowhere to return to, and links
+ * to the web app. Nothing is written either way: a refusal costs no KV write,
+ * however many are sent.
+ */
+function refusedPage(
+  returnTo: string | null,
+  refusal: SignInRefusal,
+  words: { status: number; title: string; lines: readonly string[] },
+): Promise<Response> {
+  if (returnTo) {
+    return Promise.resolve(
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: withFragment(returnTo, signInRefusalFragment(refusal)),
+          'cache-control': 'no-store',
+          'referrer-policy': 'no-referrer',
+        },
+      }),
+    )
+  }
+  return page({
+    ...words,
+    lines: [...words.lines, 'Start again from self.mp3.'],
+    link: BACK_TO_APP,
   })
 }
 

@@ -38,7 +38,7 @@ export function greeting(hour: number): string {
  */
 export function streakLine(streakDays: number | undefined): string | null {
   if (streakDays === undefined || streakDays < 2) return null
-  return `${streakDays} days in a row.`
+  return `${streakDays.toLocaleString()} days in a row.`
 }
 
 export interface HomeTile {

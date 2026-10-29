@@ -129,6 +129,16 @@ const PALETTE_ROUNDS = 16
 /** A colour that is less than this share of the cover is noise, not part of it. */
 const PALETTE_MIN_SHARE = 0.02
 
+/** Each pixel a cover shows — more than half opaque — in OKLCH. */
+function opaqueColours(pixels: ArrayLike<number>): Oklch[] {
+  const colours: Oklch[] = []
+  for (let i = 0; i + 3 < pixels.length; i += 4) {
+    if ((pixels[i + 3] ?? 0) < 128) continue
+    colours.push(rgbToOklch(pixels[i] ?? 0, pixels[i + 1] ?? 0, pixels[i + 2] ?? 0))
+  }
+  return colours
+}
+
 /**
  * The handful of colours a cover is made of, most of the cover first.
  *
@@ -141,21 +151,9 @@ const PALETTE_MIN_SHARE = 0.02
  *
  * Deterministic, so the same cover always gives the same palette: the groups
  * start from pixels spread evenly through the cover sorted by lightness.
+ *
+ * It reaches a song as the cover tone's `palette` (`pickCoverTone`).
  */
-export function pickCoverPalette(pixels: ArrayLike<number>): CoverSwatch[] {
-  return paletteOf(opaqueColours(pixels))
-}
-
-/** Each pixel a cover shows — more than half opaque — in OKLCH. */
-function opaqueColours(pixels: ArrayLike<number>): Oklch[] {
-  const colours: Oklch[] = []
-  for (let i = 0; i + 3 < pixels.length; i += 4) {
-    if ((pixels[i + 3] ?? 0) < 128) continue
-    colours.push(rgbToOklch(pixels[i] ?? 0, pixels[i + 1] ?? 0, pixels[i + 2] ?? 0))
-  }
-  return colours
-}
-
 function paletteOf(colours: readonly Oklch[]): CoverSwatch[] {
   const points: [number, number, number][] = colours.map(({ l, c, h }) => {
     const radians = (h * Math.PI) / 180

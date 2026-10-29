@@ -4,7 +4,9 @@ import { DoormanError } from '@selfmp3/shared'
 import {
   afterCheck,
   copyFor,
+  endedMessage,
   LINK_GRACE_MS,
+  refusalMessage,
   signInFailure,
   TOOK_TOO_LONG,
   type SignInStage,
@@ -96,5 +98,23 @@ describe('signInFailure', () => {
     expect(signInFailure(new Error('Google said no.'), 'http://localhost:4601')).toBe(
       'Google said no.',
     )
+  })
+})
+
+describe('a sign-in that did not go through', () => {
+  it('names the account that is not allowed, and the way on', () => {
+    expect(refusalMessage({ reason: 'not-allowed', email: 'mallory@bugbash.test' })).toBe(
+      'mallory@bugbash.test isn’t allowed on this self.mp3. Choose the account its owner added, or ask them to add this one.',
+    )
+    expect(refusalMessage({ reason: 'not-allowed', email: null })).toMatch(/^That Google account/)
+    expect(refusalMessage({ reason: 'cancelled', email: null })).toMatch(/didn’t sign you in/)
+  })
+
+  it('says a sign-in the doorman ended, and what is still waiting to go up', () => {
+    expect(endedMessage('a@b.c', 0)).toBe(
+      'Your sign-in ended. Continue with Google as a@b.c to carry on.',
+    )
+    expect(endedMessage('a@b.c', 1)).toMatch(/1 change made here goes up once you’re back\.$/)
+    expect(endedMessage('a@b.c', 3)).toMatch(/3 changes made here go up once you’re back\.$/)
   })
 })

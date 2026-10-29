@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts } from '@selfmp3/client'
+import { fonts } from '../../../ports/fonts'
 import { lookInk, receiptLook, type ReceiptLine } from '../looks.model'
-import { mono, type LookProps } from './parts'
+import { mono, type LookProps, LookText } from './parts'
 
 /** `P34`'s slip: 320 wide, as long as a month's receipt runs. */
 export const RECEIPT_SIZE = { width: 320, height: 600 } as const
@@ -25,15 +25,15 @@ export function ReceiptLook({ input, hue }: LookProps): ReactNode {
   const ink = lookInk('receipt', hue)
   const text = { color: ink.ink }
   const tear = (
-    <Text style={[styles.tear, text]} numberOfLines={1} ellipsizeMode="clip">
+    <LookText style={[styles.tear, text]} numberOfLines={1} ellipsizeMode="clip">
       {TEAR}
-    </Text>
+    </LookText>
   )
   return (
     <View style={[styles.slip, { backgroundColor: ink.ground }]}>
       <View style={styles.head}>
-        <Text style={[styles.title, text]}>{look.head}</Text>
-        <Text style={[styles.line, text, styles.centered]}>{look.sub}</Text>
+        <LookText style={[styles.title, text]}>{look.head}</LookText>
+        <LookText style={[styles.line, text, styles.centered]}>{look.sub}</LookText>
       </View>
       {tear}
       <Lines lines={look.items} color={ink.ink} />
@@ -41,8 +41,8 @@ export function ReceiptLook({ input, hue }: LookProps): ReactNode {
       <Lines lines={look.lines} color={ink.ink} />
       {tear}
       <View style={styles.total}>
-        <Text style={[styles.totalLabel, text]}>TOTAL</Text>
-        <Text style={[styles.totalFigure, text]}>{look.total}</Text>
+        <LookText style={[styles.totalLabel, text]}>TOTAL</LookText>
+        <LookText style={[styles.totalFigure, text]}>{look.total}</LookText>
       </View>
       <View style={styles.bars} accessibilityElementsHidden importantForAccessibility="no">
         {look.bars.map((share, i) => (
@@ -57,9 +57,9 @@ export function ReceiptLook({ input, hue }: LookProps): ReactNode {
       </View>
       <View style={styles.foot}>
         {look.footer.map((line, i) => (
-          <Text key={i} style={[styles.line, text, styles.centered]}>
+          <LookText key={i} style={[styles.line, text, styles.centered]}>
             {line}
-          </Text>
+          </LookText>
         ))}
       </View>
     </View>
@@ -72,10 +72,10 @@ function Lines({ lines, color }: { lines: readonly ReceiptLine[]; color: string 
       {lines.map((line, i) => (
         // Two songs can share a title; the position is what tells the lines apart.
         <View key={i} style={styles.row}>
-          <Text style={[styles.line, styles.name, { color }]} numberOfLines={1}>
+          <LookText style={[styles.line, styles.name, { color }]} numberOfLines={1}>
             {line.name}
-          </Text>
-          <Text style={[styles.line, { color }]}>{line.value}</Text>
+          </LookText>
+          <LookText style={[styles.line, { color }]}>{line.value}</LookText>
         </View>
       ))}
     </View>

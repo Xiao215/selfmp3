@@ -9,6 +9,10 @@
  *
  * Tailscale is the encryption boundary here; there is no public exposure to
  * protect. The iOS equivalent is `NSAllowsArbitraryLoads` in app.config.js.
+ *
+ * The player needs it too: a bucket song is played from the app's own
+ * loopback server at `http://127.0.0.1:<port>` (modules/song-stream), and
+ * Media3 refuses that address like any other while cleartext is blocked.
  */
 const { withAndroidManifest } = require('expo/config-plugins')
 

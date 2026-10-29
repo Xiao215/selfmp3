@@ -4,7 +4,7 @@ import type { DeviceHeartbeat } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { DeviceRepository } from '../repositories/devices.js'
-import { DeviceService } from './devices.js'
+import { DeviceService, MAX_DEVICES, QUIET_BROADCAST_MS } from './devices.js'
 import { EventHub, type EventSink } from './events.js'
 
 /**
@@ -85,7 +85,7 @@ describe('DeviceService', () => {
     service.heartbeat(heartbeat('mac-00000001'))
 
     const sink = new BufferSink()
-    service.connect(sink, 'phone-000001')
+    service.connect(sink, ['phone-000001'])
     expect(sink.text).toContain('"type":"devices"')
     expect(sink.text).toContain('"mac-00000001"')
     expect(sink.text).toContain('"type":"library"')
@@ -102,8 +102,8 @@ describe('DeviceService', () => {
 
     const server = new BufferSink()
     const phone = new BufferSink()
-    service.connect(server, 'mac-00000001')
-    service.connect(phone, 'phone-000001')
+    service.connect(server, ['mac-00000001'])
+    service.connect(phone, ['phone-000001'])
 
     expect(service.command('mac-00000001', { type: 'pause' })).toBe(1)
     expect(server.text).toContain('"command":{"type":"pause"}')
@@ -137,6 +137,71 @@ describe('DeviceService', () => {
   })
 })
 
+describe('what the streams are told', () => {
+  const devicesFrames = (sink: BufferSink): number =>
+    sink.text.split('\n\n').filter(frame => frame.includes('"type":"devices"')).length
+
+  it('tells nobody of a heartbeat that changed nothing, until a minute has passed', () => {
+    const { service, advance } = setup()
+    service.heartbeat(heartbeat('mac-00000001'))
+    const sink = new BufferSink()
+    service.connect(sink, ['phone-000001'])
+    expect(devicesFrames(sink)).toBe(1)
+
+    // Ten seconds on, ten seconds further into the song: nothing new.
+    advance(10_000)
+    service.heartbeat(
+      heartbeat('mac-00000001', {
+        state: { ...heartbeat('x').state, position: 20, updatedAt: START + 10_000 },
+      }),
+    )
+    expect(devicesFrames(sink)).toBe(1)
+
+    // A pause is news at once.
+    advance(1_000)
+    service.heartbeat(
+      heartbeat('mac-00000001', {
+        state: { ...heartbeat('x').state, position: 21, playing: false, updatedAt: START + 11_000 },
+      }),
+    )
+    expect(devicesFrames(sink)).toBe(2)
+
+    // And the same state again goes out once the quiet stretch is over.
+    advance(QUIET_BROADCAST_MS)
+    service.heartbeat(
+      heartbeat('mac-00000001', {
+        state: { ...heartbeat('x').state, position: 21, playing: false, updatedAt: START + 71_000 },
+      }),
+    )
+    expect(devicesFrames(sink)).toBe(3)
+  })
+
+  it('shares only the part of a long queue around the song playing', () => {
+    const { service } = setup()
+    const queueIds = Array.from({ length: 10_000 }, (_, i) => i + 1)
+    service.heartbeat(
+      heartbeat('mac-00000001', {
+        state: { ...heartbeat('x').state, songId: 5_001, queueIds, queueIndex: 5_000 },
+      }),
+    )
+    const [device] = service.list().devices
+    expect(device?.state.queueIds.length).toBeLessThan(1_000)
+    expect(device?.state.queueIds[device.state.queueIndex]).toBe(5_001)
+  })
+
+  it('keeps no more than the most recently seen devices', () => {
+    const { service, advance } = setup()
+    for (let i = 0; i < MAX_DEVICES + 5; i++) {
+      service.heartbeat(heartbeat(`device-${String(i).padStart(6, '0')}`))
+      advance(1)
+    }
+    const ids = service.list().devices.map(device => device.id)
+    expect(ids).toHaveLength(MAX_DEVICES)
+    expect(ids).toContain(`device-${String(MAX_DEVICES + 4).padStart(6, '0')}`)
+    expect(ids).not.toContain('device-000000')
+  })
+})
+
 describe('the library-version watch', () => {
   it('tells open streams of a new version, and stops looking once none are open', () => {
     vi.useFakeTimers()
@@ -156,7 +221,7 @@ describe('the library-version watch', () => {
       })
       service.start()
       const sink = new BufferSink()
-      const close = service.connect(sink, 'phone')
+      const close = service.connect(sink, ['phone'])
 
       version = 2
       vi.advanceTimersByTime(2_000)
@@ -171,7 +236,7 @@ describe('the library-version watch', () => {
 
       // The next stream starts from the version as it is.
       const next = new BufferSink()
-      service.connect(next, 'phone')
+      service.connect(next, ['phone'])
       expect(next.text).toContain('"version":3')
       service.stop()
     } finally {

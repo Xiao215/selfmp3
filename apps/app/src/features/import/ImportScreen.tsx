@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the compose box grows with what is pasted, drawn as the page's own words
 import { Animated as RNAnimated, Text, TextInput, View } from 'react-native'
@@ -10,10 +10,12 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable'
 import {
+  artistOr,
   plural,
   type ImportJob,
   type ImportPacing,
   type ImportRun,
+  type Song,
   type Tag,
 } from '@selfmp3/shared'
 import {
@@ -27,6 +29,8 @@ import {
   jobAction,
   jobSubtitle,
   jobTone,
+  linkKindName,
+  shortAddress,
   matchingTag,
   queueControls,
   radius,
@@ -39,12 +43,14 @@ import {
   type QueueChange,
   type ServerConnection,
   textStyle,
+  leading,
   iconSize,
   coverSize,
   space,
+  useLibrary,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { NavRow } from '../../ui/components/NavRow'
 import { ProgressBar } from '../../ui/components/ProgressBar'
@@ -53,27 +59,35 @@ import { card, pageFrame, rowTitle } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
-import { Check, Next, Refresh, Search, X } from '../../ui/components/Icons'
+import { ArrowRight, Check, Next, Refresh, Search, X } from '../../ui/components/Icons'
+import { IconButton } from '../../ui/components/IconButton'
+import { SongLine } from '../../ui/components/SongLine'
+import { Spinner } from '../../ui/components/Spinner'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useFade } from '../../ui/motion'
 import { isComposing } from '../../shell/composing'
+import { textBoxGrows } from '../../ports/textBoxGrows'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { previewImport } from './deviceImports'
 import { QueueRing } from './QueueRing'
-import { TagItPill } from './ImportTags'
+import { ImportCover } from './ImportCover'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useImportFailure } from './ImportPage'
 import { useImportSource } from './importSource'
 import { comingIn, countLabel, reviewName } from './review.model'
+import { relativeDay } from '../playlists/playlists.model'
+import { songLink } from '../song/song.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { Guide, useOpenWith } from '../guide/Guide'
 import { guideSeen } from '../guide/guideMemory'
 import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
+import { useArt } from '../../offline/useArt'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
@@ -90,8 +104,11 @@ const ROWS_SHOWN = 20
  *
  * Paste a link and look it up; what it holds opens on its own page to review
  * (`/import/review`, ImportReview.tsx), and from there into the queue, which
- * this page shows as Couldn't import, Currently importing and Earlier today. The tags chosen here — "Tag it …
- * as it arrives" — are the review's too. On a phone this page is Home's + and
+ * this page shows as Couldn't import, Currently importing and Earlier today; with
+ * nothing in it, the songs added last, under "Recently imported". One field,
+ * with its arrow inside it, which lights in the accent once there is something
+ * to send; what arrives is tagged at review, where the songs can be seen (J1,
+ * 2026-10-25). On a phone this page is Home's + and
  * a row under Profile, and "Done" goes back; on a computer it is in the sidebar,
  * the form across the page and the queue under it, at the foot of the page.
  *
@@ -115,33 +132,41 @@ export function ImportScreen({
 } = {}): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   /*
    * What the paragraph over the box used to say, shown once on the first
    * visit, pointing at the box (D1, 2026-10-13); the sources row under the
    * box says the rest every time.
    */
-  const [boxTarget, boxGuide] = useGuide('import-box', true)
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
   const { api, library, tools, refetchTools, queue, history } = source
-  const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
+  const params = useLocalSearchParams<{
+    url?: string
+    text?: string
+    title?: string
+    /** File › Import… (⌘I) in the Mac app: a fresh value each time, to focus the field. */
+    focus?: string
+  }>()
 
   // The draft outlives this screen (importDraft.store.ts); only the error is the screen's.
   const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
-  const { links, review, tagIds } = draft
+  const { links, review } = draft
+  // Only over an empty box: once something is in it, what the guide would say
+  // has been found out. (A box being typed in, it waits out itself.)
+  const [boxTarget, boxGuide] = useGuide('import-box', links === '')
   // The card offering a kept review counts songs coming in: as the library is now.
   useRefreshReview(api, key, reviewUrls(review))
   const { error, setError, failed } = useImportFailure(via, onUnreachable)
   const [linksFocused, setLinksFocused] = useState(false)
-  /** What the pasted links take up, so the box grows with them. */
+  /** What the pasted links take up, so a browser's box grows with them. */
   const [linksHeight, setLinksHeight] = useState(0)
   const tags = library?.tags ?? []
 
   const preview = useMutation({
-    mutationFn: (input: string) => previewImport(api, input),
+    mutationFn: (input: string) => previewImport(api, input, source.lookUp),
     onSuccess: (result, input) => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search
@@ -179,6 +204,12 @@ export function ImportScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared])
 
+  // File › Import… in the Mac app: the field, ready for a paste.
+  const linksRef = useRef<TextInput>(null)
+  useEffect(() => {
+    if (params.focus) linksRef.current?.focus()
+  }, [params.focus])
+
   /**
    * A press on the queue: drawn at once (`editQueue`), so the row answers
    * under the finger and moves from there, then sent, then read back. What
@@ -190,9 +221,22 @@ export function ImportScreen({
       .catch((err: unknown) => failed(err instanceof Error ? err : new Error(String(err))))
       .finally(() => void source.invalidateQueue())
   }
+  /*
+   * The same press on the same row while the first is on its way is that
+   * press again, not a second request: a double click on Remove sent two, and
+   * the second, for a job already gone, came back as a red card.
+   */
+  const sending = useRef(new Set<string>())
   const act = (change: QueueChange, request: () => Promise<unknown>): void => {
+    const key = `${change.kind}:${change.id ?? 'all'}`
+    if (sending.current.has(key)) return
+    sending.current.add(key)
     source.editQueue(change)
-    send(request())
+    send(
+      request().finally(() => {
+        sending.current.delete(key)
+      }),
+    )
   }
 
   const pasted = describePaste(links)
@@ -219,14 +263,15 @@ export function ImportScreen({
     } else if (ready) lookUp(links.trim())
   }
 
+  const commit = query !== null ? 'Search' : preview.isPending ? 'Looking…' : 'Look it up'
+  const live = query !== null ? tools?.ytdlp !== false : ready
   const form = (
     <View style={styles.form}>
       {/*
-       * A compose card: room for several links or song names, one per line,
-       * what was pasted said under them (`describePaste`), and what happens to
-       * them along its foot — the tag they arrive with on the left,
-       * the commit on the right. It grows with what is pasted, and the whole
-       * card carries the focus ring, since the whole card is the control.
+       * One field: room for several links or song names, one per line, its
+       * arrow inside it, and what was pasted said under them (`describePaste`).
+       * It grows with what is pasted, and the whole card carries the focus
+       * ring, since the whole card is the control.
        */}
       <View
         ref={boxTarget}
@@ -234,35 +279,66 @@ export function ImportScreen({
         style={[styles.compose, linksFocused && styles.composeFocused]}
         testID="import-box"
       >
-        <TextInput
-          style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
-          value={links}
-          onChangeText={next => patchDraft({ links: next })}
-          onContentSizeChange={event => setLinksHeight(event.nativeEvent.contentSize.height)}
-          onFocus={() => setLinksFocused(true)}
-          onBlur={() => setLinksFocused(false)}
-          onKeyPress={event => {
-            // Enter commits, as a search box's does; Shift+Enter is the new
-            // line for a list of names. An input method's Enter picks its
-            // candidate and is not ours. Only a keyboard's Enter carries
-            // shiftKey: a phone's Return still starts a line.
-            const key = event.nativeEvent as {
-              key: string
-              shiftKey?: boolean
-              isComposing?: boolean
-            }
-            if (key.key !== 'Enter' || key.shiftKey !== false || isComposing(key)) return
-            ;(event as unknown as { preventDefault: () => void }).preventDefault()
-            submit()
-          }}
-          placeholder="Search for a song, or paste links or song names"
-          placeholderTextColor={theme.colors.textMuted}
-          multiline
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          accessibilityLabel="Links to import"
-        />
+        <View style={styles.composeRow}>
+          <TextInput
+            {...NO_AUTOFILL}
+            ref={linksRef}
+            style={[
+              styles.linksInput,
+              textBoxGrows
+                ? { minHeight: LINKS_MIN_HEIGHT }
+                : { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) },
+            ]}
+            value={links}
+            onChangeText={next => {
+              patchDraft({ links: next })
+              // What went wrong was about what the box held; an edit is the next try.
+              setError(null)
+            }}
+            onContentSizeChange={event => setLinksHeight(event.nativeEvent.contentSize.height)}
+            onFocus={() => setLinksFocused(true)}
+            onBlur={() => setLinksFocused(false)}
+            onKeyPress={event => {
+              // Enter commits, as a search box's does; Shift+Enter is the new
+              // line for a list of names. An input method's Enter picks its
+              // candidate and is not ours. Only a keyboard's Enter carries
+              // shiftKey: a phone's Return still starts a line.
+              const key = event.nativeEvent as {
+                key: string
+                shiftKey?: boolean
+                isComposing?: boolean
+              }
+              if (key.key !== 'Enter' || key.shiftKey !== false || isComposing(key)) return
+              ;(event as unknown as { preventDefault: () => void }).preventDefault()
+              submit()
+            }}
+            placeholder="Paste a link, or type a song"
+            placeholderTextColor={theme.colors.textMuted}
+            multiline
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            accessibilityLabel="Links to import"
+          />
+          {/* Search for words, Look it up for links: the one commit, inside the field. */}
+          <IconButton
+            label={commit}
+            filled={live ? 'accent' : true}
+            disabled={!live}
+            size={COMMIT_SIZE}
+            onPress={submit}
+            testID={query !== null ? 'import-search' : 'import-look-up'}
+          >
+            {preview.isPending ? (
+              <Spinner tone="onAccent" />
+            ) : (
+              <ArrowRight
+                size={iconSize.button}
+                color={live ? theme.colors.onAccent : theme.colors.textMuted}
+              />
+            )}
+          </IconButton>
+        </View>
         {query !== null ? (
           <View style={styles.pasted} testID="import-pasted">
             <Search size={iconSize.sub} tone="accent" />
@@ -276,44 +352,11 @@ export function ImportScreen({
             <Text style={styles.pastedText}>{pasted}</Text>
           </View>
         ) : null}
-        <View style={styles.composeFoot}>
-          <TagItPill
-            tags={tags}
-            createTag={source.createTag}
-            selected={tagIds}
-            onChange={next => patchDraft({ tagIds: next })}
-          />
-          {query !== null ? (
-            <Button
-              label="Search"
-              variant="primary"
-              disabled={tools?.ytdlp === false}
-              onPress={submit}
-              testID="import-search"
-            />
-          ) : (
-            <Button
-              label={preview.isPending ? 'Looking…' : 'Look it up'}
-              variant="primary"
-              disabled={!ready}
-              onPress={submit}
-              testID="import-look-up"
-            />
-          )}
-        </View>
       </View>
-      {/* What the box takes, named once and quietly: not buttons, only a reminder. */}
-      <View
-        style={styles.sources}
-        accessible
-        accessibilityLabel="Takes YouTube, 网易云音乐, Spotify or a list of names"
-      >
-        {SOURCES.map(name => (
-          <Text key={name} style={styles.source}>
-            {name}
-          </Text>
-        ))}
-      </View>
+      {/* What the box takes, named once and quietly: words, not buttons. */}
+      <Text style={styles.sources} testID="import-sources">
+        Works with {SOURCES.join(' · ')}
+      </Text>
     </View>
   )
 
@@ -398,6 +441,11 @@ export function ImportScreen({
   const [boxSeenBefore] = useState(() => guideSeen('import-box'))
   const [swipeTarget, swipeGuide] = useGuide('import-rows', swipeable.length >= 2 && boxSeenBefore)
   const firstSwipe = swipeable[0]?.id ?? null
+  // What the first row's swipe shows: a failed import has only Remove.
+  const swipeShows =
+    swipeable[0] !== undefined && canImportNext(swipeable[0], nextUp)
+      ? 'Swipe left for Next and Remove'
+      : 'Swipe left to remove'
   const rowProps = (job: ImportJob) => ({
     job,
     tags,
@@ -433,8 +481,8 @@ export function ImportScreen({
                       testID="import-retry-all"
                     />
                     <FoldAction
-                      label="Remove all"
-                      accessibilityLabel="Remove every import that failed"
+                      label="Clear"
+                      accessibilityLabel="Clear every import that failed"
                       onPress={() => act({ kind: 'remove' }, () => api.removeFailedImports())}
                       testID="import-remove-failed"
                     />
@@ -509,7 +557,7 @@ export function ImportScreen({
         <View style={styles.stack}>
           {form}
           {notices}
-          {jobs}
+          {jobs ?? <RecentlyImported />}
         </View>
         <ChromeSpacer />
       </ScrollView>
@@ -529,7 +577,7 @@ export function ImportScreen({
       />
       <Guide
         guide={swipeGuide}
-        steps={[{ gesture: 'swipe-left', text: 'Swipe left for Next and Remove', distance: 120 }]}
+        steps={[{ gesture: 'swipe-left', text: swipeShows, distance: 120 }]}
       />
     </SafeAreaView>
   )
@@ -538,8 +586,65 @@ export function ImportScreen({
 /** Where songs can come from, under the box. */
 const SOURCES = ['YouTube', '网易云音乐', 'Spotify', 'a list of names'] as const
 
-/** Three lines of links before the box starts growing. */
-const LINKS_MIN_HEIGHT = 66
+/**
+ * One line of room, its padding included, before the box starts growing with
+ * what is pasted. A phone's field grows by itself (`textBoxGrows`); given a
+ * height from the size it reports, a page come back to kept the old field's
+ * report and cut the placeholder in half.
+ */
+const LINKS_MIN_HEIGHT = leading.body + 2 * space.sm
+
+/** The arrow in the field. */
+const COMMIT_SIZE = 40
+
+/** How many of the songs added last stand on an empty Import. */
+const RECENTLY_IMPORTED = 5
+
+/**
+ * The songs added last, on an Import with nothing in its queue: what came in,
+ * on the half of the page that was empty, and the way to the rest of them
+ * (Library, newest first). This device's library, whichever server the
+ * import goes through: its ids are the ones the song's page and covers know.
+ */
+function RecentlyImported(): ReactNode {
+  const { data: library } = useLibrary()
+  return library && library.songs.length > 0 ? <RecentSongs songs={library.songs} /> : null
+}
+
+function RecentSongs({ songs }: { songs: readonly Song[] }): ReactNode {
+  const router = useRouter()
+  const art = useArt()
+  // The stamps sort as they read ("2026-10-25 09:12:03"), newest last.
+  const recent = useMemo(
+    () => [...songs].sort((a, b) => b.addedAt.localeCompare(a.addedAt)).slice(0, RECENTLY_IMPORTED),
+    [songs],
+  )
+  const [now] = useState(() => new Date())
+  if (recent.length === 0) return null
+  return (
+    <View style={styles.recent} testID="import-recent">
+      <SectionHead
+        title="Recently imported"
+        action={{ label: 'See all', onPress: () => router.navigate('/library') }}
+      />
+      {recent.map(song => (
+        <SongLine
+          key={song.id}
+          title={song.title}
+          sub={[artistOr(song.artist), relativeDay(song.addedAt, now)].filter(Boolean).join(' · ')}
+          artUri={art(song)}
+          coverTitle={song.album || song.title}
+          onPress={() => router.push(songLink(song.id))}
+        />
+      ))}
+    </View>
+  )
+}
+
+/** A job's title, or before one was found, what kind of link it is (AB1). */
+function jobName(job: Pick<ImportJob, 'title' | 'url'>): string {
+  return job.title || linkKindName(job.url)
+}
 
 /** "In your library · tagged night drive": where a finished song went, and how. */
 function arrivedLine(job: ImportJob, tags: readonly Tag[]): string {
@@ -691,10 +796,10 @@ function Finished({
       </Animated.View>
       {shown.map(job => (
         <Animated.View key={job.id} {...motion} style={styles.job}>
-          <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
+          <Cover uri={job.thumbnail} title={jobName(job)} size={coverSize.row} />
           <View style={styles.jobMeta}>
             <Text style={styles.jobTitle} numberOfLines={1}>
-              {job.title || job.url}
+              {jobName(job)}
             </Text>
             <Text style={[styles.jobSub, styles.good]} numberOfLines={1}>
               {arrivedLine(job, tags)}
@@ -780,17 +885,18 @@ function JobRow({
   /** "Import next", while it would move the song (`canImportNext`). */
   onNext: (() => void) | null
 }): ReactNode {
-  const { wide, dense } = useLayout()
+  const { wide, dense } = useLayoutFlags()
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = jobTone(job)
   const action = jobAction(job)
-  const name = job.title || 'this import'
+  const name = jobName(job)
+  // A failure's reason is ordinary quiet words: its red is the dot on the picture (AB1).
   const toneStyle =
     tone === 'running'
       ? styles.running
       : tone === 'error'
-        ? styles.failed
+        ? styles.mutedText
         : tone === 'waiting'
           ? styles.waiting
           : tone === 'done'
@@ -798,8 +904,10 @@ function JobRow({
             : tone === 'cancelled'
               ? styles.mutedText
               : null
-  const status =
+  const said =
     tone === 'done' ? arrivedLine(job, tags) : (job.status === 'queued' && next) || jobSubtitle(job)
+  // A link nothing was found out about is named by its kind, and its address follows the reason.
+  const status = job.title ? said : `${said} · ${shortAddress(job.url)}`
   const removable = dismissable(job)
 
   const ring =
@@ -824,7 +932,7 @@ function JobRow({
       <QueueRing
         fill={action === 'try-now' ? stepFraction({ ...job, status: 'running' }) : 0}
         glyph="retry"
-        tone={action === 'try-now' ? 'warning' : 'danger'}
+        tone={action === 'try-now' ? 'warning' : 'plain'}
         label={action === 'try-now' ? `Try uploading ${name} now` : `Retry ${name}`}
         onPress={onRetry}
         testID={`import-retry-${job.id}`}
@@ -843,10 +951,16 @@ function JobRow({
       onPointerEnter={wide && dense ? () => setHovered(true) : undefined}
       onPointerLeave={wide && dense ? () => setHovered(false) : undefined}
     >
-      <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
+      <ImportCover
+        uri={job.thumbnail}
+        title={name}
+        size={coverSize.row}
+        failed={tone === 'error'}
+        untitled={!job.title}
+      />
       <View style={styles.jobMeta}>
         <Text style={[styles.jobTitle, tone === 'cancelled' && styles.mutedText]} numberOfLines={1}>
-          {job.title || job.url}
+          {name}
         </Text>
         <Text style={[styles.jobSub, toneStyle]} numberOfLines={2}>
           {status}
@@ -959,6 +1073,9 @@ function RowMore({
   )
 }
 
+/** The queue row swiped open, if any: opening another closes it, as Mail's rows do. */
+let swipedOpen: SwipeableMethods | null = null
+
 /**
  * A phone's way to take an import off the queue: swipe the row left and press
  * Remove behind it, as Mail and Messages do. A song waiting behind others has
@@ -986,6 +1103,13 @@ function SwipeActions({
   children: ReactNode
 }): ReactNode {
   const swipeable = useRef<SwipeableMethods>(null)
+  // A row gone (imported, removed) is not the one open.
+  useEffect(() => {
+    const mine = swipeable.current
+    return () => {
+      if (swipedOpen === mine) swipedOpen = null
+    }
+  }, [])
   useOpenWith(
     guide ?? null,
     () => swipeable.current?.openRight(),
@@ -997,6 +1121,14 @@ function SwipeActions({
       friction={1.6}
       rightThreshold={40}
       overshootRight={false}
+      onSwipeableWillOpen={() => {
+        const opening = swipeable.current
+        if (swipedOpen !== opening) swipedOpen?.close()
+        swipedOpen = opening
+      }}
+      onSwipeableClose={() => {
+        if (swipedOpen === swipeable.current) swipedOpen = null
+      }}
       renderRightActions={(_progress, _translation, swipeable) => (
         <View style={styles.swipeActions}>
           {onNext ? (
@@ -1049,7 +1181,9 @@ function SwipeActions({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: pageFrame(true),
+  // As wide as Import through the server (`ImportViaServer`): unbounded, a
+  // queue row's Retry sat 2,700 px from its song on a 3200 px screen.
+  contentWide: { ...pageFrame(true), maxWidth: 820 },
   contentPhone: pageFrame(false),
   head: { marginBottom: 20 },
   stack: { gap: space.xl },
@@ -1058,42 +1192,26 @@ const styles = StyleSheet.create(theme => ({
   compose: {
     ...card(theme.colors),
     gap: space.sm,
-    paddingTop: space.roomy,
-    paddingBottom: space.snug,
-    paddingHorizontal: 18,
+    paddingVertical: space.snug,
+    paddingLeft: 18,
+    paddingRight: space.snug,
   },
   composeFocused: {
     boxShadow: `0 0 0 1.5px ${theme.colors.accent}, 0 1px 2px ${theme.colors.cardShadow}, 0 8px 24px ${theme.colors.cardShadow}`,
   },
   linksInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: space.sm,
     color: theme.colors.textPrimary,
     ...textStyle('body'),
     _web: { outlineStyle: 'none' },
   },
-  composeFoot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: space.snug,
-    marginLeft: -4,
-  },
-  // The sources under the box: quiet words on a faint pill, wrapping on a narrow phone.
-  sources: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space.tight,
-    paddingHorizontal: space.xs,
-  },
-  source: {
-    color: theme.colors.textMuted,
-    ...textStyle('small'),
-    paddingVertical: 3,
-    paddingHorizontal: 9,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    overflow: 'hidden',
-  },
+  // The words and the arrow: the arrow at the foot of what is typed, as a send is.
+  composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space.md },
+  // The sources under the box: one quiet line.
+  sources: { color: theme.colors.textMuted, ...textStyle('small'), paddingHorizontal: space.xs },
+  recent: { gap: space.xs },
   // What the box holds, said under it before it is looked up.
   pasted: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   pastedText: { color: theme.colors.good, fontSize: type.small, fontWeight: '600' },
@@ -1117,7 +1235,6 @@ const styles = StyleSheet.create(theme => ({
   mutedText: { color: theme.colors.textMuted },
   jobSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   running: { color: theme.colors.accent },
-  failed: { color: theme.colors.danger },
   waiting: { color: theme.colors.warning },
   good: { color: theme.colors.good },
   // Opaque, so a phone's Remove waits behind it until the row is swiped aside.

@@ -3,14 +3,17 @@ import { z } from 'zod'
 import {
   StatsRangeSchema,
   UpdateSettingsSchema,
+  ZoneQuerySchema,
   type Health,
-  type PlayHistory,
   type Stats,
+  type UsualHours,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
+import { readerZone } from '../repositories/listening.js'
 import { isAuthenticated } from '../http/middleware.js'
 import { APP_VERSION } from '../config.js'
+import { USUAL_DAYS, usualHours } from '../services/usualHours.js'
 
 export function systemRoutes(container: Container): Router {
   const router = Router()
@@ -56,35 +59,20 @@ export function systemRoutes(container: Container): Router {
 
   router.get(
     '/stats',
-    route({ query: z.object({ range: StatsRangeSchema.default('30d') }) }, ({ query }): Stats =>
-      container.stats.build(query.range),
+    route(
+      { query: z.object({ range: StatsRangeSchema.default('30d'), zone: ZoneQuerySchema }) },
+      ({ query }): Stats => container.stats.build(query.range, readerZone(query.zone)),
     ),
   )
 
-  /** Recent plays, joined to song titles for the history list. */
+  /**
+   * What you usually play at each hour, for Home's hour tile. `zone` is the
+   * asking device's time zone, so the hours are its own.
+   */
   router.get(
-    '/stats/history',
-    route(
-      { query: z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }) },
-      ({ query }): PlayHistory => {
-        const events = container.stats.recent(query.limit)
-        const songs = new Map(
-          container.songs.byIds(events.map(event => event.songId)).map(song => [song.id, song]),
-        )
-        return {
-          events: events.map(event => {
-            const song = songs.get(event.songId)
-            return {
-              songId: event.songId,
-              title: song?.title ?? 'Deleted song',
-              artist: song?.artist ?? '',
-              hasArt: song?.hasArt ?? false,
-              playedAt: event.playedAt,
-              completed: event.completed,
-            }
-          }),
-        }
-      },
+    '/stats/usual',
+    route({ query: z.object({ zone: ZoneQuerySchema }) }, ({ query }): UsualHours =>
+      usualHours(container.stats.usualPlays(readerZone(query.zone), USUAL_DAYS)),
     ),
   )
 

@@ -1,10 +1,10 @@
-import { useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { Dimensions, type ScaledSize } from 'react-native'
 import { BREAKPOINT } from '@selfmp3/client'
 
 import { finePointer } from '../ports/pointer'
 import { createValueStore } from '../state/valueStore.model'
-import { readRootWidth, subscribeRootWidth } from './rootWidth'
+import { createLayoutSize, type Size } from './layoutSize.model'
 
 /**
  * Which layout the app is wearing, and the width it was decided from.
@@ -18,9 +18,19 @@ import { readRootWidth, subscribeRootWidth } from './rootWidth'
  * It is a width and not a platform on purpose. A phone in landscape, an iPad,
  * an iPad given half the screen in Split View, and a browser window dragged
  * narrow all get the layout that fits the room they actually have.
+ *
+ * One shape overrules the width: a touch screen held upright. An iPad in
+ * portrait is 744 to 1024 wide, and past 820 the sidebar and the computer's
+ * small type were squeezed into a column a finger reads from arm's length;
+ * the phone's layout, given the room, fits it better (P4 B, then AI1 for every
+ * width). Asked of the pointer and the window's shape, not of the platform —
+ * an iPad in landscape, or a touch laptop, keeps the computer's layout.
  */
 interface Layout {
-  /** At or above the 820-point breakpoint: sidebar, player bar, popovers. */
+  /**
+   * At or above the 820-point breakpoint, and not a touch screen held
+   * upright: sidebar, player bar, popovers.
+   */
   wide: boolean
   /** Below it: tab bar, mini player, full-screen now playing, sheets. */
   compact: boolean
@@ -45,35 +55,55 @@ interface Layout {
  * its own listener and a render for every pixel a window is dragged.
  */
 const windowSize = createValueStore<ScaledSize>(Dimensions.get('window'))
+/** What the layout is decided from: the window or the root, whichever said last (`layoutSize.model.ts`). */
+const layoutSize = createLayoutSize(Dimensions.get('window'))
 let listening = false
 
+function listen(): void {
+  if (listening) return
+  listening = true
+  Dimensions.addEventListener('change', ({ window }) => {
+    windowSize.set(window)
+    layoutSize.window(window)
+  })
+}
+
 function subscribeWindow(listener: () => void): () => void {
-  if (!listening) {
-    listening = true
-    Dimensions.addEventListener('change', ({ window }) => windowSize.set(window))
-  }
+  listen()
   return windowSize.subscribe(listener)
 }
 
-function subscribeWidth(listener: () => void): () => void {
-  const stopWindow = subscribeWindow(listener)
-  const stopRoot = subscribeRootWidth(listener)
-  return () => {
-    stopWindow()
-    stopRoot()
-  }
+function subscribeSize(listener: () => void): () => void {
+  listen()
+  return layoutSize.size.subscribe(listener)
 }
 
-/**
- * The app's own root, where it has been measured: an iPad in Split View is
- * given half the screen, and the window it is told about can still be the
- * whole of it (`rootWidth.ts`).
- */
-const readWidth = (): number => readRootWidth() ?? windowSize.get().width
+/** The app's root view, measured: `app/_layout.tsx` reports it. */
+export function setRootSize(size: Size): void {
+  layoutSize.root(size)
+}
 
-function layoutAt(width: number): Layout {
-  const wide = width >= BREAKPOINT
-  return { wide, compact: !wide, dense: wide && finePointer, finePointer, width }
+const readWidth = (): number => layoutSize.size.get().width
+const readSize = (): Size => layoutSize.size.get()
+
+/** The size the layout is decided from, and a render whenever it changes. */
+export function useLayoutSize(): Size {
+  return useSyncExternalStore(subscribeSize, readSize, readSize)
+}
+
+/** A finger, and a window taller than it is wide: an iPad held in portrait. */
+function readUpright(): boolean {
+  if (finePointer) return false
+  const { width, height } = layoutSize.size.get()
+  return height > width
+}
+
+function flagsAt(wide: boolean): Omit<Layout, 'width'> {
+  return { wide, compact: !wide, dense: wide && finePointer, finePointer }
+}
+
+function layoutAt(width: number, upright: boolean): Layout {
+  return { ...flagsAt(width >= BREAKPOINT && !upright), width }
 }
 
 /**
@@ -82,7 +112,21 @@ function layoutAt(width: number): Layout {
  * only asks `wide` or `dense` asks `useLayoutValue`.
  */
 export function useLayout(): Layout {
-  return layoutAt(useSyncExternalStore(subscribeWidth, readWidth, readWidth))
+  const width = useSyncExternalStore(subscribeSize, readWidth, readWidth)
+  const upright = useSyncExternalStore(subscribeSize, readUpright, readUpright)
+  return layoutAt(width, upright)
+}
+
+/**
+ * The layout's facts without the width — `wide`, `compact`, `dense`,
+ * `finePointer` — rendering again only when the window crosses the
+ * breakpoint. What a page that never draws by the width asks: a page asking
+ * `useLayout` for `wide` alone was drawn again for every pixel a window was
+ * dragged, the pages under the top one too (bug bash F056).
+ */
+export function useLayoutFlags(): Omit<Layout, 'width'> {
+  const wide = useLayoutValue(layout => layout.wide)
+  return useMemo(() => flagsAt(wide), [wide])
 }
 
 /**
@@ -93,8 +137,8 @@ export function useLayout(): Layout {
  * that compares by `===` — a boolean, a number, a string.
  */
 export function useLayoutValue<T>(select: (layout: Layout) => T): T {
-  const read = (): T => select(layoutAt(readWidth()))
-  return useSyncExternalStore(subscribeWidth, read, read)
+  const read = (): T => select(layoutAt(readWidth(), readUpright()))
+  return useSyncExternalStore(subscribeSize, read, read)
 }
 
 /**

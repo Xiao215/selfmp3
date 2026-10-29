@@ -1,9 +1,12 @@
 import { MISSING_TAG_UID } from './cloud.js'
 import { hlcTime, hlcWins, parseHlc } from './hlc.js'
 import { CLOUD_FORMAT } from './schemas/cloud.js'
+import { artistKey } from './artists.js'
 import type {
   CloudSmartRules,
   CloudArtist,
+  CloudArtistNames,
+  CloudCoverPack,
   CloudSound,
   CloudImport,
   CloudPlaylist,
@@ -31,7 +34,9 @@ import {
  *   of "on" and "off" wins, so a tag taken off after it was put on stays off.
  * - Making something is a change of its own, and removing it is for good. A
  *   change to something that is not there is ignored, so a late edit never
- *   brings a deleted playlist back.
+ *   brings a deleted playlist back. The one exception is a tag that went
+ *   only because its last songs did (`tagEmptied`): a song tagged with it
+ *   brings it back.
  * - Plays only add up, and the same one twice counts once.
  *
  * Since the latest stamp wins whenever a change is applied, the same changes
@@ -47,10 +52,18 @@ export interface SyncLibrary {
   readonly playlists: Map<string, CloudPlaylist>
   /** A tag made twice under one name: the second uid, and the tag it was folded into. */
   readonly aliases: Map<string, string>
+  /** Tags that went with their last songs (`tagEmptied`), kept aside to come back. */
+  readonly emptied: Map<string, CloudTag>
   /** Links asked to be imported, and how each went. */
   readonly imports: Map<string, CloudImport>
   /** Artists' pictures, as the snapshot had them: no change touches them. */
   readonly artists: readonly CloudArtist[]
+  /** The names artists also go by, by `artistKey`. */
+  readonly artistNames: Map<string, CloudArtistNames>
+  /** Names in Latin letters, as the snapshot had them: the server's, like the pictures. */
+  readonly spellings: Readonly<Record<string, string[]>>
+  /** The packs of covers, as the snapshot had them: the server's, like the pictures. */
+  readonly coverPacks: readonly CloudCoverPack[]
   /** The server's sound vectors, as the snapshot had them: no change touches them either. */
   readonly sound: CloudSound | null
   /** Plays counted during this replay, by id. */
@@ -65,8 +78,12 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     tags: new Map(snapshot?.tags.map(tag => [tag.uid, tag])),
     playlists: new Map(snapshot?.playlists.map(playlist => [playlist.uid, playlist])),
     aliases: new Map(Object.entries(snapshot?.aliases ?? {})),
+    emptied: new Map(snapshot?.emptiedTags?.map(tag => [tag.uid, tag])),
     imports: new Map(snapshot?.imports?.map(request => [request.uid, request])),
     artists: snapshot?.artists ?? [],
+    artistNames: new Map(snapshot?.artistNames.map(entry => [entry.artist, entry])),
+    spellings: snapshot?.spellings ?? {},
+    coverPacks: snapshot?.coverPacks ?? [],
     sound: snapshot?.sound ?? null,
     counted: new Set(),
     merged: new Map(Object.entries(snapshot?.merged ?? {})),
@@ -86,8 +103,12 @@ export function snapshotOf(
     tags: [...library.tags.values()],
     playlists: [...library.playlists.values()],
     artists: [...library.artists],
+    artistNames: [...library.artistNames.values()],
+    spellings: library.spellings,
+    coverPacks: [...library.coverPacks],
     sound: library.sound,
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
+    ...(library.emptied.size > 0 ? { emptiedTags: [...library.emptied.values()] } : {}),
     ...(library.merged.size > 0 ? { merged: Object.fromEntries(library.merged) } : {}),
     ...(library.imports.size > 0 ? { imports: [...library.imports.values()] } : {}),
   }
@@ -130,9 +151,14 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
 
     case 'songTagged': {
       const song = library.songs.get(resolveSong(library, change.uid))
+      if (!song) return false
+      // A tag that went with its last songs, put on another: whoever did it
+      // had not heard and was filling it, so it is back — whichever of the
+      // two arrived first, as the server may hear them in either order.
+      const back = change.on && broughtBack(library, change.tagUid)
       const tagUid = resolveTag(library, change.tagUid)
-      if (!song || !library.tags.has(tagUid)) return false
-      if (!hlcWins(change.hlc, song.tagStamps?.[tagUid])) return false
+      if (!library.tags.has(tagUid)) return false
+      if (!hlcWins(change.hlc, song.tagStamps?.[tagUid])) return back
       const has = song.tagUids.includes(tagUid)
       library.songs.set(song.uid, {
         ...song,
@@ -208,7 +234,9 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'tagCreated': {
-      if (library.tags.has(change.uid) || library.aliases.has(change.uid)) return false
+      if ([library.tags, library.aliases, library.emptied].some(known => known.has(change.uid))) {
+        return false
+      }
       // The same name made on two devices before either heard of the other:
       // one tag, not two that look alike.
       const same = tagNamed(library, change.name)
@@ -247,32 +275,21 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
 
     case 'tagRemoved': {
       const uid = resolveTag(library, change.uid)
-      if (!library.tags.delete(uid)) return false
-      for (const [alias, target] of library.aliases) {
-        if (target === uid) library.aliases.delete(alias)
-      }
-      for (const song of library.songs.values()) {
-        const tagged = song.tagUids.includes(uid)
-        const stamped = song.tagStamps?.[uid] !== undefined
-        if (!tagged && !stamped) continue
-        library.songs.set(song.uid, {
-          ...song,
-          tagUids: song.tagUids.filter(tagUid => tagUid !== uid),
-          ...withoutKey('tagStamps', song.tagStamps, uid),
-        })
-      }
-      // A smart rule about the tag keeps meaning what it did: "has" matches
-      // nothing now, "does not have" everything.
-      for (const playlist of library.playlists.values()) {
-        if (playlist.kind !== 'live') continue
-        if (!playlist.rules.rules.some(rule => rule.field === 'tag' && rule.tagUid === uid)) {
-          continue
-        }
-        library.playlists.set(playlist.uid, {
-          ...playlist,
-          rules: resolveRules(library, playlist.rules),
-        })
-      }
+      // For good, even if it had gone with its last songs already.
+      if (!library.tags.has(uid)) return library.emptied.delete(uid)
+      withoutTag(library, uid)
+      return true
+    }
+
+    case 'tagEmptied': {
+      const uid = resolveTag(library, change.uid)
+      const tag = library.tags.get(uid)
+      if (!tag) return false
+      // Filled again since, on this device or another: it stays.
+      for (const song of library.songs.values()) if (song.tagUids.includes(uid)) return false
+      withoutTag(library, uid)
+      // As the server keeps it: its name and colour, and none of its stamps.
+      library.emptied.set(uid, { uid, name: tag.name, hue: tag.hue })
       return true
     }
 
@@ -413,7 +430,66 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       })
       return true
     }
+
+    case 'artistNamed': {
+      // Kept when empty too: names someone cleared stay cleared, and the
+      // server fills in only an artist nobody has named yet.
+      const artist = artistKey(change.artist)
+      const named = library.artistNames.get(artist)
+      if (!hlcWins(change.hlc, named?.stamps?.['names'])) return false
+      library.artistNames.set(artist, {
+        artist,
+        names: [...change.names],
+        stamps: { names: change.hlc },
+      })
+      return true
+    }
   }
+}
+
+/** A tag out of the library: off every song, its aliases gone, rules about it missing. */
+function withoutTag(library: SyncLibrary, uid: string): void {
+  library.tags.delete(uid)
+  for (const [alias, target] of library.aliases) {
+    if (target === uid) library.aliases.delete(alias)
+  }
+  for (const song of library.songs.values()) {
+    const tagged = song.tagUids.includes(uid)
+    const stamped = song.tagStamps?.[uid] !== undefined
+    if (!tagged && !stamped) continue
+    library.songs.set(song.uid, {
+      ...song,
+      tagUids: song.tagUids.filter(tagUid => tagUid !== uid),
+      ...withoutKey('tagStamps', song.tagStamps, uid),
+    })
+  }
+  // A smart rule about the tag keeps meaning what it did: "has" matches
+  // nothing now, "does not have" everything.
+  for (const playlist of library.playlists.values()) {
+    if (playlist.kind !== 'live') continue
+    if (!playlist.rules.rules.some(rule => rule.field === 'tag' && rule.tagUid === uid)) {
+      continue
+    }
+    library.playlists.set(playlist.uid, {
+      ...playlist,
+      rules: resolveRules(library, playlist.rules),
+    })
+  }
+}
+
+/**
+ * A tag that went with its last songs, back as it was — or folded into the
+ * tag made under its name since, as a tag made twice is. False when it is
+ * not one that went that way.
+ */
+function broughtBack(library: SyncLibrary, uid: string): boolean {
+  const tag = library.emptied.get(uid)
+  if (!tag) return false
+  library.emptied.delete(uid)
+  const same = tagNamed(library, tag.name)
+  if (same) library.aliases.set(uid, same.uid)
+  else library.tags.set(uid, tag)
+  return true
 }
 
 /**
@@ -484,6 +560,7 @@ export function mergedSong(kept: CloudSong, extra: CloudSong, hlc: string): Clou
   }
   if (!kept.lyrics && extra.lyrics) next['lyrics'] = extra.lyrics
   if (kept.sourceUrl === null && extra.sourceUrl !== null) next['sourceUrl'] = extra.sourceUrl
+  if (!kept.cameWith && extra.cameWith) next['cameWith'] = extra.cameWith
   const lastPlayedAt =
     kept.lastPlayedAt === null ||
     (extra.lastPlayedAt !== null && extra.lastPlayedAt > kept.lastPlayedAt)
@@ -593,6 +670,16 @@ function withoutKey<K extends string>(
   return (Object.keys(rest).length > 0 ? { [key]: rest } : { [key]: undefined }) as {
     [P in K]?: Record<string, string>
   }
+}
+
+/**
+ * When a song was liked, from the stamp on its love, as SQLite time: null when
+ * it is not liked, or has no stamp (liked before there were any).
+ */
+export function lovedAt(loved: boolean, stamp: string | null | undefined): string | null {
+  if (!loved || !stamp) return null
+  const ms = hlcTime(stamp)
+  return ms > 0 ? toSqliteTime(ms) : null
 }
 
 /** SQLite's own UTC format, `2026-09-11 14:22:05`, which the server's times are in. */

@@ -2,12 +2,13 @@ import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
+import { followsTag, plural, TAG_NAME_MAX, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   failureText,
   space,
   type,
   useDeleteTag,
+  useLibrary,
   useRenameTag,
   useSetTagHue,
   iconSize,
@@ -22,6 +23,7 @@ import { SheetItem } from './Sheet'
 import { label } from '../surfaces'
 import { StatusLine } from './StatusLine'
 import { TagDot } from './TagDot'
+import { isolated } from '../hueNames.model'
 
 /**
  * Everything you can do to a tag itself.
@@ -54,6 +56,7 @@ export function TagEditor({
       onClose={onClose}
       anchorRef={anchorRef}
       width={290}
+      label={tag ? `Edit tag ${isolated(tag.name)}` : undefined}
       testID="tag-editor"
     >
       {tag ? <Editor key={tag.id} tag={tag} onDeleted={onDeleted} onClose={onClose} /> : null}
@@ -81,6 +84,8 @@ function Editor({
   const rename = useRenameTag()
   const setHue = useSetTagHue()
   const deleteTag = useDeleteTag()
+  const { data: library } = useLibrary()
+  const following = followersOf(library?.playlists ?? [], tag.id)
 
   const trimmed = name.trim()
   const changed = trimmed.length > 0 && trimmed !== tag.name
@@ -94,7 +99,7 @@ function Editor({
       <View style={styles.title}>
         <TagDot hue={tag.hue} />
         <Text style={styles.titleText} numberOfLines={1}>
-          Tag <Text style={styles.titleName}>{tag.name}</Text>
+          Tag <Text style={styles.titleName}>{isolated(tag.name)}</Text>
         </Text>
         <Text style={styles.hint}>{plural(tag.songCount, 'song', 'songs')}</Text>
       </View>
@@ -152,8 +157,12 @@ function Editor({
       ) : (
         <View>
           <Text style={[styles.hint, styles.confirm]}>
-            Delete “{tag.name}”? Its {plural(tag.songCount, 'song stays', 'songs stay')} in your
-            library.
+            {tag.songCount === 0
+              ? `Delete “${isolated(tag.name)}”? No song has it.`
+              : `Delete “${isolated(tag.name)}”? Its ${plural(tag.songCount, 'song stays', 'songs stay')} in your library.`}
+            {following.length > 0
+              ? ` ${quoted(following)} ${following.length === 1 ? 'fills from it, and keeps the songs it has now' : 'fill from it, and keep the songs they have now'}.`
+              : null}
           </Text>
           <SheetItem
             icon={<Trash color={theme.colors.danger} />}
@@ -170,6 +179,21 @@ function Editor({
       )}
     </View>
   )
+}
+
+/** The playlists that fill from this tag, by name: what deleting it changes (`followsTag`). */
+function followersOf(playlists: readonly Playlist[], tagId: number): string[] {
+  return playlists
+    .filter(playlist => playlist.rules && followsTag(playlist.rules, tagId))
+    .map(playlist => playlist.name)
+}
+
+/** “A”, “A” and “B”, or “A”, “B” and 3 more. */
+function quoted(names: readonly string[]): string {
+  const shown = names.slice(0, 2).map(name => `“${name}”`)
+  const more = names.length - shown.length
+  if (more > 0) return `${shown.join(', ')} and ${more} more`
+  return shown.join(' and ')
 }
 
 const styles = StyleSheet.create(theme => ({

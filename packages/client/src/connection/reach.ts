@@ -28,6 +28,9 @@ export const PROBE_TIMEOUT_MS = 3_000
  */
 export const REQUEST_TIMEOUT_MS = 15_000
 
+/** What a request that ran out of time says, rather than the platform's words for its abort. */
+export const TIMED_OUT = 'Your library took too long to answer.'
+
 /** How often the screen looks again, whether the server was found or not. */
 export const LOOK_AGAIN_MS = 20_000
 
@@ -69,7 +72,9 @@ export type Reach =
 export interface Candidate extends ServerConnection {
   /**
    * The id the snapshot named (`CloudServerSchema.id`), which `/api/health`
-   * must answer with; undefined when the snapshot named none.
+   * must answer with. Undefined only for an address someone typed (the
+   * extension's own server), which is the server they meant whatever it calls
+   * itself, so it is held only to answering.
    */
   readonly serverId: string | undefined
 }
@@ -95,7 +100,7 @@ export function candidates(server: CloudServer | null): Candidate[] {
 export function answersAs(health: unknown, candidate: Candidate): boolean {
   const parsed = HealthSchema.safeParse(health)
   if (!parsed.success) return false
-  // A snapshot that named no server id can only be held to an answer.
+  // A typed address names no id, so it can only be held to an answer.
   return candidate.serverId === undefined || parsed.data.serverId === candidate.serverId
 }
 
@@ -268,14 +273,21 @@ export type ServerNeed = keyof typeof SERVER_NEEDS
  * `offered` is the server that works for anyone signed in
  * (docs/features/shared-server.md), when this build offers one: a library
  * that never had a computer is told one is there for the asking, rather than
- * to go and start one it may not have.
+ * to go and start one it may not have. `empty` is a library with no songs
+ * yet — a brand-new account — which is not told its songs still play.
  */
 export function awayCopy(
   said: boolean,
   need: ServerNeed,
   offered = false,
+  empty = false,
 ): { title: string; body: string; why: string } {
-  const { needs, meanwhile, still } = SERVER_NEEDS[need]
+  const { needs, meanwhile } = SERVER_NEEDS[need]
+  // A library with no songs yet has none to "still play".
+  const still =
+    empty && SERVER_NEEDS[need].still === SONGS_STILL_PLAY
+      ? 'Your library has no songs yet.'
+      : SERVER_NEEDS[need].still
   if (!said && offered) {
     return {
       title: 'No computer works for your library yet',

@@ -1,9 +1,16 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import type { LyricsSearchHit, RoomState, Song, Tag, Artist } from '@selfmp3/shared'
+import {
+  clipText,
+  type LyricsSearchHit,
+  type RoomState,
+  type Song,
+  type Tag,
+  type Artist,
+} from '@selfmp3/shared'
 import {
   hitSlopFor,
   leading,
@@ -18,7 +25,11 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useLayout } from '../../shell/useLayout'
+import { isComposing } from '../../shell/composing'
+import { focusNextStop, useArrowsBetweenStops } from '../../shell/focusNext'
+import { useEscape } from '../../shell/useEscape'
+import { NarrowerContentWidth } from '../../shell/contentWidth'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
@@ -35,15 +46,17 @@ import { useSongRows } from '../../ui/components/useSongRows'
 import { PlaceLine } from '../../ui/components/PlaceLine'
 import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
-import { AskAnswer } from '../smart/AskAnswer'
 import { ASK_SUB, askable } from '../smart/smart.model'
-import { StopButton } from '../smart/StopButton'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { useLibrarySearch } from './useLibrarySearch'
 import {
   ALL_LIMITS,
   allResults,
   beforeTyping,
+  guestWords,
+  isSearchSection,
+  matchCount,
   placesOf,
   searchLibrary,
   SECTION_TITLES,
@@ -65,14 +78,22 @@ import {
   type RoomAdds,
 } from '../room/RoomPicks'
 import { useGoBack } from '../../ui/useBackTo'
-import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, rowTitle, textColumn } from '../../ui/surfaces'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle, rowTitle, textColumn } from '../../ui/surfaces'
 import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
+import { countUse } from '../usage/usage'
+import { searchSource } from '../lists/lists.model'
 
-/** What a song played from Search names Up next: the rows and the lyric hits alike. */
-const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
+/** The words the results are for, to name what plays from them (`searchSource`). */
+const SearchedWords = createContext('')
 
 const NO_SONGS: readonly Song[] = []
+
+/** The results' element, which ↑ and ↓ move through (`useArrowsBetweenStops`). */
+const RESULTS_ID = 'search-results'
+
+/** How long typing has to stop before the words go into the address. */
+const WORDS_SETTLE_MS = 400
 
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
@@ -84,33 +105,69 @@ const NO_SONGS: readonly Song[] = []
  * 2026-10-14), from Up next's Add songs, on every device: a bar says where
  * songs go, a song's line adds it, Ask's songs are added rather than played,
  * a link pasted in is looked up, and before typing are what the room's people
- * brought. One box to find songs and ask for them, in a room as everywhere.
+ * brought. One box to find songs and ask for them, in a room as everywhere:
+ * asking opens the Ask page (`AskScreen`) over this one, for the room too.
  */
 export function SearchScreen(): ReactNode {
   const router = useRouter()
-  const params = useLocalSearchParams<{ q?: string; to?: string }>()
+  const params = useLocalSearchParams<{ q?: string; to?: string; section?: string }>()
   const { state: room } = useRoom()
   const adding = params.to === 'room' ? room : null
   const adds = useRoomAdds()
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { data: library } = useLibrary()
   const player = usePlayer()
 
   const [query, setQuery] = useState(() => (typeof params.q === 'string' ? params.q : ''))
-  /** The section a "See all" opened alone, or null for All. */
-  const [section, setSection] = useState<SearchSection | null>(null)
-  /** What was asked (S1), answered in place of the results until the words change. */
-  const [asking, setAsking] = useState<string | null>(null)
-  /** An answer is on its way, so the field offers Stop where it offers Clear: what it stops. */
-  const [stopping, setStopping] = useState<(() => void) | null>(null)
-  // A function kept as state is set through an updater, or React would call it.
-  const setStop = useCallback((next: (() => void) | null) => setStopping(() => next), [])
+  // A search counted as it starts: the field going from empty to something.
+  const searching = query.trim() !== ''
+  useEffect(() => {
+    if (searching) countUse('search')
+  }, [searching])
+  /**
+   * The section a "See all" opened alone, or null for All. See all is a page
+   * of its own (`?section=`), so Back comes back to All with the words still
+   * there, and a browser's Back did too: it had been this page's own state,
+   * and Back left Search altogether (bug bash F073).
+   */
+  const opened = isSearchSection(params.section) ? params.section : null
+  const [section, setSection] = useState<SearchSection | null>(opened)
+  const seeAll = useCallback(
+    (next: SearchSection) =>
+      router.push({
+        pathname: '/search',
+        params: { ...(params.to ? { to: params.to } : null), q: query.trim(), section: next },
+      }),
+    [router, params.to, query],
+  )
+  // Back to All: the page All was, where See all came from one; a See all
+  // opened from its address becomes All itself.
+  const backToAll = (): void => {
+    if (opened !== null && router.canGoBack()) {
+      router.back()
+      return
+    }
+    setSection(null)
+    if (opened !== null) router.setParams({ section: undefined })
+  }
+  // The words in the address once typing stops, so a reload, or Back to
+  // here, finds them.
+  const typing = query.trim()
+  useEffect(() => {
+    if ((params.q ?? '') === typing) return undefined
+    const timer = setTimeout(() => router.setParams({ q: typing || undefined }), WORDS_SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [router, params.q, typing])
   const field = useRef<TextInput>(null)
+  // ↓ from the field into the results goes on through them; ↑ from the top back up.
+  useArrowsBetweenStops(RESULTS_ID, () => field.current?.focus())
+  // Cancel, the last thing in the head: what ↓ moves on from into the results.
+  const cancelRef = useRef<View>(null)
   // The palette's search too, so the two find the same and Enter decides alike.
   const search = useLibrarySearch(query, {
     search: useCallback((text: string) => searchLibrary(text, library), [library]),
-    matches: (them, lyricCount) => sectionCounts(them, lyricCount).all,
+    matches: matchCount,
   })
   const { shown, found, lyricHits, lyricsAway } = search
   const typed = shown.trim() !== ''
@@ -118,13 +175,22 @@ export function SearchScreen(): ReactNode {
   const currentId = player.current?.id ?? null
   const empty = useMemo(() => beforeTyping(library, currentId), [library, currentId])
   const counts = sectionCounts(found, lyricHits.length)
+  const matched = matchCount(found, lyricHits.length)
   const words = shown.trim()
-  const switches = useSmartSwitches()
-  const offerAsk = switches.ask && section === null && askable(words)
+  const smartOn = useSmartOn()
+  // A guest in a room (`opensSignedOut`): no Ask, which would open the sign-in page.
+  const guest = useConnection().status === 'missing'
+  const offerAsk = smartOn && !guest && section === null && askable(words)
+  const linksOn = adding !== null && youMay(adding, 'addLink')
+  const forGuest = guest ? guestWords(linksOn) : null
   // A YouTube or 网易云 link typed while adding: looked up, not searched for.
-  const link = adding && youMay(adding, 'addLink') ? playableLink(words) : null
-  const answering = asking !== null && asking === query.trim()
-  const stop = answering ? stopping : null
+  const link = linksOn ? playableLink(words) : null
+  // Ask is a page of its own (A1, 2026-10-24): Search stays under it, words and all, for Back.
+  const ask = useCallback(
+    (text: string) =>
+      router.push({ pathname: '/ask', params: adding ? { q: text, to: 'room' } : { q: text } }),
+    [router, adding],
+  )
 
   const openArtist = useCallback(
     (artist: Artist) => router.navigate(artistLink(artist.name)),
@@ -141,15 +207,18 @@ export function SearchScreen(): ReactNode {
         ? empty.recent
         : section === 'songs'
           ? found.songs
-          : section === null && !answering
+          : section === null
             ? allResults(found).songs
             : NO_SONGS,
-    [typed, section, answering, found, empty.recent],
+    [typed, section, found, empty.recent],
   )
   const rowIds = useMemo(() => rowSongs.map(song => song.id), [rowSongs])
   // The page's one selection, for every song row on it: holding a row starts
   // selecting here as it does in Library (D1, 2026-10-08).
   const selection = useSelection(rowIds)
+  // Escape is Cancel, as it closes the palette a computer draws instead; a
+  // selection takes it first, and clears.
+  useEscape(!selection.active, close)
   const bar = useListSelectionBar({
     songs: rowSongs,
     selection,
@@ -160,153 +229,168 @@ export function SearchScreen(): ReactNode {
 
   return (
     <AddingToRoom.Provider value={addingTo}>
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
-          <View style={styles.head}>
-            <SearchField
-              inputRef={field}
-              autoFocus
-              value={query}
-              // New words leave the question behind: the answer on its way is
-              // dropped with it, and the results for what is typed come back.
-              // A cleared field is a fresh search, back on All.
-              onChangeText={text => {
-                setQuery(text)
-                setAsking(null)
-                if (text.trim() === '') setSection(null)
-              }}
-              // Enter asks only when nothing matches (I1); with matches it puts
-              // the keyboard away and the results stay where they are.
-              onSubmitEditing={() => {
-                if (search.enterAsks()) setAsking(query.trim())
-                else field.current?.blur()
-              }}
-              placeholder={
-                adding ? 'Songs, a link, or ask for some' : 'Songs, tags, artists, lyrics'
-              }
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              returnKeyType="search"
-              accessibilityLabel="Search"
-              testID="search-field"
-              style={styles.field}
-              trailing={
-                stop ? <StopButton onPress={stop} size={26} testID="ask-stop" /> : undefined
-              }
-            />
-            <Press
-              feedback="dim"
-              onPress={close}
-              accessibilityRole="button"
-              hitSlop={hitSlopFor(leading.body)}
-            >
-              <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
-            </Press>
-          </View>
-          {adding ? (
-            <View style={styles.adding} testID="search-adding">
-              <Text style={styles.addingText} numberOfLines={1}>
-                Adding to {roomTitle(adding)}
-              </Text>
-            </View>
-          ) : null}
-
-          {typed && section !== null ? (
-            <Press
-              feedback="wash"
-              onPress={() => setSection(null)}
-              accessibilityRole="button"
-              accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
-              style={styles.back}
-              hitSlop={hitSlopFor(leading.body + space.sm * 2)}
-              testID="search-back"
-            >
-              <ChevronLeft size={iconSize.medium} tone="textSecondary" />
-              <Text style={styles.backTitle} numberOfLines={1}>
-                {SECTION_TITLES[section]}
-              </Text>
-              <Text style={styles.backCount}>{counts[section]}</Text>
-            </Press>
-          ) : (
-            <View style={styles.headGap} />
-          )}
-
-          {bar.beforeList}
-
-          {!typed ? (
-            adding ? (
-              <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
-            ) : (
-              <BeforeTyping
-                tags={empty.tags}
-                recent={empty.recent}
-                selection={selection}
-                listPadding={bar.listPadding}
-              />
-            )
-          ) : section === 'songs' ? (
-            <SongResults
-              songs={found.songs}
-              query={shown}
-              selection={selection}
-              listPadding={bar.listPadding}
-              adds={adding ? adds : null}
-            />
-          ) : (
-            <ScrollView
-              contentContainerStyle={[styles.results, bar.listPadding]}
-              // An answer's follow-up field is at its foot: the keyboard it
-              // opens pads the list by its height and scrolls the field above it.
-              automaticallyAdjustKeyboardInsets
-            >
-              {answering ? (
-                <AskAnswer
-                  text={asking}
-                  onDone={close}
-                  onOpenPage={() => undefined}
-                  onWorking={setStop}
-                  onDrop={() => setAsking(null)}
-                  onAsk={words => {
-                    setQuery(words)
-                    setAsking(words)
+      <SearchedWords.Provider value={words}>
+        <NarrowerContentWidth max={COLUMN}>
+          <SafeAreaView style={styles.screen} edges={['top']}>
+            <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
+              {/* A computer's page has its title, as every page does, and no Cancel:
+                Esc leaves and the field's × clears (M1, 2026-10-25). */}
+              {wide ? (
+                <Text style={styles.pageTitle} accessibilityRole="header">
+                  Search
+                </Text>
+              ) : null}
+              <View style={styles.head}>
+                <SearchField
+                  inputRef={field}
+                  // A See all page is for reading what was found: no keyboard over it.
+                  autoFocus={opened === null}
+                  value={query}
+                  // A cleared field is a fresh search, back on All.
+                  onChangeText={text => {
+                    setQuery(text)
+                    if (text.trim() === '') setSection(null)
                   }}
+                  // Enter asks only when nothing matches (I1); with matches it puts
+                  // the keyboard away and the results stay where they are.
+                  onSubmitEditing={() => {
+                    if (!guest && search.enterAsks()) ask(query.trim())
+                    else field.current?.blur()
+                  }}
+                  placeholder={
+                    forGuest
+                      ? forGuest.placeholder
+                      : adding
+                        ? 'Songs, a link, or ask for some'
+                        : 'Songs, tags, artists, lyrics'
+                  }
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  returnKeyType="search"
+                  // ↓ goes from the field down into the results, as the
+                  // palette's does: Tab past Cancel was the only way in.
+                  onKeyPress={event => {
+                    const key = event.nativeEvent.key
+                    if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
+                    // The field keeps its keys from the page, so Escape is
+                    // answered here as well as by the page's own (`useEscape`).
+                    if (key === 'Escape' && !selection.active) close()
+                    if (key !== 'ArrowDown') return
+                    if (focusNextStop(cancelRef.current)) {
+                      ;(event as unknown as { preventDefault: () => void }).preventDefault()
+                    }
+                  }}
+                  accessibilityLabel="Search"
+                  testID="search-field"
+                  style={styles.field}
                 />
+                {wide && !adding ? (
+                  // Where Cancel would be: ↓ from the field goes on from here.
+                  <View ref={cancelRef} collapsable={false} />
+                ) : (
+                  <Press
+                    ref={cancelRef}
+                    feedback="dim"
+                    onPress={close}
+                    accessibilityRole="button"
+                    hitSlop={hitSlopFor(leading.body)}
+                  >
+                    <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
+                  </Press>
+                )}
+              </View>
+              {adding ? (
+                <View style={styles.adding} testID="search-adding">
+                  <Text style={styles.addingText} numberOfLines={1}>
+                    Adding to {roomTitle(adding)}
+                  </Text>
+                </View>
               ) : null}
-              {!answering && !link && offerAsk && counts.all === 0 ? (
-                <AskCard words={words} first onAsk={() => setAsking(words)} />
-              ) : null}
-              {adding && link ? <LinkPick state={adding} url={link} /> : null}
-              {answering || link ? null : section === null ? (
-                <AllResults
-                  found={found}
-                  lyricHits={lyricHits}
+
+              {typed && section !== null ? (
+                <Press
+                  feedback="wash"
+                  onPress={backToAll}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
+                  style={styles.back}
+                  hitSlop={hitSlopFor(leading.body + space.sm * 2)}
+                  testID="search-back"
+                >
+                  <ChevronLeft size={iconSize.medium} tone="textSecondary" />
+                  <Text style={styles.backTitle} numberOfLines={1}>
+                    {SECTION_TITLES[section]}
+                  </Text>
+                  <Text style={styles.backCount}>{counts[section]}</Text>
+                </Press>
+              ) : (
+                <View style={styles.headGap} />
+              )}
+
+              {bar.beforeList}
+
+              {!typed ? (
+                adding ? (
+                  <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+                ) : (
+                  <BeforeTyping
+                    tags={empty.tags}
+                    recent={empty.recent}
+                    selection={selection}
+                    listPadding={bar.listPadding}
+                  />
+                )
+              ) : section === 'songs' ? (
+                <SongResults
+                  songs={found.songs}
+                  query={shown}
                   selection={selection}
-                  onSeeAll={setSection}
-                  onArtist={openArtist}
+                  listPadding={bar.listPadding}
                   adds={adding ? adds : null}
                 />
-              ) : section === 'places' ? (
-                <View style={styles.section}>
-                  <Places places={placesOf(found)} onArtist={openArtist} />
-                </View>
               ) : (
-                <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
+                <ScrollView
+                  nativeID={RESULTS_ID}
+                  contentContainerStyle={[styles.results, bar.listPadding]}
+                >
+                  {!link && offerAsk && matched === 0 ? (
+                    <AskCard words={words} first onAsk={() => ask(words)} />
+                  ) : null}
+                  {adding && link ? <LinkPick state={adding} url={link} /> : null}
+                  {link ? null : section === null ? (
+                    <AllResults
+                      found={found}
+                      lyricHits={lyricHits}
+                      selection={selection}
+                      onSeeAll={seeAll}
+                      onArtist={openArtist}
+                      adds={adding ? adds : null}
+                    />
+                  ) : section === 'places' ? (
+                    <View style={styles.section}>
+                      <Places places={placesOf(found)} onArtist={openArtist} />
+                    </View>
+                  ) : (
+                    <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
+                  )}
+                  {!link && offerAsk && matched > 0 ? (
+                    <AskCard words={words} first={false} onAsk={() => ask(words)} />
+                  ) : null}
+                  {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
+                  {!link &&
+                  !offerAsk &&
+                  counts[section ?? 'all'] === 0 &&
+                  !(section === 'lyrics' && lyricsAway) ? (
+                    <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
+                  ) : null}
+                  <ChromeSpacer />
+                </ScrollView>
               )}
-              {!answering && !link && offerAsk && counts.all > 0 ? (
-                <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
-              ) : null}
-              {!answering &&
-              !link &&
-              counts[section ?? 'all'] === 0 &&
-              !(section === 'lyrics' && lyricsAway) ? (
-                <NothingMatches words={shown.trim()} />
-              ) : null}
-              <ChromeSpacer />
-            </ScrollView>
-          )}
-        </View>
-      </SafeAreaView>
+            </View>
+          </SafeAreaView>
+        </NarrowerContentWidth>
+      </SearchedWords.Provider>
     </AddingToRoom.Provider>
   )
 }
@@ -367,7 +451,7 @@ function AskCard({
       role="button"
       accessibilityLabel={`Ask: ${words}`}
       onPress={onAsk}
-      style={first ? undefined : styles.askAfter}
+      style={[styles.ask, !first && styles.askAfter]}
       testID="search-ask"
     />
   )
@@ -444,7 +528,7 @@ function AllResults({
             title={SECTION_TITLES.places}
             style={styles.sectionHead}
             action={
-              found.artists.length + found.tags.length > places.length
+              placesOf(found).length > places.length
                 ? { label: 'See all', onPress: () => onSeeAll('places') }
                 : null
             }
@@ -516,13 +600,14 @@ function Places({
 }
 
 /** What a search with no results says. */
-function NothingMatches({ words }: { words: string }): ReactNode {
+function NothingMatches({ words, line }: { words: string; line?: string }): ReactNode {
   return (
     <EmptyState
       compact
       testID="search-nothing"
-      title={`Nothing matches “${words}”`}
-      line="Try fewer letters."
+      title={`Nothing matches “${clipText(words)}”`}
+      // Fewer letters than two is nothing left to search with.
+      line={line ?? ([...words].length > 2 ? 'Try fewer letters.' : 'Try other words.')}
     />
   )
 }
@@ -591,7 +676,7 @@ function SongRows({
 
 /**
  * Search's rows: a row plays the songs it is among, from itself, and Up next
- * says they came from Search. Search is one of the lists that shows tags on
+ * is named for the words searched. Search is one of the lists that shows tags on
  * its rows (`S3`).
  */
 function useSearchRows(
@@ -600,13 +685,16 @@ function useSearchRows(
   testPrefix: string,
 ): ReturnType<typeof useSongRows> {
   const player = usePlayerCommands()
+  const words = useContext(SearchedWords)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   return useSongRows({
     songs,
     selection,
-    onPlay: index => player.playFrom(ids, index, { source: FROM_SEARCH }),
+    onPlay: index => player.playFrom(ids, index, { source: searchSource(words) }),
     testPrefix,
     withTags: true,
+    // Where a match fell is no rank and no track (M1).
+    numbered: false,
   })
 }
 
@@ -623,6 +711,7 @@ function LyricResults({
   adds: RoomAdds | null
 }): ReactNode {
   const player = usePlayerCommands()
+  const words = useContext(SearchedWords)
   const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
   const byId = useSongsById()
@@ -645,10 +734,13 @@ function LyricResults({
             key={`${hit.songId}-${index}`}
             testID={`search-lyric-${index}`}
             onPress={() => {
-              if (!adds) player.playFrom([hit.songId], 0, { source: FROM_SEARCH })
+              if (!adds) player.playFrom([hit.songId], 0, { source: searchSource(words) })
               else if (song) {
                 adds.add(song)
-                showToast(`Added “${hit.title}”`, 'good')
+                showToast({ over: 'Added', say: hit.title }, 'good', {
+                  songs: [song],
+                  group: 'search-added',
+                })
               }
             }}
             accessibilityRole="button"
@@ -674,16 +766,29 @@ function LyricResults({
   )
 }
 
+/** The column a computer's Search keeps to, whatever the page's width. */
+const COLUMN = 760
+
 const styles = StyleSheet.create(theme => ({
+  // In from the results' edge as far as the rows' own inset, so its sides
+  // meet the field's and the rows' rather than standing 8 px out past them.
+  ask: { marginHorizontal: space.sm },
   askAfter: { marginTop: space.md },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
-  // The field's row starts where every page's first row does (`PAGE_TOP_WIDE`).
+  // The title starts where every page's does (`PAGE_TOP_WIDE`, `gutterWide`):
+  // on the left with the page, rather than a column floating in the middle.
   pageWide: {
-    maxWidth: 760,
+    maxWidth: COLUMN + space.gutterWide - space.lg,
     width: '100%',
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
+    paddingLeft: space.gutterWide - space.lg,
     paddingTop: PAGE_TOP_WIDE - PAGE_TOP_PHONE,
+  },
+  pageTitle: {
+    ...pageTitle(theme.colors),
+    paddingHorizontal: space.lg,
+    paddingTop: PAGE_TOP_PHONE,
   },
   head: {
     flexDirection: 'row',

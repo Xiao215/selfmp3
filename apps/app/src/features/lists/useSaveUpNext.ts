@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { clientApi, failureText, queryKeys, useCreatePlaylist, useLibrary } from '@selfmp3/client'
+import { clientApi, queryKeys, useCreatePlaylist, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
-import { showToast, showUndoToast } from '../../ui/toast'
+import { showFailure, showUndoToast } from '../../ui/toast'
 import { followRules } from './followRules'
 import { newPlaylist } from '../playlists/playlists.model'
 import {
@@ -68,7 +68,12 @@ export function useSaveUpNext(): {
         const input =
           plan.kind === 'follow'
             ? newPlaylist('live', plan.name, {
-                rules: followRules({ tagIds: plan.tagIds, sort: 'addedAt', descending: true }),
+                rules: followRules({
+                  tagIds: plan.tagIds,
+                  match: plan.match,
+                  sort: 'addedAt',
+                  descending: true,
+                }),
               })
             : newPlaylist('manual', plan.name)
         if (!input) return
@@ -91,7 +96,7 @@ export function useSaveUpNext(): {
           name: created.name,
         })
         showUndoToast(
-          `Saved “${created.name}”`,
+          { over: 'Saved as a playlist', say: created.name },
           async () => {
             undoRecent()
             setSource(before)
@@ -114,7 +119,7 @@ export function useSaveUpNext(): {
           },
         )
       } catch (caught) {
-        showToast(failureText(`Couldn’t save “${plan.name}”`, caught), 'error')
+        showFailure(`Couldn’t save “${plan.name}”`, caught)
       } finally {
         setSaving(false)
       }

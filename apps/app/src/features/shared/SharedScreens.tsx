@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -10,7 +10,7 @@ import {
   type SharedSummary,
   SharedNameSchema,
 } from '@selfmp3/shared'
-import { libraryIndex, radius, sharedInviteLink, space, type, useLibrary } from '@selfmp3/client'
+import { radius, sharedInviteLink, space, type, yoursOf } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -48,6 +48,7 @@ import {
   useSharedPlaylist,
 } from './sharedPlaylists'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useLibraryIndex } from '../../ui/songsById'
 
 /** An invite opened before signing in, opened again once signed in (`useResumeSharedJoin`). */
 const PENDING_JOIN_KEY = 'shared.join'
@@ -70,8 +71,7 @@ export function SharedPlaylistScreen(): ReactNode {
   const room = useRoom()
   const { data: me } = useCloudSession()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { data: library } = useLibrary()
-  const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const index = useLibraryIndex()
   const [sheet, setSheet] = useState<'add' | 'invite' | 'more' | null>(null)
   const [leaving, setLeaving] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -108,6 +108,13 @@ export function SharedPlaylistScreen(): ReactNode {
   }
 
   const rows = sharedRows(playlist)
+  // Your songs that are in it already, by file: Add songs marks them, as the doorman refuses them.
+  const inIt = new Set(
+    playlist.entries.flatMap(entry => {
+      const yours = yoursOf(entry.song, index)
+      return yours === null ? [] : [yours]
+    }),
+  )
   const ids = rows.map(row => row.trackId)
   const playHere = (start = 0): void => {
     if (ids.length > 0) player.playFrom(ids, start)
@@ -210,6 +217,7 @@ export function SharedPlaylistScreen(): ReactNode {
         width={480}
       >
         <MyLibraryPicker
+          has={inIt}
           onAdd={song =>
             act({ type: 'add', song }).then(
               () => true,

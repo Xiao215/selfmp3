@@ -2,133 +2,28 @@ import { describe, expect, it } from 'vitest'
 import { ApiError } from '@selfmp3/client'
 
 import {
-  accentName,
-  activeSection,
-  addressForElsewhere,
-  ALL_SECTIONS,
   crossfadeLabel,
+  CROSSFADE_STEPS,
   devicePlace,
   downloadHint,
   healthLine,
-  indexIdFor,
-  landingOffset,
+  nearestStep,
+  onThisDevice,
   RECENT_DEVICE_WINDOW_MS,
-  soundHint,
-  analysisProgress,
   scanHint,
-  sectionsFor,
-  serverTokenHint,
-  settingsIndex,
   splitDevices,
 } from './settings.model'
 
-const ALL_LABEL = (id: string): string | undefined =>
-  ALL_SECTIONS.find(section => section.id === id)?.label
-
-const TOPS = [
-  { id: 'a', top: 0 },
-  { id: 'b', top: 600 },
-  { id: 'c', top: 1200 },
-  { id: 'd', top: 1500 },
-]
-
 describe('settings', () => {
-  it('shows what the server acts on to every device, which reaches the server for it', () => {
-    const ids = sectionsFor().map(section => section.id)
-    expect(ids).toEqual(expect.arrayContaining(['devices', 'smart', 'library', 'importing']))
-    // The server's own page connects its bucket; a device's is under Account.
-    expect(ids).not.toContain('cloud')
-    expect(sectionsFor()).toHaveLength(11)
-    expect(sectionsFor({ installed: false }).map(section => section.id)).not.toContain('offline')
-    // Downloading through the extension is a Chromium tab's; an app has no extension.
-    const browser = { installed: false, extension: true }
-    expect(sectionsFor(browser).map(section => section.id)).toContain('browserImports')
-    expect(sectionsFor({ ...browser, installed: true }).map(s => s.id)).not.toContain(
-      'browserImports',
-    )
-    // Safari and Firefox: no extension to download through.
-    expect(sectionsFor({ installed: false }).map(section => section.id)).not.toContain(
-      'browserImports',
-    )
-  })
-
-  it('leaves Playback out where the engine cannot crossfade, which is all it holds', () => {
-    expect(sectionsFor({ crossfade: true }).map(section => section.id)).toContain('playback')
-    expect(sectionsFor({ crossfade: false }).map(section => section.id)).not.toContain('playback')
-  })
-
-  it('lists keyboard shortcuts only where there are keys to press', () => {
-    const ids = (device: Parameters<typeof sectionsFor>[0]) =>
-      sectionsFor(device).map(section => section.id)
-    // A browser tab, and an iPad with no keyboard attached: nothing to list.
-    expect(ids({ installed: false, keyboard: false, shell: false })).not.toContain('shortcuts')
-    expect(ids({ installed: true, keyboard: false, shell: false })).not.toContain('shortcuts')
-    // The installed app's menu, and an iPad with a keyboard attached.
-    expect(ids({ installed: true, keyboard: true, shell: true })).toContain('shortcuts')
-    expect(ids({ installed: true, keyboard: true, shell: false })).toContain('shortcuts')
-    expect(ALL_LABEL('shortcuts')).toBe('Keyboard shortcuts')
-  })
-
-  it('leads with the account and the look, then what this device keeps (P38, C17)', () => {
-    expect(sectionsFor().map(section => section.label)).toEqual([
-      'Account',
-      'Appearance',
-      'On this phone',
-      'Devices',
-      'Playback',
-      'Smart features',
-      'Lyrics',
-      'About',
-      'Library',
-      'Importing',
-      'Model',
-    ])
-    const computer = sectionsFor({
-      shell: true,
-      place: devicePlace('desktop'),
-    })
-    expect(computer.find(section => section.id === 'offline')?.label).toBe('On this computer')
-    expect(devicePlace('phone')).toBe('phone')
-    expect(devicePlace('other')).toBe('computer')
-  })
-
-  it('puts what runs the server under one Advanced chip at the end (O1)', () => {
-    const sections = sectionsFor({ shell: true, keyboard: true })
-    expect(settingsIndex(sections).map(section => section.label)).toEqual([
-      'Account',
-      'Appearance',
-      'On this phone',
-      'Devices',
-      'Playback',
-      'Smart features',
-      'Lyrics',
-      'Keyboard shortcuts',
-      'About',
-      'Advanced',
-    ])
-    expect(indexIdFor('importing', sections)).toBe('advanced')
-    expect(indexIdFor('desktop', sections)).toBe('advanced')
-    expect(indexIdFor('lyrics', sections)).toBe('lyrics')
-    // Library, Importing and the model are on every device, so Advanced is never empty.
-    expect(settingsIndex(sectionsFor()).at(-1)?.id).toBe('advanced')
-  })
-
-  it('shows the desktop section only where there is a shell to ask', () => {
-    expect(sectionsFor().map(section => section.id)).not.toContain('desktop')
-    expect(sectionsFor({ shell: true }).map(section => section.id)).toContain('desktop')
-  })
-
-  it('offers the Mac app only to a browser tab on a Mac, in the desktop section\u2019s place', () => {
-    expect(sectionsFor().map(section => section.id)).not.toContain('getApp')
-    const tab = sectionsFor({
-      installed: false,
-      place: 'computer',
-      offered: true,
-    }).map(section => section.id)
-    expect(tab).toContain('getApp')
-    expect(tab).not.toContain('desktop')
-    expect(tab.at(-1)).toBe('getApp')
-    expect(ALL_LABEL('getApp')).toBe('Mac app')
+  it('names what this device keeps for the device it is', () => {
+    expect(onThisDevice(devicePlace('phone', true))).toBe('On this phone')
+    expect(onThisDevice(devicePlace('desktop', true))).toBe('On this computer')
+    expect(devicePlace('phone', true, true)).toBe('iPad')
+    expect(devicePlace('phone', false, true)).toBe('browser')
+    expect(devicePlace('other', true)).toBe('computer')
+    // A tab keeps what it has in the browser, not on the device it runs on.
+    expect(devicePlace('desktop', false)).toBe('browser')
+    expect(devicePlace('phone', false)).toBe('browser')
   })
 
   it('tells a browser that cannot name its chip how to find out', () => {
@@ -141,42 +36,22 @@ describe('settings', () => {
     expect(downloadHint({ ...base, error: true, chip: null })).toContain('releases page')
   })
 
-  it('picks the last section past the reading line', () => {
-    expect(activeSection(TOPS, 0, 800, 2400)).toBe('a')
-    expect(activeSection(TOPS, 520, 800, 2400)).toBe('b')
-  })
-
-  it('lands a chosen section under whatever covers the top, and past the reading line', () => {
-    // Beside the index column: under the page's 28pt top padding.
-    expect(landingOffset(1250, 28)).toBe(1222)
-    // Narrow: under the sticky chips (53pt) and their 14pt gap.
-    expect(landingOffset(1780, 67)).toBe(1713)
-    // Near the start the page cannot scroll above itself.
-    expect(landingOffset(40, 67)).toBe(0)
-    // Once there, the scroll-spy agrees it is the section being read.
-    const tops = [
-      { id: 'a', top: 0 },
-      { id: 'b', top: 1250 },
-      { id: 'c', top: 1900 },
-    ]
-    expect(activeSection(tops, landingOffset(1250, 67), 800, 3200)).toBe('b')
-  })
-
-  it('gives the short last sections their turn over the final screenful', () => {
-    // At the very bottom the line is the bottom edge, so the last section wins.
-    expect(activeSection(TOPS, 1600, 800, 2400)).toBe('d')
-    expect(activeSection([], 0, 800, 2400)).toBeNull()
+  it('shows a crossfade kept from the slider as the nearest step (C4a)', () => {
+    expect(CROSSFADE_STEPS[0]).toBe(0)
+    expect(nearestStep(0)).toBe(0)
+    expect(nearestStep(4)).toBe(4)
+    expect(nearestStep(3)).toBe(2)
+    expect(nearestStep(8)).toBe(6)
+    expect(nearestStep(12)).toBe(10)
   })
 
   it('words the rows', () => {
-    expect(crossfadeLabel(0)).toBe('off')
+    expect(crossfadeLabel(0)).toBe('Off')
     expect(crossfadeLabel(4)).toBe('4s')
-    expect(accentName(330, [{ hue: 330, name: 'Pink' }])).toBe('Pink')
-    expect(accentName(30, [{ hue: 330, name: 'Pink' }])).toBe('Hue 30°')
   })
 
-  it('says it is checking while it checks, and which side it could not reach', () => {
-    expect(healthLine(undefined, { loading: true })).toBe('Checking your library…')
+  it('says nothing while it checks, and which side it could not reach', () => {
+    expect(healthLine(undefined, { loading: true })).toBeNull()
     expect(healthLine(undefined, { error: true })).toBe('Can’t reach your library')
     const capped = new ApiError(502, 'cap exceeded', 'bucket_cap_exceeded')
     const now = new Date('2026-10-08T04:00:00Z')
@@ -188,7 +63,7 @@ describe('settings', () => {
   it('says the bucket is refusing over a doorman that answered, shorter on a phone', () => {
     const doorman = { ok: true as const, version: 'web', uptimeSeconds: 0 }
     const now = new Date('2026-10-08T04:00:00Z')
-    expect(healthLine(doorman, {})).toBe('self.mp3 web')
+    expect(healthLine(doorman, {})).toBeNull()
     expect(healthLine(doorman, { capped: true, now })).toBe(
       'Storage allowance used up · resets in about 20 hours',
     )
@@ -199,22 +74,24 @@ describe('settings', () => {
 
   it('keeps this device, what is online and the last week, and folds the rest away', () => {
     const now = 100 * RECENT_DEVICE_WINDOW_MS
-    const row = (id: string, ageMs: number, online = false) => ({
+    const row = (id: string, ageMs: number, online = false, copies: string[] = []) => ({
       device: { id, online, lastSeenAt: now - ageMs },
-      ids: [id],
+      ids: [id, ...copies],
     })
     const rows = [
       row('me', 30 * RECENT_DEVICE_WINDOW_MS),
       row('phone', 0, true),
-      row('mac', RECENT_DEVICE_WINDOW_MS - 1),
-      row('old', RECENT_DEVICE_WINDOW_MS + 1),
+      // The newest of a name's folded copies is a device in use; the rest are stale.
+      row('mac', RECENT_DEVICE_WINDOW_MS - 1, false, ['mac-2', 'mac-3']),
+      row('old', RECENT_DEVICE_WINDOW_MS + 1, false, ['old-2']),
     ]
-    const { recent, older } = splitDevices(rows, 'me', now)
+    const { recent, olderIds } = splitDevices(rows, 'me', now)
     expect(recent.map(entry => entry.device.id)).toEqual(['me', 'phone', 'mac'])
-    expect(older.map(entry => entry.device.id)).toEqual(['old'])
+    expect(recent.find(entry => entry.device.id === 'mac')?.ids).toEqual(['mac'])
+    expect(olderIds).toEqual(['mac-2', 'mac-3', 'old', 'old-2'])
   })
 
-  it('says what it is connected to', () => {
+  it('says nothing over a library that answered, only when it is not connected', () => {
     expect(healthLine(undefined)).toBe('Not connected to your library right now')
     expect(
       healthLine({
@@ -223,81 +100,9 @@ describe('settings', () => {
         uptimeSeconds: 5,
         songCount: 13,
       }),
-    ).toBe('self.mp3 1.0.0 · 13 songs')
+    ).toBeNull()
     expect(scanHint({ added: 1, updated: 2, total: 13, durationMs: 40 })).toBe(
       'Last scan: 1 new, 2 updated.',
     )
-  })
-})
-
-describe('soundHint', () => {
-  const sound = { state: 'ready' as const, heard: 40, pending: 2, message: null }
-
-  it('counts the songs heard and the ones to go', () => {
-    expect(soundHint(sound, 42)).toBe('40 of 42 songs heard · 2 to go')
-    expect(soundHint({ ...sound, heard: 42, pending: 0 }, 42)).toBe('42 of 42 songs heard')
-  })
-
-  it('says why the model is not there yet', () => {
-    expect(soundHint({ ...sound, state: 'fetching' }, 42)).toMatch(/about 750 MB/)
-    expect(soundHint({ ...sound, state: 'waiting' }, 42)).toMatch(/once every song has tempo/)
-    expect(soundHint({ ...sound, state: 'off' }, 42)).toBe('Switched off on this server.')
-    expect(
-      soundHint({ ...sound, state: 'failed', message: 'downloading mert.onnx failed: 404' }, 42),
-    ).toMatch(/get the model: downloading mert.onnx failed: 404\. Tries again hourly\.$/)
-  })
-})
-
-describe('analysisProgress', () => {
-  const status = {
-    running: true,
-    pending: 3,
-    done: 1,
-    failed: 0,
-    current: { id: 1, title: '晴天' },
-    sound: { state: 'ready' as const, heard: 0, pending: 40, message: null },
-  }
-
-  it('says it is measuring while songs still need their tempo and key', () => {
-    expect(analysisProgress(status)).toBe('Analysing — 晴天 · 3 to go')
-  })
-
-  it('says it is listening once they all have them', () => {
-    expect(analysisProgress({ ...status, pending: 0 })).toBe('Listening — 晴天 · 40 to go')
-    expect(
-      analysisProgress({
-        ...status,
-        pending: 0,
-        current: null,
-        sound: { ...status.sound, pending: 0 },
-      }),
-    ).toBe('Analysing…')
-  })
-})
-
-describe('the server row for a Shortcut or the extension', () => {
-  const TOKEN = 'kq3x0Vb7_secret-of-forty-three-characters-Ab3x'
-
-  it('gives the address the internet reaches, over the home and tailnet ones', () => {
-    const addresses = [
-      'http://localhost:4600',
-      'http://192.168.1.20:4600',
-      'http://100.101.102.103:4600',
-      'https://pi.tail1234.ts.net',
-    ]
-    expect(addressForElsewhere(addresses)).toBe('https://pi.tail1234.ts.net')
-    expect(serverTokenHint(addresses, TOKEN)).toBe('https://pi.tail1234.ts.net · token ending Ab3x')
-  })
-
-  it('falls back to an address beyond this computer, and to none', () => {
-    expect(addressForElsewhere(['http://localhost:4600', 'http://192.168.1.20:4600'])).toBe(
-      'http://192.168.1.20:4600',
-    )
-    expect(addressForElsewhere(['http://localhost:4600'])).toBeNull()
-    expect(serverTokenHint([], TOKEN)).toBe('token ending Ab3x')
-  })
-
-  it('never shows the token whole', () => {
-    expect(serverTokenHint(['https://pi.tail1234.ts.net'], TOKEN)).not.toContain(TOKEN.slice(0, 8))
   })
 })

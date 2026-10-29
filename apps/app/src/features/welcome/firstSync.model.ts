@@ -1,5 +1,6 @@
 import { plural, formatBytes } from '@selfmp3/shared'
 import { firstName } from '../profile/profile.model'
+import type { DevicePlace } from '../settings/settings.model'
 import { STORAGE_ROUTE } from './storage.model'
 
 /**
@@ -55,16 +56,34 @@ export function keepEverySongByDefault(wide: boolean): boolean {
   return wide
 }
 
-/** The switch's words, naming the device it is on and how much it would hold. */
+/**
+ * Where "Download automatically on Wi-Fi" stands on a device nobody has
+ * answered for yet: off on a phone, as First sync starts it there. On by
+ * default, a phone that reached the library without the page — its library
+ * arriving before the page was up, or the app closed between sign-in and the
+ * page, which is never shown again — kept every song before anyone could say
+ * no (bug bash R2-m3).
+ */
+export function keepEverySongUnasked(place: DevicePlace): boolean {
+  return place !== 'phone'
+}
+
+/**
+ * The switch's words, naming the device it is on and how much it would hold.
+ * An iPad is wide like a computer, and keeps the computer's default, but is
+ * called an iPad.
+ */
 export function keepEverySongCopy(
   wide: boolean,
   bytes: number | null,
+  iPad = false,
 ): { readonly label: string; readonly hint: string } {
   const size = bytes !== null && bytes > 0 ? `About ${formatBytes(bytes)}. ` : ''
+  const device = iPad ? 'iPad' : 'computer'
   return wide
     ? {
-        label: 'Keep every song on this computer',
-        hint: `${size}A computer usually has the room, so this is on by default here.`,
+        label: `Keep every song on this ${device}`,
+        hint: `${size}${iPad ? 'An iPad' : 'A computer'} usually has the room, so this is on by default here.`,
       }
     : {
         label: 'Keep every song on this phone',

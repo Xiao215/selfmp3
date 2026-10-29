@@ -33,7 +33,7 @@ allows about 100,000 reads and 1,000 writes a day. Nothing is written until
 Google has vouched for an address on your list; a whole sign-in costs three
 writes, and using the library afterwards costs none.
 
-Four kinds of Durable Object keep the rest (the free plan allows 100,000
+Five kinds of Durable Object keep the rest (the free plan allows 100,000
 requests a day across them, with their storage in SQLite):
 
 | Binding | Class | One per | Kept |
@@ -42,6 +42,7 @@ requests a day across them, with their storage in SQLite):
 | `ROOMS` | `Room` (`src/room.ts`) | listening room | until two hours pass with nothing done; forgotten ten minutes after it ends |
 | `SHARED` | `SharedPlaylist` (`src/shared.ts`) | shared playlist | until its last person leaves |
 | `SHARES` | `ShareLink` (`src/share.ts`) | share link | until ninety days after it ends |
+| `TALLY` | `Tally` (`src/tally.ts`) | doorman (one, named `all`) | each day's counts for 400 days |
 
 The change counter moves whenever a snapshot or a log file is written or
 deleted, and devices ask it before they list the bucket, so a device whose
@@ -130,7 +131,7 @@ The doorman signs people in with an OAuth client that you own, in the
    instead, so the app is **In production**. Google then wants the home page
    and privacy policy from step 3 before it will show the app to strangers,
    and the home page verified as yours in Search Console. Then turn on
-   **Anyone with a Google account** in self.mp3's Settings › Who can sign in;
+   **Anyone with a Google account** on the admin page's People tab;
    Testing's list and the doorman's are two doors, and both have to be open.
 5. **Clients**: **Create client**, application type **Web application**,
    any name ("self.mp3 doorman"). Under **Authorised redirect URIs** add
@@ -152,8 +153,7 @@ The doorman signs people in with an OAuth client that you own, in the
 2. Check `APP_ORIGINS` in `wrangler.toml`: the address the web app is served
    from, `https://xiao215.github.io`. Browsers may call the doorman only from
    there, and a sign-in only sends you back there — or to this computer
-   (`http://localhost` or `http://127.0.0.1`, for the server's own page, where
-   it signs itself in and names its bucket). The desktop app's and the browser
+   (`http://localhost` or `http://127.0.0.1`). The desktop app's and the browser
    extension's own origins are always allowed and are not listed: the doorman
    takes them from `packages/shared/src/origins.ts`. `APP_URL` beside it is the web app's
    full address, path and all (`https://xiao215.github.io/selfmp3`): where a share link's
@@ -241,14 +241,30 @@ redirect URI in step 2).
   ([docs/features/shared-server.md](../../docs/features/shared-server.md),
   "Telling the server"). Nothing new is kept for it: every grant has always
   stored that address.
-- **Who may sign in** is the owners (`OWNER_EMAILS`) and a list they keep in
-  self.mp3's Settings › Who can sign in, which only an owner sees
-  (`/v1/access`, kept in KV as `access`). Letter case does not matter. With no
-  owner and nobody on the list, nobody can sign in. Taking an address off the
+- **Friends' iPhones** for the iPhone app (device.ts): `/v1/device` is the
+  profile service the install page starts, which keeps an iPhone's ID with the
+  name it came with in KV as `iphones` (one record; a waiting request is
+  forgotten after a month) and shows the iPhone's own page at
+  `/v1/device/<id>`. `/v1/iphones` is the list for the admin page, with the
+  admin key; adding one starts the repository's iPhone workflow with the
+  `GITHUB_TOKEN` secret, when it is set (docs/MOBILE.md, "Sharing the iPhone
+  app").
+- **Who may sign in** is the owners (`OWNER_EMAILS`) and a list they keep on
+  the admin page's People tab (`/v1/access`, kept in KV as `access`). It is
+  read and changed with the admin key (`ADMIN_TOKEN`, which the owner's server
+  holds for its admin page) or by an owner on a device of their own; a
+  server's grant is refused, though it is a session in the owner's name.
+  Letter case does not matter. With no
+  owner and nobody on the list, nobody can sign in. An address added can sign
+  in as soon as KV has it, within about a minute everywhere: a refusal always
+  reads the list afresh. Taking an address off the
   list refuses its sessions, and any server's grant for it, within a minute,
   but does not end them: putting the address back revives them. To be rid of
   someone's sessions for good, have them sign out everywhere, or keep them off
   the list. An owner is always let in, so the list can never lock one out.
+- **What it counts** for the admin page (`/v1/stats`, the same key) is reads
+  by bucket folder and by app, and sign-ins, a day at a time, in the `TALLY`
+  Durable Object (src/tally.ts). Totals only: nothing names an account.
 - **Anyone with a Google account**, the switch above the list, lets any
   Google account sign in. Each account still gets a bucket of its own and sees
   nothing of anyone else's, so what an open doorman gives away is your quota:

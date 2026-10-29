@@ -52,7 +52,13 @@ describe('/api/cloud/uids', () => {
   const SESSION: CloudSession = {
     doormanUrl: DOORMAN,
     token: 'tok'.padEnd(32, '0'),
-    me: { email: 'a@b.c', name: null, picture: null, storage: null },
+    me: {
+      account: '0123456789abcdef0123456789abcdef',
+      email: 'a@b.c',
+      name: null,
+      picture: null,
+      storage: null,
+    },
   }
   const uid = (letter: string) => letter.repeat(32)
 
@@ -101,6 +107,9 @@ describe('/api/cloud/uids', () => {
       },
     ],
     artists: [],
+    artistNames: [],
+    spellings: {},
+    coverPacks: [],
     sound: null,
   }
 
@@ -113,6 +122,7 @@ describe('/api/cloud/uids', () => {
     health: unknown = '<html>Sign in to the Wi-Fi</html>',
     snapshotBytes?: string,
     snapshot: CloudSnapshot = SNAPSHOT,
+    bucketFiles: Record<string, unknown> = {},
   ) {
     const data = new Map<string, unknown>()
     const clone = (value: unknown): unknown =>
@@ -136,6 +146,7 @@ describe('/api/cloud/uids', () => {
 
     const files = new Map<string, unknown>([
       ['snapshots/20260911T100000000Z-mac-3f9a1c2e.json', snapshot],
+      ...Object.entries(bucketFiles),
     ])
     const reply = (status: number, body: unknown): Promise<CloudResponse> =>
       Promise.resolve({
@@ -218,12 +229,7 @@ describe('/api/cloud/uids', () => {
           playCount: 2,
           lastPlayedAt: '2026-09-05 10:00:00',
           tagUids: [tag.uid],
-          lyrics: {
-            key: `lyrics/${'b'.repeat(64)}.lrc`,
-            size: 10,
-            kind: 'synced',
-            romanized: null,
-          },
+          lyrics: { key: `lyrics/${'b'.repeat(64)}.words`, size: 10, kind: 'synced' },
         },
       ],
       tags: [tag],
@@ -272,6 +278,28 @@ describe('/api/cloud/uids', () => {
       songIds: number[]
     }
     expect(inMix.songIds).toEqual([idOf('a')])
+  })
+
+  it('rests a song and wakes it again, as an edit of its own field', async () => {
+    const made = device()
+    await made.session.saveSession(SESSION)
+    const read = async () =>
+      (
+        (await made.cloudRequest('GET', '/api/library', undefined)) as {
+          songs: { id: number; restUntil: string | null }[]
+        }
+      ).songs
+    const songId = (await read())[0]!.id
+    const until = '2026-11-24T12:00:00.000Z'
+    const rest = (value: string | null) =>
+      made.cloudRequest('POST', '/api/songs/bulk/edit', {
+        edits: [{ songId, patch: { restUntil: value } }],
+      })
+
+    expect(await rest(until)).toEqual({ affected: 1 })
+    expect((await read()).find(each => each.id === songId)?.restUntil).toBe(until)
+    await rest(null)
+    expect((await read()).find(each => each.id === songId)?.restUntil).toBeNull()
   })
 
   it('names the uid behind each id this device handed out', async () => {
@@ -370,6 +398,25 @@ describe('/api/cloud/uids', () => {
     return { made, a: songId('Song a'), b: songId('Song b'), mix: library.playlists[0]?.id ?? 0 }
   }
 
+  it('places the heard songs on the sound map from the file the snapshot names, read once', async () => {
+    const mapKey = `lyrics/${'e'.repeat(64)}.map`
+    const made = device(
+      undefined,
+      undefined,
+      { ...SNAPSHOT, soundMap: { key: mapKey, size: 60 } },
+      { [mapKey]: { places: [[`audio/${'a'.repeat(64)}.m4a`, 2500, 7500]] } },
+    )
+    await made.session.saveSession(SESSION)
+    const library = (await made.cloudRequest('GET', '/api/library', undefined)) as {
+      songs: { id: number; title: string }[]
+    }
+    const a = library.songs.find(row => row.title === 'Song a')?.id
+    const expected = { places: [{ id: a, x: 0.25, y: 0.75 }] }
+    expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
+    expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
+    expect(made.fetched.filter(path => path.endsWith('.map'))).toHaveLength(1)
+  })
+
   it('says a song with no words is instrumental the way the server does', async () => {
     const { made, a, b } = await signedIn()
     await expect(
@@ -390,6 +437,17 @@ describe('/api/cloud/uids', () => {
       songs: { id: number; playCount: number }[]
     }
     expect(library.songs.find(row => row.id === a)?.playCount).toBe(1)
+  })
+
+  it('answers a playlist asked for before the library with its songs, not none', async () => {
+    // Ids are handed out as the snapshot arrives, the same on every device.
+    const { a, mix } = await signedIn()
+    const fresh = device()
+    await fresh.session.saveSession(SESSION)
+    expect(await fresh.cloudRequest('GET', `/api/playlists/${mix}/songs`, undefined)).toEqual({
+      playlistId: mix,
+      songIds: [a],
+    })
   })
 
   it('keeps when a playlist was last started, on this device', async () => {

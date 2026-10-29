@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_MENU_COMMANDS,
   MENU_SECTIONS,
+  menuChecked,
   menuClickSends,
+  menuCommandsIn,
+  menuEnabled,
   menuOwnedCombinations,
   pageCombinations,
   pageKeptCombinations,
@@ -33,8 +36,60 @@ describe('the menu model', () => {
     for (const item of ALL_MENU_COMMANDS) expect(item.label.trim().length).toBeGreaterThan(0)
   })
 
-  it('has a section for looking at things and one for playing them', () => {
-    expect(MENU_SECTIONS.map(section => section.title)).toEqual(['View', 'Playback'])
+  it('has a section for making things, one for looking at them and one for playing them', () => {
+    expect(MENU_SECTIONS.map(section => section.title)).toEqual(['File', 'View', 'Playback'])
+  })
+
+  it('names its items in title case, as a Mac menu does', () => {
+    for (const item of ALL_MENU_COMMANDS) {
+      for (const word of item.label.split(' ')) {
+        if (/^[a-z]/.test(word)) throw new Error(`"${item.label}" is not in title case`)
+      }
+    }
+  })
+
+  it('puts View in the sidebar’s order, Home first', () => {
+    const view = MENU_SECTIONS.find(section => section.title === 'View')
+    expect(menuCommandsIn(view?.items ?? []).map(item => [item.label, item.accelerator])).toEqual([
+      ['Home', 'CmdOrCtrl+1'],
+      ['Library', 'CmdOrCtrl+2'],
+      ['Import', 'CmdOrCtrl+3'],
+      ['Stats', 'CmdOrCtrl+4'],
+      ['Playlists', 'CmdOrCtrl+5'],
+      ['Now Playing', 'CmdOrCtrl+0'],
+      ['Search', 'CmdOrCtrl+K'],
+    ])
+  })
+})
+
+describe('the menu’s checkmarks', () => {
+  const state = { shuffle: true, repeat: 'all', liked: false } as const
+
+  it('ticks Shuffle, the one Repeat mode on, and Like as the page says', () => {
+    expect(menuChecked('shuffle', state)).toBe(true)
+    expect(
+      (['repeat-off', 'repeat-all', 'repeat-one'] as const).map(mode => menuChecked(mode, state)),
+    ).toEqual([false, true, false])
+    expect(menuChecked('like', state)).toBe(false)
+    expect(menuChecked('like', { ...state, liked: true })).toBe(true)
+  })
+
+  it('draws no checkmark on an ordinary item', () => {
+    expect(menuChecked('next', state)).toBeUndefined()
+  })
+
+  it('greys out Like while nothing that can be liked is playing', () => {
+    expect(menuEnabled('like', { ...state, liked: null })).toBe(false)
+    expect(menuEnabled('like', state)).toBe(true)
+    expect(menuEnabled('shuffle', { ...state, liked: null })).toBe(true)
+  })
+
+  it('gives a checkmark to every item that has one in the model, and to no other', () => {
+    const checked = ALL_MENU_COMMANDS.filter(item => item.check).map(item => item.command)
+    expect(checked).toEqual(['shuffle', 'repeat-off', 'repeat-all', 'repeat-one', 'like'])
+    for (const item of ALL_MENU_COMMANDS) {
+      expect(menuChecked(item.command, state) !== undefined).toBe(item.check !== undefined)
+    }
   })
 
   it('leaves the keys a text field needs to the page', () => {

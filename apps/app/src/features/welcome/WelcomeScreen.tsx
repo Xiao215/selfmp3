@@ -4,7 +4,6 @@ import { AppState, Image, KeyboardAvoidingView, Linking, Text, View } from 'reac
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { DOORMAN_ERROR, DoormanError, PRIVACY_POLICY_URL } from '@selfmp3/shared'
 import {
-  fonts,
   hitSlopFor,
   leading,
   radius,
@@ -14,26 +13,31 @@ import {
   tracking,
   textStyle,
 } from '@selfmp3/client'
-import { session as cloud } from '../../replica'
+import { fonts } from '../../ports/fonts'
+import type { CloudSession } from '@selfmp3/replica'
+import { library as cloudLibrary, session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
-import { onSignInCode } from '../../ports/signInReturn'
-import { titleBarInset } from '../../ports/titleBarInset'
+import { onSignInBack } from '../../ports/signInReturn'
+import { TitleBarDrag } from '../../shell/TitleBarRoom'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { floating, sectionTitle, bodyText } from '../../ui/surfaces'
+import { floating, serif, bodyText } from '../../ui/surfaces'
 import {
   afterCheck,
   copyFor,
+  endedMessage,
+  LINK_SPENT,
+  refusalMessage,
   signInFailure,
-  TOOK_TOO_LONG,
   type SignInStage,
 } from '../signIn/signIn.model'
+import { useForgetEndedAccount } from '../settings/useSignOut'
 import { ServerAddress } from './ServerAddress'
 import { WhitePill } from './WhitePill'
 import { ONBOARDING_GUTTER, OnboardingFootnote, OnboardingTitle } from './OnboardingPage'
@@ -82,9 +86,42 @@ const POLL_MS = 2_000
 export function WelcomeScreen(): ReactNode {
   const { theme } = useUnistyles()
   const { wide, finePointer, width } = useLayout()
-  const { signedInToCloud } = useConnection()
+  const { signedInToCloud: adopt, sessionEnded } = useConnection()
+  const forgetEnded = useForgetEndedAccount()
   const [stage, setStage] = useState<SignInStage>({ kind: 'idle', message: null })
   const [kept, setKept] = useState<readonly string[] | null>(null)
+  // What is still waiting to go up from a sign-in the doorman ended.
+  const [waiting, setWaiting] = useState(0)
+
+  useEffect(() => {
+    if (!sessionEnded) return undefined
+    let cancelled = false
+    void cloudLibrary.keptCloudChanges().then(
+      count => {
+        if (!cancelled) setWaiting(count)
+      },
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [sessionEnded])
+
+  /**
+   * In, as `session`. After a sign-in the doorman ended, this device still
+   * holds that account's library and the changes it never sent: kept for the
+   * same account, and forgotten first for any other, which would otherwise
+   * be handed another library's songs, ids and outbox.
+   */
+  const signedInToCloud = useCallback(
+    async (session: CloudSession): Promise<void> => {
+      const ended = await cloud.endedSession()
+      if (ended && ended.account !== session.me.account) await forgetEnded()
+      await cloud.clearEnded()
+      adopt(session)
+    },
+    [adopt, forgetEnded],
+  )
 
   // What this device kept from before. Until it answers, nothing is drawn
   // above the words rather than tiles that a moment later become covers; a
@@ -120,7 +157,7 @@ export function WelcomeScreen(): ReactNode {
         return
       }
       const outcome = await cloud.claimSignIn(pending.attempt)
-      if (outcome.status === 'signed-in') signedInToCloud(outcome.session)
+      if (outcome.status === 'signed-in') await signedInToCloud(outcome.session)
       else {
         const attempt = outcome.status === 'code' ? 'done' : 'pending'
         setStage(current => afterCheck(current, attempt, Date.now()))
@@ -152,11 +189,11 @@ export function WelcomeScreen(): ReactNode {
       try {
         const pending = await cloud.pendingSignIn()
         if (!pending) {
-          setStage({ kind: 'idle', message: TOOK_TOO_LONG })
+          setStage({ kind: 'idle', message: LINK_SPENT })
           return
         }
         const outcome = await cloud.claimSignIn(pending.attempt, code)
-        if (outcome.status === 'signed-in') signedInToCloud(outcome.session)
+        if (outcome.status === 'signed-in') await signedInToCloud(outcome.session)
         else setStage({ kind: 'idle', message: 'Google hasn’t finished yet. Try again.' })
       } catch (error) {
         // A refused code ends the attempt: the doorman spends it either way.
@@ -182,11 +219,18 @@ export function WelcomeScreen(): ReactNode {
    */
   useEffect(
     () =>
-      onSignInCode('welcome', code => {
+      onSignInBack('welcome', back => {
+        if (back.kind === 'refused') {
+          // Nothing to wait for any more: the attempt is over, and the poll
+          // would have gone on saying "Finish in your browser" until it ran out.
+          void cloud.clearPendingSignIn()
+          setStage({ kind: 'idle', message: refusalMessage(back.refusal) })
+          return
+        }
         // Said before the claim starts, not after: the poll is also running, and
         // it learns "finished" from the doorman a moment earlier.
         setStage({ kind: 'claiming' })
-        void claimWith(code)
+        void claimWith(back.code)
       }),
     [claimWith],
   )
@@ -219,7 +263,11 @@ export function WelcomeScreen(): ReactNode {
   const actions =
     stage.kind === 'claiming' ? null : (
       <View style={styles.actions}>
-        {stage.kind === 'idle' && stage.message ? <StatusLine>{stage.message}</StatusLine> : null}
+        {stage.kind === 'idle' && (stage.message || sessionEnded) ? (
+          <StatusLine>
+            {stage.message ?? endedMessage(sessionEnded?.email ?? '', waiting)}
+          </StatusLine>
+        ) : null}
         {stage.kind === 'idle' || stage.kind === 'lost' ? (
           <WhitePill
             testID="welcome-google"
@@ -268,6 +316,7 @@ export function WelcomeScreen(): ReactNode {
             {actions}
           </ScrollView>
         </KeyboardAvoidingView>
+        <TitleBarDrag name="welcome" />
       </SafeAreaView>
     )
   }
@@ -381,14 +430,13 @@ function Tile({ tile, wide }: { tile: WelcomeTile; wide: boolean }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   clear: { flex: 1 },
-  // The page sits at the foot of the display, where a thumb is (`P01`). The
-  // Mac's traffic lights sit over the top of a narrow window; the mark is far
-  // below them, but a page that scrolls up under them keeps clear anyway.
+  // The page sits at the foot of the display, where a thumb is (`P01`). A
+  // narrow window's traffic lights are in the safe area (`TitleBarRoom`).
   narrow: {
     flexGrow: 1,
     justifyContent: 'flex-end',
     paddingHorizontal: ONBOARDING_GUTTER,
-    paddingTop: space.xl + titleBarInset,
+    paddingTop: space.xl,
     paddingBottom: 60,
     gap: 22,
   },
@@ -402,7 +450,7 @@ const styles = StyleSheet.create(theme => ({
   },
   words: { gap: space.snug },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  brandName: sectionTitle(theme.colors),
+  brandName: serif(theme.colors, 'large'),
   body: bodyText(theme.colors),
   bodyWide: { ...textStyle('title'), maxWidth: 420 },
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },

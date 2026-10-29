@@ -5,6 +5,7 @@ import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 import { deviceModel } from './device'
 import { doormanUrl } from './doormanUrl'
+import { refreshPlayed } from './playedCopies'
 import { sharedServerUrl } from './sharedServerUrl'
 import { signInReturnUrl } from './signInReturn'
 import {
@@ -59,6 +60,7 @@ const cacheApiTextCache: TextCache = {
   clear: async () => {
     if (typeof caches === 'undefined') return
     await Promise.all([caches.delete(CLOUD_FILES_CACHE), caches.delete(PLAYED_CACHE)])
+    await refreshPlayed()
   },
 }
 
@@ -85,6 +87,14 @@ const textCache: TextCache =
   typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)
     ? cacheApiTextCache
     : indexedDbTextCache
+
+/**
+ * The tabs of this browser saying to each other that the outbox they share
+ * changed. Null where there is no BroadcastChannel; the installed app has one
+ * window, and tells nobody.
+ */
+const outboxChannel =
+  typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('selfmp3-outbox')
 
 export const cloudPlatform: CloudPlatform = {
   doormanUrl,
@@ -116,6 +126,15 @@ export const cloudPlatform: CloudPlatform = {
       if (document.visibilityState === 'visible') run()
     })
   },
+
+  ...(outboxChannel
+    ? {
+        outboxNews: {
+          tell: () => outboxChannel.postMessage('changed'),
+          hear: run => outboxChannel.addEventListener('message', run),
+        },
+      }
+    : {}),
 
   decodeText: decodeBucketText,
 

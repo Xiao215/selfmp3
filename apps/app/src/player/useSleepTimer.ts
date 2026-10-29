@@ -27,6 +27,8 @@ interface SleepTimer {
 const FADE_MS = 4_000
 /** How many steps down it fades in. */
 const FADE_STEPS = 40
+/** Closer than this to the level the fade last set, the level is the fade's still. */
+const LEVEL_TOLERANCE = 0.001
 /** The longest one wait for the timer runs before it looks at the clock again. */
 const LONGEST_WAIT_MS = 60_000
 
@@ -50,8 +52,17 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
   useEffect(() => {
     if (endsAt === null) return undefined
     let wait: ReturnType<typeof setTimeout> | undefined
-    /** The fade under way, and the level it started from. */
-    let fade: { readonly timer: ReturnType<typeof setInterval>; readonly from: number } | undefined
+    /** The fade under way, the level it started from, and the last it set. */
+    let fade:
+      | { readonly timer: ReturnType<typeof setInterval>; readonly from: number; set: number }
+      | undefined
+    /**
+     * Someone moved the level since the fade last set it: theirs wins. Put
+     * back where the fade began, the bar drew full while the level saved was
+     * theirs, and the next launch opened at it.
+     */
+    const touched = (): boolean =>
+      fade !== undefined && Math.abs(engine.state.volume - fade.set) > LEVEL_TOLERANCE
     // Woken when the time is up rather than every second to ask whether it is:
     // a minute at most at a time, so a long wait never rests on one timer the
     // platform may have let drift, and the stop lands within a beat of when it
@@ -73,8 +84,18 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
       const from = engine.state.volume
       let step = 0
       const timer = setInterval(() => {
+        // The level moved by hand mid-fade: the timer is called off, and the
+        // music plays on at the level chosen.
+        if (touched()) {
+          clearInterval(timer)
+          fade = undefined
+          setEndsAt(null)
+          return
+        }
         step++
-        engine.setVolume(from * (1 - step / FADE_STEPS))
+        const level = from * (1 - step / FADE_STEPS)
+        engine.setVolume(level)
+        if (fade) fade.set = engine.state.volume
         if (step < FADE_STEPS) return
         clearInterval(timer)
         fade = undefined
@@ -83,7 +104,7 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
         // Used up: nothing is set any more, and the bar stops counting down.
         setEndsAt(null)
       }, FADE_MS / FADE_STEPS)
-      fade = { timer, from }
+      fade = { timer, from, set: from }
     }
     sleepWhenDue()
     return () => {
@@ -92,7 +113,7 @@ export function useSleepTimer(engine: PlaybackEngine): SleepTimer {
       // Called off part-way through the fade: the level goes back to where it
       // was, rather than staying wherever the fade had got to.
       clearInterval(fade.timer)
-      engine.setVolume(fade.from)
+      if (!touched()) engine.setVolume(fade.from)
     }
   }, [endsAt, engine])
 

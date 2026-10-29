@@ -26,10 +26,13 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 | Recently played, kept on this device | `apps/app/src/features/lists/recentLists.store.ts`, `apps/app/src/features/room/pastRooms.store.ts` |
 | The line over Up next's songs | `apps/app/src/features/queue/UpNextSource.tsx` |
 | New playlist | `apps/app/src/features/playlists/NewPlaylist.tsx` |
+| Liked: its page, its tile, its rail row, Library's chip | `apps/app/src/features/liked/LikedScreen.tsx` (`/playlists/liked`), `PlaylistsScreen.tsx`, `apps/app/src/shell/Sidebar.tsx`, `LibraryScreen.tsx` |
 | A tag's page, and tags together on top of it | `apps/app/src/features/tag/PlacePage.tsx`, `CombinedScreen.tsx` (`/combined`) |
 | Tag songs… | `apps/app/src/features/tag/TagScreen.tsx`, `apps/app/src/features/playlistDetail/AddSongsSheet.tsx` |
 | Ask's song answer: the card and the page | `apps/app/src/features/smart/SongsAnswerCard.tsx`, `AnswerScreen.tsx` (`/answer`) |
 | A room that ended, as a list page | `apps/app/src/features/room/RoomScreens.tsx` (`/past-room/[code]`) |
+| Resting songs: the rule, the list it starts, the menu | `packages/shared/src/rest.ts`, `apps/app/src/player/resting.model.ts`, `apps/app/src/ui/songActions.model.ts` |
+| Keep going: what it picks, its switch, the worker | `apps/app/src/features/queue/keepGoing.model.ts`, `keepGoingPref.ts`, `useKeepGoing.ts`, `UpNextParts.tsx` |
 | Covers flying into the Up next button | `apps/app/src/ui/coverFlight.ts`, `apps/app/src/ui/components/CoverFlight.tsx`, `apps/app/src/features/queue/useFlyToUpNext.ts` |
 
 ## A song picked from Library
@@ -42,7 +45,8 @@ different: its rows are what was searched for, so a row plays the results from t
 next is named "Search". The whole library plays from **Shuffle** — the head on a computer,
 next to Sort on a phone — or **Play these tags** with tags on. A tag's, an artist's or a
 playlist's page plays its list from the row. One song is not a list: Up next wears no name for
-it and offers no Save, and Recently played shows it as that song.
+it and offers no Save, and Recently played shows it as that song — until you add songs to it
+(see Save).
 
 When that song ends, nothing else plays, but the silence is explained (A1, 2026-10-08). The
 song stays loaded, paused at its end, so the mini player or the player bar stays too; a toast
@@ -51,7 +55,27 @@ and Up next shows the same line under the song, now marked *Played*, with two bu
 **Songs like this** (the song menu's Play similar songs) and **Shuffle library** (Library's
 Shuffle with no tags on). Playing, seeking or Previous on the song puts both away. A list that
 runs out — a tag, a playlist — keeps its plain end: it was asked for whole
-(`onlySongEnded` in `features/queue/queue.model.ts`, `OnlySongEnd.tsx`).
+(`onlySongEnded` in `features/queue/queue.model.ts`, `OnlySongEnd.tsx`). All of this is with
+Keep going off, as it is until you turn it on; with it on, nothing runs out (below).
+
+## Keep going
+
+When Up next runs out, the music can carry on with songs from the library that sound like the
+last few played (N2a, 2026-10-25). **Keep going** is a switch at the foot of Up next, under
+Auto-mix, on the phone's sheet and the computer's rail alike; it is kept on this device and is
+off until turned on (`keepGoingPref.ts`). While it is on, Up next's last line, after the songs
+to come, reads *then songs like these*.
+
+As the last song in Up next starts playing, two songs are added after it, so a fade has a song
+to go into and the end never comes (`useKeepGoing`, `keepGoingDue`). They are picked the way a
+listening room's Autoplay picks (listen-together.md, "Autoplay"): the song playing and the two
+before it make one place in sound, from the bucket's sound pack beside this device's copy of
+the library (`cloudSoundVectors`, `cloudAudioKeyNow`), and the songs nearest it come first
+(`nearestFirst`, shared with the room). With no pack to go on — the server has heard nothing
+yet, or there is no copy here — they come in no particular order, as the room's do. Never a
+song Up next has had this time, its Played included, and never a resting one
+(`keepGoingSongs`). It does nothing in a room, whose Autoplay keeps its own list, nor with
+Repeat on, which never runs out.
 
 ## Taking songs out of Up next
 
@@ -69,12 +93,60 @@ and is greyed when there is nothing to clear. The toast says "Cleared 30 songs" 
 which puts them all back in their places while the same song is playing; songs added since
 stay after them.
 
+## Liked
+
+The heart saves a like; **Liked** lists them (A1, 2026-10-25). It is a list that keeps
+itself, newest like first (`likedSongs`), not a stored playlist: nothing to rename or delete,
+no ⋯ on its tile. On the Playlists page it comes after the New tile and the ones from links
+— with no song liked yet it is still there, and its page says "No liked songs yet" — and,
+once a song is liked, it is the first row of the sidebar's Playlists, where songs dropped
+onto it are liked. Its page (`/playlists/liked`) is a tag's page with a heart for the dot:
+Play, Shuffle and the ⋯ every list has. It plays
+with the `liked` source, so Up next is named "Liked", its line opens the page, Save never
+shows, and Recently played keeps it as a tile ("Keeps itself") that plays the likes as they
+are now.
+
+When a song was liked is the stamp on its love (docs/SYNC.md): the server reads it from
+`sync_stamps`, a device from the snapshot's `stamps.loved`, both as the song's `lovedAt`. A song
+liked before there were stamps has none and follows the timed ones, newest added first.
+
+Library's tag strip has a **Liked** chip right after All, once a song is liked. It narrows
+whatever else is on, as On this phone does: alone it plays as Liked, with tags it is the liked
+songs among them ("Liked · calm", which Save keeps as songs). With it on, Library's head has
+**Play liked** and Shuffle, as it has Play these tags with tags on.
+
+## Resting songs
+
+A song you are tired of for now, but would not untag or delete, can rest (N1a, 2026-10-25).
+The song ⋯ — and the selection bar's More, for several — has **Rest for a month**; the toast
+says *Resting until 25 Nov* with **Undo**. A resting song's row shows a small ☾ and is faded a
+little (`OPACITY.resting`), and its ⋯ says **Wake up** instead. It wakes by itself 30 days
+later: nothing runs then, the time has simply passed (`isResting`, `REST_DAYS`).
+
+While it rests it is passed over by:
+
+- **Shuffle**, from anywhere (`playShuffled`).
+- A list played as a list — a tag, a playlist, tags together, an artist, an answer, Library's
+  Play: Up next is made without it (`passOverResting`). The song whose row was tapped plays
+  even if it rests; the list's own Play passes over a resting first song too (`whole`).
+  A handoff or a resume keeps its list.
+- **Ask's picks**, while any other song fits (`narrowAndPick`).
+- **Forgotten gems** (`forgottenGems`).
+- **Keep going**, above.
+
+Adding it to Up next, Play next, or opening it and pressing play still plays it: resting is
+about what the app chooses, never about what you choose.
+
+The rest is the song's `restUntil`, an ISO time, edited like any song field (`SONG_FIELDS`):
+stamped, in the change log and the snapshot, so it reaches every device (docs/SYNC.md). A
+bucket written before songs could rest reads as every song awake.
+
 ## Where a list came from
 
 Every Play says what it is playing: `player.playFrom(ids, index, { source })` and
 `player.playShuffled(ids, source)` (`ListSource` in `lists.model.ts`). A tag, an artist, a
-playlist, tags combined, an answer to Ask, a room that ended (`room`), songs (similar to a
-song, songs you picked, forgotten gems, found by a search, songs that need a tag, Home's
+playlist, Liked, tags combined, an answer to Ask, a room that ended (`room`), songs (similar to a
+song, forgotten gems, found by a search, songs that need a tag, Home's
 Recently played songs), or the whole library. Left out, Up next is nameless: a song played
 alone, or a handoff from another device. The source rides in the playback session
 (`player/session.model.ts`), so a reopened app comes back by the same name.
@@ -86,13 +158,20 @@ back for it. Tapping the line opens what it names.
 ## Save
 
 Shown only where saving would make something new (`savePlan`): never for a tag, an artist,
-a playlist or the whole library, which are places of their own, and never for one song.
+a playlist, Liked or the whole library, which are places of their own, and never for one song.
 Nor for songs that need a tag, a chore rather than a list, or Home's Recently played songs,
 which Home already keeps.
 
-- **Tags combined** make a playlist that fills from them (`followRules`), so new songs join.
+- **Tags combined** make a playlist that fills from them (`followRules`), so new songs join,
+  needing any or all of them as the combination did.
 - **Anything else** makes a playlist of the songs in Up next as they are, in the list's own
   order rather than the shuffle (`songsToSave`). A song swiped out of an answer stays out.
+- **Songs added to one song, or to the whole library, make it yours** (B1, 2026-10-25). Play
+  Next, Add to Up next or a drop into the rail turn a nameless Up next, or Library's Shuffle,
+  into "Lined up" (`sourceAfterAdding`; the rail's line reads "Lined up · 5 songs · 19 min",
+  with no "From"), and Save appears in Up next's head. It saves the songs in Up next's own
+  order, shuffle and all, as "Songs you lined up" (made unique). A song put back with Undo is
+  not one added. Recently played shows its songs, not a tile for it: it grows as it plays.
 - **Edits to Up next while a tag or a playlist plays change nothing lasting** (G1): there is
   no "changed" state and no question at save time. Lasting edits to a playlist happen on
   its page; to keep a song out of a tag, untag it.
@@ -115,8 +194,12 @@ as three plain choices, then a name:
 
 - **Pick songs**: a name (New playlist, made unique), then picking songs (`AddSongsSheet`).
   It is made with the first songs confirmed, so cancelling leaves nothing.
-- **Fills from tags**: the tags, with what they hold now, then a name that starts as theirs.
-  It follows them (`followRules`); **Stop filling** on its page keeps every song as it is.
+- **Live, from tags**: the tags, with what they hold now, then a name that starts as theirs.
+  With two or more, **Any of them / All of them** says whether a song needs one or every one
+  (C1); the name joins them with "or" or "&". It follows them (`followRules`, whose `match`
+  the server's rules and the replica's evaluation both read); **Stop adding** on its page
+  keeps every song as it is. Its tile ("Live · …") and its row ("Keeps itself filled with
+  songs tagged …") say "&" / "all of" when it needs all.
 - **Describe it**, only while Ask is on: what you want to hear, then a name that starts as
   those words, then Ask's picks to keep ([ai.md](ai.md), "L2").
 
@@ -124,13 +207,21 @@ Back steps back inside the sheet; Cancel or a dismiss makes nothing.
 
 ## Tags together
 
-A tag's page is always that one tag (B1). **Combine with…** on its head (H1) opens the
+A tag's page is always that one tag (B1). **Mix in…** on its head (H1) opens the
 picker; what is picked opens as a page of its own, `/combined?tags=…&artists=…`, pushed on
 the tag page's own stack — Back comes back to the tag, and the Library tab's own filter is
 never touched (it is shared app-wide). Its chips are its address: one taken off or added
-rewrites it in place, and down to one it becomes that tag's or artist's own page. A
-combination always **widens** (any of them); there is no narrowing to songs that have all of
-them.
+rewrites it in place, and down to one it becomes that tag's or artist's own page.
+
+A combination **widens** (any of them) unless its head's one **Any / All** switch says All
+(C1, 2026-10-25): then it is the songs that carry every one of them (`placeSongs`, the
+address's `match=all`, the source's `match`). The chips keep their two shapes; there is no
+third chip state and no "leave out". An All combination is named with "&" ("night & calm"),
+an Any with "or", and Mix in…'s count follows the switch. Its ⋯ has **Keep as
+playlist**, which makes a playlist that fills from those tags with the same Any / All, without
+playing them first (`useKeepPlaces`); with an artist among them it keeps the songs on show,
+as rules only follow tags. Up next's Save keeps the match too, and so does Recently played,
+where Any and All of the same tags are two lists.
 
 Library's tag strip combines too, as a filter of the library: with tags on, Up next is named
 after them the same way.
@@ -143,9 +234,11 @@ Picked for you" over the list's own name, what it understood as chips), **Play**
 **Different songs** and **⋯** (Select songs, Play next, Add to Up next, Save as playlist), and
 under it the same rows a playlist draws (`ui/components/OrderedSongList.tsx`, shared with the
 playlist page): hold one to move it, Select songs to tick several, a row's ⋯ for the song.
-The order you put it in is the order it plays and saves in while the app is open. Different
+While Up next is this answer its Play is a Pause, and a Play that goes on where it was
+(`PlayShuffle`'s `playing`). The order you put it in is the order it plays and saves in while the app is open. Different
 songs sends the picks it showed as `avoid` (`DescribeRequest`), and the server picks around
-them while anything else fits; a chip taken away first changes what it picks from. Answers
+them while anything else fits. A chip taken away picks again at once from what is left, with
+nothing avoided, so the songs shown that still fit can stay. Answers
 are kept in memory (`smart/answers.store.ts`); an address to one from before a reload says so
 and offers Search.
 
@@ -172,10 +265,25 @@ A song heard as part of a list shows as the list's tile, not a tile of its own. 
 device was in come first, once they ended (`room.past`, the newest eight), and open their
 page.
 
+Only listening moves it (2026-10-26): a list is remembered once a song of it is playing, not
+when Up next is set up. A list put back paused as the app opens, or a song's details edited
+while it sits in Up next, leaves the row as it was.
+
+A search is its words: songs played from Search are named "“yoru”" (kind "Search"), songs Ask
+found are named for the words asked (kind "You asked"), long words cut short. The same words
+searched again are the same tile, holding what they find now; words that found one song are
+that song. Before anything is typed, Search's songs are the ones played last, and play as
+Recently played.
+
 A tile opens its list's page on a tap, as any list's tile does, and playing it is that page's
 Play (Xiao, 2026-10-04): a tag's, an artist's, a playlist's, tags combined, an Ask answer's.
 An answer is kept with its own answer, so its page opens again after a reload. Songs with no
-page of their own (similar ones, ones you picked) play.
+page of their own (similar ones) play.
+
+The row's **See all** opens Library sorted by Recently played (G1, 2026-10-25):
+`/library?sort=lastPlayedAt`, an order for that visit only (`linkedSort`). The order Library
+keeps for itself is untouched, so Library opened any other way is as it was; choosing an
+order there takes the shown one over and keeps it.
 
 ## Motion
 

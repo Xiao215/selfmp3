@@ -1,0 +1,22 @@
+--- a/ios/TrackPlayer.mm
++++ b/ios/TrackPlayer.mm
+@@ -36,6 +36,19 @@
+   return NO;
+ }
+ 
++// Its own queue rather than the TurboModule manager's shared one, which
++// NativeAnimated and every other queue-less module also wait on: a player call
++// that blocks (AVFoundation, the queue lock) must stall the player alone, never
++// every native-driven animation in the app.
++- (dispatch_queue_t)methodQueue {
++  static dispatch_queue_t queue;
++  static dispatch_once_t once;
++  dispatch_once(&once, ^{
++    queue = dispatch_queue_create("com.doublesymmetry.trackplayer", DISPATCH_QUEUE_SERIAL);
++  });
++  return queue;
++}
++
+ 
+ - (void)add:(nonnull NSArray *)tracks insertBeforeIndex:(nonnull NSNumber *)insertBeforeIndex resolve:(nonnull RCTPromiseResolveBlock)resolve reject:(nonnull RCTPromiseRejectBlock)reject {
+   [nativeTrackPlayer addWithTrackDicts:tracks before:insertBeforeIndex resolve:resolve reject:reject];

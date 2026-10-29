@@ -8,16 +8,15 @@ import { openRoomSheet } from '../../features/room/roomSheets.store'
 import { useRoom } from '../../features/room/room.store'
 import { addSongsToRoom } from '../../features/room/addSongsToRoom'
 import { roomTitle, youMay } from '../../features/room/room.model'
-import { devicePlace } from '../../features/settings/settings.model'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { deviceKind } from '../../ports/device'
 import type { Selection } from '../../selection/useSelection'
 import { SONG_ACTION_LABELS } from '../songActions.model'
 import { CheckSquare, CloudDownload, CloudRemove, Next, People, QueueAdd, ShareOut } from './Icons'
 import type { MenuItem } from './MoreMenu'
+import { thisPlace } from '../../ports/place'
 
 /**
  * What a list page's ⋯ offers for all its songs — a tag's, an artist's, a
@@ -102,7 +101,7 @@ export function useListActions(
         ? [
             {
               key: 'remove-download',
-              label: `Remove from this ${devicePlace(deviceKind())}`,
+              label: `Remove from this ${thisPlace()}`,
               icon: <CloudRemove tone="textSecondary" />,
               disabled: removing,
               onPress: () => removeDownloads(songIds),
@@ -151,8 +150,7 @@ export function useListActions(
               icon: <People tone="textSecondary" />,
               disabled: nothing,
               testID: 'list-together',
-              onPress: () =>
-                openRoomSheet('together', { kind: 'songs', name: togetherAs, songIds }),
+              onPress: () => openRoomSheet({ kind: 'songs', name: togetherAs, songIds }),
             },
           ]
       : []),

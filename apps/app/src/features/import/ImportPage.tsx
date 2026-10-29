@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { ApiError, space, type ServerConnection } from '@selfmp3/client'
-import { useFootInset } from '../../shell/bottomInset'
-import { useLayout } from '../../shell/useLayout'
+import { ApiError, TIMED_OUT, space, type ServerConnection } from '@selfmp3/client'
+import { useFloatingChrome, useFootInset } from '../../shell/bottomInset'
+import { setPageFoot } from '../../shell/pageFoot'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { useBackTo } from '../../ui/useBackTo'
@@ -14,7 +15,7 @@ import { TagThem } from './ImportTags'
 import { useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
-import { importLabel } from './review.model'
+import { importErrorText, importLabel } from './review.model'
 import { TapAway } from '../../ui/components/TapAway'
 
 /** What Import's pages say when the server they were pointed at stops answering. */
@@ -38,12 +39,13 @@ export function useImportFailure(
 } {
   const [error, setError] = useState<string | null>(null)
   const failed = (err: Error): void => {
-    if (via && err instanceof ApiError && err.isOffline) {
+    // A look-up given up on for taking too long is not a server gone.
+    if (via && err instanceof ApiError && err.isOffline && err.message !== TIMED_OUT) {
       setError(STOPPED_ANSWERING)
       onUnreachable?.()
       return
     }
-    setError(err.message)
+    setError(importErrorText(err))
   }
   return { error, setError, failed }
 }
@@ -122,12 +124,17 @@ export function ImportFoot({
   /** The Import button's. */
   testID: string
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const footInset = useFootInset()
+  const chrome = useFloatingChrome()
+  useEffect(() => () => setPageFoot(0), [])
   return (
     <TapAway
       onPress={wide ? undefined : onGround}
       style={[wide ? styles.footWide : styles.footPhone, { paddingBottom: footInset + 12 }]}
+      // The toasts rise above the Import button rather than cover it (a
+      // "Continue from…" took its taps); the chrome under it they clear already.
+      onLayout={event => setPageFoot(Math.max(0, event.nativeEvent.layout.height - chrome))}
     >
       {error ? (
         <NoticeCard tone="error" onDismiss={onDismissError}>

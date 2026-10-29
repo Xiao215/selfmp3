@@ -1,11 +1,12 @@
 import { DEFAULT_APP_URL } from './cloud.js'
+import { escapeHtml, renderPublicPage } from './publicPage.js'
 /**
  * The privacy policy, once: what the doorman keeps about a person who signs
  * in with Google, and what passes through it untouched.
  *
  * It is data here rather than a page anywhere. The web app publishes it
  * beside itself on GitHub Pages (`privacy.html`, written from this by
- * `apps/app/scripts/privacy.mjs` at export), which is the address Google's
+ * `apps/app/scripts/pages.mjs` at export), which is the address Google's
  * consent screen names — a policy has to sit on a domain of one's own, and
  * workers.dev is not one. Edit the words here and the page follows.
  */
@@ -24,7 +25,7 @@ interface PrivacyPolicy {
 export const PRIVACY_POLICY_URL = `${DEFAULT_APP_URL}/privacy.html`
 
 export const PRIVACY_POLICY: PrivacyPolicy = {
-  updated: '13 October 2026',
+  updated: '24 October 2026',
   sections: [
     {
       heading: 'What self.mp3 is',
@@ -45,8 +46,19 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
     {
       heading: 'Your bucket',
       lines: [
-        'When you connect your storage bucket, its address, name, key id and application key are kept, encrypted (AES-256-GCM) with a key only the doorman holds. They are used for one thing: passing your own signed-in devices’ reads and writes through to your bucket. They are never sent to any device, and never used to read your bucket on the doorman’s own behalf.',
+        'When you connect your storage bucket, its address, name, key id and application key are kept, encrypted (AES-256-GCM) with a key only the doorman holds. They are used for two things: passing your own signed-in devices’ reads and writes through to your bucket, and reading the files of the songs you share — in a link, a listening room or a shared playlist — for the people you shared them with, while that lasts. They are never sent to any device, and never used to read your bucket for anything else.',
         'Disconnecting the bucket deletes them at once. The bucket itself, and everything in it, is yours and is never touched by that.',
+      ],
+    },
+    {
+      heading: 'Sharing',
+      lines: [
+        'A song you share plays from your own bucket. Its files are read through the doorman for the people you shared it with, and only while the link, room or playlist lasts.',
+        'A share link keeps the songs in it and the name and profile picture you share it under, so whoever holds the link sees who sent it. It plays for 30 days at most, and ends sooner after 7 days without a play. Its card stays for 90 days after it ends; then the doorman forgets the link entirely.',
+        'While a link lasts, it keeps for its sender the names of the signed-in people who opened it (up to 50) and of anyone who asks to hear it again. Someone not signed in is counted, not named: their device sends a random id of its own, so a second look is not counted twice.',
+        'Chat apps that show a preview of a link fetch its page and the song’s cover through the doorman.',
+        'A listening room keeps the name and picture of each person in it, and the songs they add, while it is open. It is deleted ten minutes after it ends, or two hours after it was last used.',
+        'A shared playlist keeps the names and pictures of its people and the songs they put in it, until its last person leaves; then it is deleted.',
       ],
     },
     {
@@ -56,10 +68,11 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
       ],
     },
     {
-      heading: 'Logs',
+      heading: 'Logs and counts',
       lines: [
         'The doorman writes a short line to its log when something goes wrong, such as a sign-in Google did not finish or an address that is not allowed in, so its operator can see why. A log line may name the email address involved. It never contains a session token, a bucket key or any file.',
         'Logs are kept by Cloudflare for a short period and are not used for anything else.',
+        'The doorman also keeps daily totals for its operator: how many files were read, by kind and by app, how many sessions were started, and how many sign-ins were turned away. They are numbers only, with no account, name, address or file in them, and are kept for a year.',
       ],
     },
     {
@@ -79,13 +92,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
   ],
 }
 
-const escapeHtml = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-
-/**
- * The policy as one self-contained page: no script, an inline stylesheet, the
- * doorman's look. Every string is escaped on its way in, however trusted.
- */
+/** The policy as one page, in the look `publicPage.ts` gives every page beside the app. */
 export function renderPrivacyPage(policy: PrivacyPolicy = PRIVACY_POLICY): string {
   const body = policy.sections
     .map(section =>
@@ -95,66 +102,8 @@ export function renderPrivacyPage(policy: PrivacyPolicy = PRIVACY_POLICY): strin
       ].join('\n'),
     )
     .join('\n')
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy · self.mp3</title>
-<style>
-:root {
-  color-scheme: dark;
-  --surface: oklch(0.16 0.012 268);
-  --card: oklch(0.19 0.014 268);
-  --border: oklch(0.3 0.016 268);
-  --text: oklch(0.97 0.005 268);
-  --text-secondary: oklch(0.76 0.012 268);
-  --accent: oklch(0.72 0.16 268);
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --surface: oklch(0.985 0.004 268);
-    --card: oklch(1 0 0);
-    --border: oklch(0.89 0.008 268);
-    --text: oklch(0.22 0.015 268);
-    --text-secondary: oklch(0.44 0.014 268);
-    --accent: oklch(0.52 0.19 268);
-  }
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--surface);
-  color: var(--text);
-  font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
-}
-main {
-  width: 100%;
-  max-width: 640px;
-  padding: 32px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--card);
-}
-.brand { margin: 0 0 20px; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
-h1 { margin: 0 0 12px; font-size: 22px; line-height: 1.3; }
-h2 { margin: 24px 0 8px; font-size: 17px; line-height: 1.3; }
-p { margin: 0 0 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
-</style>
-</head>
-<body>
-<main>
-<p class="brand">self.mp3</p>
-<h1>Privacy</h1>
-<p>Last updated ${escapeHtml(policy.updated)}.</p>
-${body}
-</main>
-</body>
-</html>
-`
+  return renderPublicPage(
+    'Privacy',
+    `<h1>Privacy</h1>\n<p>Last updated ${escapeHtml(policy.updated)}.</p>\n${body}`,
+  )
 }

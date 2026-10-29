@@ -42,7 +42,8 @@ apps/server
   container.ts           composition root for one library: constructs everything, once
   start.ts               one library's background work
   app.ts                 express wiring, middleware order
-  http/                  route helper, error handling, range requests, the admin page
+  http/                  route helper, error handling, range requests
+  admin/                 the owner's admin page's listener and API (docs/features/admin.md)
   db/                    connection, migrations, row types
   storage/               StorageDriver interface + the local inbox folder
   bucket/                CloudStore: Backblaze through the doorman, S3 with a key, a folder
@@ -52,8 +53,8 @@ apps/server
   sound/                 the listening model (CLaMP 3 on onnxruntime)
   routes/                thin — validate, call a service, return
   cli.ts, cli/           the `selfmp3` command: start, scan, import, backup, doctor
-  public/                the page it serves on :4600: hand-written HTML, CSS and
-                         JS, an admin page for the server and nothing else
+  ../admin/              the admin page itself: hand-written HTML, CSS and JS,
+                         on its own listener on 127.0.0.1, opened through Tailscale
 
 apps/app                 one Expo app for iOS, Android and the web (Foundations and Stack, below)
   app/                   expo-router file routes, one per screen
@@ -262,12 +263,11 @@ place every device points at. It serves no app: the app is on GitHub Pages, on
 the phone and in the desktop app, and a device signs in with Google and reads
 the library wherever the page came from. An app served from the server would
 answer from the server's database rather than the bucket, a surface with no
-sign-in. The page on `:4600` is an admin page instead (`http/admin.ts`,
-`apps/server/public/`): hand-written HTML, CSS and JS, no build step. Opened on
-the server itself it lists the libraries the server works for (`GET /api/hub`),
-each with its publishing and **Publish now**; with a folder for a bucket, or
-opened elsewhere with a library's token, it shows that one library's count,
-cloud connection and **Publish now**. With no bucket connected, a library's API refuses everything
+sign-in. The server serves no page on its public port at all. Its owner's admin page
+(`apps/server/src/admin/`, `apps/server/admin/`: hand-written HTML, CSS and JS, no build
+step) listens on the server's own machine and is opened through Tailscale: totals of how
+the server is used, who may sign in, and how the machine is doing
+([features/admin.md](features/admin.md)). With no bucket connected, a library's API refuses everything
 but connecting one: there is no library to serve.
 
 What only the server can do, a device asks it for directly: Import (yt-dlp runs
@@ -318,7 +318,9 @@ itself.
 Workbox would generate most of this, but not the part that matters: slicing a cached
 response into a 206 for range requests. Since that is the whole reason offline playback
 works on iOS, the file is written by hand and the three caching strategies are explicit —
-cache-first for the shell, cache-first-with-range for audio, network-first for the API.
+the shell kept whole at install (its files listed by `scripts/shell.mjs` at export) and its
+page asked of the network for three seconds at most, cache-first-with-range for audio,
+network-first for the API.
 
 ---
 
@@ -397,13 +399,16 @@ phone, Playwright on the web. Nothing UI-shaped is left with zero coverage.
 | Lists | `FlatList` behind a `SongList` component | One component, so the choice of list can change in one file and no screen knows. FlashList v2 was tried and drew well, but on the phone its recycled cells stopped exposing accessible content after a data change, which broke VoiceOver and the smoke flow; `SongList.tsx` says what to re-test before trying it again. |
 | Data | `@tanstack/react-query` | No other state library: player and offline state live in their providers. |
 | Audio, web | a two-`<audio>` engine | Behind the engine port. Gapless, crossfade, analyser. |
-| Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto. It is an alpha. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
+| Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto. It is an alpha: its iOS half is patched at `pod install` (`apps/app/patches`, applied by `plugins/withPlayerPatches.js`) for a deadlock that stopped every animation in the app. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
 | Listening before importing, native | `expo-audio`, a player of its own | A preview on the review is not a song in track-player's one queue, and the web plays it in an audio element apart from the player (`ports/listen.web.ts`); the phone does the same through `expo-audio` (`ports/listen.ts`), told to leave the audio session, which is track-player's, alone, and given each stream through `preload` so opening it never holds the JavaScript thread. The playing row's colour comes from the server (`GET /api/import/cover-tone`, services/previewCoverTone.ts), which reads the cover as it reads the library's. Not a second engine: no queue, no lock screen. |
 | Offline, web | Cache API + service worker | Behind the offline port; the desktop app keeps files instead, through its bridge. |
 | Service worker build | esbuild | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
 | Offline, native | files + JSON index | Behind the same port. |
 | Icons | `react-native-svg` | One file for all three platforms. |
 | Hardware keyboard, iOS | **A local Expo module**, `apps/app/modules/key-commands` (Swift over `expo-modules-core`) | React Native delivers no key presses on iOS. The module puts `UIKeyCommand`s with a `discoverabilityTitle` on the root view controller, so holding ⌘ lists them, sends each press to JavaScript as `{ input, modifiers }`, withdraws the ones a text field must keep while one is being typed in, and says whether a keyboard is attached (`GCKeyboard`). Autolinked from `modules/`; iOS only, so Android and the web never build it. Passed over in September 2026: `react-native-key-command` (Expensify) needs an `AppDelegate` patch, has no config plugin and no `discoverabilityTitle`; `react-native-keyevent` is unmaintained; `react-native-keyboard-controller` is the soft keyboard only; `react-native-external-keyboard` is focus-scoped. |
+| Turning an iPad | **A local Expo module**, `apps/app/modules/turn-cover` (Swift) | UIKit lays React Native's views out again at the new size inside the turn, before JavaScript hears of it, so the computer's layout was drawn squeezed into the upright window until the phone's was ready. A child of the root view controller hears `viewWillTransition`, covers the window with the old frame fading into the page's ground, and takes the cover down once JavaScript says it has drawn for the new size (`src/ports/turnCover.ts`), or after 2.5 s regardless. iOS only. |
+| Installing a newer iPhone build | **A local Expo module**, `apps/app/modules/home-screen` (Swift) | iOS downloads a build opened from inside the app (`itms-services://`) but puts it in only once the app has left the screen, so Install from the app looked like nothing. The module suspends the app as the Home gesture would (UIApplication's own `suspend`, not public API; fine for an ad hoc build), and `src/features/settings/AppUpdate.tsx` says what is happening around it. iOS only. |
+| Installing a newer Android build | **`expo-intent-launcher`**, with `expo-file-system` | The app downloads the APK into its cache and opens the system installer on the file's content URI (`src/ports/appUpdate.ts`); `REQUEST_INSTALL_PACKAGES` in the manifest is what lets an app hand the installer a package. A local module was not worth it for one intent. |
 | Canvas work | A port twin per platform, sharing its model | The song visual is a canvas in a browser (`SongVisual.web.tsx`) and views moved by Reanimated on a phone (`SongVisual.tsx`), and both step the same `visualMotion.model.ts`. Expo DOM components (`'use dom'`) were the plan; a webview turned out to cost more than a second drawing, and nothing in the app uses one. |
 | Tests | vitest for packages and model files, jest-expo + RNTL for the app, Maestro and Playwright for flows | See foundation 8. Vitest cannot yet run React Native components; Jest stays for those. |
 | Repo tooling | npm workspaces, as now | pnpm + Turborepo is the 2026 default, and it is deliberately not adopted here: `docs/MOBILE.md` records how fragile the lockfile already is around React singletons, and a solo project gains nothing from a cached task graph. Revisit only when CI time hurts. |

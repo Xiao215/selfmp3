@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  busiestDay,
   bylineRest,
-  hourWords,
+  cameFrom,
+  playedWords,
   playSimilarOrder,
-  playStrip,
   songLink,
-  songPlays,
   songStory,
-  soundWords,
+  togetherCards,
+  togetherHead,
+  unplayedLine,
+  usualTime,
   timeAgo,
-  usualHour,
 } from './song.model'
 
 // Built from local time, so the hours and days below mean the same in any zone.
@@ -48,140 +48,158 @@ describe('timeAgo', () => {
   })
 })
 
+/** A UTC play time as the server writes it, from local parts. */
+const sqlite = (date: Date): string => date.toISOString().replace('T', ' ').slice(0, 19)
+const at = (month: number, day: number, hour: number, minute = 0): string =>
+  sqlite(new Date(2026, month, day, hour, minute))
+/** The server's hours: one entry per play here, which is how the hours add up anyway. */
+const hours = (...times: string[]) =>
+  times.map(time => ({ at: time.slice(0, 13) + ':00:00', plays: 1 }))
+
 describe('songStory', () => {
   const song = {
-    playCount: 14,
-    addedAt: new Date(2026, 7, 28, 12).toISOString(),
-    lastPlayedAt: null,
+    addedAt: at(7, 3, 10),
+    sourceUrl: 'https://www.youtube.com/watch?v=abc',
+    playCount: 2,
+    lastPlayedAt: at(8, 17, 23, 40),
   }
 
-  it('says a song was never played, and when it came', () => {
-    expect(songStory({ ...song, playCount: 0 }, [], NOW)).toEqual({
-      count: null,
-      lead: 'Not played yet. You added it ',
-      when: '3 weeks ago',
-      tail: '.',
-    })
+  it('says what the device knows when no server answers, and nothing more', () => {
+    const story = songStory(song, null, NOW)
+    expect(story.rows).toEqual([
+      { key: 'came', label: 'Came in', value: '3 August', sub: 'from YouTube' },
+      { key: 'last', label: 'Last', value: 'Yesterday, 23:40', sub: '2 plays' },
+    ])
+    expect(story.strip).toBeNull()
   })
 
-  it('counts plays from the record alone, with the last play', () => {
-    const story = songStory({ ...song, lastPlayedAt: local(17, 22) }, [], NOW)
-    expect(story.count).toBe(14)
-    expect(story.lead).toBe(' plays since you added it ')
-    expect(story.tail).toBe('. Last played yesterday.')
+  it('leaves out the last play of a song never played', () => {
+    const story = songStory({ ...song, playCount: 0, lastPlayedAt: null }, null, NOW)
+    expect(story.rows.map(row => row.key)).toEqual(['came'])
   })
 
-  it('says one play, not one plays', () => {
-    expect(songStory({ ...song, playCount: 1 }, [], NOW).lead).toBe(' play since you added it ')
-  })
-
-  it('names the habit when the history shows one', () => {
+  it('tells the whole story from the server: first, best week, last, and the weeks', () => {
+    // Four plays the week of Monday 10 August, one on the 5th, one yesterday.
     const plays = [
-      local(12, 23, 5),
-      local(12, 22, 50),
-      local(12, 23, 40),
-      local(12, 23, 55),
-      local(12, 23, 10),
-      local(12, 22, 30),
-      local(15, 9),
+      at(7, 5, 21),
+      at(7, 10, 9),
+      at(7, 11, 22),
+      at(7, 12, 23),
+      at(7, 16, 8),
+      at(8, 17, 23, 40),
     ]
-    // 12 September 2026 is a Saturday.
-    expect(songStory(song, plays, NOW).tail).toBe(
-      '. Mostly around 11 pm, and six times on one Saturday.',
+    const story = songStory(
+      song,
+      {
+        songId: 1,
+        cameWith: { kind: 'room', from: 'Mia' },
+        plays: plays.length,
+        msPlayed: 6 * 4 * 60_000,
+        firstPlayedAt: plays[0] ?? null,
+        lastPlayedAt: plays.at(-1) ?? null,
+        hours: hours(...plays),
+      },
+      NOW,
     )
+    expect(story.rows).toEqual([
+      { key: 'came', label: 'Came in', value: '3 August', sub: 'from Mia, in a room' },
+      { key: 'first', label: 'First', value: '5 August', sub: '2 days later' },
+      { key: 'best', label: 'Best week', value: '4 plays', sub: 'week of 10 August' },
+      { key: 'last', label: 'Last', value: 'Yesterday, 23:40', sub: '6 plays · 24 min in all' },
+    ])
+    // From the week of 3 August to the week of 14 September: seven weeks.
+    expect(story.strip?.bars).toHaveLength(7)
+    expect(story.strip?.peak).toBe(1)
+    expect(story.strip?.bars[1]).toBe(1)
+    expect(story.strip?.counts).toEqual([1, 4, 0, 0, 0, 0, 1])
+    expect(story.strip?.caption).toBe('Weeks since 3 August')
+  })
+
+  it('has no best week until one week holds a few plays', () => {
+    const plays = [at(7, 5, 21), at(8, 17, 23)]
+    const story = songStory(
+      song,
+      {
+        songId: 1,
+        cameWith: null,
+        plays: 2,
+        msPlayed: 1,
+        firstPlayedAt: plays[0] ?? null,
+        lastPlayedAt: plays[1] ?? null,
+        hours: hours(...plays),
+      },
+      NOW,
+    )
+    expect(story.rows.map(row => row.key)).toEqual(['came', 'first', 'last'])
+  })
+
+  it('puts a few weeks in a bar once the song has been here over a year', () => {
+    const old = { ...song, addedAt: sqlite(new Date(2024, 0, 3)) }
+    const plays = [sqlite(new Date(2024, 0, 4, 12))]
+    const story = songStory(
+      old,
+      {
+        songId: 1,
+        cameWith: null,
+        plays: 1,
+        msPlayed: 1,
+        firstPlayedAt: plays[0] ?? null,
+        lastPlayedAt: plays[0] ?? null,
+        hours: hours(...plays),
+      },
+      NOW,
+    )
+    expect(story.strip?.bars.length).toBeLessThanOrEqual(52)
+    expect(story.strip?.caption).toBe('Since 3 January 2024')
+    expect(story.rows[1]).toMatchObject({ value: '4 January 2024', sub: '1 day later' })
+  })
+
+  it('draws no strip for a stay of a week or two', () => {
+    const fresh = { ...song, addedAt: at(8, 15, 9) }
+    const plays = [at(8, 16, 9)]
+    const story = songStory(
+      fresh,
+      {
+        songId: 1,
+        cameWith: null,
+        plays: 1,
+        msPlayed: 1,
+        firstPlayedAt: plays[0] ?? null,
+        lastPlayedAt: plays[0] ?? null,
+        hours: hours(...plays),
+      },
+      NOW,
+    )
+    expect(story.strip).toBeNull()
   })
 })
 
-describe('usualHour', () => {
-  it('needs three plays and a majority around one hour', () => {
-    expect(usualHour([new Date(2026, 8, 1, 23), new Date(2026, 8, 2, 23)])).toBeNull()
-    expect(
-      usualHour([new Date(2026, 8, 1, 23), new Date(2026, 8, 2, 0), new Date(2026, 8, 3, 22)]),
-    ).toBe(23)
-    expect(
-      usualHour([
-        new Date(2026, 8, 1, 3),
-        new Date(2026, 8, 2, 9),
-        new Date(2026, 8, 3, 15),
-        new Date(2026, 8, 3, 20),
-      ]),
-    ).toBeNull()
+describe('cameFrom', () => {
+  it('names the friend, then the site, then a file', () => {
+    expect(cameFrom({ sourceUrl: null }, { kind: 'link', from: 'Kai' })).toBe(
+      'from a link Kai sent',
+    )
+    expect(cameFrom({ sourceUrl: 'https://music.163.com/song?id=1' }, null)).toBe('from 网易云')
+    expect(cameFrom({ sourceUrl: null }, null)).toBe('from a file')
   })
 })
 
-describe('busiestDay', () => {
-  it('is a day of three plays or more', () => {
-    expect(busiestDay([new Date(2026, 8, 12, 1), new Date(2026, 8, 12, 2)])).toBeNull()
-    expect(
-      busiestDay([new Date(2026, 8, 14, 1), new Date(2026, 8, 14, 2), new Date(2026, 8, 14, 3)]),
-    ).toEqual({ plays: 3, weekday: 'Monday' })
+describe('playedWords', () => {
+  it('says today and yesterday with the time, and the day before that', () => {
+    expect(playedWords(new Date(2026, 8, 18, 8, 5), NOW)).toBe('Today, 08:05')
+    expect(playedWords(new Date(2026, 8, 17, 23, 40), NOW)).toBe('Yesterday, 23:40')
+    expect(playedWords(new Date(2026, 8, 2, 23, 40), NOW)).toBe('2 September')
+    expect(playedWords(new Date(2025, 8, 2), NOW)).toBe('2 September 2025')
   })
 })
 
-describe('hourWords', () => {
-  it('reads the clock as people say it', () => {
-    expect(hourWords(0)).toBe('midnight')
-    expect(hourWords(9)).toBe('9 am')
-    expect(hourWords(12)).toBe('noon')
-    expect(hourWords(23)).toBe('11 pm')
-  })
-})
-
-describe('songPlays', () => {
-  it('keeps this song’s plays and how far back the history goes', () => {
-    const events = [
-      { songId: 7, playedAt: local(17, 12) },
-      { songId: 3, playedAt: local(16, 12) },
-      { songId: 7, playedAt: local(2, 9) },
-      { songId: 3, playedAt: local(1, 9) },
-    ]
-    expect(songPlays(events, id => id === 7)).toEqual({
-      playedAt: [local(17, 12), local(2, 9)],
-      coveredFrom: local(1, 9),
-    })
-    expect(songPlays([], () => true)).toEqual({ playedAt: [], coveredFrom: null })
-  })
-})
-
-describe('playStrip', () => {
-  it('spreads plays from the day it was added, tallest at 1', () => {
-    const strip = playStrip({
-      playedAt: [local(11, 12), local(17, 12), local(17, 13)],
-      addedAt: local(4, 12),
-      coveredFrom: null,
-      now: NOW,
-      slices: 14,
-    })
-    // Fourteen days in fourteen slices: one a day.
-    expect(strip?.bars).toHaveLength(14)
-    expect(strip?.bars[7]).toBe(0.5)
-    expect(strip?.bars[13]).toBe(1)
-    expect(strip?.peak).toBe(13)
-  })
-
-  it('starts where the history starts when it reaches back less far', () => {
-    const strip = playStrip({
-      playedAt: [local(17, 12)],
-      addedAt: '2025-01-01T00:00:00.000Z',
-      coveredFrom: local(16, 12),
-      now: NOW,
-      slices: 2,
-    })
-    expect(strip?.bars).toEqual([0, 1])
-  })
-
-  it('is nothing when none of its plays are known', () => {
-    expect(
-      playStrip({ playedAt: [], addedAt: local(1, 12), coveredFrom: null, now: NOW }),
-    ).toBeNull()
-  })
-})
-
-describe('soundWords', () => {
-  it('is the tempo and a word for the energy', () => {
-    expect(soundWords({ bpm: 91.6, energy: 0.2 } as never)).toBe('tempo 92 · calm')
-    expect(soundWords({ bpm: null, energy: 0.9 } as never)).toBe('driving')
-    expect(soundWords(null)).toBeNull()
+describe('unplayedLine', () => {
+  it('says a song was never played, and when it came, in one line', () => {
+    const now = new Date('2026-10-25T12:00:00Z')
+    expect(unplayedLine({ playCount: 0, addedAt: '2026-09-20 12:00:00' }, now)).toBe(
+      'Not played yet · added a month ago',
+    )
+    expect(unplayedLine({ playCount: 2, addedAt: '2026-09-20 12:00:00' }, now)).toBeNull()
   })
 })
 
@@ -196,5 +214,93 @@ describe('the similar-songs shelf', () => {
   it('plays the chosen song first, then the rest in their order', () => {
     expect(playSimilarOrder([4, 7, 9, 2], 9)).toEqual([9, 4, 7, 2])
     expect(playSimilarOrder([4, 7], 4)).toEqual([4, 7])
+  })
+})
+
+describe('togetherHead', () => {
+  const song = { addedAt: at(7, 3, 10), playCount: 2 }
+  const history = (times: string[], msPlayed: number) => ({
+    songId: 1,
+    cameWith: null,
+    plays: times.length,
+    msPlayed,
+    firstPlayedAt: times[0] ?? null,
+    lastPlayedAt: times.at(-1) ?? null,
+    hours: hours(...times),
+  })
+
+  it('says how long it has been yours, the plays and the minutes, and when you play it', () => {
+    const late = [at(7, 5, 23), at(7, 9, 1), at(7, 12, 22, 30), at(8, 1, 14)]
+    expect(togetherHead(song, history(late, 45 * 60_000), NOW)).toEqual({
+      title: 'Yours since 3 August.',
+      line: '4 plays, 45 min together · mostly late at night',
+    })
+  })
+
+  it('counts the song record’s plays when no server answers', () => {
+    expect(togetherHead(song, null, NOW)).toEqual({
+      title: 'Yours since 3 August.',
+      line: '2 plays',
+    })
+  })
+
+  it('says a song was never played rather than counting nothing', () => {
+    expect(togetherHead({ ...song, playCount: 0 }, null, NOW)).toEqual({
+      title: 'Not played yet.',
+      line: 'Here since 3 August',
+    })
+  })
+})
+
+describe('usualTime', () => {
+  it('names the part of the day at least half the plays began in', () => {
+    expect(usualTime(hours(at(7, 1, 8), at(7, 2, 9), at(7, 3, 19), at(7, 4, 11)))).toBe(
+      'mostly in the morning',
+    )
+  })
+
+  it('puts the small hours with the night before', () => {
+    expect(usualTime(hours(at(7, 1, 2), at(7, 2, 3), at(7, 3, 23), at(7, 4, 13)))).toBe(
+      'mostly late at night',
+    )
+  })
+
+  it('says nothing of a song played at any hour, or only a few times', () => {
+    expect(usualTime(hours(at(7, 1, 8), at(7, 2, 13), at(7, 3, 19), at(7, 4, 23)))).toBeNull()
+    expect(usualTime(hours(at(7, 1, 23), at(7, 2, 23), at(7, 3, 23)))).toBeNull()
+  })
+})
+
+describe('togetherCards', () => {
+  const song = {
+    addedAt: at(7, 3, 10),
+    sourceUrl: 'https://music.youtube.com/watch?v=abc',
+    playCount: 2,
+    lastPlayedAt: at(8, 17, 23, 40),
+  }
+
+  it('names where it came from, and leaves the count to the head', () => {
+    expect(togetherCards(song, null, NOW)).toEqual([
+      { key: 'came', label: 'Came from', value: 'YouTube Music', sub: '' },
+      { key: 'last', label: 'Last', value: 'Yesterday, 23:40', sub: '' },
+    ])
+  })
+
+  it('names the friend it came with, and where they had it from', () => {
+    const history = {
+      songId: 1,
+      cameWith: { kind: 'link' as const, from: 'Mina' },
+      plays: 0,
+      msPlayed: 0,
+      firstPlayedAt: null,
+      lastPlayedAt: null,
+      hours: [],
+    }
+    expect(togetherCards(song, history, NOW)[0]).toEqual({
+      key: 'came',
+      label: 'Came from',
+      value: "Mina's link",
+      sub: 'first from YouTube Music',
+    })
   })
 })

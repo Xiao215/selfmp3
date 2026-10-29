@@ -11,8 +11,7 @@ import { useSyncExternalStore } from 'react'
  * visual. Asked once here, the answer holds for the rest of the session.
  *
  * Not written to disk: it is a "nobody has published these yet", which may
- * stop being true, and a restart is a cheap way to ask again. "Look for
- * lyrics again" forgets it at once.
+ * stop being true, and a restart is a cheap way to ask again.
  */
 const found = new Set<number>()
 const listeners = new Set<() => void>()
@@ -25,10 +24,6 @@ export function rememberNoWords(songId: number): void {
   if (found.has(songId)) return
   found.add(songId)
   changed()
-}
-
-export function forgetNoWords(songId: number): void {
-  if (found.delete(songId)) changed()
 }
 
 function subscribe(listener: () => void): () => void {

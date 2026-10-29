@@ -17,6 +17,15 @@ export const COLUMN_WIDTH = {
   settingsIndex: 1080 - SIDEBAR_WIDTH,
   /** Stats' three lists stand side by side. */
   statsLists: 860,
+  /** Stats' three cards stand in one row; below, Listened above the other two. */
+  statsCards: 700,
+  /** The Report offers its landscape front page; below, the portrait looks a phone has. */
+  reportFrontPage: 900,
+  /**
+   * A page this wide fills its width rather than stretching across it (P1 C):
+   * a section's link sits beside its name, Stats' line spans its card.
+   */
+  wideFill: 1600,
   /** Home's card column stands beside the tiles; below, under them. */
   homeCardsBeside: 880,
   /** The library's head keeps to one row (the rail beside a small window leaves less). */

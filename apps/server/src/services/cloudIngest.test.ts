@@ -19,8 +19,10 @@ import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
 import { StatsRepository } from '../repositories/stats.js'
 import { SyncRepository } from '../repositories/sync.js'
+import { NamesRepository } from '../repositories/names.js'
 import { TagRepository } from '../repositories/tags.js'
 import { CloudIngest } from './cloudIngest.js'
+import { SongMerge } from './songMerge.js'
 import { buildSnapshot } from './cloudSnapshot.js'
 import { LocalEdits, SyncClock } from './localEdits.js'
 
@@ -47,6 +49,7 @@ describe('CloudIngest', () => {
   let stats: StatsRepository
   let sync: SyncRepository
   let cloud: CloudRepository
+  let names: NamesRepository
   let edits: LocalEdits
   let ingest: CloudIngest
   let now: number
@@ -62,6 +65,7 @@ describe('CloudIngest', () => {
     stats = new StatsRepository(db)
     sync = new SyncRepository(db)
     cloud = new CloudRepository(db)
+    names = new NamesRepository(db)
     now = BASE
     const clock = new SyncClock({
       deviceId: () => 'mac-aaaa1111',
@@ -77,8 +81,10 @@ describe('CloudIngest', () => {
       stats,
       sync,
       cloud: new CloudRepository(db),
+      names,
       clock,
       logger,
+      merge: new SongMerge({ db, sync }),
     })
   })
 
@@ -126,7 +132,6 @@ describe('CloudIngest', () => {
       lyricsKey: fields.lyrics ? `lyrics/${sha(n)}.lrc` : null,
       lyricsSize: fields.lyrics ? 10 : null,
       lyricsKind: fields.lyrics ? 'synced' : null,
-      romanizedKey: null,
       lyricsSig: 'sig',
       motionKey: null,
       motionSig: 'none',
@@ -141,6 +146,7 @@ describe('CloudIngest', () => {
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [],
+      artistNames: names.artistNames(),
       tags: tags.all(),
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),
@@ -150,6 +156,7 @@ describe('CloudIngest', () => {
       writtenAt: new Date(BASE),
       stamps: sync.allStamps(),
       aliases: sync.aliases(),
+      emptiedTags: sync.emptiedTags(),
       merged: sync.merges(),
       upTo: sync.cursors(),
     })
@@ -176,7 +183,9 @@ describe('CloudIngest', () => {
             }
           : playlist,
       ),
+      artistNames: [...library.artistNames.values()],
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
+      emptiedTags: library.emptied.size > 0 ? [...library.emptied.values()] : undefined,
       merged: library.merged.size > 0 ? Object.fromEntries(library.merged) : undefined,
     }
   }
@@ -189,7 +198,9 @@ describe('CloudIngest', () => {
       songs: byUid(snapshot.songs).map(song => ({ ...song, tagUids: [...song.tagUids].sort() })),
       tags: byUid(snapshot.tags),
       playlists: byUid(snapshot.playlists),
+      artistNames: [...snapshot.artistNames].sort((a, b) => a.artist.localeCompare(b.artist)),
       aliases: snapshot.aliases ?? {},
+      emptiedTags: byUid(snapshot.emptiedTags ?? []),
       merged: snapshot.merged ?? {},
     }
   }
@@ -233,6 +244,8 @@ describe('CloudIngest', () => {
     now = BASE + 50_000
     songs.patch(a, { title: 'Alpha (Server)' })
     edits.songs([a], ['title'])
+    // Named here later than the phone names them below.
+    names.takeArtistNames('server', ['The Server'], at(40, 'mac-aaaa1111'))
 
     const before = serverSnapshot()
     const [A, B, C] = [a, b, c].map(id => uidOf('songs', id)) as [string, string, string]
@@ -306,6 +319,11 @@ describe('CloudIngest', () => {
       { type: 'playlistOrdered', hlc: at(29), uid: LOVED, songUids: [C, B] },
       // For something that is not here, nothing happens.
       { type: 'songEdited', hlc: at(30), uid: '9'.repeat(32), fields: { title: 'Ghost' } },
+      // An artist is named by how the songs write them, whatever the case.
+      { type: 'artistNamed', hlc: at(31), artist: 'Phone', names: ['Fone', '电话'] },
+      { type: 'artistNamed', hlc: at(32), artist: 'Server', names: ['Too early'] },
+      // Cleared later on another device: cleared, and kept that way.
+      { type: 'artistNamed', hlc: at(33, 'web-cccc2222'), artist: 'phone', names: [] },
     ]
 
     const result = ingest.apply(changes)
@@ -313,7 +331,7 @@ describe('CloudIngest', () => {
     const phone = replayed(before, changes)
 
     expect(comparable(after)).toEqual(comparable(phone))
-    expect(result.applied).toBe(19)
+    expect(result.applied).toBe(21)
     // And it is the library it should be, not just the same wrong one twice.
     const song = (uid: string) => after.songs.find(s => s.uid === uid)
     expect(song(A)).toMatchObject({ title: 'Alpha (Server)', artist: 'Phone', tagUids: [] })
@@ -328,6 +346,9 @@ describe('CloudIngest', () => {
     expect(playlist(RAINY)?.rules?.rules).toEqual([
       { field: 'tag', op: 'has', tagUid: MISSING_TAG_UID },
     ])
+    expect(Object.fromEntries(after.artistNames.map(entry => [entry.artist, entry.names]))).toEqual(
+      { phone: [], server: ['The Server'] },
+    )
   })
 
   it('removes a song everywhere, and says whose files are to go', () => {
@@ -390,7 +411,7 @@ describe('CloudIngest', () => {
         uid: EXTRA,
         playId: 'play-late-0001',
         playedAt: '2026-09-01T09:00:00.000Z',
-        msPlayed: 30_000,
+        msPlayed: 70_000,
         completed: false,
       },
       { type: 'songTagged', hlc: at(12), uid: EXTRA, tagUid: RAIN, on: false },
@@ -480,17 +501,56 @@ describe('CloudIngest', () => {
     tags.setSongTags(a, [chill])
     const before = serverSnapshot()
     const made = 'f'.repeat(31) + '4'
+    const chillUid = uidOf('tags', chill)
     const changes: Change[] = [
       // Made on one phone, to be filled in a moment…
       { type: 'tagCreated', hlc: at(1, 'web-cccc2222'), uid: made, name: 'later', hue: 90 },
       // …while another removed a song, and the tag it was the last song of.
       { type: 'songRemoved', hlc: at(2), uid: uidOf('songs', a) },
-      { type: 'tagRemoved', hlc: at(3), uid: uidOf('tags', chill) },
+      { type: 'tagEmptied', hlc: at(3), uid: chillUid },
     ]
     ingest.apply(changes)
     expect(tags.all().map(tag => tag.name)).toEqual(['later'])
     expect(songs.byId(b)).not.toBeNull()
+    expect(serverSnapshot().emptiedTags).toEqual([
+      { uid: chillUid, name: 'chill', hue: expect.any(Number) },
+    ])
     expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
+  // R3-M7: a phone removed the tag's last song while a browser that had not
+  // heard put the tag on another. The tag and that tagging were lost everywhere.
+  it('keeps a tag a removal emptied when another device has just tagged a song with it', () => {
+    for (const late of [false, true]) {
+      db.exec('DELETE FROM songs; DELETE FROM tags; DELETE FROM emptied_tags')
+      const a = addSong('Alpha')
+      const b = addSong('Bravo')
+      const chill = tags.create('chill').id
+      tags.setSongTags(a, [chill])
+      const before = serverSnapshot()
+      const chillUid = uidOf('tags', chill)
+      const removing: Change[] = [
+        { type: 'songRemoved', hlc: at(2, 'iphone-aaaa2222'), uid: uidOf('songs', a) },
+        { type: 'tagEmptied', hlc: at(3, 'iphone-aaaa2222'), uid: chillUid },
+      ]
+      // Stamped after the removal, or before it but heard of after.
+      const tagging: Change = {
+        type: 'songTagged',
+        hlc: at(late ? 1 : 4),
+        uid: uidOf('songs', b),
+        tagUid: chillUid,
+        on: true,
+      }
+      // In two passes, the removal first, as the server reads one log, then the other.
+      ingest.apply(removing)
+      expect(tags.all()).toEqual([])
+      ingest.apply([tagging])
+      expect(tags.all().map(tag => [tag.name, tag.songCount])).toEqual([['chill', 1]])
+      expect(sync.emptiedTags()).toEqual([])
+      expect(comparable(serverSnapshot())).toEqual(
+        comparable(replayed(before, [...removing, tagging])),
+      )
+    }
   })
 
   it('stops a playlist following its tags with the songs the phone kept', () => {
@@ -537,6 +597,33 @@ describe('CloudIngest', () => {
       },
     ])
     expect(songs.byId(a)).toMatchObject({ title: 'Later', year: 1990 })
+  })
+
+  // One phone's log carried ten thousand plays of one song, all ending at the
+  // same instant, and every one of them counted; and plays nobody could have made.
+  it('takes in only plays somebody could have made', () => {
+    const a = addSong('Alpha')
+    const A = uidOf('songs', a)
+    const played = (n: number, over: Partial<Change & { type: 'songPlayed' }> = {}): Change => ({
+      type: 'songPlayed',
+      hlc: at(30 + n),
+      uid: A,
+      playId: `play-${String(n).padStart(8, '0')}`,
+      playedAt: '2026-09-01T09:00:00.000Z',
+      msPlayed: 90_000,
+      completed: true,
+      ...over,
+    })
+    const result = ingest.apply([
+      ...Array.from({ length: 200 }, (_, n) => played(n)),
+      played(300, { msPlayed: 0 }),
+      played(301, { msPlayed: 2000, playedAt: '2026-09-02T09:00:00.000Z' }),
+      played(302, { playedAt: '2999-01-01T00:00:00.000Z' }),
+      // The next time round is a play of its own.
+      played(303, { playedAt: '2026-09-01T09:01:41.000Z' }),
+    ])
+    expect(result.applied).toBe(2)
+    expect(songs.byId(a)?.playCount).toBe(2)
   })
 
   it('stamps what the server does after anything it has taken in', () => {

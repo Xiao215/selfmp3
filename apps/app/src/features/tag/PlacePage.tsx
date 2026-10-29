@@ -1,40 +1,41 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactElement, ReactNode, RefObject } from 'react'
-import { Animated, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useNavigation, useRouter } from 'expo-router'
-import type { NativeStackNavigationProp } from 'expo-router'
+import { useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { space, type, useLibrary, iconSize } from '@selfmp3/client'
+import { space, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
-import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { Plus, User } from '../../ui/components/Icons'
+import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHead'
+import { ListMusic, Plus, User } from '../../ui/components/Icons'
 import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { useListActions } from '../../ui/components/useListActions'
 import { BackButton } from '../../ui/components/BackButton'
 import { SongList } from '../../ui/components/SongList'
+import { EmptyState } from '../../ui/components/EmptyState'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { useSongRows } from '../../ui/components/useSongRows'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongColor } from '../../ui/useSongColor'
 import { useSelection, type Selection } from '../../selection/useSelection'
-import { spring } from '../../ui/motion'
-import { takePlaceHandoff } from '../../ui/coverHandoff'
+import { useHeroGrow } from '../../ui/useHeroGrow'
 import {
   combinedLink,
   combinedName,
   placesSource,
-  recentKind,
   type ListSource,
+  type TagMatch,
 } from '../lists/lists.model'
+import { Segmented } from '../../ui/components/Segmented'
+import { useKeepPlaces } from './useKeepPlaces'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { AddSheet } from './AddSheet'
 import { useArtistPicture } from './useArtistPicture'
@@ -49,15 +50,15 @@ import {
   togglePlace,
   type Place,
 } from './tag.model'
-import { nameTitle, rowTitle } from '../../ui/surfaces'
-import { MOVE_MS } from '../../ui/motion.model'
+import { rowTitle } from '../../ui/surfaces'
+import { useShownScheme } from '../../ui/theme/unistyles'
 
 /**
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
  * several of them together.
  *
  * A tag's page is always that one tag (docs/features/lists.md, B1): lit by
- * its covers, with Play, Shuffle and Combine with…. Combining never changes
+ * its covers, with Play, Shuffle and Mix in…. Combining never changes
  * the page under you: the tags and artists picked open as a page of their own
  * on top of it (`/combined`), where chips say what is on and every one
  * **adds** its songs, and Back comes back to the tag. Rows carry no tag chips
@@ -68,17 +69,22 @@ import { MOVE_MS } from '../../ui/motion.model'
  * selection bar acts on what is ticked. Nothing here is saved: what is played
  * from it is Up next, and Up next's Save keeps it (docs/features/lists.md).
  *
- * An artist's page is the same page with a figure where a tag has its dot,
- * its name in the serif, and its songs by album.
+ * An artist's page is the same page with its name alone where a tag has its
+ * dot, and its songs by album.
  */
 export function PlacePage({
   places,
   menuItems = [],
   menuAnchor,
+  notice,
   onChange,
+  match = 'any',
+  onMatch,
 }: {
   /** One tag or artist; or, on `/combined`, the several put together. */
   places: readonly Place[]
+  /** A card under the head, before the songs: an artist's "Same artist as…?". */
+  notice?: ReactNode
   /** What this kind of place offers in its ⋯, after what every list offers. */
   menuItems?: readonly MenuItem[]
   /** The ⋯'s box, for a window of the place's own to hang from (a tag's editor). */
@@ -88,9 +94,13 @@ export function PlacePage({
    * to there. Without it the page is one place, and combining opens a new one.
    */
   onChange?: (places: readonly Place[]) => void
+  /** On a combination's page: songs any of them holds, or every one of them (C1). */
+  match?: TagMatch
+  /** Given with `onChange`: the Any / All switch in the head. */
+  onMatch?: (match: TagMatch) => void
 }): ReactNode {
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const player = usePlayerCommands()
   const artFor = useArt()
   const { data: library } = useLibrary()
@@ -107,10 +117,10 @@ export function PlacePage({
   const only = !combining && chosen.length === 1 ? chosen[0] : undefined
   const artistAlone = only?.kind === 'artist'
   const songs = useMemo(() => {
-    const found = placeSongs(chosen, library?.songs ?? [])
+    const found = placeSongs(chosen, library?.songs ?? [], match)
     // An artist alone reads by album; a mix reads newest first, as Library does.
     return artistAlone ? albumsOf(found).flatMap(group => group.songs) : found
-  }, [chosen, library, artistAlone])
+  }, [chosen, library, artistAlone, match])
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
@@ -121,17 +131,29 @@ export function PlacePage({
   const backdrop =
     useArtistPicture(only?.kind === 'artist' ? only.artist.name : null)?.banner ?? null
 
-  const title = combinedName(chosen.map(placeName)) || placeName(place)
+  const title = combinedName(chosen.map(placeName), match) || placeName(place)
   const summary = artistAlone ? artistSummary(songs) : placeSummary(songs)
   // What Up next is called when this plays.
-  const source = useMemo(() => placesSource(chosen), [chosen])
-  const kindLabel = combining
-    ? source?.kind === 'combined'
-      ? recentKind(source)
-      : 'Together'
-    : place.kind === 'tag'
-      ? 'Tag'
-      : 'Artist'
+  const source = useMemo(() => placesSource(chosen, match), [chosen, match])
+  // A combination is kept as a playlist from its ⋯, without playing it first (C1).
+  const kept = useKeepPlaces(chosen, match, ids)
+  const keepItem: MenuItem[] = combining
+    ? [
+        {
+          key: 'keep',
+          label: kept.keeping ? 'Keeping…' : 'Keep as playlist',
+          icon: <ListMusic tone="textSecondary" />,
+          disabled: kept.keeping || (ids.length === 0 && chosen.some(p => p.kind === 'artist')),
+          apart: true,
+          testID: 'place-keep',
+          onPress: kept.keep,
+        },
+      ]
+    : []
+  // A tag alone wears its own colour at the head, as its tile on Home does
+  // (G1, 2026-10-25): a deep fill in the dark, the pale tile on Paper.
+  const scheme = useShownScheme()
+  const tagLight = only?.kind === 'tag' ? tagColors(only.tag.hue, scheme).tile : null
   /** Combining from one place: the pick opens as a page of its own, over this one. */
   const combine = (picked: readonly Place[]): void => {
     setAdding(false)
@@ -144,147 +166,40 @@ export function PlacePage({
     const link = combinedLink(together)
     router.push({ pathname: '/combined', params: { ...link.params } })
   }
-  // The board has the tapped tile stretching into this head (docs/ui-mock
-  // `M2`, 2). Without shared elements the head grows into place from where
-  // the tile was: the tile hands its frame over as it is tapped
-  // (`ui/coverHandoff.ts`), the hero measures its own once laid out, and the
-  // one spring carries it from the one to the other — a translation between
-  // the two centres and a scale by their widths — while the stack crossfades
-  // the page in around it. Opened any other way (Back, an address, a row's
-  // name), there is no frame and the head is simply there.
-  const [handed] = useState(() => takePlaceHandoff())
-  const [entrance] = useState(() => new Animated.Value(handed ? 0 : 1))
-  const [start] = useState(() => ({
-    dx: new Animated.Value(0),
-    dy: new Animated.Value(0),
-    grow: new Animated.Value(0),
-  }))
-  // Going back to the tile, once Back has been pressed (Xiao chose D, 2026-10-04).
-  const [home] = useState(() => new Animated.Value(0))
-  const [grow] = useState(() => {
-    // How far from its place the hero is, 0 to 1: still growing out of the
-    // tile, or on its way back into it.
-    const left = Animated.add(
-      entrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-      home,
-    ).interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' })
-    return {
-      opacity: entrance,
-      transform: [
-        { translateX: Animated.multiply(left, start.dx) },
-        { translateY: Animated.multiply(left, start.dy) },
-        { scale: Animated.add(1, Animated.multiply(left, start.grow)) },
-      ],
-    }
-  })
-  const heroRef = useRef<View>(null)
-  const heroPlaced = useRef(false)
+  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`).
+  const hero = useHeroGrow(wide)
+  const heroRef = hero.heroRef
   const listActions = useListActions(ids, {
     heroRef,
     selection,
     shareAs: title,
     togetherAs: title,
   })
-  /** The hero's way between the tile and where it is laid out now. */
-  const aimAtTile = (
-    tile: NonNullable<typeof handed>,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ): void => {
-    start.dx.setValue(tile.x + tile.width / 2 - (x + width / 2))
-    start.dy.setValue(tile.y + tile.height / 2 - (y + height / 2))
-    start.grow.setValue(tile.width / width - 1)
-  }
-  /*
-   * The grow waits for the navigator's crossfade to start as well as for the
-   * hero to be measured. Sent at layout, it would all but land before the
-   * native side began the fade, so the page would arrive with the head already
-   * in place and the tile would seem not to grow at all.
-   */
-  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
-  const growReady = useRef({ measured: false, fading: false })
-  const growWhenReady = (): void => {
-    const ready = growReady.current
-    if (ready.measured && ready.fading) spring(entrance, 1)
-  }
-  useEffect(() => {
-    if (!handed) return undefined
-    const letGo = (): void => {
-      growReady.current.fading = true
-      growWhenReady()
-    }
-    const off = navigation.addListener('transitionStart', event => {
-      if (!event.data.closing) letGo()
-    })
-    // A stack with no moves — a browser's — says nothing; nor does one asked
-    // for less motion, where the spring lands at once anyway.
-    const late = setTimeout(letGo, MOVE_MS.placeHandOff)
-    return () => {
-      off()
-      clearTimeout(late)
-    }
-    // Once, for the page's arrival.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  const placeHero = (): void => {
-    if (!handed || heroPlaced.current) return
-    heroPlaced.current = true
-    const node = heroRef.current
-    if (!node) {
-      growReady.current.measured = true
-      growWhenReady()
-      return
-    }
-    node.measureInWindow((x, y, width, height) => {
-      if (width > 0) aimAtTile(handed, x, y, width, height)
-      growReady.current.measured = true
-      growWhenReady()
-    })
-  }
-
-  /*
-   * Back, on a phone, from a place that grew out of its Home tile: the
-   * opening in reverse (Xiao chose D, 2026-10-04). The hero is aimed at the
-   * tile from where it sits now — the page may have scrolled — and sets off
-   * with the press: the navigator tells a page that is going nothing about
-   * when its fade starts. The swipe back is left to the navigator: a hand
-   * dragging the page can still change its mind.
-   */
+  // Back, on a phone, from a place that grew out of its tile: the opening in reverse.
   const backShown = usePageBack('/').shown
   const back = (): void => {
     if (!router.canGoBack()) {
       router.replace('/')
       return
     }
-    const node = heroRef.current
-    if (!handed || wide || !node) {
-      router.back()
-      return
-    }
-    node.measureInWindow((x, y, width, height) => {
-      // Scrolled out of sight, it has nothing to carry back.
-      if (width > 0 && y + height > 0) {
-        aimAtTile(handed, x, y, width, height)
-        spring(home, 1)
-      }
-      router.back()
-    })
+    hero.back(() => router.back())
   }
 
-  const head = (
+  const listHead = (
     <ListHead
       wide={wide}
-      light={light.color}
+      light={tagLight ?? light.color}
+      lightFull={tagLight !== null}
       art={artistAlone ? (backdrop ?? leadArt) : null}
+      // Their banner opens out when pressed; a song's cover standing in does not.
+      opensArt={artistAlone && backdrop !== null}
       topBar={
         <>
           {/* None on a computer for a place the sidebar opened (J1). */}
           {backShown ? <BackButton to="/" onPress={back} /> : <View />}
           <MoreMenu
             name={title}
-            items={[...listActions, ...menuItems]}
+            items={[...listActions, ...keepItem, ...menuItems]}
             title={title}
             anchorRef={menuAnchor}
             testID="place-more"
@@ -293,28 +208,31 @@ export function PlacePage({
         </>
       }
       heroRef={heroRef}
-      heroStyle={grow}
-      onHeroLayout={placeHero}
+      heroStyle={hero.heroStyle}
+      onHeroLayout={hero.onHeroLayout}
       cover={artistAlone ? null : <PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
       titles={
         <>
-          <View style={listHeadText.kind}>
-            {place.kind === 'tag' ? (
-              <TagDot hue={place.tag.hue} size={7} />
-            ) : (
-              <User size={iconSize.small} tone="textSecondary" />
-            )}
-            <Text style={listHeadText.kindText}>{kindLabel}</Text>
+          {/* No TAG or ARTIST over the name: the page says what it is. A tag
+              keeps its dot beside its name. */}
+          <View style={listHeadText.nameRow}>
+            {only?.kind === 'tag' ? <TagDot hue={only.tag.hue} size={wide ? 14 : 10} /> : null}
+            <View style={listHeadText.nameShrink}>
+              <ListHeadName name={title} testID="place-name" />
+            </View>
           </View>
-          <Text
-            style={[listHeadText.name, artistAlone && styles.nameSerif]}
-            numberOfLines={2}
-            accessibilityRole="header"
-            testID="place-name"
-          >
-            {title}
-          </Text>
           <Text style={listHeadText.summary}>{summary}</Text>
+          {combining && onMatch ? (
+            // One switch, never a third chip state: any of them, or songs that are all of them.
+            <Segmented
+              label="Songs with"
+              size="small"
+              value={match}
+              onChange={onMatch}
+              options={MATCH_OPTIONS}
+              style={styles.match}
+            />
+          ) : null}
           {combining ? (
             <Chips
               chosen={chosen}
@@ -330,14 +248,14 @@ export function PlacePage({
             name={title}
             songIds={ids}
             heroRef={heroRef}
-            onPlay={() => player.playFrom(ids, 0, { source })}
+            onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
             testPrefix="place"
           />
           {combining ? null : (
             <Button
               testID="place-combine"
-              label="Combine with…"
+              label="Mix in…"
               accessibilityLabel={`Combine ${title} with another tag or artist`}
               icon={<Plus tone="textPrimary" />}
               onPress={() => setAdding(true)}
@@ -346,6 +264,15 @@ export function PlacePage({
         </>
       }
     />
+  )
+
+  const head = notice ? (
+    <>
+      {listHead}
+      <View style={[styles.notice, wide && styles.noticeWide]}>{notice}</View>
+    </>
+  ) : (
+    listHead
   )
 
   return (
@@ -360,8 +287,26 @@ export function PlacePage({
         scope={
           artistAlone ? 'by this artist' : only?.kind === 'tag' ? 'in this tag' : 'on this page'
         }
+        // A tag no song has yet: a page with nothing under its head but "0
+        // songs" said nothing of how one gets there.
+        empty={
+          only?.kind === 'tag' ? (
+            <EmptyState
+              compact
+              testID="place-empty"
+              title="No songs in this tag yet"
+              line="Add some with Tag songs… in the ⋯ above."
+            />
+          ) : null
+        }
       />
-      <AddSheet open={adding} chosen={chosen} onClose={() => setAdding(false)} onShow={combine} />
+      <AddSheet
+        open={adding}
+        chosen={chosen}
+        match={combining ? match : 'any'}
+        onClose={() => setAdding(false)}
+        onShow={combine}
+      />
     </View>
   )
 }
@@ -411,7 +356,7 @@ function Chips({
  * box on a computer) and the selection bar comes up — a lane above the list
  * on a computer, floating at the foot on a phone.
  */
-function PlaceSongs({
+export function PlaceSongs({
   songs,
   selection,
   source,
@@ -419,6 +364,7 @@ function PlaceSongs({
   head,
   label,
   scope,
+  empty,
 }: {
   songs: readonly Song[]
   /** The page's selection, which its ⋯ can start. */
@@ -430,10 +376,12 @@ function PlaceSongs({
   label: string
   /** What "all" means on this page, for the selection bar. */
   scope: string
+  /** What stands under the head with no songs. */
+  empty: ReactElement | null
 }): ReactNode {
   const player = usePlayerCommands()
   const artFor = useArt()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
   const scrollLabel = useMemo(() => sortLabel(byAlbum ? 'album' : 'addedAt'), [byAlbum])
@@ -445,6 +393,8 @@ function PlaceSongs({
     selection,
     onPlay: index => player.playFrom(ids, index, { source }),
     testPrefix: 'place-song',
+    // Under an album's heading a row's album would only repeat it (P12 A).
+    withAlbum: !byAlbum,
   })
   const { renderSong: renderRow } = rows
 
@@ -455,12 +405,12 @@ function PlaceSongs({
       if (!byAlbum || (previous && previous.album.trim() === item.album.trim())) return row
       return (
         <View>
-          <AlbumHeading song={item} artUri={artFor(item)} />
+          <AlbumHeading song={item} artUri={artFor(item)} wide={wide} />
           {row}
         </View>
       )
     },
-    [renderRow, artFor, byAlbum, songs],
+    [renderRow, artFor, byAlbum, songs, wide],
   )
 
   return (
@@ -475,6 +425,7 @@ function PlaceSongs({
         pinned={bar.pinned}
         scrollLabel={scrollLabel}
         contentContainerStyle={bar.listPadding}
+        empty={empty}
       />
       {rows.menu}
     </View>
@@ -484,13 +435,15 @@ function PlaceSongs({
 function AlbumHeading({
   song,
   artUri,
+  wide,
 }: {
   song: Song
   artUri: string | null | undefined
+  wide: boolean
 }): ReactNode {
   const album = song.album.trim()
   return (
-    <View style={styles.album}>
+    <View style={[styles.album, wide && styles.albumWide]}>
       <Cover uri={artUri} title={album || song.title} size={28} />
       <Text style={styles.albumName} numberOfLines={1}>
         {album || 'Other songs'}
@@ -500,10 +453,16 @@ function AlbumHeading({
   )
 }
 
+/** Any of the tags, or all of them: the Combined page's one switch. */
+const MATCH_OPTIONS: readonly { value: TagMatch; label: string }[] = [
+  { value: 'any', label: 'Any' },
+  { value: 'all', label: 'All' },
+]
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  match: { alignSelf: 'flex-start', marginTop: space.tight },
   listArea: { flex: 1, minHeight: 0 },
-  nameSerif: nameTitle(theme.colors),
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: {
@@ -514,9 +473,13 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.roomy,
     paddingBottom: space.tight,
   },
+  // A computer's page edge, where the title above starts.
+  albumWide: { paddingHorizontal: space.gutterWide },
   albumName: {
     ...rowTitle(theme.colors),
     flexShrink: 1,
   },
   albumYear: { color: theme.colors.textMuted, fontSize: type.sub },
+  notice: { paddingHorizontal: space.gutter, paddingTop: space.md },
+  noticeWide: { paddingHorizontal: space.gutterWide },
 }))

@@ -1,9 +1,11 @@
 import {
+  DEFAULT_APP_URL,
   DoormanClaimResultSchema,
   DoormanMeSchema,
   ErrorBodySchema,
   EXTENSION_SIGNIN_ORIGIN,
   formatSignInCode,
+  signInRefusalFromUrl,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import {
@@ -425,6 +427,41 @@ describe('coming back from Google', () => {
     h.allow({ anyone: true })
     const token = await h.signIn({ sub: '9', email: 'stranger@example.org' })
     expect((await h.call('/v1/me', { token })).status).toBe(200)
+  })
+
+  it('sends a sign-in Google did not finish back to the app, saying why, writing nothing', async () => {
+    const h = harness()
+    const back = `${APP_ORIGIN}/selfmp3/welcome`
+    const query = `&return=${encodeURIComponent(back)}`
+
+    const cancelled = await begin(h, query)
+    const cancel = await h.call(`/v1/auth/callback?state=${cancelled.state}&error=access_denied`)
+    expect(cancel.status).toBe(302)
+    expect(cancel.headers.get('location')).toBe(`${back}#signin-refused=cancelled`)
+
+    const stranger = await begin(h, query)
+    const refused = await finish(h, stranger, { ...ME, sub: '9', email: 'mallory@example.com' })
+    expect(refused.status).toBe(302)
+    const location = refused.headers.get('location') ?? ''
+    expect(signInRefusalFromUrl(location)).toEqual({
+      reason: 'not-allowed',
+      email: 'mallory@example.com',
+    })
+    // Never a code, and never the attempt.
+    expect(location).not.toContain('signin-code')
+    expect(location).not.toContain(stranger.attempt)
+
+    const broken = await begin(h, query)
+    const failed = await finish(h, broken, ME, { nonce: 'a-different-nonce' })
+    expect(signInRefusalFromUrl(failed.headers.get('location') ?? '')?.reason).toBe('failed')
+    expect(h.kv.writes).toBe(0)
+  })
+
+  it('links a refusal with nowhere to go back to on to the app', async () => {
+    const h = harness()
+    const { state } = await begin(h)
+    const html = await (await h.call(`/v1/auth/callback?state=${state}&error=access_denied`)).text()
+    expect(html).toContain(`<a href="${DEFAULT_APP_URL}/">Back to self.mp3</a>`)
   })
 
   it('lets nobody else in when the list does not name them', async () => {

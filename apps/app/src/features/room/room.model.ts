@@ -5,13 +5,14 @@ import {
   ROOM_MAX_WAITING,
   roomPosition,
   roomTitle,
+  shuffleArray,
+  nearestFirst,
   soundCentre,
   type RoomAction,
   type RoomEntry,
   type RoomMember,
   type RoomSong,
   type RoomState,
-  shuffleArray,
 } from '@selfmp3/shared'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
@@ -23,6 +24,12 @@ import type { RoomStart } from './roomSheets.store'
  * player should do when the room changes. The room's own rules are
  * packages/shared's room.ts; this is the device's side of them.
  */
+
+/**
+ * The name a guest last gave, offered again: by a room's Join, and by a
+ * share link's page, which asks for the same name.
+ */
+export const GUEST_NAME_KEY = 'room.name'
 
 // --- people ---------------------------------------------------------------------
 
@@ -42,6 +49,28 @@ export function isHost(state: RoomState): boolean {
 export function youMay(state: RoomState, type: RoomAction['type']): boolean {
   const you = youOf(state)
   return you !== undefined && canAct(state, you, type)
+}
+
+/**
+ * What a press of Previous, play/pause or Next on a player that follows the
+ * room does (player/roomTransport.ts): the room action it asks for, or what
+ * to say when it may not. Null leaves the press to the player: you host the
+ * room, it plays on one speaker, or your player is not on the room's song.
+ */
+export function followerPress(
+  state: RoomState,
+  step: 'previous' | 'toggle' | 'next',
+  onRoomSong: boolean,
+): { readonly act: 'skip' | 'pause' | 'play' } | { readonly say: string } | null {
+  if (isHost(state) || state.mode !== 'everyone' || !onRoomSong) return null
+  const host = state.members.find(member => member.kind === 'host')?.name ?? 'the host'
+  if (step === 'previous') return { say: 'A room only goes forward' }
+  if (step === 'next')
+    return youMay(state, 'skip') ? { act: 'skip' } : { say: `Only ${host} can skip` }
+  const act = state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
+  return youMay(state, act)
+    ? { act }
+    : { say: `Only ${host} can ${act === 'pause' ? 'pause' : 'play'} the room` }
 }
 
 /** The people still in the room, the host first. */
@@ -213,6 +242,9 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
  *   room's list.
  * - `advance`: the player ran out on the room's last song, and a song has
  *   been added since: go on to it.
+ * - `resume`: the player has nothing loaded — the app was opened again, a
+ *   page reloaded — while the room is on a song: take it up where the room
+ *   says it is, rather than telling the room nothing plays.
  * - `none`: the player is busy with something of your own, or there is
  *   nothing to play.
  */
@@ -220,6 +252,7 @@ type HostPlan =
   | { readonly kind: 'start'; readonly ids: readonly number[] }
   | { readonly kind: 'follow'; readonly upcoming: readonly number[] }
   | { readonly kind: 'advance'; readonly upcoming: readonly number[] }
+  | { readonly kind: 'resume'; readonly ids: readonly number[] }
   | { readonly kind: 'none' }
 
 export function hostPlan(
@@ -242,6 +275,9 @@ export function hostPlan(
       ? { kind: 'advance', upcoming }
       : { kind: 'follow', upcoming }
   }
+  if (player.currentId === null && state.playing !== null) {
+    return { kind: 'resume', ids: [roomTrackId(state.playing.entryId), ...upcoming] }
+  }
   if (state.playing === null && (!player.playing || player.takeOver) && upcoming.length > 0) {
     return { kind: 'start', ids: upcoming }
   }
@@ -255,9 +291,18 @@ export function entryOfTrack(state: RoomState, trackId: number | null): string |
 }
 
 /**
+ * How far the host's player may be from the room's clock before it is told.
+ * On everyone's phones the others follow the room's clock to a third of a
+ * second (`shouldResync`), so a host whose song started late — loading
+ * after a skip — must say so, or plays behind everyone for the whole song.
+ * On one speaker nobody follows the audio: only a seek is worth telling.
+ */
+const HOST_DRIFT_SECONDS = { everyone: 0.5, speaker: 2 } as const
+
+/**
  * Whether what the host's player is doing differs from what the room says
- * enough to tell it: another song, playing against paused, or a jump in
- * position (a seek) of more than a couple of seconds.
+ * enough to tell it: another song, playing against paused, or a position
+ * off the room's clock (`HOST_DRIFT_SECONDS`).
  */
 export function needsReport(
   state: RoomState,
@@ -269,7 +314,9 @@ export function needsReport(
   if ((playing?.entryId ?? null) !== player.entryId) return true
   if (!playing) return false
   if ((playing.pausedAt === null) !== player.playing) return true
-  return Math.abs(roomPosition(playing, now + offset) - player.position) > 2
+  return (
+    Math.abs(roomPosition(playing, now + offset) - player.position) > HOST_DRIFT_SECONDS[state.mode]
+  )
 }
 
 /** A request from a member the host's player has not acted on yet. */
@@ -306,12 +353,12 @@ export function keepGoingPicks(
   const waiting = new Set(
     state.entries.filter(entry => entry.playedAt === null).map(entry => keyOf(entry.song)),
   )
-  const byPerson = new Map<string, { action: RoomAction; near: number | null }[]>()
+  const byPerson = new Map<string, { action: RoomAction; song: RoomSong }[]>()
   const offer = (person: string, song: RoomSong, action: RoomAction): void => {
     const key = keyOf(song)
     if (recent.has(key) || waiting.has(key)) return
     const list = byPerson.get(person) ?? []
-    list.push({ action, near: closeness ? closeness(song) : null })
+    list.push({ action, song })
     byPerson.set(person, list)
   }
   for (const shelf of state.shelves) {
@@ -327,15 +374,11 @@ export function keepGoingPicks(
     offer(entry.owner ?? entry.addedBy, entry.song, { type: 'again', entryId: entry.id })
   }
 
-  const queues = [...byPerson.values()].map(list => {
-    const heard = list.filter(pick => pick.near !== null)
-    heard.sort((a, b) => (b.near ?? 0) - (a.near ?? 0))
-    const unheard = shuffleArray(
-      list.filter(pick => pick.near === null),
-      random,
-    )
-    return [...heard, ...unheard].map(pick => pick.action)
-  })
+  const queues = [...byPerson.values()].map(list =>
+    nearestFirst(list, pick => (closeness ? closeness(pick.song) : null), random).map(
+      pick => pick.action,
+    ),
+  )
   const picks: RoomAction[] = []
   for (let round = 0; picks.length < count; round++) {
     let any = false
@@ -349,6 +392,36 @@ export function keepGoingPicks(
     if (!any) break
   }
   return picks
+}
+
+/**
+ * When the room's own songs give Autoplay nothing — a room younger than a
+ * dozen songs, with no shelf up — songs from the host's library, so the room
+ * does not run dry: the nearest in sound to what is playing where the host's
+ * vectors say, the rest in no particular order. Never one the room already
+ * has. `library` is the host's songs by audio key (`LibraryIndex.byAudio`);
+ * the answer is their ids.
+ */
+export function libraryPicks(
+  state: RoomState,
+  library: ReadonlyMap<string, number>,
+  count: number,
+  options: {
+    readonly random?: () => number
+    readonly closeness?: (audioKey: string) => number | null
+  } = {},
+): number[] {
+  const random = options.random ?? Math.random
+  const inRoom = new Set(state.entries.map(entry => keyOf(entry.song)))
+  const offered = [...library].filter(([key]) => !inRoom.has(key))
+  const rated = offered.map(([key, id]) => ({ id, near: options.closeness?.(key) ?? null }))
+  const heard = rated.filter(pick => pick.near !== null)
+  heard.sort((a, b) => (b.near ?? 0) - (a.near ?? 0))
+  const unheard = shuffleArray(
+    rated.filter(pick => pick.near === null),
+    random,
+  )
+  return [...heard, ...unheard].slice(0, Math.max(0, count)).map(pick => pick.id)
 }
 
 function keyOf(song: RoomSong): string {
@@ -368,7 +441,7 @@ export interface PastRoom {
     readonly picture: string | null
   }[]
   /** The shared playlist it was kept as, when it was (features/shared). */
-  readonly shared?: string | null
+  readonly shared: string | null
   readonly songs: readonly {
     readonly song: RoomSong
     readonly by: string
@@ -377,6 +450,41 @@ export interface PastRoom {
     /** Brought by you, from your own library. */
     readonly mine: boolean
   }[]
+}
+
+/**
+ * Rooms remembered before faces had pictures, or before a room said which
+ * shared playlist it was kept as, brought up to now: they have neither. Data,
+ * not a second reading of the schema: the store writes the upgrade back (pastRooms.store.ts), so a
+ * device's rooms are upgraded once. Anything else is handed on as it is, for
+ * the schema to say.
+ */
+export function upgradePastRooms(stored: unknown): unknown {
+  if (!Array.isArray(stored)) return stored
+  let changed = false
+  const pictured = (face: unknown): unknown => {
+    if (!isRecord(face) || 'picture' in face) return face
+    changed = true
+    return { ...face, picture: null }
+  }
+  const rooms = stored.map((room: unknown) => {
+    if (!isRecord(room)) return room
+    const people: unknown = room['people']
+    const songs: unknown = room['songs']
+    const upgraded = {
+      ...room,
+      people: Array.isArray(people) ? people.map(pictured) : people,
+      songs: Array.isArray(songs) ? songs.map(pictured) : songs,
+    }
+    if ('shared' in room) return upgraded
+    changed = true
+    return { ...upgraded, shared: null }
+  })
+  return changed ? rooms : stored
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** What is worth remembering of a room: the songs that played, oldest first, and who was there. */
@@ -389,7 +497,9 @@ export function pastRoomOf(state: RoomState, now: number): PastRoom | null {
     code: state.code,
     title: pastTitle(state),
     endedAt: state.endedAt ?? now,
-    people: state.members.map(member => ({
+    // Not kept as one yet: RoomProvider says, as the room ends.
+    shared: null,
+    people: peopleOnce(state).map(member => ({
       name: nameOf(state, member),
       colour: member.colour,
       picture: member.picture,
@@ -406,12 +516,53 @@ export function pastRoomOf(state: RoomState, now: number): PastRoom | null {
   }
 }
 
+/** What a member is told when the room ends under them, or they are taken out of it. */
+export function endedLine(state: RoomState, how: 'ended' | 'removed'): string {
+  if (isHost(state)) return 'Your room ended'
+  const title = roomTitle(state)
+  return how === 'removed' ? `You were taken out of ${title}` : `${title} ended`
+}
+
+/**
+ * Everyone who was in the room, once each: someone who left and came back
+ * has a member record for each time, the latest kept. An earlier record of
+ * your own is you, and goes.
+ */
+function peopleOnce(state: RoomState): RoomMember[] {
+  const you = youOf(state)
+  const latest = new Map<string, RoomMember>()
+  for (const member of state.members) {
+    if (member.id !== state.you && member.name === you?.name) continue
+    latest.delete(member.name)
+    latest.set(member.name, member)
+  }
+  return [...latest.values()]
+}
+
+function withNames(names: readonly string[], state: RoomState): string {
+  if (names.length === 0) return roomTitle(state)
+  if (names.length === 1) return `With ${names[0]}`
+  return `With ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
 /** "With Mia, Ken and Ana": the others who were there. */
 export function pastTitle(state: RoomState): string {
-  const others = state.members.filter(member => member.id !== state.you).map(member => member.name)
-  if (others.length === 0) return roomTitle(state)
-  if (others.length === 1) return `With ${others[0]}`
-  return `With ${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`
+  return withNames(
+    peopleOnce(state)
+      .filter(member => member.id !== state.you)
+      .map(member => member.name),
+    state,
+  )
+}
+
+/** "With Mia": the others a kept room is for — still here, and signed in. */
+export function keptTitle(state: RoomState): string {
+  return withNames(
+    peopleOnce(state)
+      .filter(member => member.id !== state.you && !member.left && member.kind !== 'guest')
+      .map(member => member.name),
+    state,
+  )
 }
 
 /** The room's invite link: opens the join page, in the app or a browser. */

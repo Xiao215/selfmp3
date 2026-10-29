@@ -11,19 +11,28 @@ import { useValueStore } from '../state/useValueStore'
  * scrolling page for it. A page that owns the display must not keep a hole
  * where the bar would have been.
  *
- * Outside React, as the root's width is (`rootWidth.ts`): one flag, read by
+ * Outside React, as the layout's size is (`layoutSize.model.ts`): one flag, read by
  * every list, and a context around the whole app would redraw all of them
  * from the top whenever it changed.
  */
 
 /**
  * And, on a phone only, the pages it opens over its tabs rather than as one:
- * everything under Profile, and Search. They are a step away from the tabs
+ * everything under Profile (Links you shared too, though Home's From friends
+ * reaches it as well), Search, and Ask over it. They are a step away from the tabs
  * rather than one of them, and each carries its own way back, so the display
  * is theirs. A computer keeps its sidebar and its player
  * bar on all of them, because the sidebar is how it reaches them at all.
  */
-const PHONE_FULL_SCREEN = ['/profile', '/import', '/stats', '/settings', '/search']
+const PHONE_FULL_SCREEN = [
+  '/profile',
+  '/import',
+  '/stats',
+  '/settings',
+  '/links',
+  '/search',
+  '/ask',
+]
 
 /** Does this page take the whole display, leaving no room for the chrome? */
 export function pageOwnsScreen(pathname: string, wide: boolean): boolean {
@@ -32,11 +41,30 @@ export function pageOwnsScreen(pathname: string, wide: boolean): boolean {
   return PHONE_FULL_SCREEN.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }
 
+/**
+ * On a phone, the pages that keep the mini player but not the tab bar: the
+ * sound map, whose field is the whole page and whose song is still to hand.
+ */
+const PHONE_NO_TABS = ['/sound-map']
+
+/** Does this page put the tab bar away, keeping the mini player? */
+export function pageHidesTabs(pathname: string, wide: boolean): boolean {
+  return !wide && PHONE_NO_TABS.includes(pathname)
+}
+
 const shown = createValueStore(true)
+const tabs = createValueStore(true)
 
 export const setPageChrome = shown.set
 
 /** True while the mini player and the tab bar are on the page. */
 export function usePageChrome(): boolean {
   return useValueStore(shown)
+}
+
+export const setPageTabs = tabs.set
+
+/** True while the tab bar is on the page, under the mini player: with the chrome, unless the page puts it away. */
+export function usePageTabs(): boolean {
+  return useValueStore(tabs)
 }

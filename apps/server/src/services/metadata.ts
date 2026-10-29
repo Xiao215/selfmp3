@@ -1,6 +1,7 @@
 import path from 'node:path'
-import { parseFile, type IAudioMetadata } from 'music-metadata'
-import { messageOf, cleanArtist } from '@selfmp3/shared'
+import { parseFromTokenizer, type IAudioMetadata } from 'music-metadata'
+import { fromFile } from 'strtok3'
+import { messageOf, cleanArtist, tidyText } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 
@@ -34,7 +35,7 @@ interface ExtractedMetadata {
  * stripped: "(Official Video)", "[HD]", "(Lyrics)" and friends.
  */
 export function parseFilename(relativePath: string): { artist: string; title: string } {
-  const base = path.basename(relativePath).replace(/\.[^.]+$/, '')
+  const base = tidyText(path.basename(relativePath).replace(/\.[^.]+$/, ''))
 
   const cleaned = base
     .replace(
@@ -79,11 +80,13 @@ function fromParsed(metadata: IAudioMetadata, relativePath: string): ExtractedMe
 
   const picture = common.picture?.[0]
 
+  // Tidied as a name typed in is (shared `tidyText`): a file's tags can carry
+  // line breaks and invisible or direction-changing characters as well.
   return {
-    title: common.title?.trim() || fromName.title,
-    artist: cleanArtist(common.artist?.trim() || fromName.artist),
-    album: common.album?.trim() ?? '',
-    albumArtist: common.albumartist?.trim() ?? '',
+    title: tidyText(common.title ?? '') || fromName.title,
+    artist: cleanArtist(tidyText(common.artist ?? '') || fromName.artist),
+    album: tidyText(common.album ?? ''),
+    albumArtist: tidyText(common.albumartist ?? ''),
     trackNo: typeof common.track?.no === 'number' ? common.track.no : null,
     year: typeof common.year === 'number' && common.year > 0 ? common.year : null,
     duration: metadata.format.duration ?? 0,
@@ -110,13 +113,25 @@ function fallback(relativePath: string): ExtractedMetadata {
   }
 }
 
+/**
+ * How long one file's tags may take. A whole file reads in a second or two,
+ * even an hour of VBR audio counted frame by frame; past this something is
+ * wrong with the reading, not slow (`MetadataService.read`).
+ */
+const READ_LIMIT_MS = 60_000
+
+/** A file whose tags were still being read when `READ_LIMIT_MS` ran out. */
+class ReadTooLong extends Error {}
+
 export class MetadataService {
   readonly #storage: StorageDriver
   readonly #logger: Logger
+  readonly #limitMs: number
 
-  constructor(storage: StorageDriver, logger: Logger) {
+  constructor(storage: StorageDriver, logger: Logger, options: { limitMs?: number } = {}) {
     this.#storage = storage
     this.#logger = logger.child('metadata')
+    this.#limitMs = options.limitMs ?? READ_LIMIT_MS
   }
 
   /**
@@ -124,17 +139,44 @@ export class MetadataService {
    *
    * Read from the file's real path, which is cheap: music-metadata only reads
    * the header.
+   *
+   * Time-limited, and stopped for real when the time runs out: the file is
+   * closed under the reader. music-metadata takes the file's size once, when
+   * it opens it, and a file still being written grows past that; reading past
+   * the size it took, it counts its place backwards and goes round the same
+   * frames for ever, a core of the CPU busy and the sweep waiting on it with
+   * every sweep after it (bug bash R3-M3). A file that ran out of time throws
+   * rather than reading as a file with no tags, so it is tried again whole
+   * by the next sweep instead of being kept as a song with no length.
    */
   async read(key: string): Promise<ExtractedMetadata> {
+    let tokenizer: Awaited<ReturnType<typeof fromFile>>
     try {
-      const parsed = await parseFile(this.#storage.localPath(key), { duration: true })
-      return fromParsed(parsed, key)
+      tokenizer = await fromFile(this.#storage.localPath(key), { regularFileOnly: true })
     } catch (error) {
-      this.#logger.debug('could not read tags, falling back to filename', {
-        key,
-        message: messageOf(error),
-      })
-      return fallback(key)
+      return this.#fallback(key, error)
     }
+    let tooLong = false
+    const limit = setTimeout(() => {
+      tooLong = true
+      tokenizer.close().catch(() => undefined)
+    }, this.#limitMs)
+    try {
+      return fromParsed(await parseFromTokenizer(tokenizer, { duration: true }), key)
+    } catch (error) {
+      if (tooLong) throw new ReadTooLong(`reading ${key} took longer than ${this.#limitMs} ms`)
+      return this.#fallback(key, error)
+    } finally {
+      clearTimeout(limit)
+      if (!tooLong) await tokenizer.close().catch(() => undefined)
+    }
+  }
+
+  #fallback(key: string, error: unknown): ExtractedMetadata {
+    this.#logger.debug('could not read tags, falling back to filename', {
+      key,
+      message: messageOf(error),
+    })
+    return fallback(key)
   }
 }

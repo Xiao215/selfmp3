@@ -144,7 +144,7 @@ export function wordsFrame(width: number, geometry: StageGeometry, m: number): W
   // Stacked, the words start under the cover and the row of tabs below it.
   const stage = geometry.stacked
     ? { left: geometry.pad, top: stackedTabsTop(geometry) + STACKED_TABS_HEIGHT }
-    : { left: geometry.pad + geometry.cover + geometry.gutter, top: 60 + geometry.inset }
+    : { left: geometry.pad + geometry.column + geometry.gutter, top: 60 + geometry.inset }
   return {
     left: lerp(stage.left, width * 0.12, m),
     right: lerp(geometry.right, width * 0.12, m),

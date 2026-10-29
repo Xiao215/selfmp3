@@ -19,7 +19,7 @@ import type { RecordStore } from './recordStore'
  * field it lacks. Nothing here fails: a cache that cannot be read, written or
  * cleared is a slower or less offline app, never a broken one.
  */
-export interface SchemaCache<Value> {
+interface SchemaCache<Value> {
   /**
    * Whether a record is kept, without reading it where the store can say so
    * cheaply: the catch-up pass asks after every downloaded song on every

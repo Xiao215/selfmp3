@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
-import { Stack, usePathname, useRouter } from 'expo-router'
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
 import {
@@ -19,14 +19,18 @@ import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
+import { keepEditsAsLeaving, useKeepWaitingEdits } from '../src/offline/waitingEdits'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
+import { useKeepGoing } from '../src/features/queue/useKeepGoing'
 import { RoomProvider } from '../src/features/room/RoomProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { useRecordRecentLists } from '../src/features/lists/recentLists.store'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { registerPlayback } from '../src/player/registerPlayback'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
+import { useStopWhenSignInEnds } from '../src/connection/useStopWhenSignInEnds'
 import { Shell } from '../src/shell/Shell'
+import { TitleBarRoom } from '../src/shell/TitleBarRoom'
 import { addressOf, fullScreenSwipeAllowed, swipeBackAllowed } from '../src/shell/backGesture'
 import { fromTile } from '../src/features/tag/placeLinks'
 import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
@@ -36,22 +40,27 @@ import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
-import { useLayout } from '../src/shell/useLayout'
-import { setRootWidth } from '../src/shell/rootWidth'
+import { setRootSize, useLayoutFlags, useLayoutSize } from '../src/shell/useLayout'
+import { useFontScale } from '../src/ui/textScale'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
-import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
+import { useRoom } from '../src/features/room/room.store'
+import { pageHidesTabs, pageOwnsScreen, setPageChrome, setPageTabs } from '../src/shell/pageChrome'
 import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
+import { useTurnCover } from '../src/ports/turnCover'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { onAppLeaving } from '../src/ports/appLeaving'
+import { sendingAsLeaving } from '../src/api/client'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
-import { singularPlaces } from '../src/ports/singularPlaces'
+import { singularPage, singularPlaces, singularSearch } from '../src/ports/singularPlaces'
+import { useHistoryStepsOnLiveKeys } from '../src/ports/historySteps'
 import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
 import { sendPending, showToast } from '../src/ui/toast'
 import { SIDEBAR_WIDTH } from '../src/shell/widths'
+import { UsageReporter } from '../src/features/usage/UsageReporter'
 
 /**
  * The app shell.
@@ -70,13 +79,23 @@ hideScrollbars()
 // Coming back to the app is focus, for the queries that refetch on it.
 listenForAppFocus()
 
-// Leaving it sends what was waiting on its Undo, so closing the app loses none of it.
-onAppLeaving(sendPending)
+// Leaving it sends what was waiting on its Undo, so closing the app loses none
+// of it: as requests that outlive the page, since a closing tab cancels the rest,
+// and for a cloud library, whose edits go to IndexedDB, also kept to send again.
+onAppLeaving(
+  () => {
+    sendingAsLeaving(true)
+    sendPending()
+    keepEditsAsLeaving()
+  },
+  () => sendingAsLeaving(false),
+)
 
 /**
  * The design's two faces (`fonts` in packages/client). A native build embeds
  * them through the `expo-font` config plugin, so this finds them already there;
- * a browser gets them as `@font-face` from here.
+ * a browser gets them as `@font-face` from here. iOS draws them by their own
+ * names instead (`ports/fonts`).
  */
 const FONTS = {
   InstrumentSerif_400Regular,
@@ -134,6 +153,13 @@ const PLACES = [
 ] as const
 
 /**
+ * The pages of one thing, which a browser keeps one of each of: the same tag,
+ * artist, playlist or song opened again brings its page back up
+ * (`singularPage`).
+ */
+const PAGES = ['tag/[name]', 'artist/[name]', 'playlists/[id]', 'song/[id]'] as const
+
+/**
  * Now Playing comes up from the foot of the display and goes back down
  * (docs/ui-mock `M2`, 1). The board has the mini player's card growing into
  * the page with the cover travelling in it; that needs shared elements the
@@ -168,44 +194,49 @@ export default function RootLayout(): ReactNode {
     // gestures under, and a handler mounted outside one never fires.
     <GestureHandlerRootView
       style={styles.root}
-      // The width every screen lays out by, measured here (`shell/rootWidth`).
-      onLayout={event => setRootWidth(event.nativeEvent.layout.width)}
+      // The size every screen lays out by, measured here (`shell/layoutSize.model.ts`).
+      onLayout={event => setRootSize(event.nativeEvent.layout)}
     >
       <SafeAreaProvider>
-        <ThemedStatusBar />
-        {/* Outermost of the app's own providers: everything below draws with it. */}
-        <AccentProvider>
-          <QueryClientProvider client={queryClient}>
-            <ConnectionProvider>
-              <DownloadsProvider>
-                <PlayerProvider>
-                  {/*
+        {/* A narrow desktop window's traffic lights, as a phone's status bar. */}
+        <TitleBarRoom>
+          <ThemedStatusBar />
+          {/* Outermost of the app's own providers: everything below draws with it. */}
+          <AccentProvider>
+            <QueryClientProvider client={queryClient}>
+              <ConnectionProvider>
+                <DownloadsProvider>
+                  <PlayerProvider>
+                    {/*
                     Inside the player, not around it: devices reads the player to
                     build a heartbeat and calls back into it to execute a handoff,
                     and the player has no idea other devices exist.
                   */}
-                  {/* Listening together: the room's songs, and the host's player playing them. */}
-                  <RoomProvider>
-                    <DevicesProvider>
-                      <CarProvider>
-                        {/* Around the shell: the sidebar and the library share it. */}
-                        <LibraryFilterProvider>
-                          <RootRoutes />
-                          {/* What is kept in step behind the pages: drawn as nothing. */}
-                          <Keeping />
-                          {/* The home-screen widget's snapshot, where there is one. */}
-                          <WidgetSync />
-                          {/* The bucket refusing for the day, said once. */}
-                          <BucketHoldNotice />
-                        </LibraryFilterProvider>
-                      </CarProvider>
-                    </DevicesProvider>
-                  </RoomProvider>
-                </PlayerProvider>
-              </DownloadsProvider>
-            </ConnectionProvider>
-          </QueryClientProvider>
-        </AccentProvider>
+                    {/* Listening together: the room's songs, and the host's player playing them. */}
+                    <RoomProvider>
+                      <DevicesProvider>
+                        <CarProvider>
+                          {/* Around the shell: the sidebar and the library share it. */}
+                          <LibraryFilterProvider>
+                            <RootRoutes />
+                            {/* What is kept in step behind the pages: drawn as nothing. */}
+                            <Keeping />
+                            {/* The home-screen widget's snapshot, where there is one. */}
+                            <WidgetSync />
+                            {/* The bucket refusing for the day, said once. */}
+                            <BucketHoldNotice />
+                            {/* Yesterday's feature counts, sent to the server once. */}
+                            <UsageReporter />
+                          </LibraryFilterProvider>
+                        </CarProvider>
+                      </DevicesProvider>
+                    </RoomProvider>
+                  </PlayerProvider>
+                </DownloadsProvider>
+              </ConnectionProvider>
+            </QueryClientProvider>
+          </AccentProvider>
+        </TitleBarRoom>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )
@@ -227,21 +258,31 @@ function Keeping(): ReactNode {
   useRecordRecentLists()
   // Every downloaded song's cover and words, kept beside it while the server answers.
   useKeepAlongside()
+  // Edits made while the library was out of reach, kept through a reload.
+  useKeepWaitingEdits()
+  // A sign-in the doorman ended leaves nothing playing.
+  useStopWhenSignInEnds()
+  // Songs like the last ones, when Up next runs out and Keep going is on.
+  useKeepGoing()
   return null
 }
 
 /** Which page is showing, and the frame around it: where sign-in sends you, and the stack. */
 function RootRoutes(): ReactNode {
-  const { theme } = useUnistyles()
+  const { theme, rt } = useUnistyles()
   const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
-  const { wide } = useLayout()
+  // A guest in a room adds to it from Search (`opensSignedOut`).
+  const inRoom = useRoom().pass !== null
+  const { wide } = useLayoutFlags()
   const reduced = useMotionReduced()
   // A face that failed to load is not a reason to keep the app shut: the system
   // font stands in, and nothing else depends on it.
   const [fontsLoaded, fontError] = useFonts(FONTS)
   const fontsReady = fontsLoaded || fontError !== null
+  // A browser's Back and Forward keep the app mounted, and the music playing.
+  useHistoryStepsOnLiveKeys()
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.
@@ -262,10 +303,10 @@ function RootRoutes(): ReactNode {
     // tests. Signing out lands here too, by the same rule.
     // A room's invite and the room itself are the exception: a friend
     // without self.mp3 joins with a name (docs/features/listen-together.md).
-    if (status === 'missing' && pathname !== '/welcome' && !opensSignedOut(pathname)) {
+    if (status === 'missing' && pathname !== '/welcome' && !opensSignedOut(pathname, inRoom)) {
       router.replace('/welcome')
     }
-  }, [status, pathname, router])
+  }, [status, pathname, router, inRoom])
 
   // Welcome with a library is done: an account with no bucket yet goes to
   // Where it lives, a device's first Google sign-in goes on to First sync,
@@ -303,9 +344,11 @@ function RootRoutes(): ReactNode {
   const chrome = (stage || covered || !pageOwnsScreen(pathname, wide)) && status === 'ready'
   // Every scrolling page leaves room at its foot for the chrome; the pages
   // that own the display must not keep a hole where the bar would have been.
+  const tabs = chrome && !pageHidesTabs(pathname, wide)
   useEffect(() => {
     setPageChrome(chrome)
-  }, [chrome])
+    setPageTabs(tabs)
+  }, [chrome, tabs])
 
   // Kept, not rebuilt: a new function here is new options for every screen in
   // the stack each time the shell renders.
@@ -340,14 +383,44 @@ function RootRoutes(): ReactNode {
 
   const nowPlaying = useMemo(() => nowPlayingOptions(wide, reduced), [wide, reduced])
 
+  // The stack paints its native container in the navigator's background, and
+  // with no theme given that is React Navigation's light grey. iOS 26's swipe
+  // back rounds both pages' corners as they part, and the grey showed in the
+  // gaps — so the container wears the page's own ground, in either theme.
+  const light = rt.themeName === 'light'
+  const navTheme = useMemo(() => {
+    const base = light ? DefaultTheme : DarkTheme
+    return { ...base, colors: { ...base.colors, background: surface } }
+  }, [light, surface])
+
+  /*
+   * Built afresh when the text size changes. React Native lays every text out
+   * again for the new size, and the next render hands back the texts it
+   * measured before: each label kept the box of the old size, drawn at the
+   * new one, until the app was opened again — Home's greeting cut to the tops
+   * of its letters, the tags' names gone (bug bash R3-m8). New texts are
+   * measured at the size they are drawn. Where you are is the navigator's,
+   * which keeps it, and the music is the player's, above this.
+   */
+  const fontScale = useFontScale()
+
   return (
-    <Shell chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
-      <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
-        <Stack.Screen name="now-playing" options={nowPlaying} />
-        {PLACES.map(name => (
-          <Stack.Screen key={name} name={name} dangerouslySingular={singularPlaces} />
-        ))}
-      </Stack>
+    <Shell key={fontScale} chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
+      <ThemeProvider value={navTheme}>
+        <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
+          <Stack.Screen name="now-playing" options={nowPlaying} />
+          {PLACES.map(name => (
+            <Stack.Screen
+              key={name}
+              name={name}
+              dangerouslySingular={name === 'search' ? singularSearch : singularPlaces}
+            />
+          ))}
+          {PAGES.map(name => (
+            <Stack.Screen key={name} name={name} dangerouslySingular={singularPage} />
+          ))}
+        </Stack>
+      </ThemeProvider>
       {/*
        * Nothing shows until it is decided where the library comes from — the
        * bucket, a server, or nowhere yet. The library is the first route, and a
@@ -361,8 +434,19 @@ function RootRoutes(): ReactNode {
           style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface0 }]}
         />
       ) : null}
+      <TurnCoverReport ground={surface} />
     </Shell>
   )
+}
+
+/**
+ * Tells an iPad's turn cover the page has been drawn for the window's new
+ * size (`ports/turnCover.ts`). A leaf of its own, after the pages, so the
+ * routes are not drawn again for every pixel a browser window is dragged.
+ */
+function TurnCoverReport({ ground }: { ground: string }): null {
+  useTurnCover(useLayoutSize(), ground)
+  return null
 }
 
 /** Light text over the dark theme, dark text over the light one, following a switch. */

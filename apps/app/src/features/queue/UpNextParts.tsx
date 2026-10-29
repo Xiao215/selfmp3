@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native'
@@ -18,8 +18,8 @@ import { Toggle } from '../../ui/components/Toggle'
 import { useRoom } from '../room/room.store'
 import { autoMixLine, upNextWindow, type QueueRow } from './queue.model'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
+import { setKeepGoing, useKeepGoingOn } from './keepGoingPref'
 import { Press } from '../../ui/components/Press'
-import { OPACITY } from '../../ui/motion.model'
 
 /*
  * Up next's parts, for the phone's sheet (`QueueSheet`) and the computer's
@@ -81,17 +81,25 @@ export function PlayingNow({
   row,
   ended,
   onOpen,
+  quiet = false,
 }: {
   row: QueueRow
   ended: boolean
   onOpen: () => void
+  /**
+   * The computer's rail: title and artist only, the time a line along the
+   * foot (the player bar under it already says it in numbers).
+   */
+  quiet?: boolean
 }): ReactNode {
   const playing = usePlayer().isPlaying
   return (
     <PlayingCard
       song={row.song}
-      label={ended ? 'Played' : 'Playing'}
-      line={<PlayingLine artist={artistOr(row.song.artist)} />}
+      label={ended ? 'Played' : quiet ? undefined : 'Playing'}
+      line={artistOr(row.song.artist)}
+      clock={quiet ? undefined : <PlayingClock />}
+      foot={quiet ? playedLine : undefined}
       playing={playing}
       onOpen={onOpen}
       testID={`queue-row-${row.index}`}
@@ -101,48 +109,104 @@ export function PlayingNow({
   )
 }
 
-/** "Yorushika · 1:52 of 4:23", on its own so a tick redraws this line and not Up next. */
-function PlayingLine({ artist }: { artist: string }): ReactNode {
+const playedLine = (tint: string): ReactNode => <PlayedLine tint={tint} />
+
+/** How far the song has played, as a line; on its own, as the clock is, for the ticks. */
+function PlayedLine({ tint }: { tint: string }): ReactNode {
   const { position, duration } = usePlayerProgress()
-  return `${artist} · ${formatDuration(position)} of ${formatDuration(duration)}`
+  const share = duration > 0 ? Math.min(1, position / duration) : 0
+  return <View style={[styles.played, { width: `${share * 100}%`, backgroundColor: tint }]} />
+}
+
+/** "1:52 of 4:23", on its own so a tick redraws this and not Up next. */
+function PlayingClock(): ReactNode {
+  const { position, duration } = usePlayerProgress()
+  return `${formatDuration(position)} of ${formatDuration(duration)}`
 }
 
 /**
  * "Clear the rest": every song but the one playing out of Up next, with an
  * Undo (`useQueueEdits`). Outlined, so it is not read as a second mode beside
  * Shuffle, and it says what it leaves: the song playing carries on. As tall as
- * a finger's button, or a mouse's.
+ * a finger's button, or a mouse's. Drawn only while something follows the
+ * song playing: over "Nothing next" it offered to clear nothing (w23).
  */
 export function ClearRestButton({
   onPress,
-  enabled,
+  short = false,
 }: {
   onPress: () => void
-  /** Something besides the song playing, to come or played, for it to take. */
-  enabled: boolean
+  /**
+   * The computer rail's head line: a bare "Clear" at its end, so where the
+   * songs came from keeps its room (still "Clear the rest" to a screen reader).
+   */
+  short?: boolean
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   return (
     <Press
       onPress={onPress}
-      disabled={!enabled}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !enabled }}
+      accessibilityLabel="Clear the rest"
       testID="queue-clear-rest"
+      feedback={short ? 'dim' : undefined}
       style={({ pressed }) => [
-        styles.clear,
-        dense && styles.clearDense,
-        pressed && styles.clearPressed,
-        !enabled && styles.clearOff,
+        short ? styles.clearShort : styles.clear,
+        !short && dense && styles.clearDense,
+        !short && pressed && styles.clearPressed,
       ]}
     >
-      <Text style={[styles.clearText, dense && styles.clearTextDense]}>Clear the rest</Text>
+      <Text style={[styles.clearText, (dense || short) && styles.clearTextDense]}>
+        {short ? 'Clear' : 'Clear the rest'}
+      </Text>
     </Press>
   )
 }
 
+/**
+ * The switches at Up next's foot, one above the other: Auto-mix, and Keep
+ * going beside it (docs/features/lists.md), each kept on this device.
+ */
+export function UpNextSwitches({
+  player,
+  upcoming,
+  style,
+}: {
+  player: Pick<PlayerApi, 'autoMix' | 'setAutoMix' | 'canCrossfade' | 'nextCrossfadeSeconds'>
+  upcoming: number
+  style?: StyleProp<ViewStyle>
+}): ReactNode {
+  const keepGoing = useKeepGoingOn()
+  return (
+    <View style={[styles.switches, style]}>
+      <AutoMixRow player={player} upcoming={upcoming} />
+      <View style={styles.autoMix}>
+        <Toggle value={keepGoing} onChange={setKeepGoing} label="Keep going" testID="keep-going" />
+        <Text style={styles.autoMixLabel}>Keep going</Text>
+        <Text style={styles.autoMixHint} numberOfLines={1}>
+          When Up next ends
+        </Text>
+      </View>
+    </View>
+  )
+}
+
+/**
+ * What comes after Up next's last song while Keep going is on: songs like
+ * these, which it adds as the last one plays. Nothing while it is off.
+ */
+export function KeepGoingNext({ style }: { style?: StyleProp<ViewStyle> }): ReactNode {
+  const keepGoing = useKeepGoingOn()
+  if (!keepGoing) return null
+  return (
+    <Text style={[styles.thenLike, style]} testID="keep-going-next">
+      then songs like these
+    </Text>
+  )
+}
+
 /** Auto-mix's switch, and what it will do next. */
-export function AutoMixRow({
+function AutoMixRow({
   player,
   upcoming,
   style,
@@ -201,6 +265,7 @@ export function UpNextList({
   rowHeight,
   renderRow,
   head,
+  afterNext,
   foot,
   overlay,
   raised,
@@ -210,6 +275,7 @@ export function UpNextList({
   labelStyle,
   style,
   contentContainerStyle,
+  onHeights,
   testID,
 }: {
   next: readonly QueueRow[]
@@ -217,6 +283,8 @@ export function UpNextList({
   rowHeight: number
   renderRow: (row: QueueRow, kind: 'next' | 'played') => ReactNode
   head?: ReactNode
+  /** Drawn after what is next and before what played: Keep going's line. */
+  afterNext?: ReactNode
   foot?: ReactNode
   overlay?: (songsTop: number) => ReactNode
   /** The queue index of a row drawn over its neighbours: the one being carried. */
@@ -231,6 +299,8 @@ export function UpNextList({
   labelStyle?: StyleProp<ViewStyle>
   style?: StyleProp<ViewStyle>
   contentContainerStyle?: StyleProp<ViewStyle>
+  /** The list's own height and its content's, for a sheet sized to what it holds. */
+  onHeights?: (frame: number | null, content: number | null) => void
   testID?: string
 }): ReactNode {
   const step = SCROLL_STEP_ROWS * Math.max(1, rowHeight)
@@ -238,17 +308,24 @@ export function UpNextList({
   const [viewport, setViewport] = useState(VIEWPORT_GUESS)
   const [headHeight, setHeadHeight] = useState(0)
   const [playedLabel, setPlayedLabel] = useState(0)
+  const [afterNextHeight, setAfterNextHeight] = useState(0)
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = event.nativeEvent.contentOffset.y
       if (y > 0) onScrolled?.()
       const at = Math.floor(y / step)
-      setScrollStep(now => (now === at ? now : at))
+      // Drawn behind the scroll rather than in its way: the rows a step
+      // brings are a screen ahead already (`span`), and each one sets up its
+      // swipe and its hold. Drawn in the scroll's own frame, a 2,000-song
+      // queue flung on a phone dropped a frame in three (bug bash F168).
+      startTransition(() => setScrollStep(now => (now === at ? now : at)))
     },
     [onScrolled, step],
   )
-  const scrollTop = scrollStep * step
-  const span = viewport + step
+  // A screen either side of the one in view, as a list of songs keeps, so a
+  // fling is through rows already there while the next step is drawn.
+  const scrollTop = scrollStep * step - viewport
+  const span = viewport * 3 + step
   const nextAt = upNextWindow({
     count: next.length,
     runTop: headHeight,
@@ -258,7 +335,7 @@ export function UpNextList({
   })
   const playedAt = upNextWindow({
     count: played.length,
-    runTop: headHeight + next.length * rowHeight + playedLabel,
+    runTop: headHeight + next.length * rowHeight + afterNextHeight + playedLabel,
     scrollTop,
     span,
     rowHeight,
@@ -280,7 +357,11 @@ export function UpNextList({
       scrollEnabled={scrollEnabled}
       onScroll={onScroll}
       scrollEventThrottle={16}
-      onLayout={event => setViewport(event.nativeEvent.layout.height)}
+      onLayout={event => {
+        setViewport(event.nativeEvent.layout.height)
+        onHeights?.(event.nativeEvent.layout.height, null)
+      }}
+      onContentSizeChange={(_, content) => onHeights?.(null, content)}
     >
       <View onLayout={event => setHeadHeight(event.nativeEvent.layout.height)}>{head}</View>
       <Animated.View style={runsStyle}>
@@ -289,6 +370,11 @@ export function UpNextList({
             .slice(nextAt.start, nextAt.end)
             .map((row, at) => place(row, nextAt.start + at, 'next'))}
         </View>
+        {afterNext ? (
+          <View onLayout={event => setAfterNextHeight(event.nativeEvent.layout.height)}>
+            {afterNext}
+          </View>
+        ) : null}
         {played.length > 0 ? (
           <>
             <Text
@@ -312,6 +398,7 @@ export function UpNextList({
 }
 
 const styles = StyleSheet.create(theme => ({
+  played: { height: '100%' },
   clear: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -323,11 +410,18 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.borderStrong,
   },
   clearDense: { height: 28, paddingHorizontal: space.snug },
+  clearShort: { paddingVertical: space.xs, paddingLeft: space.xs },
   clearPressed: { backgroundColor: theme.colors.surface3 },
-  clearOff: { opacity: OPACITY.disabled },
   clearText: smallTitle(theme.colors),
   clearTextDense: { fontSize: type.small },
+  switches: { gap: space.sm },
   autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  thenLike: {
+    color: theme.colors.textMuted,
+    fontSize: type.sub,
+    fontStyle: 'italic',
+    paddingVertical: space.sm,
+  },
   autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   autoMixHint: {
     flex: 1,

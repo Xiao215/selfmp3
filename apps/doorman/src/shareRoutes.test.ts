@@ -4,6 +4,7 @@ import {
   SHARE_IDLE_MS,
   SHARE_KEPT_MS,
   SHARE_LIMIT_MS,
+  type RoomFilePart,
   type RoomSong,
   type ShareLink,
 } from '@selfmp3/shared'
@@ -41,6 +42,24 @@ function song(n: number): RoomSong {
     sourceUrl: `https://www.youtube.com/watch?v=${'a'.repeat(10)}${n}`,
     link: null,
     artwork: null,
+  }
+}
+
+/**
+ * A song as big as one gets: its names as long as a song's may be, in
+ * characters that take two bytes each, and its links long.
+ */
+function long(n: number): RoomSong {
+  const sha = n.toString(16).padStart(8, '0').repeat(8)
+  return {
+    ...song(1),
+    uid: sha.slice(0, 32),
+    title: `${n} ${'晴'.repeat(290)}`,
+    artist: '五'.repeat(300),
+    album: '月'.repeat(300),
+    audio: { key: `audio/${sha}.m4a`, size: 3, mime: 'audio/mp4' },
+    cover: { key: `covers/${sha}.jpg`, size: 7 },
+    sourceUrl: `https://www.youtube.com/watch?v=${n}&list=${'p'.repeat(1900)}`,
   }
 }
 
@@ -85,10 +104,15 @@ async function make(
 const open = (s: Setup, made: ShareLink, token?: string, key = made.key) =>
   s.h.call(`/v1/share/${made.id}?k=${key}`, { token })
 
-const file = (s: Setup, made: ShareLink, part: 'audio' | 'cover', headers = {}) =>
-  s.h.call(`/v1/share/${made.id}/files/${made.entries[0]?.id ?? ''}/${part}?k=${made.key}`, {
-    headers,
-  })
+/** A song's file, and the play it writes down after the answer (`waitUntil`) written. */
+async function file(s: Setup, made: ShareLink, part: RoomFilePart, headers = {}) {
+  const answer = await s.h.call(
+    `/v1/share/${made.id}/files/${made.entries[0]?.id ?? ''}/${part}?k=${made.key}`,
+    { headers },
+  )
+  await s.h.settle()
+  return answer
+}
 
 describe('a share link', () => {
   it('is made signed in, with a bucket, and opens for anyone with its key', async () => {
@@ -110,6 +134,34 @@ describe('a share link', () => {
     expect(guest.entries.map(entry => entry.song.title)).toEqual(['Song 1'])
     expect((await open(s, made, undefined, '0'.repeat(16))).status).toBe(403)
     expect(await (await file(s, made, 'audio')).text()).toBe('song 1')
+  })
+
+  it('says its sender is out of their daily quota when their bucket is capped', async () => {
+    const s = await setup()
+    const made = await make(s)
+    s.h.bucket.capped = true
+    for (const part of ['audio', 'cover'] as const) {
+      const answer = await file(s, made, part)
+      expect(answer.status).toBe(502)
+      // Not the sender's Backblaze advice, and not the code that holds a device's own bucket.
+      expect(await answer.json()).toMatchObject({
+        code: 'lender_cap_exceeded',
+        error: 'Whoever sent it has run out of their daily quota',
+      })
+    }
+  })
+
+  it('upgrades a link kept before its guests were counted the first time it is read', async () => {
+    const s = await setup()
+    const made = await make(s)
+    const stored = s.h.shares.stored(made.id)
+    const secrets = stored.get('secrets') as Record<string, unknown>
+    delete secrets['visitors']
+    stored.set('secrets', secrets)
+    s.h.shares.restart(made.id)
+    await s.h.call(`/v1/share/${made.id}?k=${made.key}&v=device-1`)
+    expect((stored.get('secrets') as { visitors?: unknown }).visitors).toEqual(['device-1'])
+    expect((await link(await open(s, made, s.me))).guests).toBe(1)
   })
 
   it('tells its sender who opened it and how often it played, and nobody else', async () => {
@@ -135,6 +187,8 @@ describe('a share link', () => {
     expect(sent.map(item => [item.name, item.songs, item.cover])).toEqual([
       ['Song 1', 1, made.entries[0]?.id],
     ])
+    // The song too, so a device that has it draws its own copy's cover.
+    expect(sent[0]?.coverSong).toEqual(song(1))
     const received = ShareSummariesSchema.parse(
       await (await s.h.call('/v1/share/received', { token: s.mia })).json(),
     )
@@ -159,6 +213,122 @@ describe('a share link', () => {
     expect((await make(s, [song(1), song(2)], 'Mix', 'list')).id).not.toBe(made.id)
   })
 
+  it('is the same link when shared from a line, and remembers each line once', async () => {
+    const s = await setup()
+    const made = await make(s)
+    expect(made.lines).toEqual([])
+    const from = async (line: object) =>
+      link(
+        await s.h.call('/v1/share', {
+          token: s.me,
+          json: { name: 'Song 1', kind: 'song', you: 'Xiao', songs: [song(1)], line },
+        }),
+      )
+    const chorus = { at: 42, text: '干杯 朋友', reading: 'gān bēi péng yǒu' }
+    const verse = { at: 75, text: 'A verse', reading: null }
+    expect((await from(chorus)).id).toBe(made.id)
+    const both = await from(verse)
+    expect(both.id).toBe(made.id)
+    expect(both.lines).toEqual([chorus, verse])
+    // The same start again is the same line, its words as they are now.
+    const again = await from({ ...chorus, reading: null })
+    expect(again.lines).toEqual([verse, { ...chorus, reading: null }])
+    // Whoever opens it is sent its lines, and a summary leaves them out.
+    expect((await link(await open(s, made, s.mia))).lines).toHaveLength(2)
+    const sent = await (await s.h.call('/v1/share', { token: s.me })).json()
+    expect(sent[0]).not.toHaveProperty('lines')
+
+    // A new link, made from a line, starts with it.
+    const fresh = await link(
+      await s.h.call('/v1/share', {
+        token: s.me,
+        json: { name: 'Song 2', kind: 'song', you: 'Xiao', songs: [song(2)], line: verse },
+      }),
+    )
+    expect(fresh.lines).toEqual([verse])
+  })
+
+  it('upgrades a link kept before it remembered lines the first time it is read', async () => {
+    const s = await setup()
+    const made = await make(s)
+    const stored = s.h.shares.stored(made.id)
+    const doc = stored.get('doc') as Record<string, unknown>
+    delete doc['lines']
+    stored.set('doc', doc)
+    s.h.shares.restart(made.id)
+    expect((await link(await open(s, made))).lines).toEqual([])
+    expect((stored.get('doc') as { lines?: unknown }).lines).toEqual([])
+  })
+
+  it('holds every song of a list, however many: far past what one key of storage keeps', async () => {
+    const s = await setup()
+    const songs = Array.from({ length: 600 }, (_, at) => long(at + 1))
+    const last = songs.at(-1)?.audio?.key ?? ''
+    s.h.bucket.put(`selfmp3/${last}`, 'the last song')
+    const made = await make(s, songs, '中文流行', 'list')
+    expect(made.entries.map(entry => entry.song)).toEqual(songs)
+
+    // Its songs are kept in parts, the rest of it under `doc` saying how many.
+    const stored = s.h.shares.stored(made.id)
+    const parts = (stored.get('doc') as { parts: number }).parts
+    expect(parts).toBeGreaterThan(1)
+    const kept = Array.from({ length: parts }, (_, at) => stored.get(`entries:${at}`) as unknown[])
+    expect(kept.flat()).toHaveLength(600)
+    for (const part of kept) expect(JSON.stringify(part).length).toBeLessThan(1024 * 1024)
+
+    // Read afresh, Mia gets every song, in order, and the last one plays.
+    s.h.shares.restart(made.id)
+    const mias = await link(await open(s, made, s.mia))
+    expect(mias.entries.map(entry => entry.id)).toEqual(made.entries.map(entry => entry.id))
+    expect(mias.entries.map(entry => entry.song)).toEqual(songs)
+    const lastId = made.entries.at(-1)?.id ?? ''
+    const played = await s.h.call(`/v1/share/${made.id}/files/${lastId}/audio?k=${made.key}`)
+    expect(await played.text()).toBe('the last song')
+    await s.h.settle()
+    const received = ShareSummariesSchema.parse(
+      await (await s.h.call('/v1/share/received', { token: s.mia })).json(),
+    )
+    expect(received.map(each => [each.id, each.songs])).toEqual([[made.id, 600]])
+
+    // An opening and a play write the little that changed, not the songs again.
+    const first = stored.get('entries:0')
+    await open(s, made)
+    expect(stored.get('entries:0')).toBe(first)
+
+    // Shared again, the same songs are the same link.
+    expect((await make(s, [...songs].reverse(), '中文流行', 'list')).id).toBe(made.id)
+  })
+
+  it('keeps its songs in parts once read, when it was kept whole before', async () => {
+    const s = await setup()
+    const made = await make(s, [song(1), song(2)], 'Two', 'list')
+    const stored = s.h.shares.stored(made.id)
+    const { parts: _parts, ...head } = stored.get('doc') as Record<string, unknown>
+    stored.set('doc', { ...head, entries: stored.get('entries:0') })
+    stored.delete('entries:0')
+    s.h.shares.restart(made.id)
+    const opened = await link(await open(s, made))
+    expect(opened.entries.map(entry => entry.song.title)).toEqual(['Song 1', 'Song 2'])
+    expect(stored.get('doc')).toMatchObject({ parts: 1 })
+    expect(stored.get('doc')).not.toHaveProperty('entries')
+    expect(stored.get('entries:0')).toEqual(made.entries)
+  })
+
+  it('lends a song’s files by their names now when it is shared again', async () => {
+    const s = await setup()
+    const words = (name: string): RoomSong => ({
+      ...song(1),
+      lyrics: { key: `lyrics/${'01'.repeat(32)}.${name}`, size: 5, kind: 'synced' },
+    })
+    s.h.bucket.put(`selfmp3/lyrics/${'01'.repeat(32)}.words`, 'words')
+    const made = await make(s, [words('lrc')])
+    // Its words were rewritten into another file since it was shared.
+    expect((await file(s, made, 'lyrics')).status).toBe(404)
+    const again = await make(s, [words('words')])
+    expect(again.id).toBe(made.id)
+    expect(await (await file(s, made, 'lyrics')).text()).toBe('words')
+  })
+
   it('shares the same link again once it ran out, but not once its sender ended it', async () => {
     const s = await setup()
     const made = await make(s)
@@ -178,6 +348,21 @@ describe('a share link', () => {
     expect((await make(s)).id).toBe(fresh.id)
     await s.h.call(`/v1/share/${fresh.id}/act`, { token: s.me, json: { type: 'forget' } })
     expect((await make(s)).id).not.toBe(fresh.id)
+  })
+
+  it('is still the same link after its sender shared it again from its card', async () => {
+    const s = await setup()
+    const made = await make(s)
+    // Ran out after a week; shared again from its card near the end of its ninety days.
+    s.h.clock.now += SHARE_IDLE_MS + SHARE_KEPT_MS - DAY
+    const renewed = await s.h.call(`/v1/share/${made.id}/act`, {
+      token: s.me,
+      json: { type: 'renew' },
+    })
+    expect(renewed.status).toBe(200)
+    // Past when the way back to it, put when it was made, would have run out.
+    s.h.clock.now += SHARE_LIMIT_MS
+    expect((await make(s)).id).toBe(made.id)
   })
 
   it('lasts a week from the last play, and a month at most', async () => {
@@ -236,6 +421,39 @@ describe('a share link', () => {
     expect(renewed.asks).toEqual([])
     expect((await link(await open(s, made, s.mia))).asked).toBe(false)
     expect((await file(s, made, 'audio')).status).toBe(200)
+  })
+
+  it('leaves one link for the same songs when an ended one is shared again beside a newer one', async () => {
+    const s = await setup()
+    const made = await make(s)
+    await s.h.call(`/v1/share/${made.id}/act`, { token: s.me, json: { type: 'end' } })
+    // Ended by its sender: sharing the songs again makes a new link…
+    const fresh = await make(s)
+    expect(fresh.id).not.toBe(made.id)
+    // …and then the old one is shared again, from a friend's ask: the new one, unopened, goes.
+    const renewed = await s.h.call(`/v1/share/${made.id}/act`, {
+      token: s.me,
+      json: { type: 'renew' },
+    })
+    expect(renewed.status).toBe(200)
+    const mine = ShareSummariesSchema.parse(
+      await (await s.h.call('/v1/share', { token: s.me })).json(),
+    )
+    expect(mine.map(each => each.id)).toEqual([made.id])
+    expect((await make(s)).id).toBe(made.id)
+  })
+
+  it('keeps a newer link someone opened, though an older one is shared again', async () => {
+    const s = await setup()
+    const made = await make(s)
+    await s.h.call(`/v1/share/${made.id}/act`, { token: s.me, json: { type: 'end' } })
+    const fresh = await make(s)
+    await open(s, fresh, s.mia)
+    await s.h.call(`/v1/share/${made.id}/act`, { token: s.me, json: { type: 'renew' } })
+    const mine = ShareSummariesSchema.parse(
+      await (await s.h.call('/v1/share', { token: s.me })).json(),
+    )
+    expect(mine.map(each => each.id).sort()).toEqual([made.id, fresh.id].sort())
   })
 
   it('is ended by its sender at once', async () => {

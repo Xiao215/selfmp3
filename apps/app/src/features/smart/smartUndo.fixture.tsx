@@ -36,6 +36,8 @@ export function songOf(id: number, title: string, more: Partial<Song> = {}): Son
     instrumental: false,
     playCount: 0,
     loved: false,
+    lovedAt: null,
+    restUntil: null,
     sourceUrl: null,
     lastPlayedAt: null,
     addedAt: '2026-10-01 10:00:00',
@@ -77,6 +79,9 @@ export function fakeLibrary(songs: Song[]): FakeLibrary {
             songs: net.songs,
             tags: [],
             playlists: [],
+            artistNames: {},
+            artistNamesFound: [],
+            spellings: {},
             version: 1,
             generatedAt: '2026-10-14T10:00:00.000Z',
           }

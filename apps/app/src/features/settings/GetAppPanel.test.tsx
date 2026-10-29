@@ -44,7 +44,7 @@ const draw = async (): Promise<void> => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })
   await render(
     <QueryClientProvider client={client}>
-      <GetAppPanel anchor={() => undefined} />
+      <GetAppPanel />
     </QueryClientProvider>,
   )
 }

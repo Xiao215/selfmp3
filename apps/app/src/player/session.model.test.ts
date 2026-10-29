@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_QUEUE, type QueueState } from '@selfmp3/shared'
 import {
+  comingBack,
   launchPlayback,
   parseSession,
   positionNote,
@@ -100,5 +101,30 @@ describe('launchPlayback', () => {
       position: 0,
       source: null,
     })
+  })
+})
+
+describe('what opening the app does with it', () => {
+  const launch = launchPlayback(
+    parseSession(JSON.stringify(sessionFromQueue(queue([3, 1], 0), 7))),
+    undefined,
+    known(3, 1),
+  )
+
+  it('loads it when its song can play, and has nothing to do without one', () => {
+    expect(comingBack(launch, null)).toBe('load')
+    expect(comingBack(null, null)).toBe('leave')
+    expect(comingBack(null, 'offline')).toBe('leave')
+  })
+
+  it('waits while out of reach, so it comes back once in reach', () => {
+    for (const block of ['offline', 'held', 'unreachable'] as const) {
+      expect(comingBack(launch, block), block).toBe('wait')
+    }
+  })
+
+  it('leaves a song that would need a question first', () => {
+    expect(comingBack(launch, 'data')).toBe('leave')
+    expect(comingBack(launch, 'streaming-off')).toBe('leave')
   })
 })

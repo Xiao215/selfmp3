@@ -1,26 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '@selfmp3/client'
-import type {
-  DescribeResult,
-  Playlist,
-  Song,
-  Tag,
-  TagChange,
-  TidyChange,
-  Understanding,
+import {
+  answerRecap,
+  objectsOf,
+  type AskCard,
+  type AskReply,
+  type DescribeResult,
+  type Playlist,
+  type Song,
+  type Tag,
+  type TagChange,
+  type TidyChange,
+  type Understanding,
 } from '@selfmp3/shared'
 import {
   answerSongs,
+  askSuggestions,
   askable,
   asksOnEnter,
   describeNotes,
-  modelHop,
+  logLine,
   onlyTags,
   parts,
   picksHere,
   playlistEditHere,
   sortWords,
-  serverHop,
   tickedAtFirst,
   tidyEdits,
   tidyCovers,
@@ -34,8 +37,12 @@ import {
   tagChangesHere,
   tagSteps,
   tagIdsFor,
-  took,
   yearLabel,
+  tagCounter,
+  tagsApply,
+  tagsTitle,
+  shortTidyApply,
+  shortTidyTitle,
 } from './smart.model'
 
 const TAGS: Tag[] = [
@@ -47,6 +54,7 @@ const base: Understanding = {
   name: 'Calm',
   anyTags: [],
   artists: [],
+  albums: [],
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
@@ -62,12 +70,16 @@ const base: Understanding = {
   brief: null,
 }
 
+/** A reply of one card and no words of its own, as the router answers today. */
+const one = (card: AskCard): AskReply => ({ say: null, cards: [card] })
+
 describe('parts', () => {
   it('draws each part as a chip, a tag with its hue', () => {
     const understanding = {
       ...base,
       anyTags: ['古典'],
       artists: ['YOASOBI'],
+      albums: ['THE BOOK'],
       energy: { min: null, max: 0.44 },
       words: 'without' as const,
       notPlayedWithinDays: 7,
@@ -75,6 +87,7 @@ describe('parts', () => {
     expect(parts(understanding, TAGS).map(part => [part.label, part.hue])).toEqual([
       ['古典', 92],
       ['YOASOBI', undefined],
+      ['THE BOOK', undefined],
       ['Calm · energy under 0.44', undefined],
       ['No words', undefined],
       ['Not played this week', undefined],
@@ -116,6 +129,9 @@ describe('onlyTags', () => {
     expect(onlyTags({ ...base, anyTags: ['jpop'], words: 'with' })).toBe(false)
     expect(onlyTags({ ...base, anyTags: ['jpop'], brief: 'for running' })).toBe(false)
     expect(onlyTags(base)).toBe(false)
+    // A number of them is picks: a playlist following jpop would hold every one.
+    expect(onlyTags({ ...base, anyTags: ['jpop'], size: 10 })).toBe(false)
+    expect(onlyTags({ ...base, anyTags: ['jpop'], size: 2000 })).toBe(true)
   })
 })
 
@@ -164,13 +180,68 @@ describe('describeNotes', () => {
       fit: 40,
       loosened: ['the energy'],
       unknown: ['Lo-fi'],
+      notes: ['Left out 2 songs you’ve set to rest.'],
       picks: [],
     }
     expect(describeNotes(result, 25)).toEqual([
       'Picked 25 of the 40 that fit',
       'Nothing fit all of it, so it let go of the energy.',
       'Your library has no Lo-fi.',
+      'Left out 2 songs you’ve set to rest.',
     ])
+  })
+
+  it('says when a song picked is not on this device yet, rather than counting it out', () => {
+    const result: DescribeResult = {
+      understanding: base,
+      fit: 5,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: [1, 2, 3, 4, 5].map(songId => ({ songId, why: null })),
+    }
+    expect(describeNotes(result, 4)).toEqual([
+      '5 songs fit',
+      'One of them isn’t on this device yet.',
+    ])
+  })
+
+  it('says plainly when fewer songs came than were asked for', () => {
+    const asked = (size: number, fit: number, picked: number): DescribeResult => ({
+      understanding: { ...base, size },
+      fit,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: Array.from({ length: picked }, (_, at) => ({ songId: at + 1, why: null })),
+    })
+    // "about 15" that came back as one song.
+    expect(describeNotes(asked(15, 2, 1), 1)).toEqual([
+      'Picked 1 of the 2 that fit',
+      'Only 1 song, not the 15 you asked for: just 2 fit.',
+    ])
+    expect(describeNotes(asked(15, 2, 2), 2)[1]).toBe(
+      'Only 2 songs, not the 15 you asked for: no more fit.',
+    )
+    expect(describeNotes(asked(15, 40, 9), 9)[1]).toBe(
+      'Only 9 songs, not the 15 you asked for: the rest that fit didn’t suit it.',
+    )
+    expect(describeNotes(asked(15, 40, 15), 15)).toEqual(['Picked 15 of the 40 that fit'])
+  })
+
+  it('says a length that came short, songs never adding up to it exactly', () => {
+    const result: DescribeResult = {
+      understanding: { ...base, minutes: 120 },
+      fit: 8,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: [1, 2, 3, 4, 5, 6, 7, 8].map(songId => ({ songId, why: null })),
+    }
+    expect(describeNotes(result, 8, 32 * 60)[1]).toBe(
+      'Only 32 min, not the 2 hr you asked for: no more fit.',
+    )
+    expect(describeNotes(result, 8, 113 * 60)).toEqual(['8 songs fit'])
   })
 })
 
@@ -187,6 +258,131 @@ describe('askable', () => {
     expect(askable('周杰倫的慢歌')).toBe(true)
     expect(askable('ab')).toBe(false)
   })
+
+  it('offers two characters of Chinese, Japanese or Korean, which are a word already', () => {
+    expect(askable('情歌')).toBe(true)
+    expect(askable(' 摇滚 ')).toBe(true)
+    expect(askable('演歌')).toBe(true)
+    expect(askable('발라')).toBe(true)
+    expect(askable('歌')).toBe(false)
+    expect(askable('a歌')).toBe(false)
+  })
+})
+
+describe('logLine', () => {
+  it('says a list by its count and name', () => {
+    const describe = {
+      understanding: { name: 'Ballads' },
+      picks: [
+        { songId: 1, why: null },
+        { songId: 2, why: null },
+      ],
+    } as unknown as DescribeResult
+    expect(logLine(one({ kind: 'songs', lead: 'play', describe, like: null }))).toBe(
+      '2 songs · Ballads',
+    )
+  })
+
+  it('says words by their first line, cut short when long', () => {
+    expect(
+      logLine(
+        one({ kind: 'explore', say: 'Not sure.\nTry asking for a tag.', songIds: [], get: null }),
+      ),
+    ).toBe('Not sure.')
+    const line = logLine(one({ kind: 'explore', say: 'x'.repeat(200), songIds: [], get: null }))
+    expect(line).toHaveLength(90)
+    expect(line.endsWith('…')).toBe(true)
+  })
+})
+
+describe('a reply of several cards', () => {
+  const calm = {
+    understanding: { ...base, name: 'Calm' },
+    fit: 4,
+    loosened: [],
+    unknown: [],
+    notes: [],
+    picks: [
+      { songId: 21, why: 'quiet' },
+      { songId: 22, why: null },
+    ],
+  } satisfies DescribeResult
+  const night = {
+    kind: 'tags',
+    review: {
+      changes: [
+        {
+          key: 'a',
+          op: 'add',
+          tag: '夜',
+          isNew: true,
+          to: null,
+          songIds: [21, 22],
+          who: '',
+          why: '',
+          by: 'model',
+        },
+      ],
+      looked: 2,
+      asked: 'tag them 夜',
+      unsure: [],
+      note: null,
+    },
+  } satisfies AskCard
+  const reply: AskReply = {
+    say: 'Two calm songs, and 夜 for both.',
+    cards: [
+      { kind: 'songs', lead: 'play', describe: calm, like: null },
+      { kind: 'remember', note: 'Calm in the evening' },
+      night,
+    ],
+  }
+
+  it('gives each card that showed songs its own handle, by its place in the reply', () => {
+    const objects = objectsOf(
+      reply,
+      4,
+      new Map([[0, { songIds: [22, 21], understanding: calm.understanding }]]),
+    )
+    expect(objects.map(object => [object.handle, object.kind, object.songIds])).toEqual([
+      ['t4.1', 'songs', [22, 21]],
+      ['t4.3', 'tagChanges', [21, 22]],
+    ])
+  })
+
+  it('tells the model its words, then each card in order', () => {
+    expect(answerRecap(reply).split('\n')).toEqual([
+      'Two calm songs, and 夜 for both.',
+      'Offered 2 songs (“Calm”) to play now',
+      'Offered to remember: Calm in the evening',
+      'Proposed 1 tag change: add 夜',
+    ])
+  })
+
+  it('puts what a playback card came to in its place', () => {
+    const skipped: AskReply = {
+      say: null,
+      cards: [{ kind: 'playback', op: 'next', place: null }],
+    }
+    expect(answerRecap(skipped, { 0: 'Nothing is playing.' })).toBe('Nothing is playing.')
+  })
+
+  it('logs a part for each card, what came of one in its place', () => {
+    expect(logLine(reply)).toBe(
+      '2 songs · Calm + Something to remember + 1 tag change to look over',
+    )
+    expect(logLine(reply, { 2: 'Tagged 2 songs' })).toBe(
+      '2 songs · Calm + Something to remember + Tagged 2 songs',
+    )
+  })
+
+  it('logs a question back by the question', () => {
+    expect(
+      logLine(
+        one({ kind: 'clarify', question: 'Which gym?\nYou have two.', options: ['gym', 'gym 2'] }),
+      ),
+    ).toBe('Which gym?')
+  })
 })
 
 describe('asksOnEnter', () => {
@@ -195,38 +391,6 @@ describe('asksOnEnter', () => {
     expect(asksOnEnter('yoru', 13)).toBe(false)
     expect(asksOnEnter('something calm for studying', 0)).toBe(true)
     expect(asksOnEnter('ab', 0)).toBe(false)
-  })
-})
-
-describe('Settings’ Test', () => {
-  it('says how long each leg took', () => {
-    expect(took(24.4)).toBe('24 ms')
-    expect(took(1340)).toBe('1.3 s')
-    expect(serverHop({ ms: 24 })).toEqual({
-      ok: true,
-      line: 'This device reached your server in 24 ms',
-    })
-    expect(modelHop({ ok: true, model: 'sonnet', ms: 1300 }).line).toBe(
-      'Your server reached the model (sonnet) in 1.3 s',
-    )
-  })
-
-  it('tells the device not reaching the server from the server not reaching the model', () => {
-    expect(serverHop({ error: new ApiError(0, 'Failed to fetch', 'offline') }).line).toBe(
-      'This device can’t reach your server.',
-    )
-    expect(
-      modelHop({
-        ok: false,
-        failure: 'unreachable',
-        message: 'Your server couldn’t reach the model.',
-        detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
-      }),
-    ).toEqual({
-      ok: false,
-      line: 'Your server couldn’t reach the model.',
-      detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
-    })
   })
 })
 
@@ -419,6 +583,32 @@ describe('tag changes', () => {
     ])
   })
 
+  it('counts songs once each while every change is on songs, else changes', () => {
+    const songsOnly = tagChangesHere(
+      [
+        change({ key: 'a', songIds: [1, 2] }),
+        change({ key: 'n', tag: 'Mandopop', isNew: true, songIds: [2] }),
+      ],
+      onDevice,
+      songsById,
+      tags,
+    )
+    const count = tagCounter(songsOnly)
+    // Song 12 is in both changes: one song.
+    expect(count(songsOnly)).toBe(1)
+    expect(count(songsOnly, new Set([leftOutKey('a', 12), leftOutKey('n', 12)]))).toBe(0)
+    const withMerge = tagChangesHere(
+      [
+        change({ key: 'a', songIds: [1, 2] }),
+        change({ key: 'm', op: 'merge', tag: 'chinese pop', to: '中文流行' }),
+      ],
+      onDevice,
+      songsById,
+      tags,
+    )
+    expect(tagCounter(withMerge)(withMerge)).toBe(2)
+  })
+
   it('makes new tags first, then songs, renames, merges and deletes, with what Undo needs', () => {
     const here = tagChangesHere(
       [
@@ -496,5 +686,47 @@ describe('playlist edits', () => {
   it('says an order the way a person would', () => {
     expect(sortWords('energy', 'asc')).toBe('calmest first')
     expect(sortWords('addedAt', 'desc')).toBe('newest first')
+  })
+})
+
+describe('askSuggestions', () => {
+  it('asks for the tag played most, last month, and the untagged songs', () => {
+    expect(
+      askSuggestions([{ name: 'night' }, { name: 'focus' }], 'Yorushika', 'Yorushika'),
+    ).toEqual([
+      'Something for night',
+      'What did I play most last month?',
+      'Tag my untagged Yorushika songs',
+    ])
+  })
+
+  it('asks for more of an artist once every song has a tag, and leaves out what it cannot make', () => {
+    expect(askSuggestions([], null, 'YOASOBI')).toEqual([
+      'What did I play most last month?',
+      'More like YOASOBI',
+    ])
+  })
+})
+
+describe('a short review, in words (AD1)', () => {
+  it('titles a tag review in songs, or in changes when a tag itself changes', () => {
+    expect(tagsTitle(['add'], 1)).toBe('Tags for one song')
+    expect(tagsTitle(['add', 'add', 'add'], 5)).toBe('Tags for 5 songs')
+    expect(tagsTitle(['remove', 'remove'], 2)).toBe('Tags to take off 2 songs')
+    expect(tagsTitle(['add', 'remove'], 3)).toBe('Tag changes for 3 songs')
+    expect(tagsTitle(['add', 'rename'], 2)).toBe('2 changes to your tags')
+    expect(shortTidyTitle(1)).toBe('One thing to fix')
+    expect(shortTidyTitle(4)).toBe('4 things to fix')
+  })
+
+  it('names the action on its button, by how many are ticked', () => {
+    expect(tagsApply(['add'], 1)).toBe('Tag 1 song')
+    expect(tagsApply(['add', 'add', 'add'], 5)).toBe('Tag 5 songs')
+    // Nothing ticked keeps the verb; the button is disabled.
+    expect(tagsApply(['add', 'add'], 0)).toBe('Tag')
+    expect(tagsApply(['remove'], 2)).toBe('Take tags off 2 songs')
+    expect(tagsApply(['add', 'merge'], 2)).toBe('Make 2 changes')
+    expect(shortTidyApply(1)).toBe('Fix it')
+    expect(shortTidyApply(3)).toBe('Fix 3 things')
   })
 })

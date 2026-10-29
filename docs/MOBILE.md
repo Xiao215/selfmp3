@@ -16,13 +16,16 @@ server runs on an always-on computer (see [INSTALL.md](INSTALL.md)).
 
 **State of play.** The iOS app runs on simulators as a development build and on
 a real iPhone as a release build; streaming a song from the bucket was first
-confirmed on a real iPhone on 2026-09-17. **No Android binary has ever been
-built, and nothing has ever run on an Android device.** Every Android claim in
-this file is read out of the generated project and the packages on disk, or
-reasoned about — never seen working. `expo prebuild --platform android` has been
-run and its output inspected, but no Gradle task has, because no machine this was
-prepared on has had an Android SDK. Treat the first `expo run:android` as the
-real test. What to check on a phone before calling a build good is in
+confirmed on a real iPhone on 2026-09-17. **Android has run only on an
+emulator.** On 2026-10-24 a debug build (`assembleDebug`, arm64-v8a, the SDK
+from Homebrew's `android-commandlinetools` cask) compiled — the track-player
+alpha included — and on an API 36 emulator it signed in to a fake doorman,
+showed the library and streamed and played a bucket song through the loopback
+server. On 2026-10-27 a signed release build (arm64, 53 MB) ran on the same
+emulator, and updated itself over the running app from a newer build on a stand-in
+release. Nothing has run on an Android phone, and the rest of the Android claims
+in this file are still read out of the generated project or reasoned about.
+Treat the first build on a phone as the real test. What to check on a phone before calling a build good is in
 [PREPROD.md](PREPROD.md).
 
 ---
@@ -75,7 +78,7 @@ What only the phone build adds:
 |---|---|
 | **Background audio** | react-native-track-player: lock screen, notification, headphone buttons, audio focus. |
 | **Downloads** | Real files in the app's document directory, with a persisted index. Automatic on Wi-Fi if that is on, asking first on mobile data and over 500 MB, or by hand from a song or playlist. A downloaded song plays from disk. |
-| **Streaming from the bucket** | A song that is not downloaded streams from the doorman's `/v1/files/<key>` with the session's bearer sent as a header on the track (`src/ports/bucketMedia.ts`). It obeys "Play songs that aren't downloaded" and the ask before using mobile data. |
+| **Streaming from the bucket** | A song that is not downloaded streams from the doorman's `/v1/files/<key>` with the session's bearer (`src/ports/bucketMedia.ts`). The player is handed the app's own loopback server instead (`modules/song-stream`, Swift on iOS and Kotlin on Android; `src/ports/songStream.ts`), which downloads the song once into the played-songs cache and answers every range from it: one read of the bucket per first play, and the copy kept, on Wi-Fi or mobile data. Only a dev client built before the module asks the doorman for each range itself. It obeys "Play songs that aren't downloaded" and the ask before using mobile data. |
 | **Played songs kept** | With automatic downloads off, a song that counts as a play is also kept as a file, so it is not fetched again tomorrow (`src/ports/recentCopies.ts`). These copies are a cache, not downloads: they live in the system's cache folder, never show as on the device, take at most a quarter of the free space up to 2 GB, and the least recently played go first. Downloading one by hand moves it rather than fetching it again. |
 | **Home-screen widgets** | iOS only; see [widget.md](features/widget.md). |
 | **Android Auto** | See [Android Auto](#android-auto). Less than was hoped, and never tested in a car. |
@@ -89,12 +92,13 @@ item before the current one ends.
 
 An iPad with a Magic Keyboard, or an iPhone with a Bluetooth one, answers the desktop app's
 menu keys: Space for play and pause, ⌘← ⌘→ for previous and next, ⌥⌘← ⌥⌘→ to seek, ⌘↑ ⌘↓
-and ⌥⌘↓ for the volume, ⌘K for Search, ⌘1–3 for Library, Playlists and Now Playing, and ⌘,
-for Settings. Escape — or ⌘., since a Magic Keyboard has no Escape key — closes the sheet,
+and ⌥⌘↓ for the volume, ⌘L to like the song playing, ⌘K for Search, ⌘1–4 for Home, Library,
+Import and Stats, ⌘5 for Playlists, ⌘0 for Now Playing, ⌘N for a new playlist, ⌘I to import,
+and ⌘, for Settings. Escape — or ⌘., since a Magic Keyboard has no Escape key — closes the sheet,
 menu or dialog on top, or with none open clears the
 selection and, at a computer's width, closes Now Playing's stage. ⌘A in a song list selects every song. Holding ⌘ shows
 them all in iPadOS's own list, named as the menu names them, and while a keyboard is attached
-Settings › Keyboard shortcuts lists them and the sidebar shows ⌘K beside Search.
+Settings › Advanced › Keyboard shortcuts lists them and the sidebar shows ⌘K beside Search.
 
 React Native delivers no key presses on iOS, so these are the app's own Expo module,
 `apps/app/modules/key-commands`: Swift that puts a `UIKeyCommand` for each key on the root
@@ -103,7 +107,7 @@ view controller and sends each press to JavaScript, where `ports/keyCommands.ts`
 keys, read from `packages/desktop-bridge/src/menu.ts`), `useHotkeys`, `useEscape` and a
 list's `useListKeys`. A key command beats a text field, so the module takes Space, the
 ⌘-arrows and ⌘A away while one is being typed in, which is what the desktop's `pageKeeps`
-marks; ⌘K, ⌘1–3 and the rest answer there too, as the desktop's menu does. Escape answers in
+marks; ⌘K, ⌘1–5 and the rest answer there too, as the desktop's menu does. Escape answers in
 a field as well, unless an input method is composing. Whether a keyboard is attached is
 GameController's `GCKeyboard`. A song list's arrows, Space and Enter are the web's alone: a
 native row is nowhere the keyboard can be ([FEATURE_TODO.md](FEATURE_TODO.md)).
@@ -145,10 +149,13 @@ may be the test harness's.
   export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
   ```
 
-- An Apple ID. A free one is enough to run the app on your own phone, seven
-  days at a time; the paid Developer Program ($99/year) is what makes a build
-  last and allows TestFlight. This is a personal app on the free path, which is
-  also why there is no CarPlay (its entitlement is granted only to paid teams).
+- Something to sign with. A free Apple ID runs the app on your own phone seven
+  days at a time. A paid Developer Program team ($99/year) makes a build last a
+  year and gives the widget its App Group, whether the team is yours or a
+  friend's who makes the profiles for you (see
+  [A release build on your own iPhone](#a-release-build-on-your-own-iphone)).
+  There is still no CarPlay: Apple grants its entitlement on request, and
+  nobody has asked.
 
 **Android**
 
@@ -261,6 +268,187 @@ app stops launching until it is built and installed again. At most three apps
 can be signed this way, and the profiles carry no App Group, which the widget
 reads its snapshot through.
 
+### Signing with a friend's team
+
+A friend's paid team can sign your builds, but only the account holder of an
+**Individual** membership gets into Certificates, Identifiers & Profiles. An
+invited member sees the team in Xcode → Settings → Accounts, with a red ✕ next to
+that line, and cannot pick it as a target's team. So instead of Xcode making the
+profiles, the friend makes them once, by hand, and you sign with those.
+
+1. **You** make a key and a certificate request, and send the friend the request:
+
+   ```bash
+   mkdir -p ~/.ios-signing && cd ~/.ios-signing
+   openssl genrsa -out dev.key 2048
+   openssl req -new -key dev.key -out you.certSigningRequest \
+     -subj "/emailAddress=<your apple id>/CN=<your name>"
+   ```
+
+   The key never leaves your Mac, and the friend never sends theirs.
+
+2. **The friend**, at developer.apple.com → Certificates, IDs & Profiles:
+   - Devices: registers your phone's UDID.
+   - Identifiers: registers the App Group `group.com.selfmp3.app`, then the App
+     IDs `com.selfmp3.app` and `com.selfmp3.app.widget`, each with App Groups
+     turned on **and that group assigned** (Configure). Turning the capability on
+     without assigning the group gives profiles with an empty group list.
+   - Certificates: an Apple Development certificate from your request.
+   - Profiles: an iOS App Development profile for each App ID, with that
+     certificate and your phone.
+
+   They send back the `.cer` and the two `.mobileprovision` files. All of it lasts
+   a year; only a new phone or a new capability sends you back to them.
+
+3. **You** put the certificate in the keychain and the profiles where Xcode looks:
+
+   ```bash
+   cd ~/.ios-signing
+   openssl x509 -inform der -in development.cer -out dev.pem
+   openssl pkcs12 -export -legacy -inkey dev.key -in dev.pem -out dev.p12 -passout pass:x
+   security import dev.p12 -k ~/Library/Keychains/login.keychain-db -P x -T /usr/bin/codesign
+   rm dev.p12 dev.pem
+   for p in *.mobileprovision; do
+     cp "$p" ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/"$(security cms -D -i "$p" | plutil -extract UUID raw -)".mobileprovision
+   done
+   ```
+
+4. Build as above, minus `-allowProvisioningUpdates`, with manual signing. Each
+   target picks its own profile by name through `$(TARGET_NAME)`, so the
+   generated project needs no edits:
+
+   ```bash
+   xcodebuild -workspace ios/selfmp3.xcworkspace -scheme selfmp3 \
+     -configuration Release -destination 'generic/platform=iOS' \
+     -derivedDataPath build/ddp \
+     CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=<friend's team id> \
+     'CODE_SIGN_IDENTITY=Apple Development' \
+     PROFILE_selfmp3=<app profile name> PROFILE_SelfMp3Widget=<widget profile name> \
+     'PROVISIONING_PROFILE_SPECIFIER=$(PROFILE_$(TARGET_NAME))' build
+   ```
+
+iOS will not upgrade an app signed by another team in place ("application-identifier
+entitlement … does not match"), so the first install from the new team needs the old
+app deleted, along with what it kept on the phone. A paid team's build launches without
+the Trust step in [PREPROD.md](PREPROD.md); that step is for free Apple IDs.
+
+### Sharing the iPhone app
+
+Friends install an **ad hoc** build from a page in Safari: no App Store, no TestFlight,
+no review, and a build lasts as long as its profile, a year. The catch is Apple's: an ad
+hoc build installs only on iPhones the signing team has registered, at most 100 a
+membership year, so each friend's iPhone ID goes onto the team once. (The App Store,
+even unlisted, is not an option: guideline 5.2.3 refuses apps that download media from
+other services.)
+
+**A friend** opens `/install/` beside the web app (`install/index.html`), in Safari
+(`packages/shared/src/installPage.ts`, the page both phones install from; opened
+anywhere else — WeChat's browser, Chrome, a computer — it says where to open it instead):
+
+1. They type their name and tap **Get my iPhone ID**, which installs a profile service
+   from the doorman (`apps/doorman/src/device.ts`). The iPhone hands over its UDID, the
+   doorman puts it on a waiting list with the name, and Safari opens their iPhone's own
+   page, which says how far along it is: waiting, added and being built for, or ready
+   with an Install button. Nothing stays installed on the iPhone.
+2. **Install self.mp3**, once their iPhone is in a build, opens the install link
+   (`itms-services://` with the manifest on the `ios` release). The release's `ios.json`
+   lists the iPhones each build carries, as SHA-256 of the ID, so the page knows.
+
+**You**, on the admin page's **iPhones** tab ([docs/features/admin.md](features/admin.md)):
+**Add** a waiting iPhone. That marks it added and starts the iPhone workflow on GitHub,
+which registers every added iPhone with Apple (`scripts/ios-provision.mjs`, through the
+App Store Connect API), makes both profiles again with every registered iPhone, builds
+and publishes. About an hour later their page says Install. They also need to be on
+**People** to sign in.
+
+What that needs, once:
+
+- **A team API key.** The account holder turns on API access (App Store Connect → Users
+  and Access → Integrations) and makes a **Team Key** with the **Admin** role. An Individual
+  membership keeps Certificates, Identifiers & Profiles' web pages to its account holder;
+  a team key with the Admin role is expected to reach the same through the API, which the
+  `--check` below confirms before anything relies on it. Keep the `.p8`
+  in `~/.ios-signing` and describe it in `~/.ios-signing/asc.json`:
+  `{ "keyId": "…", "issuerId": "…", "keyFile": "AuthKey_….p8" }`.
+  `node scripts/ios-provision.mjs --check` (with `ASC_KEY_PATH`, `ASC_KEY_ID`,
+  `ASC_ISSUER_ID` and `SELFMP3_DOORMAN_ADMIN_TOKEN` in the environment) reads Apple's
+  side and changes nothing.
+- **The doorman's `GITHUB_TOKEN`** (`npx wrangler secret put GITHUB_TOKEN`): a
+  fine-grained token for this repository with Actions read and write, so Add starts the
+  build at once. Without it the nightly run notices an added iPhone the build on the
+  release leaves out, and builds then.
+- **The repository's secrets**, from `node scripts/ios-signing-secrets.mjs` with
+  `SELFMP3_DOORMAN_ADMIN_TOKEN` set: the signing as before, plus `ASC_KEY_ID`,
+  `ASC_ISSUER_ID`, `ASC_KEY` from `asc.json`, and `DOORMAN_ADMIN_TOKEN`.
+
+Without the API key, the account holder does Apple's part by hand: for each friend,
+register the ID under Devices, edit both profiles to tick the new iPhone, and send you
+the two `.mobileprovision` files, which go into the repository's secrets again. The
+App Group still has to be assigned to both App IDs by hand once: the API cannot.
+
+**You** keep the signing setup outside the repository, in `~/.ios-signing/release.json`:
+
+```json
+{
+  "team": "<team id>",
+  "method": "release-testing",
+  "identity": "Apple Distribution",
+  "profiles": {
+    "com.selfmp3.app": "<app profile name>",
+    "com.selfmp3.app.widget": "<widget profile name>"
+  }
+}
+```
+
+**GitHub builds it.** `.github/workflows/ios.yml` runs on every push to main that
+changes `apps/app`, `packages` or the lockfile, so a fix is in "Check for updates" within
+the hour. One build runs at a time; while it does, GitHub keeps only the newest push
+waiting, so a busy day is a few builds, the last one main's. It also runs every night
+(08:00 UTC), building only when the app changed since the commit on the release, and
+**Run workflow** on the iPhone workflow's page builds at once. It signs with the repository's secrets, which
+the Mac with the signing sets, and sets again whenever the profiles or the certificate
+change (a new friend's iPhone, say):
+
+```bash
+cd apps/app
+node scripts/ios-signing-secrets.mjs --check   # what it would set
+node scripts/ios-signing-secrets.mjs
+```
+
+It takes the profiles `release.json` names, the certificate they carry and the key in
+`~/.ios-signing` that matches it, and puts them in `IOS_SIGNING`, `IOS_P12`,
+`IOS_P12_PASSWORD`, `IOS_PROFILE_APP` and `IOS_PROFILE_WIDGET`.
+
+**Or by hand,** from a commit on main:
+
+```bash
+cd apps/app
+npm run release:ios -- --publish
+```
+
+Either way, the release script prebuilds, archives with each target's profile, exports `selfmp3.ipa`, and puts it on
+the `ios` release with `manifest.plist` and `ios.json`, replacing the last build's.
+The release is a prerelease and never the latest, because the Mac app's updater reads
+the latest release. Leave out `--publish` to build without uploading: the files land in
+`apps/app/build/release`. `"method": "debugging"` with development profiles makes the
+same kind of build for the phones those profiles carry, and `"withoutAppGroup": true`
+signs without the widget's App Group, for profiles made before it was assigned.
+
+**Updates.** The build number is main's commit count (`app.config.js`; the workflow
+checks out all of history for it). An installed release build reads `ios.json` and,
+when the release's build is larger, says so in a toast, at most once a day however many
+builds came out (`announcesBuild`); Settings' About card says
+whether it is up to date, checks on asking and installs (`features/settings/AppUpdate.tsx`).
+Install brings up the same iOS question as the page; the app's data stays. After iOS's
+own Install it downloads the build but puts it in only once self.mp3 has left the
+screen, and from inside the app nothing shows that. So a message stays up saying the
+build goes in from the Home Screen, and its **Home** steps back there
+(`modules/home-screen`), where the icon shows the progress. The app started again says
+"Updated to build …", or that the build has not gone in, with Install again and the
+install page in Safari. A new
+friend's iPhone needs a new build: an existing install keeps working, but the old build
+will not install on the new iPhone.
+
 ---
 
 ## Android, from nothing to a running app
@@ -346,15 +534,90 @@ cd apps/app
 npx expo run:android --variant release
 ```
 
-Expo signs it with the generated debug keystore, which is fine for a phone you
-own and useless for the Play Store.
+Without the app's key (below) it is signed with the debug keystore prebuild
+generates, which is fine for a phone you own; a build to share with friends is
+signed with the key.
+
+### Sharing the Android app
+
+Friends install an APK they download from the install page. Android lets any phone
+install an app from outside the Play Store once the person allows their browser to
+install apps, so there is none of the iPhone's machinery: no list of phones, no
+profiles, no expiry, no admin page. (The Play Store is not an option, for the same
+reason as the App Store: it refuses apps that download from YouTube.)
+
+**A friend** opens `/install/` on their phone. The page is both phones' and shows the
+one it is opened on (`#android` or `#iphone` names one outright, for a link sent from a
+computer; WeChat's browser and computers are told where to open it). **Download
+self.mp3** fetches `selfmp3.apk` from the `android` release; opening the download brings
+up Android's installer, which the first time asks to let the browser install apps.
+
+**The key.** Android installs an update only over an app signed with the same key, so
+every shared build is signed with one key, for good: a build signed with another cannot
+update an installed app, and installing it means uninstalling first, losing everything
+kept on the phone. The key is a PKCS#12 keystore in `~/.android-signing`, described by
+`~/.android-signing/release.json`:
+
+```json
+{
+  "storeFile": "/Users/<you>/.android-signing/selfmp3-release.p12",
+  "storePassword": "…",
+  "keyAlias": "selfmp3",
+  "keyPassword": "…"
+}
+```
+
+**Back it up somewhere that is not this Mac.** There is no getting it back.
+`plugins/withReleaseSigning.js` hands it to Gradle as properties; without them a release
+build keeps the debug keystore. Made once with:
+
+```bash
+keytool -genkeypair -storetype PKCS12 -keystore ~/.android-signing/selfmp3-release.p12 \
+  -alias selfmp3 -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=self.mp3, O=self.mp3"
+```
+
+**GitHub builds it.** `.github/workflows/android.yml` runs when the iPhone workflow does
+(every push to main that changes the app, nightly when it changed, and **Run workflow**),
+on Linux, with the SDK the runner has. It signs with two repository secrets, set from
+the Mac with the key:
+
+```bash
+base64 -i ~/.android-signing/selfmp3-release.p12 | gh secret set ANDROID_KEYSTORE
+jq -r .storePassword ~/.android-signing/release.json | gh secret set ANDROID_KEYSTORE_PASSWORD
+```
+
+**Or by hand,** from a commit on main, with `ANDROID_HOME` set:
+
+```bash
+cd apps/app
+npm run release:android -- --publish
+```
+
+Either way, `scripts/android-release.mjs` prebuilds, builds the release APK for arm64
+only (every Android phone of recent years; the other three architectures would double
+the download), checks it carries the key's certificate, and puts `selfmp3.apk` and
+`android.json` on the `android` release, a prerelease that is never the latest. Leave out
+`--publish` to build without uploading: the files land in `apps/app/build/android`.
+
+**Updates.** The versionCode is main's commit count, as the iPhone's build number is, and
+Android refuses to put a smaller one over a larger. An installed release build reads
+`android.json` and offers a newer build the way the iPhone app does
+(`features/settings/AppUpdate.tsx`). Install downloads the APK into the cache and opens
+Android's installer with it (`src/ports/appUpdate.ts`, through `expo-intent-launcher`;
+the manifest's `REQUEST_INSTALL_PACKAGES` is what lets it), which the first time asks to
+let self.mp3 install apps. Putting the build in ends the app, so the installer closing
+with self.mp3 still running means it did not go in, and the app says so. On Android 16
+that is what the first time looks like: once self.mp3 is allowed, the installer has
+already gone, and the message's Install brings it back with "Do you want to update this
+app?" (checked on an API 36 emulator, 2026-10-27, against a stand-in for the release).
 
 ### What could break the first Android build
 
 Ranked by likelihood:
 
-1. **react-native-track-player 5.0.0-alpha0 compiling at all.** Nothing static
-   can settle it; see [Why the track-player alpha](#why-the-track-player-alpha).
+1. **react-native-track-player 5.0.0-alpha0 compiling at all.** It did, in a
+   debug build on 2026-10-24, and played on an emulator; a release build
+   compiled and launched on 2026-10-27, but has not played a song yet. See [Why the track-player alpha](#why-the-track-player-alpha).
 2. **Expo packages a patch behind** what the SDK now expects. Run
    `npx expo install --check` first and accept the patches: patch releases
    during an SDK's life are mostly build and prebuild fixes.
@@ -368,9 +631,10 @@ Ranked by likelihood:
    `PermissionsAndroid`. Expect the lock-screen and notification controls to
    need work here.
 
-Still completely unknown, because it needs the SDK, a device or both: every
-Gradle task, the C++ builds, whether the app launches, audio and audio focus,
-lock-screen controls, downloads, and everything in [Android Auto](#android-auto).
+Settled on an emulator (2026-10-24): the debug Gradle build and its C++, the
+app launching, and a streamed song playing. Still unknown, because it needs a
+phone: playing in a release build, audio focus, lock-screen controls, downloads, and
+everything in [Android Auto](#android-auto).
 
 ### expo-doctor
 
@@ -470,6 +734,8 @@ apps/app
   src/ui/                 components, icons, the Unistyles theme
   plugins/                config plugins run at prebuild time
   modules/key-commands/   the app's own Expo module: a hardware keyboard's keys (iOS)
+  modules/turn-cover/     the app's own Expo module: a cover over an iPad's turn (iOS)
+  modules/home-screen/    the app's own Expo module: back to the Home Screen for an update (iOS)
   targets/widget/         the iOS widget's SwiftUI target
 ```
 
@@ -560,8 +826,8 @@ not what applies); it applies `com.facebook.react` with
 `TrackPlayerPackage` reports `isTurboModule = true`; autolinking finds it; and
 its manifest's deprecated `package=` attribute sits beside a `namespace`, as
 `react-native-safe-area-context` does, so it is a warning rather than an error.
-What no amount of reading settles is whether its Kotlin compiles against React
-Native 0.86 and media3. That is still the single largest Android risk.
+Its Kotlin does compile against React Native 0.86 and media3: a debug build
+on 2026-10-24 built and played on an emulator.
 
 ---
 

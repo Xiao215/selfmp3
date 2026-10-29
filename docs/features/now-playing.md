@@ -20,8 +20,14 @@ where you left them when you close the page.
 
 One page, two modes. **Stage** has the artwork, the title, the artist and the tags on the
 left — tempo, key and energy are the song page's, in its Sound section, where they are
-explained — and on the right two tabs: **Lyrics** (or **Visual**) and **About** (the same facts as
-the end of the song's own page). Up next is not a tab: it is the rail beside the page on a
+explained — and on the right two tabs: **Lyrics** (or **Visual**) and **Details**. Details is
+you and the song (`SongTogether`, picked as H from the 2026-10-27 proposals): "Yours since
+20 August." over its plays, minutes and the part of the day you usually play it in ("mostly
+late at night", once half of at least four plays fall in one); its weeks as bars with each
+week's plays over them; four cards — where it came from (a friend's link or room, or the
+site), the first play, the best week and the last; and the file's facts in one quiet line
+with **Fix song info…**. The plays and minutes are the server's; without one it says the
+song record's play count and leaves out what only the server knows. Up next is not a tab: it is the rail beside the page on a
 computer and a sheet on a phone (`features/queue`, docs/ui-mock `C11`, `P25`), opened from the
 player bar, the mini player or the page's foot. After a song played on its own ends, Up next
 says so and offers what could come next (docs/features/lists.md). **Focus** is the same page when only
@@ -49,7 +55,9 @@ the same hue as its placeholder cover.
 
 - The line being sung stays at the same height; the list moves under it. Scroll by hand to
   read ahead and the auto-centring holds off for four seconds.
-- Click a line to jump there.
+- Click a line to jump there. Right-click a timed line, or hold it on a phone, for **Share
+  from here**, **Play from here** and **Copy line**
+  ([share-links.md](share-links.md#sharing-from-a-line-n6a)).
 - **Romaji** / **Pinyin** shows the romanization under each line (Chinese and Japanese
   only; see [lyrics-plus.md](lyrics-plus.md)).
 - In the last fifteen seconds of a song, a card says what is next; clicking it skips there.
@@ -60,7 +68,8 @@ A song never opens onto an empty page. When there are no lyrics, the words area 
 visual drawn from the song itself. "No lyrics" is one state — a saved answer that the song
 has no words and a lookup that found nothing look the same (see
 [lyrics-plus.md](lyrics-plus.md#songs-with-no-words) for the flag the server keeps).
-**Find lyrics** beside it asks the lookup again.
+There is no button to look again (Xiao, 2026-10-26): it sat beside the tabs on Visual only,
+so switching to Details moved them.
 
 The visual is **Ripples** (docs/ui-mock `P24`, `C10`): the cover as a disc that kicks on
 each hit and sends out a ring, its size and fade set by the hit's strength, over a ground
@@ -74,8 +83,7 @@ column the lyrics would have run in, rounded like a card, and the cover, the tit
 tabs keep the places they have on a song with words. Expanding gives the visual the whole
 window, as it gives the words the whole page; it fades into its new place rather than
 gliding, because a canvas cannot be stretched between the two. A phone's page has no visual
-(Xiao, 2026-10-09): its words view says "No lyrics for this song." with **Find lyrics**
-beside the title.
+(Xiao, 2026-10-09): its words view says "No lyrics for this song."
 
 **What moves them** (`motionSource.model.ts`), in this order. Where the browser can listen
 (`ports/liveAudio`: Chrome, Edge, Firefox, the desktop app) the engine's Web Audio analyser

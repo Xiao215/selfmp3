@@ -10,6 +10,8 @@ import {
   playlistRules,
   plural,
   type SmartRules,
+  type CoverSwatch,
+  type Song,
 } from '@selfmp3/shared'
 import { uniqueName, useLibrary } from '@selfmp3/client'
 
@@ -29,15 +31,15 @@ import { uniqueName, useLibrary } from '@selfmp3/client'
 
 /**
  * What a playlist that fills itself from tags is called, wherever it has to be
- * named in passing: under its title, on its row in a list.
+ * named in passing: by its mark, on its tile, under its title.
  *
- * A verb, not a category. "Live" and "auto" name a *kind* of playlist, which
- * then has to be explained somewhere and learned; "fills from tags" says what
- * happens, and it is the same word as the row that shows it and the button
- * that stops it — one thing to learn instead of three. Not "follows", which
- * reads as following a person (docs/features/lists.md).
+ * One short word on the mark, and the sentence where there is room for one:
+ * "Live" beside the loop on a tile and a page, "Keeps itself filled with
+ * songs tagged …" on the row that shows the tags (the word table, F1 of the
+ * Oct 27 review). "Fills from" alone needed explaining, and the broadcast mark
+ * it sat by read as a radio.
  */
-export const FOLLOWS_LABEL = 'fills from tags'
+export const FOLLOWS_LABEL = 'Live: keeps itself filled from tags'
 
 export type PlaylistSort = 'recent' | 'name' | 'added'
 
@@ -62,12 +64,21 @@ const songsWord = (count: number): string => plural(count, 'song', 'songs')
  *
  * The day is when it was last played, or when it was made if it never has
  * been — the same day the page sorts by, so the line says why a tile is where
- * it is. A live playlist reads the same: its badge already says what it is.
+ * it is. A playlist that fills itself says so and from what instead, "Live ·
+ * night, focus · 76 songs", under the round mark on its cover (I1).
  */
 export function playlistTileLine(
   playlist: Pick<Playlist, 'songCount' | 'lastPlayedAt' | 'createdAt'>,
   now: Date,
+  /** The names of the tags a playlist that fills itself fills from; none for one you fill. */
+  fillsFrom: readonly string[] = [],
+  /** Whether a song needs every one of them: "Live · night & calm". */
+  match: 'any' | 'all' = 'any',
 ): string {
+  if (fillsFrom.length > 0) {
+    const names = fillsFrom.join(match === 'all' ? ' & ' : ', ')
+    return `Live · ${names} · ${songsWord(playlist.songCount)}`
+  }
   const day = relativeDay(playlist.lastPlayedAt ?? playlist.createdAt, now)
   return day ? `${songsWord(playlist.songCount)} · ${day}` : songsWord(playlist.songCount)
 }
@@ -89,10 +100,30 @@ export function playlistHeadLine(
   return parts.join(' · ')
 }
 
-/** The line under the page's title: how many, and in what order. */
-export function playlistsSubline(count: number, sort: PlaylistSort): string {
-  const order = { recent: 'last played first', name: 'A–Z', added: 'newest first' }[sort]
-  return `${plural(count, 'playlist', 'playlists')} · ${order}`
+/**
+ * What adding songs to a playlist says, once the server has taken them:
+ * `before` and `after` are its counts either side. A song already in it is
+ * not added again, so a drop of one already there had said "Added · 1 song"
+ * over a playlist that had not changed.
+ */
+export function addedToPlaylist(
+  name: string,
+  tried: number,
+  before: number,
+  after: number,
+): { readonly over: string; readonly say: string } {
+  const added = Math.max(0, Math.min(tried, after - before))
+  if (added === 0) return { over: `Already in ${name}`, say: songsWord(tried) }
+  const there = tried - added
+  return {
+    over: `Added to ${name}`,
+    say: there > 0 ? `${songsWord(added)} · ${there} already there` : songsWord(added),
+  }
+}
+
+/** The line under the page's title: how many. The order is the dropdown's beside it. */
+export function playlistsSubline(count: number): string {
+  return plural(count, 'playlist', 'playlists')
 }
 
 /**
@@ -197,8 +228,9 @@ export function sortPlaylists(
 /**
  * What the playlists page lists: every playlist with a song in it, in the
  * chosen order. An empty one is never shown — a playlist exists once it has a
- * song (docs/UI-MIGRATION.md, Phase 5), and one emptied by hand has nothing to
- * show on a tile but a hole.
+ * song (docs/UI-MIGRATION.md, Phase 5), and goes with its last one
+ * (`usePlaylistRemoval`); one left empty anyway is the sidebar's to show
+ * (`emptyPlaylists`).
  */
 export function listedPlaylists(
   playlists: readonly Playlist[],
@@ -211,17 +243,37 @@ export function listedPlaylists(
 }
 
 /**
+ * Playlists left with no songs, which no list above shows: one emptied on
+ * another device, a tab closed before its emptying was sent, or a live
+ * playlist whose rules match nothing now. The sidebar lists them under the
+ * rest, so each can still be opened, filled again, renamed or deleted; hidden
+ * everywhere, they stayed on the server for good (bug bash R2-m12).
+ */
+export function emptyPlaylists(playlists: readonly Playlist[]): readonly Playlist[] {
+  return sortPlaylists(
+    playlists.filter(playlist => playlist.songCount === 0),
+    'name',
+  )
+}
+
+/**
  * The playlists a song can be added to, for every "Add to playlist" list:
  * only the ones you keep (a live playlist's rules decide its songs), the one
  * played last first, because that is the one you are most likely reaching for.
  * `except` is the playlist the list was opened from, which is not offered.
+ *
+ * Only the ones with a song, as everywhere else (`listedPlaylists`): the menu
+ * had listed every emptied playlist, which no other page shows and so nothing
+ * could open, rename or delete, until it ran taller than the window.
  */
 export function playlistsToAddTo(
   playlists: readonly Playlist[],
   except?: number,
 ): readonly Playlist[] {
   return sortPlaylists(
-    playlists.filter(playlist => !isLive(playlist) && playlist.id !== except),
+    playlists.filter(
+      playlist => !isLive(playlist) && playlist.id !== except && playlist.songCount > 0,
+    ),
     'recent',
   )
 }
@@ -256,14 +308,67 @@ export function copyName(name: string, taken: readonly string[]): string {
 }
 
 /**
- * A playlist's order once songs taken out of it are added back (the Undo of a
- * removal): the songs as they stood before, each in its old place, followed by
- * any song added since. A song that left in the meantime by another hand stays
- * gone; the Undo only puts back what it took.
+ * The songs whose covers make a mosaic (a playlist's, a place's): four with
+ * different pictures where the songs have them, else the first cover alone.
+ *
+ * Different pictures, not different songs: three discs of one soundtrack carry
+ * the same art and no album name, and a mosaic of the first four showed it
+ * three times (P10 B). A picture is told by the colours the server read from
+ * it: the same art, encoded again for another file, reads within a hair of
+ * the same. Songs of one named album count as one picture too, whose covers
+ * can be cropped a little differently. A cover not read yet counts as its own.
+ *
+ * The whole list is searched, not its head: a tag that opens on forty tracks
+ * of one soundtrack still has other pictures further down. `hasArt` can fetch
+ * a cover (`useArt`), so it is asked only of a song whose picture is not
+ * already in, and the search ends at the fourth.
  */
-export function restoredOrder(before: readonly number[], now: readonly number[]): number[] {
-  const present = new Set(now)
-  const kept = before.filter(id => present.has(id))
-  const placed = new Set(kept)
-  return [...kept, ...now.filter(id => !placed.has(id))]
+export function mosaicCovers<T extends Pick<Song, 'id' | 'album' | 'coverTone'>>(
+  songs: readonly T[],
+  hasArt: (song: T) => boolean,
+): readonly T[] {
+  const different: T[] = []
+  for (const song of songs) {
+    if (different.some(kept => samePicture(kept, song))) continue
+    if (!hasArt(song)) continue
+    different.push(song)
+    if (different.length === 4) return different
+  }
+  return different.length > 0 ? different.slice(0, 1) : songs.slice(0, 1)
+}
+
+/** How far apart two palettes may be and still be one picture. */
+const SAME_PICTURE = 0.02
+
+function samePicture(
+  a: Pick<Song, 'album' | 'coverTone'>,
+  b: Pick<Song, 'album' | 'coverTone'>,
+): boolean {
+  const album = a.album.trim()
+  if (album !== '' && album === b.album.trim()) return true
+  const one = a.coverTone?.palette
+  const other = b.coverTone?.palette
+  if (!one || !other) return false
+  return Math.max(paletteReach(one, other), paletteReach(other, one)) < SAME_PICTURE
+}
+
+/** How far `from`'s colours are from their nearest in `to`, weighted by how much of the cover each is. */
+function paletteReach(from: readonly CoverSwatch[], to: readonly CoverSwatch[]): number {
+  const lab = (swatch: CoverSwatch): readonly [number, number, number] => {
+    const turn = (swatch.h * Math.PI) / 180
+    return [swatch.l, swatch.c * Math.cos(turn), swatch.c * Math.sin(turn)]
+  }
+  const total = from.reduce((sum, swatch) => sum + swatch.share, 0) || 1
+  return (
+    from.reduce((sum, swatch) => {
+      const [l, x, y] = lab(swatch)
+      const nearest = Math.min(
+        ...to.map(other => {
+          const [l2, x2, y2] = lab(other)
+          return Math.hypot(l - l2, x - x2, y - y2)
+        }),
+      )
+      return sum + nearest * swatch.share
+    }, 0) / total
+  )
 }

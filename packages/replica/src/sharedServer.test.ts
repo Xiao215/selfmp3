@@ -12,7 +12,13 @@ const SERVER = 'https://pi.example.ts.net'
 const ME: CloudSession = {
   doormanUrl: 'https://doorman.test',
   token: 'session-token',
-  me: { email: 'me@example.com', name: null, picture: null, storage: null },
+  me: {
+    account: '0123456789abcdef0123456789abcdef',
+    email: 'me@example.com',
+    name: null,
+    picture: null,
+    storage: null,
+  },
 }
 const ANSWER = {
   id: 'the-shared-server',
@@ -73,14 +79,16 @@ const GRANT = {
 }
 
 function setUp(
-  answer: (url: string, method: string) => CloudResponse = () => json(ANSWER),
+  answer: (url: string, method: string) => CloudResponse | Promise<CloudResponse> = () =>
+    json(ANSWER),
   given: (typeof GRANT)[] = [GRANT],
+  store: DeviceStore = memoryStore(),
 ) {
   const sent: { url: string; method: string; auth: string | undefined }[] = []
   const platform = {
     doormanUrl: ME.doormanUrl,
     sharedServerUrl: `${SERVER}/`,
-    store: memoryStore(),
+    store,
     fetch: (url: string, init?: { method?: string; headers?: Record<string, string> }) => {
       const method = init?.method ?? 'GET'
       sent.push({ url, method, auth: init?.headers?.['Authorization'] })
@@ -151,6 +159,40 @@ describe('the shared server, from a device', () => {
     expect(sent).toEqual([])
   })
 
+  it('keeps a join under way, and one that failed, to the account that asked', async () => {
+    const friend = { ...WITH_BUCKET, me: { ...WITH_BUCKET.me, email: 'friend@example.com' } }
+    let release: (response: CloudResponse) => void = () => undefined
+    const theirs = { ...ANSWER, token: 'friend-token'.padEnd(43, '0') }
+    const answers = [
+      new Promise<CloudResponse>(resolve => {
+        release = resolve
+      }),
+      json(theirs),
+    ]
+    const { shared, sent } = setUp(() => answers.shift() ?? json({ error: 'busy' }, 502))
+    // Mine is still under way when the friend signs in: theirs is asked for itself.
+    const mine = shared.automatic(WITH_BUCKET, null)
+    expect(await shared.automatic(friend, null)).toEqual(theirs)
+    release(json({ error: 'busy' }, 502))
+    expect(await mine).toBeNull()
+    expect(sent).toHaveLength(2)
+
+    // My failed join holds me back a while, not the friend.
+    expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
+    expect(sent).toHaveLength(2)
+  })
+
+  it('reports a removed grant as removed when this device cannot keep that it was', async () => {
+    const broken: DeviceStore = {
+      ...memoryStore(),
+      write: () => Promise.reject(new Error('no storage')),
+      update: () => Promise.reject(new Error('no storage')),
+    }
+    const { shared, doorman } = setUp(undefined, [GRANT], broken)
+    await expect(shared.removeGrant(WITH_BUCKET, GRANT.id, ANSWER)).resolves.toBeUndefined()
+    expect(doorman).toContain(`DELETE /v1/grants/${GRANT.id}`)
+  })
+
   it('waits a while after a join that failed, rather than asking on every look', async () => {
     const { shared, sent } = setUp(() => json({ error: 'busy' }, 502))
     expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
@@ -217,6 +259,38 @@ describe('the shared server, from a device', () => {
       expect(await shared.refused(WITH_BUCKET, 'own', own)).toEqual(ANSWER)
       // Not the shared one: whose grants it had is not this device's to ask.
       expect(doorman).toEqual([])
+    })
+
+    /*
+     * The snapshot names one server and the shared one was joined from here,
+     * and both refuse. Remembering only the latest refusal handed each back
+     * in turn, at once and for ever.
+     */
+    it('passes over both when the named server and the joined one refuse', async () => {
+      const own = { id: 'my-own-server', addresses: ['https://mine.example.com'], token: 'own' }
+      const { shared, sent } = setUp(() => json(ANSWER), [])
+      await shared.join(WITH_BUCKET)
+      expect(await shared.refused(WITH_BUCKET, 'own', own)).toEqual(ANSWER)
+      // The joined one refuses too: neither comes back, and a join is tried once.
+      sent.length = 0
+      const after = await shared.refused(WITH_BUCKET, ANSWER.token, own)
+      expect(after).toEqual(ANSWER)
+      expect(sent).toHaveLength(1)
+      // Joining handed the same token back: it works after all, and only it
+      // stops being passed over.
+      expect(await shared.automatic(WITH_BUCKET, own)).toEqual(ANSWER)
+      expect(sent).toHaveLength(1)
+    })
+
+    it('never hands back a refused server while the other one refuses as well', async () => {
+      const own = { id: 'my-own-server', addresses: ['https://mine.example.com'], token: 'own' }
+      // The shared server kept from an earlier join, and now too busy to join again.
+      const store = memoryStore()
+      await store.write('selfmp3.cloud.joined-server', { email: ME.me.email, server: ANSWER })
+      const { shared } = setUp(() => json({ error: 'busy' }, 502), [], store)
+      expect(await shared.refused(WITH_BUCKET, 'own', own)).toEqual(ANSWER)
+      expect(await shared.refused(WITH_BUCKET, ANSWER.token, own)).toBeNull()
+      expect(await shared.automatic(WITH_BUCKET, own)).toBeNull()
     })
 
     it('is said again for another account on the same device', async () => {

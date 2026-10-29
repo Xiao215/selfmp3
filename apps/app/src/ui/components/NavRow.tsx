@@ -9,7 +9,7 @@ import { Press } from './Press'
 
 /**
  * A row that takes you somewhere: what is there, one line on what it holds,
- * and a › at its end — You's Import, Report and Settings, Stats' Report on a
+ * and a › at its end — You's Import, Stats and Settings, Stats' Report on a
  * phone, Search's Ask, Import's way back to a search or a review left half
  * done, Tags' untagged songs.
  *

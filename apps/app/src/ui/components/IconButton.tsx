@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
+import type { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { HIT_TARGET, hitSlopFor, iconSize } from '@selfmp3/client'
 import { OPACITY } from '../motion.model'
@@ -26,11 +27,16 @@ export function IconButton({
   label,
   size: sizeProp,
   disabled = false,
-  active = false,
+  active,
   filled = false,
   caption,
+  onFocus,
+  onBlur,
+  ref,
 }: {
   children: ReactNode
+  /** The button itself, for focus to be given back to. */
+  ref?: Ref<View>
   testID?: string
   onPress: () => void
   /** What a screen reader says: "Pause", "Next", "Like". */
@@ -43,6 +49,9 @@ export function IconButton({
   active?: boolean
   /** On the control surface, for a button standing on its own in a header; or white, or the accent. */
   filled?: boolean | 'primary' | 'accent'
+  /** For a button that only shows itself on hover or keyboard focus. */
+  onFocus?: () => void
+  onBlur?: () => void
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   const size = sizeProp ?? (dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET)
@@ -55,16 +64,22 @@ export function IconButton({
      * right every time it was pressed.
      */
     <Press
+      ref={ref}
       depth="control"
       wrap={{ width: size, height: size }}
       onPress={onPress}
+      onFocus={onFocus}
+      onBlur={onBlur}
       disabled={disabled}
       hitSlop={hitSlopFor(size)}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       {...tip(caption ?? label)}
+      // A toggle says whether it is on — "Shuffle, selected"; a browser's
+      // reader hears a toggle button, pressed or not.
       accessibilityState={{ disabled, selected: active }}
+      aria-pressed={active}
       style={({ pressed }) => [
         styles.button,
         { width: size, height: size, borderRadius: size / 2 },

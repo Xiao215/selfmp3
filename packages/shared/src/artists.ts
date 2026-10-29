@@ -1,5 +1,6 @@
 import type { Song } from './schemas/song.js'
 import { CJK } from './titles.js'
+import { ARTIST_NAMES_MAX } from './schemas/artist.js'
 
 /**
  * Artists, from the songs' own artist strings (docs/UI-MIGRATION.md, Phase 4
@@ -11,8 +12,8 @@ import { CJK } from './titles.js'
  * songs say. A string that names several — "A feat. B", "A & B", "A, B",
  * "A × B", "A x B" — names each of them, and a song belongs to every artist
  * it names. Two spellings of one name are one artist when they differ only in
- * case or spacing; "ヨルシカ" and "Yorushika" stay two, and joining them is a
- * metadata fix, not something guessed here.
+ * case or spacing; "ヨルシカ" and "Yorushika" are two here, and are joined
+ * only by an artist's other names (artistJoins.ts), never guessed.
  */
 
 /**
@@ -33,6 +34,13 @@ export interface Artist {
   /** The spelling most of its songs use. */
   readonly name: string
   readonly songIds: readonly number[]
+  /**
+   * Every key a song is matched by: its own, then those of the artists joined
+   * to it by its other names (artistJoins.ts), "ヨルシカ" under "Yorushika".
+   */
+  readonly keys: readonly string[]
+  /** The artists joined to it, as their songs spell them, most songs first. */
+  readonly joined: readonly string[]
 }
 
 /** "(feat. B)" and "[ft. B]": the brackets go, the name stays as one more artist. */
@@ -140,15 +148,37 @@ export function libraryArtists(songs: readonly Song[]): readonly Artist[] {
         best = count
       }
     }
-    return { key, name, songIds: entry.songIds }
+    return { key, name, songIds: entry.songIds, keys: [key], joined: [] }
   })
   artists.sort((a, b) => b.songIds.length - a.songIds.length || a.name.localeCompare(b.name))
   cache.set(songs, artists)
   return artists
 }
 
-/** The artist with this name, spelt any way that compares equal, or undefined. */
-export function findArtist(songs: readonly Song[], name: string): Artist | undefined {
+/**
+ * The artist with this name, spelt any way that compares equal, or undefined.
+ * In a list of joined artists (`joinedArtists`), the artist it is joined to.
+ */
+export function findArtist(artists: readonly Artist[], name: string): Artist | undefined {
   const key = artistKey(name)
-  return libraryArtists(songs).find(artist => artist.key === key)
+  return artists.find(artist => artist.keys.includes(key))
+}
+
+/**
+ * An artist's other names as they are kept: each once, compared as
+ * `artistKey` compares, without the artist's own name, in the order given and
+ * no more than are kept. The same on the server and on every device, so a list
+ * saved anywhere is the same list everywhere.
+ */
+export function tidyArtistNames(artist: string, names: readonly string[]): string[] {
+  const seen = new Set([artistKey(artist)])
+  const kept: string[] = []
+  for (const name of names) {
+    const tidy = name.replace(/\s+/g, ' ').trim()
+    const key = artistKey(tidy)
+    if (key === '' || seen.has(key)) continue
+    seen.add(key)
+    kept.push(tidy)
+  }
+  return kept.slice(0, ARTIST_NAMES_MAX)
 }

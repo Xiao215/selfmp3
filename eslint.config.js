@@ -72,24 +72,31 @@ export default tseslint.config(
   },
   {
     /*
-     * The server's own page (apps/server/src/http/admin.ts serves it).
+     * The owner's admin page (apps/server/src/admin/app.ts serves it).
      *
      * Plain browser JavaScript with no build step, which is the point of it —
      * the page you reach for when nothing else works should not be the thing
      * most likely to be broken. So it is in no tsconfig, and the type-aware
      * rules cannot run on it; the ordinary ones still do.
      */
-    files: ['apps/server/public/**/*.js'],
+    files: ['apps/server/admin/**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       globals: {
         crypto: 'readonly',
         document: 'readonly',
+        Element: 'readonly',
         fetch: 'readonly',
         FormData: 'readonly',
         history: 'readonly',
+        HTMLFormElement: 'readonly',
+        HTMLInputElement: 'readonly',
+        localStorage: 'readonly',
         location: 'readonly',
+        requestAnimationFrame: 'readonly',
+        ResizeObserver: 'readonly',
         sessionStorage: 'readonly',
+        setInterval: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         URLSearchParams: 'readonly',

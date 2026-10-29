@@ -22,6 +22,10 @@ export const API_ERROR = {
   contractMismatch: 'contract_mismatch',
   /** A route a cloud library cannot answer from the bucket: only the server can. */
   needsServer: 'needs_server',
+  /** A write the server's disk had no room for (507): said as that, not as a 500. */
+  diskFull: 'disk_full',
+  /** A write held up by another hold on the database (503): try again in a moment. */
+  databaseBusy: 'database_busy',
 } as const
 
 /**

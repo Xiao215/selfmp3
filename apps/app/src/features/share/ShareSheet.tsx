@@ -4,8 +4,9 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import {
   artistOr,
+  formatShareStart,
   plural,
-  SHARE_MAX_SONGS,
+  shareSongKey,
   type RoomSong,
   type ShareLink,
   type Song,
@@ -13,8 +14,10 @@ import {
 import { failureText, radius, shareLinkUrl, space } from '@selfmp3/client'
 import { linkAddress } from '../../ports/linkAddress'
 import { copyText } from '../../ports/clipboard'
+import { hasTabs, openInNewTab } from '../../ports/newTab'
 import { canShareLink, shareLink } from '../../ports/shareLink'
 import { useArt } from '../../offline/useArt'
+import { usePlayingSongId } from '../../player/PlayerProvider'
 import { library as cloudLibrary } from '../../replica'
 import { hint, lineSub, smallTitle, textColumn } from '../../ui/surfaces'
 import { useSongsById } from '../../ui/songsById'
@@ -22,9 +25,11 @@ import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, QrCode, ShareOut } from '../../ui/components/Icons'
+import { Press } from '../../ui/components/Press'
+import { Check, Copy, QrCode, ShareOut } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { Spinner } from '../../ui/components/Spinner'
+import { ToggleRow } from '../../ui/components/Toggle'
 import { useCloudSession } from '../profile/useCloudSession'
 import { RoomQr } from '../room/RoomQr'
 import { nameToJoinWith } from '../shared/shared.model'
@@ -35,14 +40,15 @@ import { closeShareSheet, useShareRequest, type ShareRequest } from './shareShee
 /**
  * The share sheet (docs/features/share-links.md, A1): the link is made as it
  * opens — Share link is what was asked for — and shown as what it sends, the
- * cover and the name, with Copy at the end of that row and Share… under it.
+ * cover and the name, with the copy icon at the end of that row and Share… under it.
  * There is one thing to send, the link: the doorman draws its card wherever
  * a chat draws cards. The QR code waits behind its button for a friend
- * standing beside you. Drawn once, by the shell, and by the phone's Now
+ * standing beside you. A list shared while one of its songs plays can open
+ * on that song rather than its first. Drawn once, by the shell, and by the phone's Now
  * Playing while it covers the shell.
  */
 
-/** How long Copy says Copied before it is Copy again. */
+/** How long the copy icon is a tick before it is the copy icon again. */
 const COPIED_MS = 2000
 
 /** One link per opening, however often a render or a strict effect asks for it. */
@@ -50,10 +56,9 @@ const making = new WeakMap<ShareRequest, Promise<ShareLink>>()
 
 type Made = { readonly link: ShareLink } | { readonly failed: string } | null
 
-/** The songs asked for that are in storage, as a link carries them: the first hundred. */
+/** The songs asked for that are in storage, as a link carries them: every one, however many. */
 function lendable(request: ShareRequest): RoomSong[] {
   return request.songIds
-    .slice(0, SHARE_MAX_SONGS)
     .map(id => cloudLibrary.cloudRoomSongNow(id))
     .filter((song): song is RoomSong => song !== null)
 }
@@ -61,6 +66,7 @@ function lendable(request: ShareRequest): RoomSong[] {
 export function ShareSheet(): ReactNode {
   const request = useShareRequest()
   const { data: me } = useCloudSession()
+  const playing = usePlayingSongId()
   const byId = useSongsById()
   const made = useShareMade()
   const [result, setResult] = useState<{ for: ShareRequest; made: Made } | null>(null)
@@ -87,6 +93,7 @@ export function ShareSheet(): ReactNode {
         kind: request.kind,
         you: nameToJoinWith(me),
         songs: given,
+        ...(request.line ? { line: request.line } : {}),
       })
       making.set(request, held)
     }
@@ -111,15 +118,29 @@ export function ShareSheet(): ReactNode {
     }
   }, [request, me, made])
 
-  const count = request?.songIds.length ?? 0
-  const left = Math.max(0, count - SHARE_MAX_SONGS)
   const link = shown && 'link' in shown ? shown.link : null
-  const url = link ? shareLinkUrl(linkAddress(), link) : null
+  const start = request?.line?.at ?? null
+  const url = link ? shareLinkUrl(linkAddress(), link, { start }) : null
+  // The list's song playing now, when it is not the one the list opens on anyway.
+  const playingSong =
+    request?.kind === 'list' && playing !== null && request.songIds.includes(playing)
+      ? cloudLibrary.cloudRoomSongNow(playing)
+      : null
+  const playingEntry = playingSong
+    ? link?.entries.find(
+        entry => !entry.gone && shareSongKey(entry.song) === shareSongKey(playingSong),
+      )
+    : undefined
+  const opensOn =
+    link && playingEntry && playingEntry !== link.entries.find(entry => !entry.gone)
+      ? {
+          title: playingEntry.song.title,
+          url: shareLinkUrl(linkAddress(), link, { song: playingEntry.id }),
+          path: shareLinkUrl('', link, { song: playingEntry.id }),
+        }
+      : null
   // Your own copies of what went in: the song's artist, and the cover.
-  const yours =
-    request && link
-      ? request.songIds.slice(0, SHARE_MAX_SONGS).flatMap(id => byId.get(id) ?? [])
-      : []
+  const yours = request && link ? request.songIds.flatMap(id => byId.get(id) ?? []) : []
   const words =
     request && link
       ? shareWords({
@@ -127,6 +148,7 @@ export function ShareSheet(): ReactNode {
           kind: request.kind,
           artist: yours[0]?.artist ?? null,
           songs: link.entries.length,
+          start,
         })
       : ''
 
@@ -139,30 +161,29 @@ export function ShareSheet(): ReactNode {
       subtitle="Anyone with the link can listen."
       testID="share-sheet"
       width={420}
+      scroll
     >
       <View style={styles.body}>
-        {left > 0 ? (
-          <Text style={styles.text}>
-            A link holds {SHARE_MAX_SONGS} songs: the first {SHARE_MAX_SONGS} of these go in, and{' '}
-            {plural(left, 'song', 'songs')} stay out.
-          </Text>
-        ) : null}
         {nothing ? (
           <Text style={styles.text}>{nothing}</Text>
         ) : shown && 'failed' in shown ? (
           <Text style={styles.text}>{shown.failed}</Text>
         ) : request && link && url ? (
-          // Keyed by the link, so a second link opens with its QR folded and Copy fresh.
+          // Keyed by the link, so a second link opens with its QR folded and its copy icon fresh.
           <MadeLink
             key={link.id}
             name={request.name}
             sub={
               request.kind === 'list'
                 ? plural(link.entries.length, 'song', 'songs')
-                : artistOr(yours[0]?.artist)
+                : request.line
+                  ? `From ${formatShareStart(request.line.at)} · ${request.line.text}`
+                  : artistOr(yours[0]?.artist)
             }
             song={coverOf(yours)}
             url={url}
+            path={shareLinkUrl('', link, { start })}
+            opensOn={opensOn}
             words={words}
           />
         ) : (
@@ -181,22 +202,35 @@ function coverOf(songs: readonly Song[]): Song | null {
   return songs.find(song => song.hasArt) ?? songs[0] ?? null
 }
 
-/** The link, made: what it sends with Copy beside it, the QR behind its button, and Share…. */
+/**
+ * The link, made: what it sends with the copy icon beside it, the QR behind its button,
+ * and Share…. In a browser the song opens the link's page in a new tab, to
+ * see what a friend will.
+ */
 function MadeLink({
   name,
   sub,
   song,
-  url,
+  url: firstUrl,
+  path: firstPath,
+  opensOn,
   words,
 }: {
   name: string
   sub: string
   song: Song | null
   url: string
+  /** The link's page in this app. */
+  path: string
+  /** The list's song playing now, and the link as it opens on it. */
+  opensOn: { title: string; url: string; path: string } | null
   words: string
 }): ReactNode {
   const artFor = useArt()
   const [qr, setQr] = useState(false)
+  const [onPlaying, setOnPlaying] = useState(true)
+  const url = opensOn && onPlaying ? opensOn.url : firstUrl
+  const path = opensOn && onPlaying ? opensOn.path : firstPath
   const [copied, setCopied] = useState(false)
   useEffect(() => {
     if (!copied) return undefined
@@ -207,15 +241,25 @@ function MadeLink({
   return (
     <>
       <View style={styles.link} testID="share-sheet-link">
-        <Cover uri={song ? artFor(song) : null} title={name} size={44} />
-        <View style={textColumn}>
-          <Text style={styles.name} numberOfLines={1}>
-            {name}
-          </Text>
-          <Text style={styles.sub} numberOfLines={1}>
-            {sub}
-          </Text>
-        </View>
+        <Press
+          feedback="dim"
+          disabled={!hasTabs()}
+          onPress={() => openInNewTab(path)}
+          accessibilityRole={hasTabs() ? 'link' : undefined}
+          accessibilityLabel={hasTabs() ? `Open the link to ${name} in a new tab` : undefined}
+          style={styles.what}
+          testID="share-sheet-open"
+        >
+          <Cover uri={song ? artFor(song) : null} title={name} size={44} />
+          <View style={textColumn}>
+            <Text style={styles.name} numberOfLines={1}>
+              {name}
+            </Text>
+            <Text style={styles.sub} numberOfLines={1}>
+              {sub}
+            </Text>
+          </View>
+        </Press>
         <IconButton
           label={qr ? 'Hide the QR code' : 'Show the QR code'}
           caption="QR code"
@@ -225,12 +269,9 @@ function MadeLink({
         >
           <QrCode tone={qr ? 'textPrimary' : 'textSecondary'} />
         </IconButton>
-        <Button
-          label={copied ? 'Copied' : 'Copy'}
-          icon={copied ? <Check tone="onAccent" /> : undefined}
-          variant="primary"
-          size="small"
-          accessibilityLabel={copied ? 'Link copied' : 'Copy link'}
+        <IconButton
+          label={copied ? 'Link copied' : 'Copy link'}
+          caption={copied ? 'Copied' : 'Copy link'}
           onPress={() =>
             void copyText(url).then(done => {
               if (done) setCopied(true)
@@ -238,8 +279,18 @@ function MadeLink({
             })
           }
           testID="share-sheet-copy"
-        />
+        >
+          {copied ? <Check tone="textPrimary" /> : <Copy tone="textSecondary" />}
+        </IconButton>
       </View>
+      {opensOn ? (
+        <ToggleRow
+          label={`Open on ${opensOn.title}`}
+          value={onPlaying}
+          onChange={setOnPlaying}
+          testID="share-sheet-opens-on"
+        />
+      ) : null}
       {qr ? (
         <View style={styles.qr}>
           <RoomQr text={url} size={200} />
@@ -265,7 +316,7 @@ function MadeLink({
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.md, paddingBottom: space.sm },
   text: lineSub(theme.colors),
-  // What the link sends, as one row: the cover, the name, then the QR and Copy.
+  // What the link sends, as one row: the cover, the name, then the QR and the copy icon.
   link: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -275,6 +326,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
+  // The cover and the name, which open the link's page in a browser.
+  what: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   name: smallTitle(theme.colors),
   sub: lineSub(theme.colors),
   lasts: { ...hint(theme.colors), textAlign: 'center' },

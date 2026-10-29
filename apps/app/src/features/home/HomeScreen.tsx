@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
-import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
@@ -9,12 +8,11 @@ import { plural } from '@selfmp3/shared'
 import { pastRoomFaces, useRecentRooms } from '../room/pastRooms.store'
 import { FacesCover } from '../room/RoomFace'
 import { usePastRoomCovers } from '../room/usePastRoomCovers'
-import { HomeTogetherButton, TogetherCard } from '../room/Together'
+import { HomeTogetherButton } from '../room/Together'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
 import {
-  fonts,
   radius,
   tagColors,
   type,
@@ -24,26 +22,28 @@ import {
   iconSize,
   space,
 } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
-import { useCloudSession } from '../profile/useCloudSession'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
-import { useContentWidth } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
+import { useLayout, useLayoutFlags, useLayoutValue } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, ShelfCard, SongCard } from '../../ui/components/Shelf'
+import { DISPLAY_SCALE } from '../../ui/textScale'
 import { FromFriends, ShareAsks } from '../share/FromFriends'
 import { TileGrid, useTileGrid } from '../../ui/components/TileGrid'
-import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons'
+import { ChevronRight, Download, Play, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -66,14 +66,17 @@ import {
   homeRecents,
   recentKind,
   recentSongIds,
+  RECENTS_SOURCE,
   type HomeRecent,
 } from '../lists/lists.model'
 import { useRecentLists } from '../lists/recentLists.store'
 import { keepAnswer, reorderAnswer } from '../smart/answers.store'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { useStatsFor } from '../stats/statsSource'
+import { useStatsFor, useStatsSongs } from '../stats/statsSource'
+import { USUAL_LEAST_HERE, usualHue, usualName, usualPicks, usualSongs } from './usual.model'
+import { useSongByUid, useUsualHours } from './useUsualHours'
 import { statFigures } from '../stats/stats.model'
-import { StatFigure } from '../../ui/components/StatFigure'
+import { StatFigure, StatFigures } from '../../ui/components/StatFigure'
 import {
   greeting,
   HOME_TILES,
@@ -89,6 +92,9 @@ import { useSvgId } from '../../ui/useSvgId'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
+import { CantReach } from '../library/CantReach'
+import { useLibraryFailure } from '../library/useLibraryFailure'
+import { MapCard } from '../soundMap/MapCard'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -96,7 +102,8 @@ import { COLUMN_WIDTH } from '../../shell/widths'
  * A greeting and one quiet line, one search field, the tags you play most as
  * tiles, and what you played last. On a phone the header carries Import's
  * download arrow and the avatar that opens Profile; a computer has those in
- * its sidebar, and adds this week's numbers beside the tiles. No date line: the
+ * its sidebar, and its search too, so its Home has no field of its own (A1,
+ * Xiao 2026-10-25); it adds this week's numbers beside the tiles instead. No date line: the
  * greeting under it already says what time of day it is (Xiao, 2026-09-20).
  *
  * Stats come from the server, as they do on the Stats page: a cloud library has
@@ -111,8 +118,10 @@ import { COLUMN_WIDTH } from '../../shell/widths'
 export function HomeScreen(): ReactNode {
   // A shared playlist's invite opened before signing in (features/shared).
   useResumeSharedJoin()
-  const { data: stats } = useStatsFor(useVia(), '7d')
-  return <HomePage stats={stats} />
+  const via = useVia()
+  const { data: stats } = useStatsFor(via, '7d')
+  const songFor = useStatsSongs(via)
+  return <HomePage stats={stats} songFor={songFor} />
 }
 
 /**
@@ -134,31 +143,84 @@ function useNow(): Date {
   return now
 }
 
-function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
-  const { wide } = useLayout()
+/** Home's hour tile: its name and colour, and the hour's songs on this device. */
+interface UsualTile {
+  readonly name: string
+  readonly hue: number
+  readonly songs: readonly Song[]
+}
+
+/**
+ * The hour tile for now, or null while there is too little history for this
+ * hour of this kind of day (`USUAL_LEAST_HERE`, and the server's own floor).
+ * It reads the kept answer when the server is away.
+ */
+function useUsualTile(now: Date): UsualTile | null {
+  const hours = useUsualHours()
+  const songByUid = useSongByUid()
+  return useMemo(() => {
+    const songs = usualSongs(hours, now, songByUid)
+    if (songs.length < USUAL_LEAST_HERE) return null
+    const hour = now.getHours()
+    return { name: usualName(hour), hue: usualHue(hour), songs }
+  }, [hours, now, songByUid])
+}
+
+function HomePage({
+  stats,
+  songFor,
+}: {
+  stats: Stats | undefined
+  /** The song a stats id names, as this device knows it: the server's ids are not this library's. */
+  songFor: (songId: number) => Song | undefined
+}): ReactNode {
+  const { wide } = useLayoutFlags()
   const beside = useCardsBeside(wide)
+  const roomy = useLayoutValue(roomyPhone)
   const router = useRouter()
   const now = useNow()
   const bottom = useBottomInset()
-  const { data: library } = useLibrary()
+  const libraryQuery = useLibrary()
+  const library = libraryQuery.data
+  const failure = useLibraryFailure(libraryQuery)
+  // Three by two wherever the tiles go three across.
+  const many = wide || roomy
+  const usual = useUsualTile(now)
+  // The hour's tile takes the first place, and one tag fewer keeps the rows full.
   const tiles = useMemo(
     () =>
-      library ? homeTiles(library.tags, library.songs, wide ? HOME_TILES_WIDE : HOME_TILES) : [],
-    [library, wide],
+      library
+        ? homeTiles(
+            library.tags,
+            library.songs,
+            (many ? HOME_TILES_WIDE : HOME_TILES) - (usual ? 1 : 0),
+          )
+        : [],
+    [library, many, usual],
   )
   const recentLists = useRecentLists()
   // Rooms listened in together, for a few days after they end (features/room).
   const rooms = useRecentRooms()
+  // As many as the row holds on a very wide page, rather than twelve and an
+  // empty half of the row (P1 C); never fewer than the twelve it remembers.
+  const recentsShown = useContentWidthValue(page =>
+    page === null
+      ? undefined
+      : Math.max(
+          RECENTS_LEAST,
+          Math.floor((page - space.gutterWide * 2 + RECENT_GAP) / (RECENT_TILE + RECENT_GAP)),
+        ),
+  )
   const recents = useMemo(
-    () => (library ? homeRecents(recentLists, library.songs) : []),
-    [library, recentLists],
+    () => (library ? homeRecents(recentLists, library.songs, recentsShown) : []),
+    [library, recentLists, recentsShown],
   )
   const line = streakLine(stats?.streakDays)
   const sunday = sundayCard(now, stats)
   const sundayId = sunday?.song?.songId
   const sundaySong = useMemo(
-    () => (sundayId === undefined ? null : (library?.songs.find(s => s.id === sundayId) ?? null)),
-    [library, sundayId],
+    () => (sundayId === undefined ? null : (songFor(sundayId) ?? null)),
+    [songFor, sundayId],
   )
   const openWeek = (): void =>
     router.navigate({ pathname: '/stats/report', params: { range: 'week' } })
@@ -182,7 +244,11 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
         {wide ? null : <PhoneHeader />}
 
         <View style={[styles.greetingBlock, wide && styles.greetingBlockWide]}>
-          <Text style={styles.greeting} accessibilityRole="header">
+          <Text
+            style={styles.greeting}
+            accessibilityRole="header"
+            maxFontSizeMultiplier={DISPLAY_SCALE}
+          >
             {greeting(now.getHours())}
             <Text style={styles.greetingDot}>.</Text>
           </Text>
@@ -194,43 +260,61 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
             same numbers already were (`F`, Xiao 2026-10-04). */}
         {sunday && !wide ? <SundayLead card={sunday} song={sundaySong} onOpen={openWeek} /> : null}
 
-        {/* A door to the one Search, not a second place to type. */}
-        {empty ? null : (
+        {/* A door to the one Search, not a second place to type. A computer's
+            is the sidebar's row, right beside this page. */}
+        {empty || wide ? null : (
           <SearchField
             testID="home-search"
             onPress={openSearch}
             accessibilityLabel="Search"
-            placeholder={
-              wide ? 'One song, a tag, an artist, a lyric…' : 'One song, an artist, a lyric…'
-            }
+            placeholder="One song, an artist, a lyric…"
           />
         )}
 
         <View style={beside ? styles.columns : styles.stack}>
           <View style={beside ? styles.mainColumn : styles.stack}>
             {empty ? (
-              <FirstSong onPress={() => router.navigate('/import')} />
+              <>
+                <FirstSong onPress={() => router.navigate('/import')} />
+                <Text style={styles.weekLater} testID="home-week-later">
+                  Your week shows here once you’ve played something.
+                </Text>
+              </>
             ) : (
               <>
-                {/* The count is the head's own action, as Recently played's Library
-                    is, rather than a link under the tiles (Xiao, 2026-09-20). */}
+                {/* The head's own action, as Recently played's is, rather than a
+                    link under the tiles (Xiao, 2026-09-20). */}
                 <SectionHead
                   testID="home-all-tags"
                   title="Your tags"
                   action={
                     library && library.tags.length > 0
                       ? {
-                          label: `All ${library.tags.length}`,
+                          label: 'See all',
                           onPress: () => router.navigate('/tags'),
                         }
                       : null
                   }
                 />
-                <Tiles tiles={tiles} loading={library === undefined} beside={beside} />
+                {/* No library and no copy of one: say why, as Library does, not an empty space. */}
+                {library === undefined && failure !== null ? (
+                  <CantReach error={failure} onRetry={() => void libraryQuery.refetch()} />
+                ) : (
+                  <Tiles
+                    tiles={tiles}
+                    usual={usual}
+                    loading={library === undefined}
+                    beside={beside}
+                  />
+                )}
+                {/* Under the tags: the same songs, drawn by how they sound (A1). */}
+                <MapCard />
               </>
             )}
           </View>
-          {wide ? (
+          {/* A new library has no week to show: no card of zeros, no second
+              Import beside the first (Z1). */}
+          {wide && !empty ? (
             <ThisWeek
               stats={stats}
               beside={beside}
@@ -241,8 +325,6 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
           ) : null}
         </View>
 
-        {empty ? null : <TogetherCard />}
-
         <ShareAsks />
         <FromFriends wide={wide} />
 
@@ -250,9 +332,22 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
           <View style={styles.stack}>
             <SectionHead
               title="Recently played"
-              action={{ label: 'Library', onPress: () => router.navigate('/library') }}
+              // Library in the order this row is in, for this visit: the order
+              // Library keeps for itself stays as it was (G1).
+              action={{
+                label: 'See all',
+                onPress: () =>
+                  router.navigate({ pathname: '/library', params: { sort: 'lastPlayedAt' } }),
+              }}
             />
             <Recents recents={recents} rooms={rooms} wide={wide} />
+          </View>
+        ) : library === undefined && recentLists.length > 0 ? (
+          // Remembered on this device, so known to be coming before the songs
+          // they name have arrived (AA1).
+          <View style={styles.stack}>
+            <SectionHead title="Recently played" action={null} />
+            <RecentsWaiting wide={wide} />
           </View>
         ) : null}
       </ScrollView>
@@ -292,10 +387,11 @@ function SundayLead({
       {/* Without a song, the week says itself: the title, then how long and whose. */}
       <View style={styles.sundayText}>
         {lead ? <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text> : null}
-        <Text style={styles.sundayTitle} numberOfLines={1}>
+        {/* Two lines each, so large text wraps them rather than cutting "Song of the wee…" (AM1). */}
+        <Text style={styles.sundayTitle} numberOfLines={2}>
           {lead ? lead.title : card.title}
         </Text>
-        <Text style={styles.sundayLine} numberOfLines={1}>
+        <Text style={styles.sundayLine} numberOfLines={2}>
           {lead ? lead.note : card.line}
         </Text>
       </View>
@@ -307,8 +403,10 @@ function SundayLead({
 /**
  * A song's colour washed across a card from the left and out to nothing on
  * the right, so the card reads as lit by its cover rather than painted.
+ * `diagonal` runs it from the top corner down into the card, deeper, for a
+ * card the colour is the whole ground of (This week on a computer).
  */
-function ToneWash({ color }: { color: string }): ReactNode {
+function ToneWash({ color, diagonal = false }: { color: string; diagonal?: boolean }): ReactNode {
   // Gradient ids are document ids on the web: two cards must not share one.
   const id = useSvgId('tone')
   return (
@@ -322,9 +420,9 @@ function ToneWash({ color }: { color: string }): ReactNode {
         preserveAspectRatio="none"
       >
         <Defs>
-          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={color} stopOpacity={0.34} />
-            <Stop offset="0.55" stopColor={color} stopOpacity={0.1} />
+          <LinearGradient id={id} x1="0" y1="0" x2="1" y2={diagonal ? '1' : '0'}>
+            <Stop offset="0" stopColor={color} stopOpacity={diagonal ? 0.42 : 0.34} />
+            <Stop offset="0.55" stopColor={color} stopOpacity={diagonal ? 0.14 : 0.1} />
             <Stop offset="1" stopColor={color} stopOpacity={0} />
           </LinearGradient>
         </Defs>
@@ -335,23 +433,30 @@ function ToneWash({ color }: { color: string }): ReactNode {
 }
 
 /**
- * The first thing on an empty library's Home: one card washed with the
- * accent, the way the New playlist tile is, saying where the library starts,
- * and the one button that starts it.
+ * The first thing on an empty library's Home, and the only way in it offers:
+ * one card washed with the accent, the way the New playlist tile is, saying
+ * where the library starts and where songs come from, and the one button
+ * that starts it.
  */
 function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
   const accent = useAccent()
   return (
-    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]}>
-      <View style={styles.firstMark}>
-        <Plus size={iconSize.large} color={accent.accent} />
-      </View>
+    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]} testID="home-first">
       <Text style={styles.firstTitle} accessibilityRole="header">
         Your library starts with one song
         <Text style={styles.greetingDot}>.</Text>
       </Text>
+      <Text style={styles.firstLine}>
+        Paste a link from YouTube, 网易云音乐 or Spotify, or search for a song.
+      </Text>
       <View style={styles.firstAction}>
-        <Button label="Import" variant="primary" onPress={onPress} testID="home-first-song" />
+        <Button
+          label="Import a song"
+          variant="primary"
+          icon={<Download tone="onAccent" />}
+          onPress={onPress}
+          testID="home-first-song"
+        />
       </View>
     </View>
   )
@@ -391,36 +496,55 @@ function PhoneHeader(): ReactNode {
 }
 
 /**
- * The tiles, two across on a phone; on a computer as many as fit a tile of
- * `WIDE_TILE_MIN`, two to three, so a page narrowed by Up next drops a column
- * rather than cutting the names (M1). A tile opens its tag's page.
+ * The tiles, two across on a phone and three on an iPad held upright; on a
+ * computer as many as fit a tile of `WIDE_TILE_MIN`, two to three, so a page
+ * narrowed by Up next drops a column rather than cutting the names (M1); more
+ * on a very wide page, where three would each grow past `WIDE_TILE_MAX`. A
+ * tile opens its tag's page.
  */
 function Tiles({
   tiles,
+  usual,
   loading,
   beside,
 }: {
   tiles: readonly HomeTile[]
+  /** Home's hour tile, first, when there is enough history for one. */
+  usual: UsualTile | null
   loading: boolean
   /** Whether the card column stands beside the tiles, taking its width from theirs. */
   beside: boolean
 }): ReactNode {
   const openTag = useOpenTag()
   const art = useArt()
+  const roomy = useLayoutValue(roomyPhone)
   // As many tiles of `WIDE_TILE_MIN` as fit, two to three (`C03` draws
-  // three), so a page narrowed by Up next drops a column rather than cutting
-  // the names (M1). The number is only for how many columns and the name's
-  // size, which may follow a frame behind.
+  // three), more once three would outgrow `WIDE_TILE_MAX`; a page narrowed
+  // by Up next drops a column rather than cutting the names (M1). The number
+  // is only for how many columns and the name's size, which may follow a
+  // frame behind.
   const { columns, tileWidth } = useTileGrid({
     minTile: WIDE_TILE_MIN,
     gap: TILE_GAP,
     maxColumns: 3,
+    maxTile: WIDE_TILE_MAX,
     reserve: beside ? SIDE_COLUMN + COLUMN_GAP : 0,
+    phoneColumns: roomy ? 3 : 2,
   })
   const small = tileWidth > 0 && tileWidth < SMALL_TILE
-  if (loading) return <View style={styles.tilesPlaceholder} />
+  if (loading) return <TilesWaiting columns={columns} />
+  const grid = (
+    <HomeTiles
+      tiles={tiles}
+      usual={usual}
+      columns={columns}
+      small={small}
+      artFor={tile => (tile.cover ? art(tile.cover) : null)}
+      onOpen={tile => openTag(tile.tag, { from: 'tile' })}
+    />
+  )
   if (tiles.length === 0) {
-    return (
+    const none = (
       <EmptyState
         compact
         style={styles.emptyTile}
@@ -429,15 +553,47 @@ function Tiles({
         line="Tag a song from its ⋯ menu."
       />
     )
+    return usual ? (
+      <View style={styles.stack}>
+        {grid}
+        {none}
+      </View>
+    ) : (
+      none
+    )
   }
+  return grid
+}
+
+/** The tiles' shapes while the library is on its way: two rows of them, a tile high (AA1). */
+function TilesWaiting({ columns }: { columns: number }): ReactNode {
+  const { wide } = useLayout()
+  const cells = useMemo(() => Array.from({ length: columns * 2 }, (_, index) => index), [columns])
   return (
-    <HomeTiles
-      tiles={tiles}
-      columns={columns}
-      small={small}
-      artFor={tile => (tile.cover ? art(tile.cover) : null)}
-      onOpen={tile => openTag(tile.tag, { from: 'tile' })}
-    />
+    <Skeleton label="Loading your tags" testID="home-tiles-loading">
+      <TileGrid
+        items={cells}
+        columns={columns}
+        gap={TILE_GAP}
+        keyOf={cell => cell}
+        renderItem={() => <Bone height={wide ? 118 : 104} radius={radius.card} />}
+      />
+    </Skeleton>
+  )
+}
+
+/** Recently played's shapes: a row of covers, each with its name under it. */
+function RecentsWaiting({ wide }: { wide: boolean }): ReactNode {
+  const size = wide ? RECENT_TILE : 92
+  return (
+    <Skeleton label="Loading recently played" style={styles.recentsWaiting}>
+      {Array.from({ length: RECENTS_LEAST }, (_, index) => (
+        <View key={index} style={[styles.recentWaiting, { width: size }]}>
+          <Bone width={size} height={size} radius={radius.cover} />
+          <Bone width="70%" height={11} radius={radius.pill} />
+        </View>
+      ))}
+    </Skeleton>
   )
 }
 
@@ -449,12 +605,14 @@ function Tiles({
  */
 function HomeTiles({
   tiles,
+  usual,
   columns,
   small,
   artFor,
   onOpen,
 }: {
   tiles: readonly HomeTile[]
+  usual: UsualTile | null
   columns: number
   /** Whether a tile is narrower than `SMALL_TILE`, and its name a size down. */
   small: boolean
@@ -462,24 +620,94 @@ function HomeTiles({
   onOpen: (tile: HomeTile) => void
 }): ReactNode {
   const [arrive] = useState(() => session.first('home-tiles'))
+  const items = useMemo(
+    (): readonly (HomeTile | UsualTile)[] => (usual ? [usual, ...tiles] : tiles),
+    [usual, tiles],
+  )
   return (
     <TileGrid
-      items={tiles}
+      items={items}
       columns={columns}
       gap={TILE_GAP}
-      keyOf={tile => tile.tag.id}
-      renderItem={(tile, index) => (
-        <Tile
-          tile={tile}
-          index={index}
-          count={tiles.length}
-          arrive={arrive}
-          small={small}
-          artUri={artFor(tile)}
-          onPress={() => onOpen(tile)}
-        />
-      )}
+      keyOf={item => ('tag' in item ? item.tag.id : 'usual')}
+      renderItem={(item, index) =>
+        'tag' in item ? (
+          <Tile
+            tile={item}
+            index={index}
+            count={items.length}
+            arrive={arrive}
+            small={small}
+            artUri={artFor(item)}
+            onPress={() => onOpen(item)}
+          />
+        ) : (
+          <HourTile usual={item} index={index} count={items.length} arrive={arrive} small={small} />
+        )
+      }
     />
+  )
+}
+
+/**
+ * "Usually at this hour" (N5): a tag tile's sibling, first among them, named
+ * after the part of the day and drawn in its colour, that plays what you
+ * usually play around now instead of opening a page. Its play button sits
+ * where a tag's cover leans.
+ */
+function HourTile({
+  usual,
+  index,
+  count,
+  arrive,
+  small,
+}: {
+  usual: UsualTile
+  index: number
+  count: number
+  arrive: boolean
+  small: boolean
+}): ReactNode {
+  const { wide } = useLayoutFlags()
+  const arrival = useArrival(index, arrive, count)
+  const player = usePlayerCommands()
+  const colours = tagColors(usual.hue)
+  const play = (): void => {
+    const ids = usualPicks(usual.songs)
+    if (ids.length === 0) return
+    player.playFrom(ids, 0, { source: { kind: 'songs', origin: 'usual', name: usual.name } })
+  }
+  return (
+    <Animated.View style={arrival}>
+      <Press
+        testID="home-usual"
+        onPress={play}
+        accessibilityRole="button"
+        accessibilityLabel={`${usual.name}: play what you usually play around now`}
+        style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
+      >
+        <ToneWash color={colours.dot} diagonal />
+        <Text
+          style={[styles.tileName, small && styles.tileNameSmall, { color: colours.tileInk }]}
+          numberOfLines={2}
+        >
+          {usual.name}
+        </Text>
+        <Text style={[styles.tileCount, styles.usualLine, { color: colours.tileInk }]}>
+          What you play around now
+        </Text>
+        <View
+          style={[
+            styles.usualPlay,
+            wide && styles.usualPlayWide,
+            { backgroundColor: colours.tileInk },
+          ]}
+          pointerEvents="none"
+        >
+          <Play color={colours.tile} size={USUAL_PLAY_ICON} />
+        </View>
+      </Press>
+    </Animated.View>
   )
 }
 
@@ -502,7 +730,7 @@ function Tile({
   artUri: string | null | undefined
   onPress: () => void
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const arrival = useArrival(index, arrive, count)
   const colours = tagColors(tile.tag.hue)
   const ref = useRef<View>(null)
@@ -555,13 +783,6 @@ function Tile({
 }
 
 /**
- * A song tile plays the row's songs from that one, and Up next is named
- * "Recently played" for them. It offers no Save and is not remembered as a
- * list of its own (`savePlan`, `sourceKey`): the row already is that list.
- */
-const FROM_RECENTS = { kind: 'songs', origin: 'recent', name: 'Recently played' } as const
-
-/**
  * Recently played (docs/features/lists.md, A1): what you listened to, newest
  * first, in a row that scrolls sideways — a list as its covers and its kind,
  * a song played on its own as that song. A tap plays it again; a list that
@@ -579,7 +800,7 @@ function Recents({
   const player = usePlayerCommands()
   const router = useRouter()
   const { data: library } = useLibrary()
-  const size = wide ? 132 : 92
+  const size = wide ? RECENT_TILE : 92
   const songIds = useMemo(
     () => recents.flatMap(recent => (recent.kind === 'song' ? [recent.song.id] : [])),
     [recents],
@@ -602,8 +823,9 @@ function Recents({
               song={song}
               size={size}
               testID={`home-recent-${index}`}
+              // The row's songs from this one, as Recently played: no list of their own.
               onPress={() =>
-                player.playFrom(songIds, songIds.indexOf(song.id), { source: FROM_RECENTS })
+                player.playFrom(songIds, songIds.indexOf(song.id), { source: RECENTS_SOURCE })
               }
             />
           )
@@ -633,7 +855,7 @@ function Recents({
               const ids = recentSongIds(entry, library)
               if (ids.length === 0) return
               fly(covers.current.get(entry.key) ?? null, ids)
-              player.playFrom(ids, 0, { source: entry.source })
+              player.playFrom(ids, 0, { source: entry.source, whole: true })
             }}
             label={line.link || entry.answer ? `Open ${line.label}` : `Play ${line.label}`}
             cover={
@@ -668,7 +890,7 @@ function Recents({
  */
 function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNode {
   const router = useRouter()
-  const faces = pastRoomFaces(room, useCloudSession().data?.picture)
+  const faces = pastRoomFaces(room)
   // The songs that played behind them, as a playlist's cover is made.
   const pictures = usePastRoomCovers(room)
   const covers = room.songs.map((entry, at) => ({
@@ -715,34 +937,24 @@ function ThisWeek({
   const column = beside ? styles.sideColumn : styles.stack
   if (!stats) return <View style={column} />
   const figures = statFigures(stats)
-  // Under the tiles the two cards sit abreast, each half the page (`T02`).
-  const cards = beside ? styles.cardsStacked : styles.cardsAbreast
-  const half = beside ? null : styles.cardHalf
   return (
     <View style={column}>
       <SectionHead title="This week" action={null} />
-      <View style={cards}>
-        <View style={[styles.weekCard, half]} testID="home-this-week">
-          {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
-          <View style={styles.weekNumbers}>
-            <StatFigure value={figures.listened} unit={figures.listenedUnit} caption="listened" />
-            <StatFigure value={figures.plays} caption="plays" />
-            {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
-            <StatFigure value={figures.streak} unit={figures.streakUnit} caption="streak" />
-          </View>
-          {sunday ? (
-            <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
-          ) : (
-            <Press
-              feedback="dim"
-              onPress={() => router.navigate('/stats')}
-              accessibilityRole="link"
-            >
-              <Text style={styles.linkSmall}>Stats and report</Text>
-            </Press>
-          )}
-        </View>
-        <ImportsHint style={half} />
+      <View style={styles.weekCard} testID="home-this-week">
+        {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
+        <StatFigures>
+          <StatFigure value={figures.listened} unit={figures.listenedUnit} caption="listened" />
+          <StatFigure value={figures.plays} caption={figures.playsCaption} />
+          {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
+          <StatFigure value={figures.streak} unit={figures.streakUnit} caption="streak" />
+        </StatFigures>
+        {sunday ? (
+          <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
+        ) : (
+          <Press feedback="dim" onPress={() => router.navigate('/stats')} accessibilityRole="link">
+            <Text style={styles.linkSmall}>Stats and report</Text>
+          </Press>
+        )}
       </View>
     </View>
   )
@@ -777,11 +989,12 @@ function WeekReadyHead({
   const lead = card.song
   return (
     <>
-      <ToneWash color={tone.color} />
+      <ToneWash color={tone.color} diagonal />
       <View style={styles.readyHead}>
         {song ? <SundaySong song={song} tone={tone} size={READY_COVER} /> : null}
         <View style={styles.sundayText}>
-          <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text>
+          {/* Plain case: the number one is what the card is about (A1). */}
+          <Text style={styles.readyKicker}>{lead ? 'Song of the week' : card.title}</Text>
           {lead ? (
             <Text style={styles.readyTitle} numberOfLines={1}>
               {lead.title}
@@ -834,27 +1047,6 @@ function OpenWeek({
   )
 }
 
-/** A quiet way to Import from the card column; the sidebar has the row as well. */
-function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
-  const router = useRouter()
-  return (
-    <Press
-      onPress={() => router.navigate('/import')}
-      accessibilityRole="link"
-      wrap={style}
-      style={styles.importCard}
-    >
-      <View style={styles.importIcon}>
-        <Download size={iconSize.item} tone="textPrimary" />
-      </View>
-      <View style={styles.importText}>
-        <Text style={styles.importTitle}>Import a link</Text>
-        <Text style={styles.importBody}>A song or a playlist from YouTube</Text>
-      </View>
-    </Press>
-  )
-}
-
 /** The round mark that opens Profile, in the phone's header. */
 const AVATAR = 36
 
@@ -864,10 +1056,26 @@ const READY_COVER = 52
 
 /** Between two tiles, across and down. */
 const TILE_GAP = 10
+/** A computer's Recently played tile, the gap after it, and the fewest the row asks for. */
+const RECENT_TILE = 132
+const RECENT_GAP = 10
+const RECENTS_LEAST = 12
 /** A tile narrower than this (Slide Over's 320, `T08`) sets its name a size down. */
 const SMALL_TILE = 140
+/** The hour tile's round play button, and the triangle in it. */
+const USUAL_PLAY = 34
+const USUAL_PLAY_ICON = 15
 /** The narrowest a computer's tile gets before the grid drops a column. */
 const WIDE_TILE_MIN = 190
+/**
+ * The phone's layout at a tablet's width — an iPad held upright, 744 and up
+ * (AI1) — has room for three tiles across; a phone, 440 at most, has two.
+ */
+const ROOMY_PHONE = 600
+const roomyPhone = (layout: { wide: boolean; width: number }): boolean =>
+  !layout.wide && layout.width >= ROOMY_PHONE
+/** And the widest, past which a very wide page takes another column. */
+const WIDE_TILE_MAX = 360
 
 /** The card column beside the tiles. */
 const SIDE_COLUMN = 300
@@ -884,9 +1092,6 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: pageFrame(false),
   contentWide: pageFrame(true),
   stack: { gap: space.snug },
-  cardsStacked: { gap: space.md },
-  cardsAbreast: { flexDirection: 'row', alignItems: 'stretch', gap: space.md },
-  cardHalf: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   columns: { flexDirection: 'row', gap: COLUMN_GAP, alignItems: 'flex-start' },
   mainColumn: { flex: 1, minWidth: 0, gap: space.md },
   sideColumn: { width: SIDE_COLUMN, gap: space.md },
@@ -944,7 +1149,21 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.item,
   },
   tileCoverWide: { right: -6, bottom: -8 },
-  tilesPlaceholder: { height: 218 },
+  // Clear of the play button, which sits in the corner a tag's cover leans into.
+  usualLine: { paddingRight: USUAL_PLAY + space.sm },
+  usualPlay: {
+    position: 'absolute',
+    right: space.roomy,
+    bottom: space.roomy,
+    width: USUAL_PLAY,
+    height: USUAL_PLAY,
+    borderRadius: USUAL_PLAY / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  usualPlayWide: { right: space.lg, bottom: space.lg },
+  recentsWaiting: { flexDirection: 'row', gap: RECENT_GAP, overflow: 'hidden' },
+  recentWaiting: { gap: space.sm },
   emptyTile: card(theme.colors),
   firstCard: {
     borderRadius: radius.cardLg,
@@ -952,16 +1171,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     alignItems: 'flex-start',
   },
-  firstMark: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.tight,
-  },
   firstTitle: serif(theme.colors, 'page'),
+  firstLine: { color: theme.colors.textSecondary, ...textStyle('sub') },
+  weekLater: { color: theme.colors.textMuted, ...textStyle('sub') },
   firstAction: { marginTop: space.tight },
   recents: { paddingRight: 20 },
   recentBadge: {
@@ -982,6 +1194,7 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   readyHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  readyKicker: { color: theme.colors.textSecondary, fontSize: type.sub },
   readyTitle: rowTitle(theme.colors),
   readyButton: {
     height: 36,
@@ -990,25 +1203,4 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   readyButtonLabel: { color: theme.colors.surface0, fontSize: type.sub, fontWeight: '600' },
-  weekNumbers: { flexDirection: 'row', gap: space.md },
-  importCard: {
-    ...card(theme.colors),
-    // Filling the wrapper the press sinks, which the card beside it stretches.
-    flexGrow: 1,
-    padding: space.roomy,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-  },
-  importIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  importText: { flex: 1, gap: 2 },
-  importTitle: rowTitle(theme.colors),
-  importBody: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

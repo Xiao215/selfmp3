@@ -102,6 +102,9 @@ export function useListen(
     })
     return () => {
       unsubscribe()
+      // A download still on its way finds nobody wanting it: the page is gone.
+      wanted.current = null
+      pending.current = null
       audio.dispose()
     }
   }, [audio, position])
@@ -112,6 +115,12 @@ export function useListen(
     if (playerPlaying && !wasPlaying.current) {
       audio?.pause()
       resume.current = false
+      // A preview still coming waits for a tap, rather than starting over the song.
+      const waiting = pending.current
+      if (waiting && !waiting.paused) {
+        waiting.paused = true
+        setListening(current => (current ? { ...current, status: 'paused' } : current))
+      }
     }
     wasPlaying.current = playerPlaying
   }, [audio, playerPlaying])

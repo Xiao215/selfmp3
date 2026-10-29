@@ -23,9 +23,10 @@ const mockAudio = {
 let mockReport: (state: { status: string; currentTime: number; duration: number }) => void = () =>
   undefined
 jest.mock('../../ports/listen', () => ({ createListenAudio: () => mockAudio }))
+let mockPlaying = false
 jest.mock('../../player/PlayerProvider', () => ({
   usePlayerCommands: () => ({ toggle: () => undefined }),
-  usePlayerPlaying: () => false,
+  usePlayerPlaying: () => mockPlaying,
 }))
 jest.mock('../../connection/ConnectionProvider', () => ({
   useConnection: () => ({ connection: { baseUrl: 'http://server', token: null } }),
@@ -47,7 +48,10 @@ const TRACK = {
 }
 
 describe('a song heard from this device’s own download', () => {
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockPlaying = false
+  })
 
   it('stays paused when paused before it came, and plays on the next tap', async () => {
     const { result } = await renderHook(() =>
@@ -88,5 +92,27 @@ describe('a song heard from this device’s own download', () => {
     await act(async () => result.current.toggle(TRACK))
     await act(async () => mockReport({ status: 'playing', currentTime: 31, duration: 200 }))
     expect(result.current.listening?.status).toBe('paused')
+  })
+
+  it('does not start once the page has gone', async () => {
+    const { result, unmount } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    await act(async () => unmount())
+    await act(async () => mockArrive('blob:own'))
+    expect(mockAudio.play).not.toHaveBeenCalled()
+  })
+
+  it('waits for a tap when the song itself was played meanwhile', async () => {
+    const { result, rerender } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    mockPlaying = true
+    await act(async () => rerender({}))
+    expect(result.current.listening?.status).toBe('paused')
+    await act(async () => mockArrive('blob:own'))
+    expect(mockAudio.play).not.toHaveBeenCalled()
   })
 })

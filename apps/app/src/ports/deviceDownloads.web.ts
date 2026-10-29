@@ -22,6 +22,14 @@ import { appPath } from './appPath'
  * server too.
  */
 let downloader: Promise<DeviceYouTube | null> | null = null
+
+/**
+ * Whether this browser is one the extension is built for: Chrome and the
+ * browsers made from it (Edge, Brave, Arc), which all give a page a
+ * `window.chrome`. Firefox and Safari do not, and have no self.mp3 extension
+ * (docs/features/browser-extension.md) — Settings leaves their switches out.
+ */
+export const extensionBrowser = typeof window !== 'undefined' && 'chrome' in window
 /** When the last look found no way to YouTube, so the next look can wait a while. */
 let missedAt = 0
 /** Why the last look found none, said once until the reason changes. */
@@ -37,7 +45,12 @@ let missedWhy = ''
 const LOOK_AGAIN_MS = 30_000
 
 export function deviceDownloader(): Promise<DeviceYouTube | null> {
-  if (downloader && missedAt > 0 && Date.now() - missedAt > LOOK_AGAIN_MS) downloader = null
+  if (downloader && missedAt > 0 && Date.now() - missedAt > LOOK_AGAIN_MS) {
+    // The new look is the one everyone waits on until it answers: a second
+    // call meanwhile must not start a third, with its own frame and BotGuard.
+    downloader = null
+    missedAt = 0
+  }
   downloader ??= (async () => {
     const without = (why: string): null => {
       missedAt = Date.now()

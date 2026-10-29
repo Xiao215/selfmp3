@@ -8,7 +8,7 @@ import {
 } from '@/ports/deviceDownloads'
 import { DeviceImports } from './deviceImports.model'
 import { previewOnDevice, refusing, singleVideo } from './devicePreview.model'
-import { deviceDownloadsOn, deviceHandBackOn } from './devicePrefs'
+import { deviceDownloadsOn, deviceHandBackOn, watchDeviceDownloads } from './devicePrefs'
 
 /**
  * The one `DeviceImports` this app runs (deviceImports.model.ts): songs this
@@ -25,7 +25,13 @@ const deviceImports = new DeviceImports({
     return () => clearInterval(timer)
   },
   handBack: deviceHandBackOn,
+  wanted: deviceDownloadsOn,
   log: (message, details) => console.warn(`[device import] ${message}`, details ?? ''),
+})
+
+// Turned off partway through a batch: the server takes what this browser has not started.
+watchDeviceDownloads(() => {
+  if (!deviceDownloadsOn()) void deviceImports.letGo('downloading in this browser was turned off')
 })
 
 /**

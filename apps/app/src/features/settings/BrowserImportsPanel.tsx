@@ -43,7 +43,7 @@ export function BrowserImportsPanel({
       </Row>
       <Row
         label="Let the server take over when YouTube slows this browser down"
-        hint="Off, this browser waits out YouTube's pause, up to 15 minutes, and finishes the songs itself."
+        hint="Off, this browser waits out YouTube's pause, 15 minutes from each refusal, and finishes the songs itself."
         last={pace === null}
       >
         <Toggle

@@ -38,6 +38,10 @@ export function setDeviceHandBack(on: boolean): void {
 /** Whether this browser downloads songs itself; read where no component is. */
 export const deviceDownloadsOn = (): boolean => downloads.get()
 
+/** Call `listener` whenever "Download songs here" is switched; the returned function stops it. */
+export const watchDeviceDownloads = (listener: () => void): (() => void) =>
+  downloads.subscribe(listener)
+
 /** Whether a refusal for rate hands what is left to the server. */
 export const deviceHandBackOn = (): boolean => handBack.get()
 

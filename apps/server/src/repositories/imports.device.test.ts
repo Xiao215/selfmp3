@@ -110,10 +110,22 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(imports.takeFromDevice('another', held)).toBeNull()
 
     const taken = imports.takeFromDevice('lease-1', held)
-    expect(taken).toMatchObject({ id: held, status: 'running', step: 'converting', attempts: 1 })
+    expect(taken).toMatchObject({ id: held, status: 'running', step: 'waiting', attempts: 1 })
     expect(imports.fetcherOf(held)).toEqual({ fetcher: 'device', lease: null })
     // Nothing more for the device to do with it.
     expect(imports.renewLease('lease-1', 300, [])).toEqual([])
+  })
+
+  it('lets a file waiting for its turn be called off, and not once it is being added', () => {
+    const first = enqueueForDevice().held
+    imports.takeFromDevice('lease-1', first)
+    expect(imports.cancel(first)).toBe(true)
+    expect(imports.byId(first)).toMatchObject({ status: 'cancelled' })
+
+    const second = enqueueForDevice().held
+    imports.takeFromDevice('lease-1', second)
+    imports.update(second, { step: 'converting' })
+    expect(imports.cancel(second)).toBe(false)
   })
 
   it('counts an attempt for a file that came without a start', () => {

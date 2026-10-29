@@ -112,6 +112,8 @@ export function onThisDevice(place: DevicePlace): string {
 /**
  * `crossfade`: Playback holds only crossfade, which a phone's engine cannot do.
  * `installed`: a browser streams and keeps no songs, so it has nothing on it.
+ * `extension`: a browser the self.mp3 extension runs in (Chrome and its kin),
+ * the only place a tab can download songs itself — an installed app has none.
  * `keyboard`: there are keys to list and a keyboard to press them on — the
  * installed desktop app's menu, or an iPad's or an iPhone's while a hardware
  * keyboard is attached. A browser tab has only Space, for play and pause, and
@@ -129,6 +131,7 @@ export function sectionsFor({
   shell = false,
   place = 'phone',
   offered = false,
+  extension = false,
 }: {
   readonly crossfade?: boolean
   readonly installed?: boolean
@@ -136,12 +139,13 @@ export function sectionsFor({
   readonly shell?: boolean
   readonly place?: DevicePlace
   readonly offered?: boolean
+  readonly extension?: boolean
 } = {}): readonly Section[] {
   return ALL_SECTIONS.filter(
     section =>
       (crossfade || section.id !== 'playback') &&
       (installed || section.id !== 'offline') &&
-      (!installed || section.id !== 'browserImports') &&
+      ((!installed && extension) || section.id !== 'browserImports') &&
       (keyboard || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop') &&
       (offered || section.id !== 'getApp'),

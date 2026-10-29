@@ -168,7 +168,18 @@ export function Options(): ReactNode {
               type="checkbox"
               checked={options.data?.useYouTubeSignIn ?? false}
               disabled={!options.data || setSignIn.isPending}
-              onChange={event => setSignIn.mutate(event.target.checked)}
+              onChange={event => {
+                const on = event.target.checked
+                // Chrome asks the person for the cookies only now, while the click is theirs.
+                const permission = on
+                  ? chrome.permissions.request({ permissions: ['cookies'] })
+                  : chrome.permissions.remove({ permissions: ['cookies'] }).then(() => true)
+                void permission
+                  .catch(() => !on)
+                  .then(granted => {
+                    if (granted) setSignIn.mutate(on)
+                  })
+              }}
             />
           </label>
           <p className="hint">

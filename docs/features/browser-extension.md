@@ -161,7 +161,7 @@ the badge is only ever about what you did here.
 | `alarms` | keeping the badge right when Chrome has stopped the worker |
 | youtubei.googleapis.com, *.googlevideo.com, www.google.com/js/th/ | carrying the web app's requests to YouTube, so a song can be downloaded in the browser ([client-download.md](client-download.md)) |
 | `declarativeNetRequestWithHostAccess` | saying `Origin: https://www.youtube.com` on those requests, which YouTube refuses from any other origin; one static rule, for the extension's own requests only |
-| `cookies` | reading the `SAPISID` cookie, only with *Use my YouTube sign-in* turned on in the options, to sign the web app's player requests ([client-download.md](client-download.md), "Signed in") |
+| `cookies` (optional) | reading the `SAPISID` cookie, to sign the web app's player requests ([client-download.md](client-download.md), "Signed in"). Not asked for at install: Chrome asks when *Use my YouTube sign-in* is turned on in the options, and it is given back when the option is turned off |
 | `externally_connectable` (the app's pages) | the port those requests arrive on |
 | `storage` is **not** asked for | what it keeps lives in the extension's IndexedDB, which content scripts cannot read |
 

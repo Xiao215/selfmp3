@@ -81,10 +81,19 @@ interface DeviceImportsDeps {
    * and waits the refusal out here, on a lease kept alive meanwhile.
    */
   readonly handBack: () => boolean
+  /**
+   * Whether this device still downloads at all (the device's setting,
+   * devicePrefs.ts). Turned off partway, what it has not started yet goes to
+   * the server (`letGo`); the song already downloading finishes here.
+   */
+  readonly wanted: () => boolean
 }
 
 /** How often a lease is renewed: well inside the server's five minutes, even in a background tab. */
 const RENEW_MS = 60_000
+
+/** The longest a wait for a turn sleeps before it looks again whether it is still wanted. */
+const PACE_LOOK_MS = 5_000
 
 /** A device asks YouTube signed out: the extension carries no cookies. */
 const SIGNED_IN = false
@@ -133,6 +142,14 @@ export class DeviceImports {
     })
   }
 
+  /**
+   * Hand every song not started yet to the server: this device was told to
+   * stop downloading. The one downloading now, if any, finishes.
+   */
+  letGo(reason: string): Promise<void> {
+    return this.#releaseEverything(reason)
+  }
+
   /** For a test: until everything taken so far is done with. */
   async settled(): Promise<void> {
     while (this.#running) await this.#running
@@ -151,12 +168,15 @@ export class DeviceImports {
   async #one(batch: Batch, id: string): Promise<void> {
     const job = batch.jobs.get(id)
     const downloader = await this.#deps.downloader()
-    if (!job || !downloader) {
+    if (!job || !downloader || !this.#deps.wanted()) {
       await this.#release(batch, id, 'this device can no longer download from YouTube')
       return
     }
     // A song heard in the review is here already, and asks YouTube for nothing.
-    if (!downloader.has(job.url)) await this.#pace()
+    if (!downloader.has(job.url) && !(await this.#pace())) {
+      await this.#release(batch, id, 'this device no longer downloads from YouTube')
+      return
+    }
 
     try {
       await batch.api.importDeviceStart(batch.lease, id)
@@ -214,17 +234,19 @@ export class DeviceImports {
    * but as a person's request: a few may go on turns the bucket has not
    * filled yet (`PERSON_MAY_BORROW`), so the first songs of an import on a
    * device that has never downloaded do not wait out an empty bucket.
+   * False when this device was told to stop downloading while it waited.
    */
-  async #pace(): Promise<void> {
+  async #pace(): Promise<boolean> {
     for (;;) {
+      if (!this.#deps.wanted()) return false
       const now = this.#deps.now()
       const next = spend(this.#budget(), SIGNED_IN, now, PERSON_MAY_BORROW)
       if (next) {
         this.#deps.budget.save(next)
-        return
+        return true
       }
       const wait = waitMs(this.#budget(), SIGNED_IN, now, PERSON_MAY_BORROW)
-      await this.#deps.sleep(Math.max(250, wait))
+      await this.#deps.sleep(Math.min(PACE_LOOK_MS, Math.max(250, wait)))
     }
   }
 

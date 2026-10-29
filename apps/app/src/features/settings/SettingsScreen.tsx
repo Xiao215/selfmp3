@@ -9,6 +9,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { radius, space, type, useHealth } from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
+import { extensionBrowser } from '../../ports/deviceDownloads'
 import { macApp } from '../../ports/macApp'
 import { installedApp } from '../../ports/install'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -116,6 +117,7 @@ export function SettingsScreen(): ReactNode {
     shell: loginItem.available,
     place,
     offered: macApp.offered,
+    extension: extensionBrowser,
   })
   const indexed = settingsIndex(sections)
   const shown = (id: SectionId): boolean => sections.some(section => section.id === id)

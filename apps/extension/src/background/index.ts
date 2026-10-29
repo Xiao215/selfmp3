@@ -132,6 +132,8 @@ chrome.runtime.onConnectExternal.addListener(
     // Off unless the person turned it on in the options; then the cookie Chrome keeps for YouTube.
     signIn: async () => {
       if (!(await readOptions(store)).useYouTubeSignIn) return null
+      // Asked for only when the option was turned on, and given back when it was turned off.
+      if (!(await chrome.permissions.contains({ permissions: ['cookies'] }))) return null
       const cookie = await chrome.cookies.get({ url: 'https://www.youtube.com', name: 'SAPISID' })
       return cookie?.value ?? null
     },

@@ -29,9 +29,9 @@
     "notifications",
     "alarms",
     "identity",
-    "declarativeNetRequestWithHostAccess",
-    "cookies"
+    "declarativeNetRequestWithHostAccess"
   ],
+  "optional_permissions": ["cookies"],
   "declarative_net_request": {
     "rule_resources": [
       { "id": "youtube-origin", "enabled": true, "path": "rules/youtube-origin.json" }

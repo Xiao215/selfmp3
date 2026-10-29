@@ -44,12 +44,13 @@ interface ImportJobRow {
 }
 
 /**
- * A job that can still be called off: waiting, or downloading. Past the
- * download the song is moved into the library, tagged and uploaded; a cancel
- * marked then was written over when the job finished anyway, and the song was
- * added all the same. One job's Cancel and Pause all draw this same line.
+ * A job that can still be called off: waiting, or downloading — or a device's
+ * file waiting for its turn to be added (`takeFromDevice`). Past the download
+ * the song is moved into the library, tagged and uploaded; a cancel marked
+ * then was written over when the job finished anyway, and the song was added
+ * all the same. One job's Cancel and Pause all draw this same line.
  */
-const CANCELLABLE = `(status = 'queued' OR (status = 'running' AND step IN ('resolving','downloading')))`
+const CANCELLABLE = `(status = 'queued' OR (status = 'running' AND step IN ('waiting','resolving','downloading')))`
 
 /** What calling a job off writes. */
 export const CANCELLED = `status = 'cancelled', step = 'finished', updated_at = datetime('now')`
@@ -309,7 +310,7 @@ export class ImportRepository {
     )
     this.#takeFromDevice = db.prepare<{ id: string; lease: string }, ImportJobRow>(
       `UPDATE import_jobs
-          SET status = 'running', step = 'converting', progress = NULL, error = NULL,
+          SET status = 'running', step = 'waiting', progress = NULL, error = NULL,
               attempts = attempts + CASE WHEN status = 'queued' THEN 1 ELSE 0 END,
               lease_id = NULL, lease_until = NULL, updated_at = datetime('now')
         WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')
@@ -603,8 +604,9 @@ export class ImportRepository {
 
   /**
    * The device's file has come: the job is the server's to finish from here,
-   * at the step after the download. Null when the lease no longer holds it —
-   * it ran out and the server took the job, or it was cancelled.
+   * waiting for a turn among the jobs in flight (importConcurrency) — and,
+   * until it has one, still cancellable. Null when the lease no longer holds
+   * it: it ran out and the server took the job, or it was cancelled.
    */
   takeFromDevice(lease: string, id: string): ImportJob | null {
     const row = this.#takeFromDevice.get({ id, lease })

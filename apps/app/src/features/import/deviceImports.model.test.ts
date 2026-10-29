@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ImportJob, ThrottleState } from '@selfmp3/shared'
 import {
   DeviceImports,
@@ -48,6 +48,8 @@ function harness(options: {
   cached?: string[]
   /** The device's setting: hand the rest to the server after a refusal for rate. */
   handBack?: boolean
+  /** The device's "Download songs here", read each time it is asked. */
+  wanted?: () => boolean
 }) {
   const calls: string[] = []
   let held = new Set(options.ids)
@@ -102,6 +104,7 @@ function harness(options: {
     },
     log: () => undefined,
     handBack: () => options.handBack ?? true,
+    wanted: () => options.wanted?.() ?? true,
   })
 
   return {
@@ -262,5 +265,49 @@ describe('DeviceImports', () => {
     expect(h.calls.filter(call => call.startsWith('upload'))).toEqual(['upload a', 'upload b'])
     // The pause was waited out, not skipped.
     expect(h.slept.reduce((sum, ms) => sum + ms, 0)).toBeGreaterThanOrEqual(15 * 60 * 1000 - 1000)
+  })
+
+  it('hands the server what it has not started when downloading here is turned off', async () => {
+    let wanted = true
+    let finish: (file: DeviceFile) => void = () => undefined
+    const h = harness({
+      ids: ['a', 'b', 'c'],
+      wanted: () => wanted,
+      download: () => new Promise(resolve => (finish = resolve)),
+    })
+    h.take()
+    await vi.waitFor(() => expect(h.calls).toContain('download a'))
+    wanted = false
+    await h.imports.letGo('turned off')
+    finish(FILE)
+    await h.imports.settled()
+    // The one under way finishes here; the rest are the server's.
+    expect(h.calls).toEqual([
+      'start a',
+      'download a',
+      'release b: turned off',
+      'release c: turned off',
+      'upload a',
+    ])
+  })
+
+  it('lets go of a song waiting for its turn when downloading here is turned off', async () => {
+    // Switched off a few looks into the wait for a pause to end.
+    const h: ReturnType<typeof harness> = harness({
+      ids: ['a'],
+      wanted: () => h.slept.length < 3,
+      budget: {
+        tokens: -5,
+        ratchet: 1,
+        updatedAt: 1_700_000_000_000,
+        pausedUntil: 1_700_000_000_000 + 15 * 60 * 1000,
+        limitedAt: 1_700_000_000_000,
+      },
+    })
+    h.take()
+    await h.imports.settled()
+    expect(h.calls.filter(call => !call.startsWith('renew'))).toEqual([
+      'release a: this device no longer downloads from YouTube',
+    ])
   })
 })

@@ -13,6 +13,9 @@ export function deviceDownloader(): Promise<DeviceYouTube | null> {
   return Promise.resolve(null)
 }
 
+/** No browser here, so no extension to run in one. */
+export const extensionBrowser = false
+
 /** A review's listen goes through the server: there is nothing here to download it with. */
 export function deviceListenUrl(_url: string): Promise<string | null> {
   return Promise.resolve(null)

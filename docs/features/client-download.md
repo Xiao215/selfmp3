@@ -52,6 +52,8 @@ which is redeployed whenever we like:
    A file that passes waits for a free place among the downloads in flight
    (Settings → Importing → Downloads at once), as the server's own do, so
    several devices sending at once cannot run more than the machine allows.
+   While it waits it shows as waiting and can still be paused or removed; the
+   file goes with it.
 5. From there the server finishes the job as it finishes its own downloads,
    with one extra step: it writes the tags yt-dlp would have written —
    title, artist and album as you confirmed them in the review, the release
@@ -88,13 +90,17 @@ would be the one listening.
 ## Settings
 
 Two switches in the app, under **Settings → Advanced → In this browser**, kept
-on the device (`devicePrefs.ts`) and shown only in a browser tab:
+on the device (`devicePrefs.ts`) and shown only in a browser tab the extension
+runs in — Chrome and the browsers made from it, not Safari or Firefox:
 
 - **Download songs here** (on): whether this browser looks up, plays and
   downloads YouTube songs at all. Off, the server does all of it, as before.
+  Turned off partway through an import, the songs this browser has not started
+  go to the server at once; the one downloading finishes.
 - **Let the server take over when YouTube slows this browser down** (on): when
   YouTube refuses this browser for rate, the songs it has not downloaded go to
-  the server, and so does anything imported while the 15-minute pause lasts.
+  the server, and so does anything imported while the pause lasts — 15
+  minutes from each refusal.
   Off, the browser waits the pause out and downloads them itself, its lease
   kept alive meanwhile. Looking up and listening go to the server during a
   pause either way: a person is waiting for those.
@@ -167,7 +173,10 @@ goes with this browser's YouTube sign-in: Chrome's own cookies, and the
 `SAPISIDHASH` header YouTube's pages send, made by the extension from the
 `SAPISID` cookie (`signsIn` and `sapisidHash` in `packages/shared/src/ytProxy.ts`).
 Nothing else goes signed in, whatever the option — not the media, and nothing
-that could like, subscribe or comment. The page never sees a cookie.
+that could like, subscribe or comment. The page never sees a cookie. The
+extension has no access to cookies until the option is turned on: `cookies`
+is an optional permission, which Chrome asks for then and the extension gives
+back when it is turned off.
 
 The risk is the account's: YouTube may flag an account that downloads a lot,
 which is why it is off. **Not tried with a real account yet**: the switch, the

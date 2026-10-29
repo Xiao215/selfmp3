@@ -189,6 +189,7 @@ export class ImportQueueService {
     // The database says whether it is too late; only then is the work stopped.
     if (!this.#imports.cancel(jobId)) return false
     this.#inFlight.get(jobId)?.abort()
+    this.#dropCalledOff()
     this.kick()
     return true
   }
@@ -202,6 +203,7 @@ export class ImportQueueService {
   remove(jobId: string): boolean {
     if (this.#imports.cancel(jobId)) this.#inFlight.get(jobId)?.abort()
     const removed = this.#imports.dismiss(jobId)
+    this.#dropCalledOff()
     if (removed) this.kick()
     return removed
   }
@@ -227,6 +229,7 @@ export class ImportQueueService {
   pause(): number {
     const cancelled = this.#imports.cancelAll()
     for (const jobId of cancelled) this.#inFlight.get(jobId)?.abort()
+    this.#dropCalledOff()
     return cancelled.length
   }
 
@@ -365,9 +368,12 @@ export class ImportQueueService {
       this.#imports.expireLeases()
       const limit = this.#settings.get().importConcurrency
       // A device's file first: it is downloaded already, and only needs its turn.
+      this.#dropCalledOff()
       while (this.#activeCount < limit && !this.#stopped) {
         const staged = this.#deviceFiles.shift()
         if (!staged) break
+        // Its turn: from here it is being added, and no longer called off (CANCELLABLE).
+        this.#imports.update(staged.job.id, { step: 'converting' })
         this.#start(staged.job, staged.work)
       }
       while (this.#activeCount < limit && !this.#stopped) {
@@ -428,6 +434,22 @@ export class ImportQueueService {
       },
       Math.min(Math.max(end - Date.now() + 1000, 1000), 60_000),
     )
+  }
+
+  /**
+   * A device's file whose job was called off while it waited for its turn —
+   * cancelled, paused or removed: the job stays as the person left it, and
+   * the file goes.
+   */
+  #dropCalledOff(): void {
+    for (let index = this.#deviceFiles.length - 1; index >= 0; index--) {
+      const staged = this.#deviceFiles[index]
+      if (!staged) continue
+      const now = this.#imports.byId(staged.job.id)
+      if (now?.status === 'running' && now.step === 'waiting') continue
+      this.#deviceFiles.splice(index, 1)
+      void fsp.rm(staged.file, { force: true }).catch(() => undefined)
+    }
   }
 
   /** Run a claimed job's `work` in the background, as one of the jobs in flight. */

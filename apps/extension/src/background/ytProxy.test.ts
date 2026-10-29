@@ -193,4 +193,12 @@ describe('the manifest', () => {
     ) as { externally_connectable: { matches: string[] } }
     expect(manifest.externally_connectable.matches).toEqual(YT_PROXY_PAGES.map(page => `${page}*`))
   })
+
+  it('asks for the cookies only when the person turns the sign-in on', () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'),
+    ) as { permissions: string[]; optional_permissions: string[] }
+    expect(manifest.permissions).not.toContain('cookies')
+    expect(manifest.optional_permissions).toEqual(['cookies'])
+  })
 })

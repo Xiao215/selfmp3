@@ -267,8 +267,8 @@ age-restricted video and a music track signed in through `WEB_CREATOR`, and
 ## What the extension is allowed to do
 
 It forwards requests for self.mp3's own pages only — the app's path, not the
-rest of the site it is published on (`YT_PROXY_PAGES`) — to YouTube's
-addresses only,
+rest of the site it is published on (`YT_PROXY_PAGES`), and from the app's real
+origin, never a sandboxed frame — to YouTube's addresses only,
 and **without your YouTube cookies** unless you turned the sign-in on — and
 then only for the player request, as above. One rule rewrites the `Origin` header on the
 extension's requests to YouTube's API and video servers, because YouTube refuses
@@ -313,6 +313,13 @@ part of `npm run check`. By hand: `npm run harness --workspace @selfmp3/ytclient
 and open `http://localhost:4602`.
 
 ## Not done
+
+- **The app on an origin of its own.** On GitHub Pages it shares
+  `xiao215.github.io` with every other repository published there. The
+  extension checks the app's path, but a page elsewhere on that site has the
+  same origin: it could open the app's page and connect from inside it — as
+  it could already read the app's storage, its self.mp3 session among it,
+  which predates this. A domain of the app's own would close both.
 
 - **Google's /sorry/ page reached by a redirect.** The extension says a
   redirect to it as a refusal for rate, but only if Chrome lets the answer

@@ -144,7 +144,8 @@ describe('ytProxy', () => {
     expect(port.disconnected).toBe(true)
   })
 
-  it('hangs up on another page of the same site', () => {
+  // The address is checked; a page of the same site shares the origin all the same (YT_PROXY_PAGES).
+  it('hangs up on an address elsewhere on the same site', () => {
     const { port } = fakePort({ page: 'https://xiao215.github.io/someone-else/' })
     ytProxy({ fetch: vi.fn(), pages: ['https://xiao215.github.io/selfmp3/'] })(port)
     expect(port.disconnected).toBe(true)

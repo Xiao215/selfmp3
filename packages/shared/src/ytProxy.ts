@@ -37,6 +37,12 @@ export const YT_PROXY_CHUNK_BYTES = 1024 * 1024
  * (each with `*` after it) and is what Chrome enforces; this list is the
  * extension checking it again, and the manifest's test holds the two together.
  *
+ * The path is a check on the address, not a wall: a page elsewhere on the
+ * same site shares the app's origin, so it can open the app's page in a
+ * window and connect from inside it — as it can read the app's storage, its
+ * self.mp3 session among it, outright. Only the app on an origin of its own
+ * (its own domain) would make the origin check the lock it looks like.
+ *
  * Port 4601 is `npm run dev:web`; 4602 is the client download harness
  * (packages/ytclient). The extension's release zip leaves both out of its
  * manifest (apps/extension/scripts/zip.mjs), and Chrome keeps every other

@@ -71,8 +71,13 @@ let missedAt = 0
 export const youtubePage = {
   /** The WebView is loading: how to run a line in its page. Its time to say it is ready starts. */
   connect(run: (script: string) => void): void {
+    // A page that was ready and loads again has dropped what it was asked: it is lost, and opened afresh.
+    if (downloader) {
+      youtubePage.lost('the YouTube page loaded again')
+      return
+    }
     inject = run
-    if (readyTimer || downloader) return
+    if (readyTimer) return
     readyTimer = setTimeout(() => youtubePage.lost('the YouTube page did not load'), READY_MS)
   },
   receive(raw: string): void {

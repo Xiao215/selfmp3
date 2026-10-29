@@ -68,6 +68,12 @@ export function useListen(
   const resume = useRef(false)
   /** The song last asked to play: where its audio comes from may take a moment to know. */
   const wanted = useRef<string | null>(null)
+  /**
+   * This device's download of the song asked for, still on its way: nothing
+   * is loaded to pause yet, so a tap meanwhile is kept here — and the song,
+   * once it comes, waits for the next tap rather than starting by itself.
+   */
+  const pending = useRef<{ url: string; paused: boolean; source: string | null } | null>(null)
 
   /** Ask the server what colour the track's cover is, and colour the preview in once it says. */
   const colourIn = (track: ListenTrack): void => {
@@ -116,6 +122,21 @@ export function useListen(
   /** Play a track, or pause and resume the one already loaded. */
   const toggle = (track: ListenTrack): void => {
     if (!audio || !connection) return
+    const waiting = pending.current
+    if (listening?.track.url === track.url && waiting?.url === track.url) {
+      if (waiting.paused && waiting.source) {
+        // It came while paused: this tap is the one that plays it.
+        pending.current = null
+        makeRoom()
+        audio.play(waiting.source)
+        return
+      }
+      waiting.paused = !waiting.paused
+      setListening(current =>
+        current ? { ...current, status: waiting.paused ? 'paused' : 'loading' } : current,
+      )
+      return
+    }
     if (listening?.track.url === track.url) {
       if (listening.status === 'playing' || listening.status === 'loading') {
         audio.pause()
@@ -133,10 +154,20 @@ export function useListen(
     wanted.current = track.url
     const server = mediaUrlFor(connection)
     const source = listenSource(track.url, () => server.importListen(track.url))
-    if (typeof source === 'string') audio.play(source)
-    else {
+    if (typeof source === 'string') {
+      pending.current = null
+      audio.play(source)
+    } else {
+      const coming = { url: track.url, paused: false, source: null as string | null }
+      pending.current = coming
       void source.then(own => {
-        if (wanted.current === track.url) audio.play(own)
+        if (wanted.current !== track.url || pending.current !== coming) return
+        if (coming.paused) {
+          coming.source = own
+          return
+        }
+        pending.current = null
+        audio.play(own)
       })
     }
     colourIn(track)
@@ -155,6 +186,7 @@ export function useListen(
    */
   const close = (options: { resume?: boolean } = {}): void => {
     wanted.current = null
+    pending.current = null
     audio?.stop()
     setListening(null)
     position.set(0)

@@ -413,4 +413,32 @@ describe('DeviceImports', () => {
     await h.imports.settled()
     expect(h.calls).toContain('upload b')
   })
+
+  it('spends no turn on a song taken back while it waited for one', async () => {
+    let dropped = false
+    const spent = {
+      tokens: -5,
+      ratchet: 1,
+      updatedAt: 1_700_000_000_000,
+      pausedUntil: 1_700_000_000_000 + 15 * 60 * 1000,
+      limitedAt: 1_700_000_000_000,
+    }
+    const h: ReturnType<typeof harness> = harness({
+      ids: ['a'],
+      budget: spent,
+      // Cancelled on the server while it waits out the pause.
+      onSleep: () => {
+        if (dropped) return
+        dropped = true
+        h.drop('a')
+        h.renew()
+      },
+    })
+    h.take()
+    await h.imports.settled()
+    expect(h.calls.filter(call => call.startsWith('start') || call.startsWith('download'))).toEqual(
+      [],
+    )
+    expect(h.budget()?.tokens).toBeLessThan(0)
+  })
 })

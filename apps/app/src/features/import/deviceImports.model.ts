@@ -96,6 +96,9 @@ interface DeviceImportsDeps {
 /** How often a lease is renewed: well inside the server's five minutes, even in a background tab. */
 const RENEW_MS = 60_000
 
+/** The longest the next song waits for one let go of mid-download to stop coming. */
+const SETTLE_MS = 120_000
+
 /** The longest a wait for a turn sleeps before it looks again whether it is still wanted. */
 const PACE_LOOK_MS = 5_000
 
@@ -112,6 +115,8 @@ interface Batch {
   active: { id: string; percent: number; stop: AbortController } | null
   /** The job being seen to — waiting its turn, starting, downloading or sending — if any. */
   current: string | null
+  /** `current`, when the server said this device no longer holds it before its download began. */
+  currentTakenBack: boolean
   stopRenewing: () => void
 }
 
@@ -139,6 +144,7 @@ export class DeviceImports {
       waiting: lease.jobIds.filter(id => jobs.some(job => job.id === id)),
       active: null,
       current: null,
+      currentTakenBack: false,
       stopRenewing: () => undefined,
     }
     if (batch.waiting.length === 0) return
@@ -176,6 +182,7 @@ export class DeviceImports {
         const id = batch.waiting.shift()
         if (id !== undefined) {
           batch.current = id
+          batch.currentTakenBack = false
           try {
             await this.#one(batch, id)
           } finally {
@@ -197,7 +204,9 @@ export class DeviceImports {
       return
     }
     // A song heard in the review is here already, and asks YouTube for nothing.
-    if (!downloader.has(job.url) && !(await this.#pace())) {
+    // Taken back while it waited its turn: no turn is spent on it.
+    const still = (): boolean => !batch.currentTakenBack
+    if (!downloader.has(job.url) && !(await this.#pace(still))) {
       await this.#release(batch, id, 'this device no longer downloads from YouTube')
       return
     }
@@ -233,7 +242,13 @@ export class DeviceImports {
       if (stop.signal.aborted) {
         // The download itself goes on (someone may be listening to it); one
         // song at a time from this device all the same, so the next waits for it.
-        await downloader.settled?.(job.url)
+        // Two minutes at most: a page that went with the download would otherwise hold every song after it.
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([
+          downloader.settled?.(job.url),
+          new Promise(resolve => (timer = setTimeout(resolve, SETTLE_MS))),
+        ])
+        clearTimeout(timer)
         return
       }
       const message = error instanceof Error ? error.message : String(error)
@@ -267,9 +282,9 @@ export class DeviceImports {
    * device that has never downloaded do not wait out an empty bucket.
    * False when this device was told to stop downloading while it waited.
    */
-  async #pace(): Promise<boolean> {
+  async #pace(still: () => boolean): Promise<boolean> {
     for (;;) {
-      if (!this.#deps.wanted()) return false
+      if (!this.#deps.wanted() || !still()) return false
       const now = this.#deps.now()
       const next = spend(this.#budget(), SIGNED_IN, now, PERSON_MAY_BORROW)
       if (next) {
@@ -307,6 +322,7 @@ export class DeviceImports {
       if (!held.has(batch.waiting[index] ?? '')) batch.waiting.splice(index, 1)
     }
     if (active && !held.has(active.id)) active.stop.abort()
+    if (batch.current && !active && !held.has(batch.current)) batch.currentTakenBack = true
     this.#finishIfDone(batch)
   }
 

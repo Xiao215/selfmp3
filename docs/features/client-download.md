@@ -220,13 +220,35 @@ goes with this browser's YouTube sign-in: Chrome's own cookies, and the
 Nothing else goes signed in, whatever the option — not the media, and nothing
 that could like, subscribe or comment. The page never sees a cookie. The
 extension has no access to cookies until the option is turned on: `cookies`
-is an optional permission, which Chrome asks for then and the extension gives
-back when it is turned off.
+is an optional permission, taken on the click that turns the option on and
+given back when it is turned off. Chrome shows no prompt for it — `cookies`
+carries no install warning, and Chrome asks only for permissions that do.
 
 The risk is the account's: YouTube may flag an account that downloads a lot,
-which is why it is off. **Not tried with a real account yet**: the switch, the
-cookies and the header are tested; whether YouTube then treats the request as
-signed in, and whether `VISIONOS` still gives whole files signed in, is not.
+which is why it is off.
+
+Signed in, the clients that give whole songs signed out do not: the page
+cannot see the extension's option, so a download learns it from YouTube's
+answers and asks the clients that suit (`SIGNED_IN_CLIENTS` in
+`packages/ytclient/src/download.ts`). Tried with a throwaway account on
+2026-10-29, the player request signed in and every other request without:
+
+| Client | Signed in | Signed out |
+|---|---|---|
+| `VISIONOS`, `IOS`, `ANDROID_VR`, `TV_SIMPLY` | 400 `INVALID_ARGUMENT` — they take no account. The cookie alone, or the header alone, is taken as signed out | `VISIONOS`: the whole song |
+| `WEB_CREATOR` | the whole song, age-restricted ones too (`logged_in=1`) | `LOGIN_REQUIRED: Please sign in` |
+| `YTMUSIC` | the whole song; music tracks only | the whole song |
+| `MWEB` | refused at the first megabyte, whatever its token was bound to — the video, the visitor, the account's DataSync ID | the same |
+| `WEB` | SABR only | the same |
+| `TV` | `The page needs to be reloaded` | — |
+
+So a download asks `VISIONOS` first; a 400 from it says the request went
+signed in, and the session asks `WEB_CREATOR` then `YTMUSIC` from then on. A
+`Please sign in` from `WEB_CREATOR` says the option was turned off, and it
+goes back. The first song after the option changes costs one player request
+more. Checked end to end in an off-screen Chromium on that account: a song, an
+age-restricted video and a music track signed in through `WEB_CREATOR`, and
+`VISIONOS` again once the option was off.
 
 ## What the extension is allowed to do
 

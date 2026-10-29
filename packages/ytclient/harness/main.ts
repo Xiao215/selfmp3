@@ -1,7 +1,7 @@
 import { bytesToBase64, youtubeVideoId } from '@selfmp3/shared'
 import {
   createSession,
-  DEFAULT_CLIENTS,
+  type DEFAULT_CLIENTS,
   downloadAudio,
   extensionFetch,
   type Attempt,
@@ -52,9 +52,9 @@ let lastBytes: Uint8Array | null = null
 async function run(options: RunOptions): Promise<Report> {
   log.textContent = ''
   const videoId = youtubeVideoId(options.video) ?? options.video.trim()
-  const clients = (
-    options.clients?.length ? options.clients : DEFAULT_CLIENTS
-  ) as typeof DEFAULT_CLIENTS
+  // None named: the download picks them, as the app's does, by what it learns of the sign-in.
+  const clients = (options.clients?.length ? options.clients : null) as
+    typeof DEFAULT_CLIENTS | null
   const fetch = extensionFetch()
   const empty = { ok: false, visitorData: null, attempts: [], result: null, sessionMs: 0 } as const
   if (!fetch) {
@@ -79,10 +79,10 @@ async function run(options: RunOptions): Promise<Report> {
 
   const downloadStarted = performance.now()
   try {
-    say(`Downloading ${videoId}, trying ${clients.join(', ')}…`)
+    say(`Downloading ${videoId}, trying ${clients?.join(', ') ?? 'the clients that suit'}…`)
     let shown = -1
     const audio = await downloadAudio(session, videoId, {
-      clients,
+      ...(clients ? { clients } : {}),
       ...(options.chunkBytes ? { chunkBytes: options.chunkBytes } : {}),
       onProgress: (received, total) => {
         const percent = Math.floor((received / total) * 100)

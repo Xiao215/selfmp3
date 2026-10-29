@@ -27,11 +27,26 @@ type InnerTubeClient = NonNullable<NonNullable<Parameters<Innertube['getBasicInf
  * VISIONOS is the one that gave whole songs: it needs no player script to
  * decipher its links, and its links took a video-bound PO token. MWEB and
  * YTMUSIC gave links that were refused after the first megabyte with a PO
- * token or without one; WEB answers only in SABR, which this does not speak.
+ * token or without one (YTMUSIC's came whole again on 2026-10-29); WEB answers only in SABR, which this does not speak.
  * yt-dlp's own defaults lead with visionos for the same reasons. MWEB stays
  * behind it as the one other client whose links are not SABR.
  */
 export const DEFAULT_CLIENTS: readonly InnerTubeClient[] = ['VISIONOS', 'MWEB']
+
+/**
+ * The order clients are tried in once the extension signs the player request
+ * in (its "Use my YouTube sign-in", docs/features/client-download.md), as of
+ * 2026-10-29, tried with a real account.
+ *
+ * VISIONOS, IOS and ANDROID_VR take no account: a player request really
+ * signed in — cookie and `SAPISIDHASH` both — is answered 400 INVALID_ARGUMENT
+ * (either alone is taken as signed out). WEB_CREATOR is the other way round:
+ * it asks for a sign-in, and signed in gives the whole song, age-restricted
+ * ones too. YTMUSIC gives the whole song either way, a music track only.
+ * MWEB's links stop at the first megabyte signed in as out, whatever its
+ * token is bound to; WEB answers in SABR.
+ */
+const SIGNED_IN_CLIENTS: readonly InnerTubeClient[] = ['WEB_CREATOR', 'YTMUSIC']
 
 /**
  * Bytes asked for per request. With `range=`, YouTube serves at full speed.
@@ -53,6 +68,36 @@ export interface YtSession {
   readonly visitorData: string
   /** Null for a session opened without one, to see what YouTube does then. */
   readonly minter: Pick<PoMinter, 'mint'> | null
+  /**
+   * Whether the player requests go signed in, as far as YouTube's answers
+   * have said. The page cannot see the extension's option, so it learns it
+   * (`signInSaid`), and asks the clients that suit (`clientsFor`).
+   */
+  readonly account: { signedIn: boolean }
+}
+
+/** The clients to ask, for what the session knows of its sign-in. */
+function clientsFor(session: YtSession): readonly InnerTubeClient[] {
+  return session.account.signedIn ? SIGNED_IN_CLIENTS : DEFAULT_CLIENTS
+}
+
+/**
+ * What a client's failure says of the sign-in, if anything: one that takes
+ * no account refuses a signed-in request with a 400, and WEB_CREATOR asks for
+ * a sign-in where there is none. Null for any other failure.
+ */
+function signInSaid(client: InnerTubeClient, detail: string): boolean | null {
+  if (/status code 400/.test(detail) && !SIGNED_IN_CLIENTS.includes(client)) return true
+  if (client === 'WEB_CREATOR' && /LOGIN_REQUIRED/.test(detail)) return false
+  return null
+}
+
+/** Take in what a failure said of the sign-in; whether it changed what is known. */
+function learn(session: YtSession, client: InnerTubeClient, detail: string): boolean {
+  const said = signInSaid(client, detail)
+  if (said === null || said === session.account.signedIn) return false
+  session.account.signedIn = said
+  return true
 }
 
 /**
@@ -83,7 +128,7 @@ export async function createSession(
 
   const minter =
     options.poToken === false ? null : (options.minter ?? (await createPoMinter(fetch)))
-  return { innertube, fetch, visitorData, minter }
+  return { innertube, fetch, visitorData, minter, account: { signedIn: false } }
 }
 
 /** One client asked, and what came of it. */
@@ -111,10 +156,21 @@ export interface DownloadedAudio {
  * makes first. Throws, with YouTube's reason, for a video it will not play
  * here: private, removed, or held back.
  */
-export async function describeVideo(
+export async function describeVideo(session: YtSession, videoId: string): Promise<VideoFacts> {
+  const first = clientsFor(session)[0] ?? 'VISIONOS'
+  try {
+    return await describeWith(session, videoId, first)
+  } catch (error) {
+    // Refused for a sign-in it did or did not have: once more, with a client that suits.
+    if (!learn(session, first, error instanceof Error ? error.message : String(error))) throw error
+    return describeWith(session, videoId, clientsFor(session)[0] ?? 'VISIONOS')
+  }
+}
+
+async function describeWith(
   session: YtSession,
   videoId: string,
-  client: InnerTubeClient = DEFAULT_CLIENTS[0] ?? 'VISIONOS',
+  client: InnerTubeClient,
 ): Promise<VideoFacts> {
   const poToken = session.minter ? await session.minter.mint(videoId) : undefined
   const info = await session.innertube.getBasicInfo(videoId, {
@@ -146,7 +202,19 @@ export async function downloadAudio(
   } = {},
 ): Promise<DownloadedAudio> {
   const attempts: Attempt[] = []
-  for (const client of options.clients ?? DEFAULT_CLIENTS) {
+  // Clients asked for by name are asked as they are; otherwise the ones that
+  // suit the sign-in — and, once a refusal says it is not as thought, the
+  // ones that suit it instead, in place of what was left.
+  const clients = [...(options.clients ?? clientsFor(session))]
+  let at = 0
+  const failed = (client: InnerTubeClient, detail: string): void => {
+    attempts.push({ client, ok: false, detail })
+    if (options.clients || !learn(session, client, detail)) return
+    const asked = new Set(attempts.map(attempt => attempt.client))
+    clients.splice(at + 1, clients.length, ...clientsFor(session).filter(next => !asked.has(next)))
+  }
+  for (; at < clients.length; at++) {
+    const client = clients[at] ?? 'VISIONOS'
     // What earlier links of this client already brought in, kept across a refusal.
     let file = null as { bytes: Uint8Array<ArrayBuffer>; received: number } | null
     for (let tries = 0; tries < TRIES_PER_CLIENT; tries++) {
@@ -164,7 +232,7 @@ export async function downloadAudio(
         const playability = info.playability_status
         if (playability?.status !== 'OK') {
           const reason = `${playability?.status ?? 'no status'}: ${playability?.reason ?? ''}`
-          attempts.push({ client, ok: false, detail: reason.trim() })
+          failed(client, reason.trim())
           break
         }
         const format = info.chooseFormat({ type: 'audio', quality: 'best', format: 'mp4' })
@@ -189,11 +257,7 @@ export async function downloadAudio(
         }
       } catch (error) {
         if (options.signal?.aborted) throw error
-        attempts.push({
-          client,
-          ok: false,
-          detail: error instanceof Error ? error.message : String(error),
-        })
+        failed(client, error instanceof Error ? error.message : String(error))
         // Only a refused link is worth another; anything else would fail the same way.
         if (!(error instanceof Refused)) break
       }

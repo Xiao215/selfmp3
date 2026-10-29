@@ -158,7 +158,7 @@ export function Options(): ReactNode {
               disabled={!options.data || setSignIn.isPending}
               onChange={event => {
                 const on = event.target.checked
-                // Chrome asks the person for the cookies only now, while the click is theirs.
+                // Taken only now, on the person's own click; `cookies` carries no warning, so Chrome shows no prompt.
                 const permission = on
                   ? chrome.permissions.request({ permissions: ['cookies'] })
                   : chrome.permissions.remove({ permissions: ['cookies'] }).then(() => true)

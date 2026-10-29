@@ -46,6 +46,11 @@ interface DeviceDownloader {
   ): Promise<DeviceFile>
   /** Whether the song at `url` is downloaded already, or coming: asking for it costs YouTube nothing. */
   has(url: string): boolean
+  /**
+   * Once the song at `url` has finished coming, or failed — whoever stopped
+   * waiting for it, the download itself goes on until then.
+   */
+  settled(url: string): Promise<void>
 }
 
 /** Songs kept: a review's worth of listening, at a few megabytes each. */
@@ -105,6 +110,17 @@ export function withKeptSongs(core: YouTubeCore): DeviceDownloader {
     has(url) {
       const videoId = youtubeVideoId(url)
       return videoId !== null && kept.has(videoId)
+    },
+
+    settled(url) {
+      const videoId = youtubeVideoId(url)
+      const song = videoId === null ? undefined : kept.get(videoId)
+      return song
+        ? song.then(
+            () => undefined,
+            () => undefined,
+          )
+        : Promise.resolve()
     },
   }
 }

@@ -58,6 +58,8 @@ function harness(options: {
   wanted?: () => boolean
   /** Called each time the device waits, as a renewal would land meanwhile. */
   onSleep?: () => void
+  /** When a song's download has itself finished, whoever stopped waiting for it. */
+  settled?: (url: string) => Promise<void>
 }) {
   const calls: string[] = []
   let held = new Set(options.ids)
@@ -94,6 +96,7 @@ function harness(options: {
       onProgress(50)
       return options.download ? options.download(url, signal) : Promise.resolve(FILE)
     },
+    ...(options.settled ? { settled: options.settled } : {}),
   }
   const imports = new DeviceImports({
     downloader: () => Promise.resolve(options.downloader === false ? null : downloader),
@@ -384,5 +387,30 @@ describe('DeviceImports', () => {
       'download b',
       'upload b',
     ])
+  })
+
+  it('starts the next song only once one taken back mid-download has stopped coming', async () => {
+    let done: () => void = () => undefined
+    const stillComing = new Promise<void>(resolve => (done = resolve))
+    const h = harness({
+      ids: ['a', 'b'],
+      download: (url, signal) =>
+        url.includes('v=a')
+          ? new Promise((_resolve, reject) => {
+              signal.addEventListener('abort', () => reject(new Error('stopped')))
+            })
+          : Promise.resolve(FILE),
+      settled: url => (url.includes('v=a') ? stillComing : Promise.resolve()),
+    })
+    h.take()
+    await vi.waitFor(() => expect(h.calls).toContain('download a'))
+    h.drop('a')
+    h.renew()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    // a was let go of, but it is still coming from YouTube: b waits.
+    expect(h.calls).not.toContain('download b')
+    done()
+    await h.imports.settled()
+    expect(h.calls).toContain('upload b')
   })
 })

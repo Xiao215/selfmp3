@@ -311,10 +311,12 @@ export function importRoutes(container: Container): Router {
   router.post(
     '/import/enqueue',
     route({ body: ImportEnqueueSchema }, async ({ body }): Promise<ImportEnqueueResult> => {
-      const fresh = freshOf(body.items)
       // A device's file is measured with ffprobe before it is taken; without
       // ffmpeg here every one would be refused, so the server downloads them.
+      // Asked first: nothing may come between what is fresh and its queueing,
+      // or an Import pressed twice queues its songs twice.
       const measures = body.fetchOnDevice ? (await container.ytdlp.status()).ffmpeg : false
+      const fresh = freshOf(body.items)
       return enqueue(body.items, fresh, container.tags.exists(body.tagIds), {
         ...body,
         fetchOnDevice: body.fetchOnDevice === true && measures,

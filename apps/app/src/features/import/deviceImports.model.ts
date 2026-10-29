@@ -44,6 +44,8 @@ export interface DeviceDownloader {
   ): Promise<DeviceFile>
   /** Whether the song is downloaded already — heard in the review — and costs YouTube nothing. */
   has(url: string): boolean
+  /** Once the song's download has finished or failed, whoever stopped waiting for it. */
+  settled?(url: string): Promise<void>
 }
 
 /** The calls on the server this needs: its API's, narrowed. */
@@ -228,7 +230,12 @@ export class DeviceImports {
       this.#deps.log('downloaded on this device', { id, title: job.title })
     } catch (error) {
       // Taken from this device mid-download: the server has it, or nobody wants it.
-      if (stop.signal.aborted) return
+      if (stop.signal.aborted) {
+        // The download itself goes on (someone may be listening to it); one
+        // song at a time from this device all the same, so the next waits for it.
+        await downloader.settled?.(job.url)
+        return
+      }
       const message = error instanceof Error ? error.message : String(error)
       if (isRateLimited(message)) {
         this.#deps.budget.save(penalize(this.#budget(), this.#deps.now()))

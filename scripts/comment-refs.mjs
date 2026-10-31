@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 /**
  * What a comment points at, checked against what is there.
@@ -71,6 +72,16 @@ const ALLOWED = [
 const allowed = ref =>
   ALLOWED.some(([rule]) => (typeof rule === 'string' ? rule === ref : rule.test(ref)))
 
+// Git's paths are the root's, so the script works from there wherever it is started.
+process.chdir(fileURLToPath(new URL('..', import.meta.url)))
+
+/**
+ * A file's lines, without the `\r` a Windows checkout ends them with. Left on,
+ * it kept `$` from matching the end of a trailing comment, so every `// …`
+ * after code went unchecked there.
+ */
+const linesOf = file => readFileSync(file, 'utf8').split(/\r?\n/)
+
 // The working tree, not the index: a file deleted but not yet staged is gone,
 // and one made but not yet added is there.
 const tracked = [
@@ -127,7 +138,7 @@ const DECLARES =
   /\.(#[A-Za-z_$][\w$]*)|^\s*(?:readonly |static |async |get |set )*(#[A-Za-z_$][\w$]*)\s*[=(:;]/gm
 for (const file of sources) {
   const own = new Set()
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
+  for (const line of linesOf(file)) {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue
     for (const [, dotted, declared] of line.matchAll(DECLARES)) {
       const name = dotted ?? declared
@@ -147,7 +158,7 @@ const HEX = /^#(?:[0-9a-f]{3,8}|rgba?|rrggbb(?:aa)?)$/i
 
 const found = []
 for (const file of sources) {
-  const lines = readFileSync(file, 'utf8').split('\n')
+  const lines = linesOf(file)
   for (const [index, line] of lines.entries()) {
     // A comment line, or the comment trailing a line of code.
     const text = /^\s*(\/\/|\*|\/\*|\{\/\*)/.test(line) ? line : /\s\/\/\s(.*)$/.exec(line)?.[1]

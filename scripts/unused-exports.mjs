@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, join, normalize } from 'node:path'
+import { posix } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 /**
@@ -188,6 +189,16 @@ const isTest = file =>
   /(^|\/)verify\//.test(file) ||
   file.includes('/__mocks__/') ||
   /(^|\/)jest\.setup\.[jt]s$/.test(file)
+
+/*
+ * Every path here is git's: relative to the repository's root and spelled with
+ * `/`. So the script works from the root wherever it is started, and joins
+ * paths the POSIX way on every platform. Windows' own `join` gave
+ * `apps\app\src\…`, which matched no file git listed, and every import looked
+ * unresolved, so nearly every export in the tree was reported unread.
+ */
+process.chdir(fileURLToPath(new URL('..', import.meta.url)))
+const { dirname, join, normalize } = posix
 
 // Tracked and not-yet-tracked alike: a file just written can be the only reader.
 const listed = execFileSync(

@@ -193,7 +193,10 @@ export class CoverService {
     const partial = `${file}.${randomUUID()}.partial`
     try {
       await fsp.mkdir(path.dirname(file), { recursive: true })
-      await coverImage(cover.path)
+      // Read here and handed over whole, not by its path: libvips keeps a file
+      // it opened in its cache, open, and Windows will neither delete nor
+      // replace an open file, so the cover could not be changed after.
+      await coverImage(await fsp.readFile(cover.path))
         .rotate()
         .resize(size, size, { fit: 'cover', withoutEnlargement: true })
         .jpeg({ quality: 82, mozjpeg: true })

@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "clean": "rm -rf .expo ios android dist public/sw.js public/privacy.html public/bucket.html",
     "web": "npm run build:pages && expo start --web",
-    "build:sw": "esbuild sw/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=public/sw.js",
+    "build:sw": "node scripts/sw.mjs",
     "build:pages": "node scripts/pages.mjs",
     "release:ios": "node scripts/ios-release.mjs",
     "release:android": "node scripts/android-release.mjs",

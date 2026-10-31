@@ -15,6 +15,8 @@ interface FfmpegOptions {
   readonly onStdout?: (chunk: Buffer) => void
   /** How much of stderr to keep, counted back from its end. */
   readonly stderrTail?: number
+  /** Written to its stdin, which is then closed: what `-i pipe:0` reads. */
+  readonly stdin?: Buffer
 }
 
 interface FfmpegResult {
@@ -58,6 +60,12 @@ export function runFfmpeg(args: readonly string[], options: FfmpegOptions): Prom
       settle(() => reject(new Error(`could not run ffmpeg: ${error.message}`))),
     )
     child.on('close', code => settle(() => resolve({ code, stderr })))
+    if (options.stdin) {
+      // An ffmpeg that stops reading early (a bad file) closes the pipe on
+      // us; what it said and its exit code are the answer, not the EPIPE.
+      child.stdin.on('error', () => undefined)
+      child.stdin.end(options.stdin)
+    }
   })
 }
 

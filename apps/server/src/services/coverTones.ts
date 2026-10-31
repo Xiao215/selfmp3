@@ -1,3 +1,4 @@
+import fsp from 'node:fs/promises'
 import { messageOf, pickCoverTone, type CoverTone } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -109,13 +110,18 @@ export class CoverToneService {
  * sides as most of the picture — Plagiarism's collage came out colourless here
  * while a device reading the square it drew found orange, so the visual and
  * the bar coloured the same song differently.
+ *
+ * The file is read here and piped in, so ffmpeg never has it open: one still
+ * reading when the library closed held the cover, and on Windows, which will
+ * not delete an open file, the library's folder could not be removed after.
  */
 export async function readCoverTone(file: string): Promise<CoverTone | null> {
+  const stdin = await fsp.readFile(file)
   const args = [
     '-v',
     'error',
     '-i',
-    file,
+    'pipe:0',
     '-frames:v',
     '1',
     '-vf',
@@ -131,6 +137,7 @@ export async function readCoverTone(file: string): Promise<CoverTone | null> {
     timeoutMs: READ_TIMEOUT_MS,
     timeoutMessage: 'ffmpeg timed out reading the cover',
     onStdout: chunk => chunks.push(chunk),
+    stdin,
   })
   if (result.code !== 0) throw ffmpegFailure(result)
   return pickCoverTone(Buffer.concat(chunks))

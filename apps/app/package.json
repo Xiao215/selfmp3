@@ -13,12 +13,13 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json",
     "lint": "eslint .",
     "clean": "rm -rf .expo ios android dist public/sw.js public/privacy.html public/bucket.html",
-    "web": "npm run build:pages && expo start --web",
+    "web": "npm run build:pages && npm run build:ytsandbox && expo start --web",
     "build:sw": "esbuild sw/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=public/sw.js",
     "build:pages": "node scripts/pages.mjs",
+    "build:ytsandbox": "esbuild ../../packages/ytclient/src/sandbox/frame.ts --bundle --format=iife --target=es2022 --minify --conditions=source --outfile=public/yt-sandbox.js && esbuild ../../packages/ytclient/src/webview/page.ts --bundle --format=iife --target=es2020 --minify --conditions=source --outfile=public/yt-webview.js",
     "release:ios": "node scripts/ios-release.mjs",
     "release:android": "node scripts/android-release.mjs",
-    "export:web": "npm run build:sw && npm run build:pages && expo export -p web && node scripts/shell.mjs",
+    "export:web": "npm run build:sw && npm run build:pages && npm run build:ytsandbox && expo export -p web && node scripts/shell.mjs",
     "test": "jest"
   },
   "expo": {
@@ -47,6 +48,7 @@
     "@selfmp3/desktop-bridge": "*",
     "@selfmp3/replica": "*",
     "@selfmp3/shared": "*",
+    "@selfmp3/ytclient": "*",
     "@tanstack/react-query": "^5.62.11",
     "expo": "~57.0.21",
     "expo-audio": "~57.0.5",
@@ -81,6 +83,7 @@
     "react-native-unistyles": "^3.3.0",
     "react-native-view-shot": "5.1.0",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "~0.10.4",
     "toqr": "0.1.1",
     "zod": "^3.24.1"

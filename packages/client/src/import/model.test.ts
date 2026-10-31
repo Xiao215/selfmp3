@@ -46,6 +46,10 @@ describe('how a job’s row is tinted', () => {
   it('calls a song the server has but the cloud does not "waiting", not failed', () => {
     expect(jobTone({ status: 'error', step: 'uploading' })).toBe('waiting')
   })
+
+  it('tints a device’s file waiting for its turn as one in line', () => {
+    expect(jobTone({ status: 'running', step: 'waiting' })).toBe('queued')
+  })
 })
 
 describe('a job without a title', () => {
@@ -174,6 +178,8 @@ describe('import queue', () => {
   it('offers cancel while going, resume when paused, retry after, and nothing when done', () => {
     expect(jobAction(job({ status: 'queued' }))).toBe('cancel')
     expect(jobAction(job({ status: 'running', step: 'downloading' }))).toBe('cancel')
+    // A device's file, waiting for its turn to be added.
+    expect(jobAction(job({ status: 'running', step: 'waiting' }))).toBe('cancel')
     // The song is already on its way into the library: the server refuses.
     expect(jobAction(job({ status: 'running', step: 'saving' }))).toBeNull()
     expect(jobAction(job({ status: 'error', step: 'downloading' }))).toBe('retry')

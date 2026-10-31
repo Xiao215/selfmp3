@@ -924,6 +924,10 @@ test.describe('an application, not a page', () => {
           const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
           await desktop.setWindowGround(next)
         }, colour)
+      // The app gives the window its theme's ground as it mounts (Shell's
+      // WindowGround), a moment after load: told before that, the colour told
+      // here was written over by the theme's now and then.
+      await expect(page.locator('body')).toContainText(/self\.mp3/i, { timeout: 30_000 })
       await tell('#f6f2ea')
       expect(await ground()).toBe('#f6f2ea')
       await tell('#0b0d13')

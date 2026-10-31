@@ -47,3 +47,12 @@ export const AI_ERROR = {
  * cross-origin download that sends it is refused before it starts.
  */
 export const REFRESH_HEADER = 'x-selfmp3-refresh'
+
+/**
+ * A device's file for an import, described: the SHA-256 of its bytes, and
+ * what the player said about it (`ImportDeviceFileMetaSchema`, base64url
+ * JSON). Headers rather than a form, so the body is the file and nothing
+ * else; the server names both in its CORS preflight.
+ */
+export const IMPORT_SHA256_HEADER = 'x-selfmp3-sha256'
+export const IMPORT_META_HEADER = 'x-selfmp3-import-meta'

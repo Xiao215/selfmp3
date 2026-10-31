@@ -1,0 +1,132 @@
+import { act, renderHook } from '@testing-library/react-native'
+import { useListen } from './ImportListen'
+
+/**
+ * A song heard from this device's own download, which takes a moment to
+ * come: a tap meanwhile pauses it, and it waits for the next tap to play.
+ */
+
+const mockAudio = {
+  play: jest.fn(),
+  pause: jest.fn(),
+  resume: jest.fn(),
+  stop: jest.fn(),
+  seek: jest.fn(),
+  dispose: jest.fn(),
+  subscribe: (
+    listener: (state: { status: string; currentTime: number; duration: number }) => void,
+  ) => {
+    mockReport = listener
+    return () => undefined
+  },
+}
+let mockReport: (state: { status: string; currentTime: number; duration: number }) => void = () =>
+  undefined
+jest.mock('../../ports/listen', () => ({ createListenAudio: () => mockAudio }))
+let mockPlaying = false
+const mockToggle = jest.fn()
+jest.mock('../../player/PlayerProvider', () => ({
+  usePlayerCommands: () => ({ toggle: mockToggle }),
+  usePlayerPlaying: () => mockPlaying,
+}))
+jest.mock('../../connection/ConnectionProvider', () => ({
+  useConnection: () => ({ connection: { baseUrl: 'http://server', token: null } }),
+}))
+jest.mock('../../api/client', () => ({
+  mediaUrlFor: () => ({ importListen: (url: string) => `server:${url}` }),
+}))
+let mockArrive: (source: string) => void = () => undefined
+jest.mock('./deviceImports', () => ({
+  listenSource: () => new Promise<string>(resolve => (mockArrive = resolve)),
+}))
+
+const TRACK = {
+  url: 'https://www.youtube.com/watch?v=aaaaaaaaaaa',
+  title: 'Song',
+  artist: 'Artist',
+  duration: 200,
+  thumbnail: null,
+}
+
+describe('a song heard from this device’s own download', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockPlaying = false
+  })
+
+  it('stays paused when paused before it came, and plays on the next tap', async () => {
+    const { result } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    expect(result.current.listening?.status).toBe('loading')
+
+    // Paused while the download is on its way.
+    await act(async () => result.current.toggle(TRACK))
+    expect(result.current.listening?.status).toBe('paused')
+
+    await act(async () => mockArrive('blob:own'))
+    expect(mockAudio.play).not.toHaveBeenCalled()
+
+    await act(async () => result.current.toggle(TRACK))
+    expect(mockAudio.play).toHaveBeenCalledWith('blob:own')
+  })
+
+  it('plays as it comes when nobody paused it', async () => {
+    const { result } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    await act(async () => mockArrive('blob:own'))
+    expect(mockAudio.play).toHaveBeenCalledWith('blob:own')
+  })
+
+  it('stops the song before, and does not take its reports for this one’s', async () => {
+    const { result } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    expect(mockAudio.stop).toHaveBeenCalled()
+    // The song before, still reporting as it stops.
+    await act(async () => mockReport({ status: 'playing', currentTime: 30, duration: 200 }))
+    expect(result.current.listening?.status).toBe('loading')
+    await act(async () => result.current.toggle(TRACK))
+    await act(async () => mockReport({ status: 'playing', currentTime: 31, duration: 200 }))
+    expect(result.current.listening?.status).toBe('paused')
+  })
+
+  it('does not start once the page has gone', async () => {
+    const { result, unmount } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    await act(async () => unmount())
+    await act(async () => mockArrive('blob:own'))
+    expect(mockAudio.play).not.toHaveBeenCalled()
+  })
+
+  it('waits for a tap when the song itself was played meanwhile', async () => {
+    const { result, rerender } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    mockPlaying = true
+    await act(async () => rerender({}))
+    expect(result.current.listening?.status).toBe('paused')
+    await act(async () => mockArrive('blob:own'))
+    expect(mockAudio.play).not.toHaveBeenCalled()
+  })
+
+  it('makes room again when a preview paused for the song is asked for once more', async () => {
+    const { result, rerender } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    mockPlaying = true
+    await act(async () => rerender({}))
+    mockToggle.mockClear()
+    // The preview, tapped again while the song plays: the song pauses for it.
+    await act(async () => result.current.toggle(TRACK))
+    expect(mockToggle).toHaveBeenCalledTimes(1)
+  })
+})

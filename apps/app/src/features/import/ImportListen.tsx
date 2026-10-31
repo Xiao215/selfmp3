@@ -29,6 +29,7 @@ import {
 } from './listen.model'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
+import { listenSource } from './deviceImports'
 
 /** The colour of each cover the server has read this session, by the cover's address. */
 const tonesByCover = new Map<string, CoverTone | null>()
@@ -65,6 +66,12 @@ export function useListen(
   const [position] = useState(() => createValueStore(0))
   /** Something was playing when previewing began; it carries on when the preview closes. */
   const resume = useRef(false)
+  /**
+   * This device's download of the song asked for, still on its way: nothing
+   * is loaded to pause yet, so a tap meanwhile is kept here — and the song,
+   * once it comes, waits for the next tap rather than starting by itself.
+   */
+  const pending = useRef<{ url: string; paused: boolean; source: string | null } | null>(null)
 
   /** Ask the server what colour the track's cover is, and colour the preview in once it says. */
   const colourIn = (track: ListenTrack): void => {
@@ -85,11 +92,16 @@ export function useListen(
   useEffect(() => {
     if (!audio) return
     const unsubscribe = audio.subscribe(state => {
+      // While this device's download is on its way nothing of it is loaded:
+      // what the player says is of the song before, or of stopping it.
+      if (pending.current) return
       position.set(state.currentTime)
       setListening(current => (current ? followAudio(current, state) : current))
     })
     return () => {
       unsubscribe()
+      // A download still on its way finds nobody wanting it: the page is gone.
+      pending.current = null
       audio.dispose()
     }
   }, [audio, position])
@@ -100,6 +112,12 @@ export function useListen(
     if (playerPlaying && !wasPlaying.current) {
       audio?.pause()
       resume.current = false
+      // A preview still coming waits for a tap, rather than starting over the song.
+      const waiting = pending.current
+      if (waiting && !waiting.paused) {
+        waiting.paused = true
+        setListening(current => (current ? { ...current, status: 'paused' } : current))
+      }
     }
     wasPlaying.current = playerPlaying
   }, [audio, playerPlaying])
@@ -113,6 +131,23 @@ export function useListen(
   /** Play a track, or pause and resume the one already loaded. */
   const toggle = (track: ListenTrack): void => {
     if (!audio || !connection) return
+    const waiting = pending.current
+    if (listening?.track.url === track.url && waiting?.url === track.url) {
+      if (waiting.paused && waiting.source) {
+        // It came while paused: this tap is the one that plays it.
+        pending.current = null
+        makeRoom()
+        audio.play(waiting.source)
+        return
+      }
+      waiting.paused = !waiting.paused
+      // Asked to play again: the song makes room, as it does for any preview.
+      if (!waiting.paused) makeRoom()
+      setListening(current =>
+        current ? { ...current, status: waiting.paused ? 'paused' : 'loading' } : current,
+      )
+      return
+    }
     if (listening?.track.url === track.url) {
       if (listening.status === 'playing' || listening.status === 'loading') {
         audio.pause()
@@ -125,7 +160,29 @@ export function useListen(
     makeRoom()
     position.set(0)
     setListening(startListening(track, tonesByCover.get(track.thumbnail ?? '') ?? null))
-    audio.play(mediaUrlFor(connection).importListen(track.url))
+    // From this device's own download where it can make one (deviceImports.ts),
+    // so the song heard is the song imported without asking YouTube again.
+    const server = mediaUrlFor(connection)
+    const source = listenSource(track.url, () => server.importListen(track.url))
+    if (typeof source === 'string') {
+      pending.current = null
+      audio.play(source)
+    } else {
+      const coming = { url: track.url, paused: false, source: null as string | null }
+      pending.current = coming
+      // The song previewing before is not heard over the wait for this one.
+      audio.stop()
+      void source.then(own => {
+        // Another song asked for since, or the preview closed: this one is nobody's.
+        if (pending.current !== coming) return
+        if (coming.paused) {
+          coming.source = own
+          return
+        }
+        pending.current = null
+        audio.play(own)
+      })
+    }
     colourIn(track)
   }
 
@@ -141,6 +198,7 @@ export function useListen(
    * new link fetched — since then nothing asked for music.
    */
   const close = (options: { resume?: boolean } = {}): void => {
+    pending.current = null
     audio?.stop()
     setListening(null)
     position.set(0)

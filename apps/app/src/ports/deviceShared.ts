@@ -83,7 +83,7 @@ export async function uploadDeviceFile(
 }
 
 /** Where a port keeps the songs heard here, as something its player can open. */
-export interface ListenStore<Kept> {
+interface ListenStore<Kept> {
   /** Keep a song's bytes, as the address to play. */
   keep(videoId: string, bytes: Uint8Array<ArrayBuffer>): Kept
   address(kept: Kept): string

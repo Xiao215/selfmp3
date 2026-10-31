@@ -2918,6 +2918,10 @@ describe('CloudSyncService', () => {
     })
 
     it('publishes one snapshot for a run of imports, not one each', async () => {
+      // A pace no upload outlasts. At the suite's 40 ms, a song that took
+      // longer than that to go up — as most did on a Windows laptop — let the
+      // run's snapshot out between two of them, and the count was one over.
+      sync = makeSync({ importPacing: { first: 60_000, steps: [{ from: 0, every: 60_000 }] } })
       await connect()
       const before = snapshotKeys().length
       const a = addSong('A - One', 'one')

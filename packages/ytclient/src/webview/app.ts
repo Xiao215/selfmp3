@@ -108,7 +108,6 @@ export function createWebViewCore(post: (message: AppMessage) => void): WebViewC
           }
           waiting.resolve({
             bytes,
-            mimeType: 'audio/mp4',
             sha256: message.sha256,
             meta: message.meta,
           })

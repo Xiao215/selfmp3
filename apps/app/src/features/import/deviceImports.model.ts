@@ -1,15 +1,15 @@
 import {
   freshState,
   isRateLimited,
-  penalize,
+  messageOf,
   PERSON_MAY_BORROW,
-  spend,
   waitMs,
-  type ImportDeviceFileMeta,
   type ImportDeviceLease,
   type ImportJob,
   type ThrottleState,
 } from '@selfmp3/shared'
+import type { DeviceFile } from '@selfmp3/ytclient/phone'
+import { noteRefusal, SIGNED_IN, takeTurn } from './devicePreview.model'
 
 /**
  * Songs this device downloads itself, for its server to add
@@ -31,21 +31,17 @@ import {
  */
 
 /** A song's file, as `packages/ytclient`'s downloader gives it. */
-export interface DeviceFile {
-  readonly bytes: Uint8Array<ArrayBuffer>
-  readonly sha256: string
-  readonly meta: ImportDeviceFileMeta
-}
+export type { DeviceFile } from '@selfmp3/ytclient/phone'
 
 export interface DeviceDownloader {
   download(
     url: string,
-    options: { onProgress: (percent: number) => void; signal: AbortSignal },
+    options?: { onProgress?: (percent: number) => void; signal?: AbortSignal },
   ): Promise<DeviceFile>
   /** Whether the song is downloaded already — heard in the review — and costs YouTube nothing. */
   has(url: string): boolean
   /** Once the song's download has finished or failed, whoever stopped waiting for it. */
-  settled?(url: string): Promise<void>
+  settled(url: string): Promise<void>
 }
 
 /** The calls on the server this needs: its API's, narrowed. */
@@ -102,21 +98,18 @@ const SETTLE_MS = 120_000
 /** The longest a wait for a turn sleeps before it looks again whether it is still wanted. */
 const PACE_LOOK_MS = 5_000
 
-/** A device asks YouTube signed out: the extension carries no cookies. */
-const SIGNED_IN = false
-
 interface Batch {
   readonly api: DeviceImportsApi
   readonly lease: string
   readonly jobs: ReadonlyMap<string, ImportJob>
   /** What is still to download, in the order it was asked for. */
   readonly waiting: string[]
-  /** The download under way, and how to stop it. */
-  active: { id: string; percent: number; stop: AbortController } | null
-  /** The job being seen to — waiting its turn, starting, downloading or sending — if any. */
-  current: string | null
-  /** `current`, when the server said this device no longer holds it before its download began. */
-  currentTakenBack: boolean
+  /**
+   * The job being seen to — waiting its turn, starting, downloading or
+   * sending — if any: how far its download has got once it has started, and
+   * the one way to stop it, whichever of those it is at.
+   */
+  current: { id: string; started: boolean; percent: number; stop: AbortController } | null
   stopRenewing: () => void
 }
 
@@ -137,14 +130,13 @@ export class DeviceImports {
   /** Start on the jobs an import left this device (`ImportEnqueueResult.device`). */
   take(api: DeviceImportsApi, lease: ImportDeviceLease, jobs: readonly ImportJob[]): void {
     const held = new Set(lease.jobIds)
+    const mine = new Map(jobs.filter(job => held.has(job.id)).map(job => [job.id, job]))
     const batch: Batch = {
       api,
       lease: lease.lease,
-      jobs: new Map(jobs.filter(job => held.has(job.id)).map(job => [job.id, job])),
-      waiting: lease.jobIds.filter(id => jobs.some(job => job.id === id)),
-      active: null,
+      jobs: mine,
+      waiting: lease.jobIds.filter(id => mine.has(id)),
       current: null,
-      currentTakenBack: false,
       stopRenewing: () => undefined,
     }
     if (batch.waiting.length === 0) return
@@ -181,8 +173,7 @@ export class DeviceImports {
         if (!batch) return
         const id = batch.waiting.shift()
         if (id !== undefined) {
-          batch.current = id
-          batch.currentTakenBack = false
+          batch.current = { id, started: false, percent: 0, stop: new AbortController() }
           try {
             await this.#one(batch, id)
           } finally {
@@ -198,15 +189,16 @@ export class DeviceImports {
 
   async #one(batch: Batch, id: string): Promise<void> {
     const job = batch.jobs.get(id)
+    const current = batch.current
     const downloader = await this.#deps.downloader()
-    if (!job || !downloader || !this.#deps.wanted()) {
+    if (!job || !current || !downloader || !this.#deps.wanted()) {
       await this.#release(batch, id, 'this device can no longer download from YouTube')
       return
     }
+    const { stop } = current
     // A song heard in the review is here already, and asks YouTube for nothing.
-    // Taken back while it waited its turn: no turn is spent on it.
-    const still = (): boolean => !batch.currentTakenBack
-    if (!downloader.has(job.url) && !(await this.#pace(still))) {
+    // Taken back while it waited its turn (`stop`): no turn is spent on it.
+    if (!downloader.has(job.url) && !(await this.#pace(stop.signal))) {
       await this.#release(batch, id, 'this device no longer downloads from YouTube')
       return
     }
@@ -220,13 +212,12 @@ export class DeviceImports {
       return
     }
 
-    const stop = new AbortController()
-    batch.active = { id, percent: 0, stop }
+    current.started = true
     try {
       const file = await downloader.download(job.url, {
         signal: stop.signal,
         onProgress: percent => {
-          if (batch.active?.id === id) batch.active.percent = percent
+          current.percent = percent
         },
       })
       stop.signal.throwIfAborted()
@@ -245,15 +236,15 @@ export class DeviceImports {
         // Two minutes at most: a page that went with the download would otherwise hold every song after it.
         let timer: ReturnType<typeof setTimeout> | undefined
         await Promise.race([
-          downloader.settled?.(job.url),
+          downloader.settled(job.url),
           new Promise(resolve => (timer = setTimeout(resolve, SETTLE_MS))),
         ])
         clearTimeout(timer)
         return
       }
-      const message = error instanceof Error ? error.message : String(error)
+      const message = messageOf(error)
       if (isRateLimited(message)) {
-        this.#deps.budget.save(penalize(this.#budget(), this.#deps.now()))
+        noteRefusal(this.#deps.budget, this.#deps.now(), error)
         if (!this.#deps.handBack()) {
           this.#deps.log('YouTube refused this device for rate; it waits, and goes on', {
             message,
@@ -270,8 +261,6 @@ export class DeviceImports {
       }
       this.#deps.log('could not download on this device', { id, message })
       await this.#release(batch, id, message)
-    } finally {
-      batch.active = null
     }
   }
 
@@ -280,17 +269,14 @@ export class DeviceImports {
    * but as a person's request: a few may go on turns the bucket has not
    * filled yet (`PERSON_MAY_BORROW`), so the first songs of an import on a
    * device that has never downloaded do not wait out an empty bucket.
-   * False when this device was told to stop downloading while it waited.
+   * False when this device was told to stop downloading while it waited, or
+   * the song was taken back (`stopped`).
    */
-  async #pace(still: () => boolean): Promise<boolean> {
+  async #pace(stopped: AbortSignal): Promise<boolean> {
     for (;;) {
-      if (!this.#deps.wanted() || !still()) return false
+      if (!this.#deps.wanted() || stopped.aborted) return false
       const now = this.#deps.now()
-      const next = spend(this.#budget(), SIGNED_IN, now, PERSON_MAY_BORROW)
-      if (next) {
-        this.#deps.budget.save(next)
-        return true
-      }
+      if (takeTurn(this.#deps.budget, now)) return true
       const wait = waitMs(this.#budget(), SIGNED_IN, now, PERSON_MAY_BORROW)
       await this.#deps.sleep(Math.min(PACE_LOOK_MS, Math.max(250, wait)))
     }
@@ -302,16 +288,16 @@ export class DeviceImports {
 
   /** Keep the lease, and drop whatever the server says this device no longer holds. */
   async #renew(batch: Batch): Promise<void> {
-    const active = batch.active
+    const current = batch.current
     let held: Set<string>
     let order: string[]
     try {
       // What this device still means to download: a job it let go of and the
       // server did not hear about (a start or a release lost) goes to the server now.
-      const holding = batch.current ? [batch.current, ...batch.waiting] : [...batch.waiting]
+      const holding = current ? [current.id, ...batch.waiting] : [...batch.waiting]
       const answer = await batch.api.importDeviceRenew(
         batch.lease,
-        active ? [{ id: active.id, percent: Math.min(99, active.percent) }] : [],
+        current?.started ? [{ id: current.id, percent: Math.min(99, current.percent) }] : [],
         holding,
       )
       held = new Set(answer.held)
@@ -327,8 +313,8 @@ export class DeviceImports {
     // with "Import next" is the next this device downloads.
     const place = new Map(order.map((id, index) => [id, index]))
     batch.waiting.sort((a, b) => (place.get(a) ?? 0) - (place.get(b) ?? 0))
-    if (active && !held.has(active.id)) active.stop.abort()
-    if (batch.current && !active && !held.has(batch.current)) batch.currentTakenBack = true
+    // Not this device's any more, whether it waits its turn or is downloading: it stops.
+    if (current && !held.has(current.id)) current.stop.abort()
     this.#finishIfDone(batch)
   }
 
@@ -340,16 +326,22 @@ export class DeviceImports {
     }
   }
 
+  /**
+   * Hand the server everything not under way, one renewal a batch: what a
+   * renewal does not name as held (`holding`) goes to the server.
+   */
   async #releaseEverything(reason: string): Promise<void> {
+    this.#deps.log('the server takes the songs this device has not started', { reason })
     for (const batch of this.#batches) {
-      const waiting = batch.waiting.splice(0)
-      for (const id of waiting) await this.#release(batch, id, reason)
+      batch.waiting.splice(0)
+      const keep = batch.current ? [batch.current.id] : []
+      await batch.api.importDeviceRenew(batch.lease, [], keep).catch(() => undefined)
     }
   }
 
   #finishIfDone(batch: Batch): void {
     // `current`: a song waiting its turn (a pause after a refusal is fifteen minutes) is still this batch's.
-    if (batch.waiting.length > 0 || batch.active || batch.current) return
+    if (batch.waiting.length > 0 || batch.current) return
     batch.stopRenewing()
     const index = this.#batches.indexOf(batch)
     if (index !== -1) this.#batches.splice(index, 1)

@@ -5,5 +5,4 @@
  */
 export * from './webview/app.js'
 export { WEBVIEW_RECEIVE } from './webview/protocol.js'
-export { withKeptSongs } from './keptSongs.js'
-export { metaHeader } from './meta.js'
+export { withKeptSongs, type DeviceFile, type VideoFacts } from './keptSongs.js'

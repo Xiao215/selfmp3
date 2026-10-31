@@ -1,7 +1,5 @@
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
-import http from 'node:http'
-import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -95,77 +93,41 @@ describe.skipIf(!hasFfmpeg())('TagWriter, with ffmpeg', () => {
       ...['-hide_banner', '-loglevel', 'error', '-y'],
       ...['-f', 'lavfi', '-i', 'color=red:s=64x64', '-frames:v', '1', cover],
     ])
-    const data = fs.readFileSync(cover)
-    const download = () => Promise.resolve({ contentType: 'image/png', data })
-    const writer = new TagWriter({ download, logger: createLogger('silent') })
+    const writer = new TagWriter({ logger: createLogger('silent') })
 
-    expect(await writer.write(song, TAGS, 'https://lh3.googleusercontent.com/abc=w544')).toBe(true)
+    const picture = { data: fs.readFileSync(cover), extension: '.png' }
+    expect(await writer.write(song, TAGS, picture)).toBe(true)
 
-    const { tags, picture } = probe(song)
+    const { tags, picture: inside } = probe(song)
     expect(tags).toMatchObject({
       title: '晴天',
       artist: '周杰倫',
       album: '葉惠美',
       date: '2003-07-29',
     })
-    expect(picture).toBe(true)
+    expect(inside).toBe(true)
     // Nothing left beside it.
     expect(fs.readdirSync(dir).sort()).toEqual(['cover.png', 'song.m4a'])
   })
 
-  it('tags the file without a cover that did not come', async () => {
-    const download = () => Promise.resolve(null)
-    const writer = new TagWriter({ download, logger: createLogger('silent') })
-
-    expect(await writer.write(song, TAGS, 'https://i.ytimg.com/vi/x/hqdefault.jpg')).toBe(true)
-
+  it('tags the file without a cover when none came', async () => {
+    const writer = new TagWriter({ logger: createLogger('silent') })
+    expect(await writer.write(song, TAGS, null)).toBe(true)
     const { tags, picture } = probe(song)
     expect(tags.title).toBe('晴天')
     expect(picture).toBe(false)
   })
 
-  it('fetches no cover from this machine, whatever address the review gave', async () => {
-    let asked = 0
-    const local = http.createServer((_request, response) => {
-      asked++
-      response.end('secret')
-    })
-    await new Promise<void>(resolve => local.listen(0, '127.0.0.1', resolve))
-    const { port } = local.address() as AddressInfo
+  it('reads a cover as a picture and nothing else, and tags the file without one that is not', async () => {
+    // A playlist where a picture was meant to be: read as one, it would read other files.
     const writer = new TagWriter({ logger: createLogger('silent') })
+    const playlist = { data: Buffer.from('#EXTM3U\nfile:/etc/hostname\n'), extension: '.jpg' }
 
-    expect(await writer.write(song, TAGS, `http://127.0.0.1:${port}/cover.jpg`)).toBe(true)
-    await new Promise<void>(resolve => local.close(() => resolve()))
-    expect(asked).toBe(0)
-    expect(probe(song).picture).toBe(false)
-  })
-
-  it('takes no cover that is not said to be a picture, whatever its address', async () => {
-    const download = () =>
-      Promise.resolve({
-        contentType: 'application/vnd.apple.mpegurl',
-        data: Buffer.from('#EXTM3U\nfile:/etc/hostname\n'),
-      })
-    const writer = new TagWriter({ download, logger: createLogger('silent') })
-
-    expect(await writer.write(song, TAGS, 'https://example.com/x.m3u8')).toBe(true)
-    expect(probe(song).picture).toBe(false)
-    expect(fs.readdirSync(dir).sort()).toEqual(['song.m4a'])
-  })
-
-  it('tags the file without a cover ffmpeg cannot read', async () => {
-    // A page that answered 200 where a picture was meant to be.
-    const download = () =>
-      Promise.resolve({
-        contentType: 'image/jpeg',
-        data: Buffer.from('<html>not a picture</html>'),
-      })
-    const writer = new TagWriter({ download, logger: createLogger('silent') })
-
-    expect(await writer.write(song, TAGS, 'https://i.ytimg.com/vi/x/hqdefault.jpg')).toBe(true)
+    expect(await writer.write(song, TAGS, playlist)).toBe(true)
     const { tags, picture } = probe(song)
     expect(tags).toMatchObject({ title: '晴天', artist: '周杰倫', album: '葉惠美' })
     expect(picture).toBe(false)
+    expect(fs.readdirSync(dir).sort()).toEqual(['song.m4a'])
   })
 
   it('leaves a file it cannot read as it was, and says so', async () => {

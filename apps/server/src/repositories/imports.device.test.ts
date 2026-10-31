@@ -66,8 +66,8 @@ describe('ImportRepository, jobs a device holds', () => {
 
   it('names what the lease holds, and follows a download’s progress', () => {
     const { held } = enqueueForDevice()
-    expect(imports.renewLease('lease-1', 300, [])).toEqual([held])
-    expect(imports.renewLease('another', 300, [])).toEqual([])
+    expect(imports.renewLease('lease-1', 300, []).held).toEqual([held])
+    expect(imports.renewLease('another', 300, []).held).toEqual([])
 
     expect(imports.startOnDevice('lease-1', held, 300)).toBe(true)
     expect(imports.byId(held)).toMatchObject({
@@ -79,7 +79,7 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(imports.startOnDevice('lease-1', held, 300)).toBe(true)
     expect(imports.byId(held)?.attempts).toBe(2)
 
-    expect(imports.renewLease('lease-1', 300, [{ id: held, percent: 42.7 }])).toEqual([held])
+    expect(imports.renewLease('lease-1', 300, [{ id: held, percent: 42.7 }]).held).toEqual([held])
     expect(imports.byId(held)?.progress).toBe(42)
   })
 
@@ -87,7 +87,7 @@ describe('ImportRepository, jobs a device holds', () => {
     const { held } = enqueueForDevice()
     imports.startOnDevice('lease-1', held, 300)
     expect(imports.cancel(held)).toBe(true)
-    expect(imports.renewLease('lease-1', 300, [])).toEqual([])
+    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
     expect(imports.takeFromDevice('lease-1', held)).toBeNull()
   })
 
@@ -113,7 +113,7 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(taken).toMatchObject({ id: held, status: 'running', step: 'waiting', attempts: 1 })
     expect(imports.fetcherOf(held)).toEqual({ fetcher: 'device', lease: null })
     // Nothing more for the device to do with it.
-    expect(imports.renewLease('lease-1', 300, [])).toEqual([])
+    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
   })
 
   it('lets a file waiting for its turn be called off, and not once it is being added', () => {
@@ -143,7 +143,7 @@ describe('ImportRepository, jobs a device holds', () => {
 
   it('does not renew a lease that has run out', () => {
     const { held } = enqueueForDevice(0)
-    expect(imports.renewLease('lease-1', 300, [])).toEqual([])
+    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
     expect(imports.startOnDevice('lease-1', held, 300)).toBe(false)
     expect(imports.takeFromDevice('lease-1', held)).toBeNull()
   })
@@ -168,14 +168,14 @@ describe('ImportRepository, jobs a device holds', () => {
       { lease: 'lease-1', seconds: 300, fetcherFor: () => 'device' },
     )
     // The device dropped the first (its start was lost on the way) and still has the second.
-    expect(imports.renewLease('lease-1', 300, [], [second!.id])).toEqual([second!.id])
+    expect(imports.renewLease('lease-1', 300, [], [second!.id]).held).toEqual([second!.id])
     expect(imports.fetcherOf(first!.id)).toEqual({ fetcher: 'server', lease: null })
     expect(imports.claimNext()?.id).toBe(first!.id)
   })
 
   it('lets go of nothing for a device that does not say what it holds', () => {
     const { held } = enqueueForDevice()
-    expect(imports.renewLease('lease-1', 300, [])).toEqual([held])
+    expect(imports.renewLease('lease-1', 300, []).held).toEqual([held])
   })
 
   it('puts a song resumed after it was called off on a device back with the server', () => {
@@ -184,7 +184,7 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(imports.retry(held)).toBe(true)
     expect(imports.fetcherOf(held)).toEqual({ fetcher: 'server', lease: null })
     // The device that held it renews, and it is not among what it holds.
-    expect(imports.renewLease('lease-1', 300, [])).toEqual([])
+    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
     expect(imports.claimNext()?.id).toBe(held)
   })
 

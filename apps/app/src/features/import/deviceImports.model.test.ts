@@ -78,6 +78,12 @@ function harness(options: {
     importDeviceRenew: (lease, progress, holding) => {
       calls.push(`renew ${progress.map(each => `${each.id}@${each.percent}`).join(',')}`)
       renewedHolding.push([...holding])
+      // As the server does: what the device no longer names is the server's.
+      for (const id of [...held]) {
+        if (holding.includes(id)) continue
+        held.delete(id)
+        calls.push(`release ${id}: not named`)
+      }
       return Promise.resolve({ held: order ? order.filter(id => held.has(id)) : [...held] })
     },
     importDeviceStart: (lease, id) => {
@@ -93,12 +99,13 @@ function harness(options: {
   }
   const downloader: DeviceDownloader = {
     has: url => options.cached?.includes(url.slice(-11, -10)) ?? false,
-    download: (url, { signal, onProgress }) => {
+    download: (url, { signal, onProgress } = {}) => {
       calls.push(`download ${url.slice(-11, -10)}`)
-      onProgress(50)
-      return options.download ? options.download(url, signal) : Promise.resolve(FILE)
+      onProgress?.(50)
+      const stop = signal ?? new AbortController().signal
+      return options.download ? options.download(url, stop) : Promise.resolve(FILE)
     },
-    ...(options.settled ? { settled: options.settled } : {}),
+    settled: options.settled ?? (() => Promise.resolve()),
   }
   const imports = new DeviceImports({
     downloader: () => Promise.resolve(options.downloader === false ? null : downloader),
@@ -306,12 +313,12 @@ describe('DeviceImports', () => {
     await h.imports.letGo('turned off')
     finish(FILE)
     await h.imports.settled()
-    // The one under way finishes here; the rest are the server's.
-    expect(h.calls).toEqual([
+    // The one under way finishes here; the rest are the server's, in one renewal.
+    expect(h.calls.filter(call => !call.startsWith('renew'))).toEqual([
       'start a',
       'download a',
-      'release b: turned off',
-      'release c: turned off',
+      'release b: not named',
+      'release c: not named',
       'upload a',
     ])
   })

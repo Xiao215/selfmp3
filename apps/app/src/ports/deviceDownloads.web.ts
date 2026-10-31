@@ -1,13 +1,7 @@
-import {
-  IMPORT_META_HEADER,
-  IMPORT_SHA256_HEADER,
-  ThrottleStateSchema,
-  youtubeVideoId,
-  type ThrottleState,
-} from '@selfmp3/shared'
-import type { DeviceFile } from '@/features/import/deviceImports.model'
-import { noteRefusal, takeTurn, type DeviceYouTube } from '@/features/import/devicePreview.model'
+import { messageOf } from '@selfmp3/shared'
+import type { DeviceYouTube } from '@/features/import/devicePreview.model'
 import { appPath } from './appPath'
+import { listenFromDevice } from './deviceShared'
 import { installedApp } from './install'
 
 /**
@@ -90,7 +84,7 @@ export function deviceDownloader(): Promise<DeviceYouTube | null> {
       missedWhy = ''
       return found
     } catch (error) {
-      return without(error instanceof Error ? error.message : String(error))
+      return without(messageOf(error))
     }
   })()
   return downloader
@@ -101,110 +95,12 @@ export function warmDeviceDownloads(): void {
   void deviceDownloader()
 }
 
-/**
- * The songs heard here, as addresses the page's audio can play: one per
- * video, made once and let go when the downloader lets the song go, so a song
- * played twice is downloaded once — and imported without being downloaded
- * again (downloader.ts keeps the bytes).
- */
-const listenUrls = new Map<string, string>()
-const KEPT_LISTENS = 8
+/** The songs heard here, kept as object URLs the page's audio can play. */
+export const deviceListenUrl = listenFromDevice<string>(deviceDownloader, {
+  keep: (_videoId, bytes) => URL.createObjectURL(new Blob([bytes], { type: 'audio/mp4' })),
+  address: url => url,
+  usable: () => true,
+  drop: url => URL.revokeObjectURL(url),
+})
 
-/**
- * A review's song, to play from this tab's own download (docs/features/client-download.md),
- * or null for the server's listen — no extension, no turn at YouTube to
- * spare, or a download that failed.
- */
-export async function deviceListenUrl(url: string): Promise<string | null> {
-  const videoId = youtubeVideoId(url)
-  const youtube = videoId ? await deviceDownloader() : null
-  if (!videoId || !youtube) return null
-  const kept = listenUrls.get(videoId)
-  if (kept && youtube.has(url)) return kept
-  // The downloader let the song go since: so does its address, and it comes again.
-  if (kept) {
-    listenUrls.delete(videoId)
-    URL.revokeObjectURL(kept)
-  }
-  if (!youtube.has(url) && !takeTurn(deviceBudget, Date.now())) return null
-  try {
-    // Nobody stops a listen's download: an import may be waiting on the same song.
-    const file = await youtube.download(url, {
-      onProgress: () => undefined,
-      signal: new AbortController().signal,
-    })
-    const made = URL.createObjectURL(new Blob([file.bytes], { type: 'audio/mp4' }))
-    listenUrls.set(videoId, made)
-    while (listenUrls.size > KEPT_LISTENS) {
-      const [oldest, address] = listenUrls.entries().next().value ?? []
-      if (oldest === undefined || address === undefined) break
-      listenUrls.delete(oldest)
-      URL.revokeObjectURL(address)
-    }
-    return made
-  } catch (error) {
-    noteRefusal(deviceBudget, Date.now(), error)
-    console.warn('[device import] the server plays this one instead:', error)
-    return null
-  }
-}
-
-/** How long sending one song may take: a few megabytes, on the slowest connection worth waiting for. */
-const UPLOAD_MS = 5 * 60_000
-
-/** The file, as the body itself, described in the two headers the server reads. */
-export async function uploadDeviceFile(
-  target: { url: string; headers: Record<string, string> },
-  file: DeviceFile,
-): Promise<{ status: number; message: string }> {
-  const { metaHeader } = await import('@selfmp3/ytclient/host')
-  // A send that stalls is given up on: the device's whole queue waits on it.
-  const stop = new AbortController()
-  const timer = setTimeout(
-    () => stop.abort(new Error('the server did not take the file in time')),
-    UPLOAD_MS,
-  )
-  const response = await fetch(target.url, {
-    signal: stop.signal,
-    method: 'PUT',
-    headers: {
-      ...target.headers,
-      'Content-Type': 'audio/mp4',
-      [IMPORT_SHA256_HEADER]: file.sha256,
-      [IMPORT_META_HEADER]: metaHeader(file.meta),
-    },
-    body: file.bytes,
-  })
-  const answer = (await response.json().catch(() => null)) as { error?: unknown } | null
-  clearTimeout(timer)
-  return {
-    status: response.status,
-    message: typeof answer?.error === 'string' ? answer.error : '',
-  }
-}
-
-/**
- * This tab's budget at YouTube (ytBudget.ts), kept in localStorage: an
- * address's standing with YouTube outlasts a reload, and so should the
- * bucket that keeps it in check.
- */
-const BUDGET_KEY = 'selfmp3.youtube-budget'
-export const deviceBudget = {
-  get: (): ThrottleState | null => {
-    try {
-      const parsed = ThrottleStateSchema.safeParse(
-        JSON.parse(localStorage.getItem(BUDGET_KEY) ?? 'null'),
-      )
-      return parsed.success ? parsed.data : null
-    } catch {
-      return null
-    }
-  },
-  save: (state: ThrottleState): void => {
-    try {
-      localStorage.setItem(BUDGET_KEY, JSON.stringify(state))
-    } catch {
-      // Storage full or refused: the bucket lasts as long as the tab.
-    }
-  },
-}
+export { deviceBudget, uploadDeviceFile } from './deviceShared'

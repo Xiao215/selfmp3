@@ -1,4 +1,4 @@
-import { bytesToBase64 } from '@selfmp3/shared'
+import { bytesToBase64, messageOf } from '@selfmp3/shared'
 import { createYouTubeCore } from '../downloader.js'
 import {
   WEBVIEW_CHUNK_BYTES,
@@ -52,7 +52,7 @@ async function answer(message: AppMessage): Promise<void> {
     }
     send({ kind: 'downloaded', id, size: file.bytes.length, sha256: file.sha256, meta: file.meta })
   } catch (error) {
-    send({ kind: 'failed', id, message: error instanceof Error ? error.message : String(error) })
+    send({ kind: 'failed', id, message: messageOf(error) })
   }
 }
 

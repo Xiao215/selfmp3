@@ -5,6 +5,7 @@ import './storage.js'
 import { createYouTubeCore } from '../downloader.js'
 import type { YtFetch } from '../transport.js'
 import { isMessage, NULL_BODY, type FrameMessage, type PageMessage } from './protocol.js'
+import { messageOf } from '@selfmp3/shared'
 
 /**
  * The sandbox frame (protocol.ts): youtubei.js, YouTube's player script and
@@ -110,7 +111,7 @@ async function answer(message: Extract<PageMessage, { kind: 'describe' | 'downlo
     })
     send({ kind: 'downloaded', id, file }, [file.bytes.buffer])
   } catch (error) {
-    send({ kind: 'failed', id, message: error instanceof Error ? error.message : String(error) })
+    send({ kind: 'failed', id, message: messageOf(error) })
   }
 }
 

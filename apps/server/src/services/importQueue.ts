@@ -88,7 +88,7 @@ export class ImportQueueService {
   readonly #settings: Pick<SettingsRepository, 'get'>
   readonly #scanner: Pick<ScannerService, 'ingest'>
   readonly #lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
-  readonly #covers: Pick<CoverService, 'saveFromUrl'>
+  readonly #covers: Pick<CoverService, 'saveFromUrl' | 'fetchFromUrl' | 'saveFetched'>
   readonly #ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
   readonly #throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
   readonly #cloud: ImportUploader
@@ -114,7 +114,16 @@ export class ImportQueueService {
    * server's own downloads do, so several devices sending at once cannot run
    * more than the machine was told to (a Pi, often).
    */
-  readonly #deviceFiles: { job: ImportJob; work: JobWork; file: string }[] = []
+  /**
+   * Devices' files measured and waiting for a turn, as plain data: a closure
+   * over the upload's scope would keep its whole request alive while it waits.
+   */
+  readonly #deviceFiles: {
+    job: ImportJob
+    file: string
+    meta: ImportDeviceFileMeta
+    seconds: number
+  }[] = []
   #draining = false
   #stopped = false
 
@@ -138,7 +147,7 @@ export class ImportQueueService {
     settings: Pick<SettingsRepository, 'get'>
     scanner: Pick<ScannerService, 'ingest'>
     lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
-    covers: Pick<CoverService, 'saveFromUrl'>
+    covers: Pick<CoverService, 'saveFromUrl' | 'fetchFromUrl' | 'saveFetched'>
     ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
     throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
     cloud: ImportUploader
@@ -281,9 +290,14 @@ export class ImportQueueService {
     progress: readonly { id: string; percent: number }[],
     holding?: readonly string[],
   ): string[] {
-    const held = this.#imports.renewLease(lease, DEVICE_LEASE_SECONDS, progress, holding)
+    const { held, released } = this.#imports.renewLease(
+      lease,
+      DEVICE_LEASE_SECONDS,
+      progress,
+      holding,
+    )
     // A job the device has let go of (`holding`) is the queue's now, and it may be idle.
-    if (holding) this.kick()
+    if (released > 0) this.kick()
     return held
   }
 
@@ -363,12 +377,7 @@ export class ImportQueueService {
         return { ok: false, status: 409, message: 'that job is no longer this device’s' }
       }
       taken = true
-      this.#deviceFiles.push({
-        job: claimed,
-        file: stagedPath,
-        work: (signal, settings) =>
-          this.#fromDevice(claimed, settings, signal, stagedPath, input.meta, seconds),
-      })
+      this.#deviceFiles.push({ job: claimed, file: stagedPath, meta: input.meta, seconds })
       this.kick()
       return { ok: true }
     } finally {
@@ -399,7 +408,10 @@ export class ImportQueueService {
         if (!staged) break
         // Its turn: from here it is being added, and no longer called off (CANCELLABLE).
         this.#imports.update(staged.job.id, { step: 'converting' })
-        this.#start({ ...staged.job, step: 'converting' }, staged.work)
+        const { job, file, meta, seconds } = staged
+        this.#start({ ...job, step: 'converting' }, (signal, settings) =>
+          this.#fromDevice(job, settings, signal, file, meta, seconds),
+        )
       }
       while (this.#activeCount < limit && !this.#stopped) {
         const next = this.#imports.nextQueued()
@@ -814,7 +826,9 @@ export class ImportQueueService {
       signal.throwIfAborted()
       this.#update(job.id, { step: 'converting', progress: null })
 
-      if (file.tags) await this.#tagWriter.write(stagedPath, file.tags, thumbnail)
+      // Fetched once: the file's picture, and below the song's cover.
+      const cover = file.tags && thumbnail ? await this.#covers.fetchFromUrl(thumbnail) : null
+      if (file.tags) await this.#tagWriter.write(stagedPath, file.tags, cover)
 
       libraryKey = await this.#claimLibraryKey(name, path.extname(stagedPath))
 
@@ -873,7 +887,9 @@ export class ImportQueueService {
        */
       const song = this.#songs.byId(songId)
       if (song && thumbnail && (!song.hasArt || isSquareCoverUrl(thumbnail))) {
-        await this.#covers.saveFromUrl(songId, thumbnail)
+        await (cover
+          ? this.#covers.saveFetched(songId, cover)
+          : this.#covers.saveFromUrl(songId, thumbnail))
       }
 
       for (const tagId of this.#tags.exists([...new Set(job.tagIds)])) {

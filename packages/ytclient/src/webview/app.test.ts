@@ -38,7 +38,7 @@ describe('the phone’s side of its YouTube page', () => {
     say({ kind: 'downloaded', id: 0, size: 5, sha256: 'abc', meta: META })
     const file = await coming
     expect([...file.bytes]).toEqual([1, 2, 3, 4, 5])
-    expect(file).toMatchObject({ mimeType: 'audio/mp4', sha256: 'abc', meta: META })
+    expect(file).toMatchObject({ sha256: 'abc', meta: META })
     expect(seen).toEqual([50])
   })
 

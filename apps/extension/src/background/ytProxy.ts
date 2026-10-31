@@ -10,6 +10,7 @@ import {
   YtProxyPageMessageSchema,
   type YtProxyExtensionMessage,
   type YtProxyPageMessage,
+  messageOf,
 } from '@selfmp3/shared'
 
 /**
@@ -165,7 +166,7 @@ export function ytProxy(deps: {
       } catch (error) {
         // Aborted by the page, which is no longer waiting for an answer.
         if (controller.signal.aborted) return
-        send({ type: 'error', id, message: error instanceof Error ? error.message : String(error) })
+        send({ type: 'error', id, message: messageOf(error) })
       } finally {
         inFlight.delete(id)
       }

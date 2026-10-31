@@ -66,8 +66,6 @@ export function useListen(
   const [position] = useState(() => createValueStore(0))
   /** Something was playing when previewing began; it carries on when the preview closes. */
   const resume = useRef(false)
-  /** The song last asked to play: where its audio comes from may take a moment to know. */
-  const wanted = useRef<string | null>(null)
   /**
    * This device's download of the song asked for, still on its way: nothing
    * is loaded to pause yet, so a tap meanwhile is kept here — and the song,
@@ -103,7 +101,6 @@ export function useListen(
     return () => {
       unsubscribe()
       // A download still on its way finds nobody wanting it: the page is gone.
-      wanted.current = null
       pending.current = null
       audio.dispose()
     }
@@ -165,7 +162,6 @@ export function useListen(
     setListening(startListening(track, tonesByCover.get(track.thumbnail ?? '') ?? null))
     // From this device's own download where it can make one (deviceImports.ts),
     // so the song heard is the song imported without asking YouTube again.
-    wanted.current = track.url
     const server = mediaUrlFor(connection)
     const source = listenSource(track.url, () => server.importListen(track.url))
     if (typeof source === 'string') {
@@ -177,7 +173,8 @@ export function useListen(
       // The song previewing before is not heard over the wait for this one.
       audio.stop()
       void source.then(own => {
-        if (wanted.current !== track.url || pending.current !== coming) return
+        // Another song asked for since, or the preview closed: this one is nobody's.
+        if (pending.current !== coming) return
         if (coming.paused) {
           coming.source = own
           return
@@ -201,7 +198,6 @@ export function useListen(
    * new link fetched — since then nothing asked for music.
    */
   const close = (options: { resume?: boolean } = {}): void => {
-    wanted.current = null
     pending.current = null
     audio?.stop()
     setListening(null)

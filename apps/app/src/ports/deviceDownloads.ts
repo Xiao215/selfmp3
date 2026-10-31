@@ -1,24 +1,15 @@
 import { Platform } from 'react-native'
 import { File, Paths } from 'expo-file-system'
-import {
-  DEFAULT_APP_URL,
-  IMPORT_META_HEADER,
-  IMPORT_SHA256_HEADER,
-  ThrottleStateSchema,
-  youtubeVideoId,
-  type ThrottleState,
-} from '@selfmp3/shared'
+import { DEFAULT_APP_URL } from '@selfmp3/shared'
 import {
   createWebViewCore,
-  metaHeader,
   WEBVIEW_RECEIVE,
   withKeptSongs,
   type WebViewCore,
 } from '@selfmp3/ytclient/phone'
-import type { DeviceFile } from '@/features/import/deviceImports.model'
-import { noteRefusal, takeTurn, type DeviceYouTube } from '@/features/import/devicePreview.model'
+import type { DeviceYouTube } from '@/features/import/devicePreview.model'
 import { createValueStore } from '@/state/valueStore.model'
-import { prefs } from './prefs'
+import { listenFromDevice } from './deviceShared'
 
 /**
  * Downloading a song on this phone instead of on the server
@@ -134,110 +125,25 @@ export function deviceDownloader(): Promise<DeviceYouTube | null> {
   return Promise.resolve(downloader)
 }
 
-/**
- * The songs heard here, as files the preview's player can open: one per
- * video, kept as long as the downloader keeps the song, so a song played
- * twice is downloaded once — and imported without being downloaded again.
- */
-const listenFiles = new Map<string, File>()
-const KEPT_LISTENS = 8
-
-/**
- * A review's song, to play from this phone's own download, or null for the
- * server's listen: no page, no turn at YouTube to spare, or a download that
- * failed.
- */
-export async function deviceListenUrl(url: string): Promise<string | null> {
-  const videoId = youtubeVideoId(url)
-  const youtube = videoId ? await deviceDownloader() : null
-  if (!videoId || !youtube) return null
-  const kept = listenFiles.get(videoId)
-  if (kept?.exists && youtube.has(url)) return kept.uri
-  if (kept) forget(videoId)
-  if (!youtube.has(url) && !takeTurn(deviceBudget, Date.now())) return null
-  try {
-    // Nobody stops a listen's download: an import may be waiting on the same song.
-    const song = await youtube.download(url, {
-      onProgress: () => undefined,
-      signal: new AbortController().signal,
-    })
+/** The songs heard here, kept as files in the cache, which the preview's player opens. */
+export const deviceListenUrl = listenFromDevice<File>(deviceDownloader, {
+  keep: (videoId, bytes) => {
     const file = new File(Paths.cache, `listen-${videoId}.m4a`)
-    file.write(song.bytes)
-    listenFiles.set(videoId, file)
-    while (listenFiles.size > KEPT_LISTENS) {
-      const oldest = listenFiles.keys().next().value
-      if (oldest === undefined) break
-      forget(oldest)
-    }
-    return file.uri
-  } catch (error) {
-    noteRefusal(deviceBudget, Date.now(), error)
-    console.warn('[device import] the server plays this one instead:', error)
-    return null
-  }
-}
-
-function forget(videoId: string): void {
-  const file = listenFiles.get(videoId)
-  listenFiles.delete(videoId)
-  try {
-    if (file?.exists) file.delete()
-  } catch {
-    // Gone already, or the cache was cleared: either way it is not kept.
-  }
-}
-
-/** How long sending one song may take: a few megabytes, on the slowest connection worth waiting for. */
-const UPLOAD_MS = 5 * 60_000
-
-/** The file, as the body itself, described in the two headers the server reads. */
-export async function uploadDeviceFile(
-  target: { url: string; headers: Record<string, string> },
-  file: DeviceFile,
-): Promise<{ status: number; message: string }> {
-  // A send that stalls is given up on: the device's whole queue waits on it.
-  const stop = new AbortController()
-  const timer = setTimeout(
-    () => stop.abort(new Error('the server did not take the file in time')),
-    UPLOAD_MS,
-  )
-  const response = await fetch(target.url, {
-    signal: stop.signal,
-    method: 'PUT',
-    headers: {
-      ...target.headers,
-      'Content-Type': 'audio/mp4',
-      [IMPORT_SHA256_HEADER]: file.sha256,
-      [IMPORT_META_HEADER]: metaHeader(file.meta),
-    },
-    body: file.bytes,
-  })
-  const answer = (await response.json().catch(() => null)) as { error?: unknown } | null
-  clearTimeout(timer)
-  return {
-    status: response.status,
-    message: typeof answer?.error === 'string' ? answer.error : '',
-  }
-}
-
-/**
- * This phone's budget at YouTube (ytBudget.ts), kept with its other small
- * things (prefs.ts): its standing with YouTube outlasts the app being closed.
- */
-const BUDGET_KEY = 'youtube-budget'
-export const deviceBudget = {
-  get: (): ThrottleState | null => {
+    file.write(bytes)
+    return file
+  },
+  address: file => file.uri,
+  usable: file => file.exists,
+  drop: file => {
     try {
-      const parsed = ThrottleStateSchema.safeParse(JSON.parse(prefs.get(BUDGET_KEY) ?? 'null'))
-      return parsed.success ? parsed.data : null
+      if (file.exists) file.delete()
     } catch {
-      return null
+      // Gone already, or the cache was cleared: either way it is not kept.
     }
   },
-  save: (state: ThrottleState): void => {
-    prefs.set(BUDGET_KEY, JSON.stringify(state))
-  },
-}
+})
+
+export { deviceBudget, uploadDeviceFile } from './deviceShared'
 
 /** Settings' card for this: on a phone, always — there is nothing to install. */
 export const downloadsHere = {

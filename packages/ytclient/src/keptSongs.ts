@@ -13,8 +13,6 @@ import { youtubeVideoId, type ImportDeviceFileMeta } from '@selfmp3/shared'
 
 export interface DeviceFile {
   readonly bytes: Uint8Array<ArrayBuffer>
-  /** Always `audio/mp4`: only m4a is downloaded, as the server's own downloads prefer. */
-  readonly mimeType: 'audio/mp4'
   /** The bytes' SHA-256, hex. */
   readonly sha256: string
   readonly meta: ImportDeviceFileMeta
@@ -53,6 +51,13 @@ interface DeviceDownloader {
   settled(url: string): Promise<void>
 }
 
+/** The video id `url` names; throws for an address that is not one video. */
+export function videoOf(url: string): string {
+  const videoId = youtubeVideoId(url)
+  if (!videoId) throw new Error(`not a YouTube video: ${url}`)
+  return videoId
+}
+
 /** Songs kept: a review's worth of listening, at a few megabytes each. */
 const KEPT_SONGS = 8
 
@@ -61,12 +66,6 @@ export function withKeptSongs(core: YouTubeCore): DeviceDownloader {
   const kept = new Map<string, Promise<DeviceFile>>()
   /** Who is following each download under way. */
   const progress = new Map<string, Set<(percent: number) => void>>()
-
-  const videoOf = (url: string): string => {
-    const videoId = youtubeVideoId(url)
-    if (!videoId) throw new Error(`not a YouTube video: ${url}`)
-    return videoId
-  }
 
   return {
     describe: url => core.describe(url),

@@ -75,6 +75,9 @@ const HELD = `(lease_id IS NOT NULL AND lease_until > datetime('now'))`
 /** What a device may still do something with: waiting for it, or downloading on it. */
 const DEVICE_OPEN = `(status = 'queued' OR (status = 'running' AND step = 'downloading'))`
 
+/** A job the lease `@lease` holds now: open to the device, and not run out. */
+const HELD_BY = `lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')`
+
 /** What handing a job to the server writes: back in the queue, the server's for good. */
 const TO_SERVER = `status = 'queued', step = 'waiting', progress = NULL, lease_id = NULL,
                    lease_until = NULL, fetcher = 'server', updated_at = datetime('now')`
@@ -300,14 +303,9 @@ export class ImportRepository {
       "SELECT url FROM import_jobs WHERE status IN ('queued','running')",
     )
 
-    this.#renew = db.prepare(
-      `UPDATE import_jobs SET lease_until = ${UNTIL}
-        WHERE lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')`,
-    )
-    this.#held = db.prepare<[string], { id: string }>(
-      `SELECT id FROM import_jobs
-        WHERE lease_id = ? AND ${DEVICE_OPEN} AND lease_until > datetime('now')
-        ORDER BY position, created_at`,
+    this.#renew = db.prepare(`UPDATE import_jobs SET lease_until = ${UNTIL} WHERE ${HELD_BY}`)
+    this.#held = db.prepare<{ lease: string }, { id: string }>(
+      `SELECT id FROM import_jobs WHERE ${HELD_BY} ORDER BY position, created_at`,
     )
     // Again on a song it is downloading already: it waited out a refusal for
     // rate and starts over (the device's "hand back" switch, off).
@@ -315,12 +313,13 @@ export class ImportRepository {
       `UPDATE import_jobs
           SET status = 'running', step = 'downloading', progress = 0, error = NULL,
               attempts = attempts + 1, lease_until = ${UNTIL}, updated_at = datetime('now')
-        WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')`,
+        WHERE id = @id AND ${HELD_BY}`,
     )
     this.#progressOnDevice = db.prepare(
       `UPDATE import_jobs SET progress = @percent, updated_at = datetime('now')
         WHERE id = @id AND lease_id = @lease AND status = 'running' AND step = 'downloading'`,
     )
+    // Run out or not: a device letting a job go is never refused it.
     this.#release = db.prepare(
       `UPDATE import_jobs SET ${TO_SERVER} WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN}`,
     )
@@ -329,7 +328,7 @@ export class ImportRepository {
           SET status = 'running', step = 'waiting', progress = NULL, error = NULL,
               attempts = attempts + CASE WHEN status = 'queued' THEN 1 ELSE 0 END,
               lease_id = NULL, lease_until = NULL, updated_at = datetime('now')
-        WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')
+        WHERE id = @id AND ${HELD_BY}
        RETURNING *`,
     )
     this.#expire = db.prepare(
@@ -611,19 +610,20 @@ export class ImportRepository {
     seconds: number,
     progress: readonly { id: string; percent: number }[],
     holding?: readonly string[],
-  ): string[] {
+  ): { held: string[]; released: number } {
     const run = this.#db.transaction(() => {
       for (const { id, percent } of progress) {
         this.#progressOnDevice.run({ id, lease, percent: Math.floor(percent) })
       }
-      if (holding) {
-        const kept = new Set(holding)
-        for (const { id } of this.#held.all(lease)) {
-          if (!kept.has(id)) this.#release.run({ id, lease })
-        }
+      const kept = holding ? new Set(holding) : null
+      const held: string[] = []
+      let released = 0
+      for (const { id } of this.#held.all({ lease })) {
+        if (kept && !kept.has(id)) released += this.#release.run({ id, lease }).changes
+        else held.push(id)
       }
       this.#renew.run({ lease, seconds })
-      return this.#held.all(lease).map(row => row.id)
+      return { held, released }
     })
     return run()
   }

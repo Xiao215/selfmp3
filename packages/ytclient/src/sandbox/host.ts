@@ -1,6 +1,6 @@
-import { isYtProxyUrl } from '@selfmp3/shared'
+import { isYtProxyUrl, messageOf } from '@selfmp3/shared'
 import type { DeviceFile, VideoFacts, YouTubeCore } from '../keptSongs.js'
-import { createPoMinter, minterLifetimeMs, type PoMinter } from '../poToken.js'
+import { createPoMinter, keptUntilStale, minterLifetimeMs } from '../poToken.js'
 import { withTimeout, YOUTUBE_REQUEST_MS, type YtFetch } from '../transport.js'
 import { isMessage, type FrameMessage, type PageMessage } from './protocol.js'
 
@@ -49,36 +49,21 @@ export function openSandbox(options: {
    * token to a frame with no origin of its own. Started the first time the
    * frame asks, kept for every song after; one that failed to start is let go.
    */
-  let minter: Promise<PoMinter> | null = null
-  /** When its tokens stop being worth anything (`minterLifetimeMs`), and BotGuard is run again. */
-  let staleAt = Number.POSITIVE_INFINITY
+  // Run again once its tokens stop being worth anything (`minterLifetimeMs`); BotGuard's
+  // requests are given up on as every other is, since one that stalls would hold every song up.
+  const minter = keptUntilStale(
+    () => createPoMinter(withTimeout(options.fetch, YOUTUBE_REQUEST_MS)),
+    made => minterLifetimeMs(made),
+    made => void made.close(),
+  )
   const mint = async (message: Extract<FrameMessage, { kind: 'mint' }>): Promise<void> => {
-    if (minter && Date.now() > staleAt) {
-      const old = minter
-      minter = null
-      void old.then(made => made.close()).catch(() => undefined)
-    }
-    minter ??= (() => {
-      staleAt = Number.POSITIVE_INFINITY
-      // BotGuard's requests given up on as every other is: one that stalls would hold every song up.
-      return createPoMinter(withTimeout(options.fetch, YOUTUBE_REQUEST_MS)).then(
-        made => {
-          staleAt = Date.now() + minterLifetimeMs(made)
-          return made
-        },
-        (error: unknown) => {
-          minter = null
-          throw error
-        },
-      )
-    })()
     try {
-      post({ kind: 'minted', id: message.id, token: await (await minter).mint(message.binding) })
+      post({ kind: 'minted', id: message.id, token: await (await minter()).mint(message.binding) })
     } catch (error) {
       post({
         kind: 'mintFailed',
         id: message.id,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     }
   }
@@ -115,7 +100,7 @@ export function openSandbox(options: {
       post({
         kind: 'fetchFailed',
         id,
-        message: error instanceof Error ? error.message : String(error),
+        message: messageOf(error),
       })
     } finally {
       fetching.delete(id)

@@ -1,4 +1,4 @@
-import { bytesToBase64, youtubeVideoId } from '@selfmp3/shared'
+import { bytesToBase64, youtubeVideoId, messageOf } from '@selfmp3/shared'
 import {
   createSession,
   type DEFAULT_CLIENTS,
@@ -68,7 +68,7 @@ async function run(options: RunOptions): Promise<Report> {
     say(`Opening a session${options.poToken === false ? ' without a PO token' : ''}…`)
     session = await createSession(fetch, { poToken: options.poToken !== false })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = messageOf(error)
     say(`Session failed: ${message}`)
     return { ...empty, poToken: false, error: message, downloadMs: 0 }
   }
@@ -119,7 +119,7 @@ async function run(options: RunOptions): Promise<Report> {
       downloadMs,
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = messageOf(error)
     const attempts = (error as { attempts?: Attempt[] }).attempts ?? []
     for (const attempt of attempts) say(`  ${attempt.client}: no — ${attempt.detail}`)
     say(`Failed: ${message}`)

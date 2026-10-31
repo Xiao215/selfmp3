@@ -19,7 +19,9 @@ import {
   type ImportPreview,
   type ImportPreviewItem,
   type ThrottleState,
+  messageOf,
 } from '@selfmp3/shared'
+import type { VideoFacts } from '@selfmp3/ytclient/phone'
 import type { DeviceDownloader } from './deviceImports.model'
 
 /**
@@ -30,14 +32,8 @@ import type { DeviceDownloader } from './deviceImports.model'
  * channel is the server's to read, as before.
  */
 
-/** What the player says of a video (`packages/ytclient`'s `VideoFacts`). */
-export interface VideoFacts {
-  readonly title: string
-  readonly author: string
-  readonly durationSeconds: number
-  readonly description: string
-  readonly thumbnail: string | null
-}
+/** What the player says of a video. */
+export type { VideoFacts } from '@selfmp3/ytclient/phone'
 
 /** A downloader that can also say what a video is. */
 export interface DeviceYouTube extends DeviceDownloader {
@@ -50,8 +46,8 @@ interface BudgetStore {
   save(state: ThrottleState): void
 }
 
-/** A device asks YouTube signed out: the extension carries no cookies. */
-const SIGNED_IN = false
+/** A device is paced as signed out, the cautious rate: the sign-in is the extension's to add. */
+export const SIGNED_IN = false
 
 /**
  * The one YouTube video `text` links to — as the watch address the server
@@ -90,7 +86,7 @@ export function refusing(budget: BudgetStore, now: number): boolean {
 
 /** YouTube refused this device for rate: the bucket empties, and it keeps clear for a while. */
 export function noteRefusal(budget: BudgetStore, now: number, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = messageOf(error)
   if (isRateLimited(message)) budget.save(penalize(budget.get() ?? freshState(now), now))
 }
 

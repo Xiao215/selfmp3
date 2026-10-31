@@ -116,3 +116,40 @@ export function minterLifetimeMs(minter: object | null): number {
   const ttl = minter && 'ttlSeconds' in minter ? minter.ttlSeconds : null
   return typeof ttl === 'number' && ttl > 0 ? Math.min(ttl * 800, MAX_MINTER_MS) : MAX_MINTER_MS
 }
+
+/**
+ * `make`, made the first time it is asked for and kept — until `lifetimeMs`
+ * of what it made has passed, when the next ask makes it again and `retire`
+ * lets the old one go. One that failed to be made is not kept: the next ask
+ * tries again. The session (downloader.ts) and the page's minter
+ * (sandbox/host.ts) are both kept so.
+ */
+export function keptUntilStale<T>(
+  make: () => Promise<T>,
+  lifetimeMs: (made: T) => number,
+  retire: (old: T) => void = () => undefined,
+): () => Promise<T> {
+  let kept: Promise<T> | null = null
+  let staleAt = Number.POSITIVE_INFINITY
+  return () => {
+    if (kept && Date.now() > staleAt) {
+      void kept.then(retire, () => undefined)
+      kept = null
+    }
+    if (!kept) {
+      staleAt = Number.POSITIVE_INFINITY
+      const making: Promise<T> = make().then(
+        made => {
+          staleAt = Date.now() + lifetimeMs(made)
+          return made
+        },
+        (error: unknown) => {
+          if (kept === making) kept = null
+          throw error
+        },
+      )
+      kept = making
+    }
+    return kept
+  }
+}

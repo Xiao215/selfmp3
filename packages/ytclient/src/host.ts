@@ -7,5 +7,4 @@
  */
 export * from './transport.js'
 export * from './keptSongs.js'
-export * from './meta.js'
 export * from './sandbox/host.js'

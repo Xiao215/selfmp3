@@ -1,8 +1,8 @@
 import fsp from 'node:fs/promises'
 import { messageOf } from '@selfmp3/shared'
-import { fetchPublic } from '../http/publicWeb.js'
 import type { Logger } from '../logger.js'
-import { run } from './ytdlp.js'
+import type { FetchedCover } from './covers.js'
+import { runFfmpeg } from './ffmpeg.js'
 
 /**
  * Tags for a file the server did not download itself.
@@ -27,16 +27,6 @@ export interface FileTags {
   /** `YYYY-MM-DD` or `YYYY`, or null to leave the date out. */
   readonly date: string | null
 }
-
-/** The pictures a cover is taken as, by content type, and the name each is written under. */
-const PICTURE_EXTENSIONS: Readonly<Record<string, string>> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-}
-
-/** A cover is a picture of a few hundred kilobytes; anything far past that is not one. */
-const MAX_COVER_BYTES = 10 * 1024 * 1024
 
 /**
  * ffmpeg's arguments to copy `input` to `output` with `tags`, and `cover`
@@ -76,39 +66,28 @@ export function tagArgs(
   ]
 }
 
-/** A cover's bytes from the open web, as `fetchPublic` gives them. */
-type CoverDownload = (url: string) => Promise<{ contentType: string; data: Buffer | null } | null>
-
 export class TagWriter {
-  readonly #download: CoverDownload
   readonly #logger: Logger
 
-  constructor(deps: { download?: CoverDownload; logger: Logger }) {
-    /*
-     * The address is the client's — the review's thumbnail — so it is
-     * fetched as covers.ts fetches one: from the open web only, never this
-     * machine, the home network or the tailnet, every redirect checked, and
-     * no more read than any cover is.
-     */
-    this.#download =
-      deps.download ??
-      (url => fetchPublic(url, { signal: AbortSignal.timeout(15_000), limit: MAX_COVER_BYTES }))
+  constructor(deps: { logger: Logger }) {
     this.#logger = deps.logger.child('tags')
   }
 
   /**
-   * Tag `file` in place, with the picture at `coverUrl` inside it. Returns
-   * whether the file was tagged; a false is logged, not thrown.
+   * Tag `file` in place, with `cover` inside it — fetched by the caller
+   * (covers.ts `fetchFromUrl`), which keeps the same picture as the song's
+   * cover. Returns whether the file was tagged; a false is logged, not thrown.
    */
-  async write(file: string, tags: FileTags, coverUrl: string | null): Promise<boolean> {
+  async write(file: string, tags: FileTags, cover: FetchedCover | null): Promise<boolean> {
     const output = `${file}.tagged`
-    const cover = coverUrl ? await this.#fetchCover(coverUrl, `${file}.cover`) : null
+    const picture = cover ? `${file}.cover${cover.extension}` : null
     try {
-      let result = await run('ffmpeg', tagArgs(file, output, tags, cover), { timeoutMs: 60_000 })
+      if (cover && picture) await fsp.writeFile(picture, cover.data)
+      let result = await runFfmpeg(tagArgs(file, output, tags, picture), TAG_RUN)
       // A picture ffmpeg cannot read (a page that answered 200, a format it does not take): the tags go in without it.
-      if (result.code !== 0 && cover) {
+      if (result.code !== 0 && picture) {
         this.#logger.debug('the cover would not go in; tagging without it', { file })
-        result = await run('ffmpeg', tagArgs(file, output, tags, null), { timeoutMs: 60_000 })
+        result = await runFfmpeg(tagArgs(file, output, tags, null), TAG_RUN)
       }
       if (result.code !== 0) {
         this.#logger.warn('could not tag a file', { file, stderr: result.stderr.slice(-400) })
@@ -121,26 +100,10 @@ export class TagWriter {
       return false
     } finally {
       await fsp.rm(output, { force: true }).catch(() => undefined)
-      if (cover) await fsp.rm(cover, { force: true }).catch(() => undefined)
-    }
-  }
-
-  /** The picture at `url`, written beside the file, or null when it did not come. */
-  async #fetchCover(url: string, base: string): Promise<string | null> {
-    try {
-      const got = await this.#download(url)
-      if (!got?.data || got.data.length === 0) return null
-      // Named by what the server said it is, as covers.ts names one — never by
-      // the address, which is the client's: a picture, or no cover at all.
-      const extension =
-        PICTURE_EXTENSIONS[got.contentType.split(';')[0]?.trim().toLowerCase() ?? '']
-      if (!extension) return null
-      const file = `${base}${extension}`
-      await fsp.writeFile(file, got.data)
-      return file
-    } catch (error) {
-      this.#logger.debug('no cover for a file', { url, message: messageOf(error) })
-      return null
+      if (picture) await fsp.rm(picture, { force: true }).catch(() => undefined)
     }
   }
 }
+
+/** One tagging run: a copy of the audio, so a minute is far more than it needs. */
+const TAG_RUN = { timeoutMs: 60_000, timeoutMessage: 'ffmpeg took too long tagging a file' }

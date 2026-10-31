@@ -5,7 +5,7 @@
  * initialization". Bundled into one file, there is no circle left to order.
  */
 import { Innertube, Platform } from 'youtubei.js/web.bundle'
-import { isRateLimited } from '@selfmp3/shared'
+import { isRateLimited, messageOf } from '@selfmp3/shared'
 import { createPoMinter, type PoMinter } from './poToken.js'
 import type { VideoFacts } from './keptSongs.js'
 import type { YtFetch } from './transport.js'
@@ -165,7 +165,7 @@ export async function describeVideo(session: YtSession, videoId: string): Promis
     return await describeWith(session, videoId, first)
   } catch (error) {
     // Refused for a sign-in it did or did not have: once more, with a client that suits.
-    if (!learn(session, first, error instanceof Error ? error.message : String(error))) throw error
+    if (!learn(session, first, messageOf(error))) throw error
     return describeWith(session, videoId, clientsFor(session)[0] ?? 'VISIONOS')
   }
 }
@@ -184,6 +184,11 @@ async function describeWith(
   if (playability?.status !== 'OK') {
     throw new Error(`${playability?.status ?? 'no status'}: ${playability?.reason ?? ''}`.trim())
   }
+  return factsOf(info)
+}
+
+/** What a player answer says of its video. */
+function factsOf(info: Awaited<ReturnType<Innertube['getBasicInfo']>>): VideoFacts {
   return {
     title: info.basic_info.title ?? '',
     author: info.basic_info.author ?? '',
@@ -258,23 +263,16 @@ export async function downloadAudio(
           mimeType: format.mime_type,
           itag: format.itag,
           client,
-          title: info.basic_info.title ?? '',
-          author: info.basic_info.author ?? '',
-          durationSeconds: info.basic_info.duration ?? 0,
-          description: info.basic_info.short_description ?? '',
-          thumbnail: largestStill(info.basic_info.thumbnail),
+          ...factsOf(info),
           attempts,
         }
       } catch (error) {
         if (options.signal?.aborted || error instanceof TooMany) throw error
         // A refusal for rate anywhere (a 429 on the player request, Google's
         // "unusual traffic") is the same answer as one on the media: no other client is asked.
-        const said = error instanceof Error ? error.message : String(error)
-        if (/status code 429/.test(said)) {
-          throw new TooMany(`YouTube answered 429 Too Many Requests to ${client}'s player request`)
-        }
+        const said = messageOf(error)
         if (isRateLimited(said)) throw new TooMany(said)
-        failed(client, error instanceof Error ? error.message : String(error))
+        failed(client, said)
         // Only a refused link is worth another; anything else would fail the same way.
         if (!(error instanceof Refused)) break
       }

@@ -1,0 +1,32 @@
+# Every text file is LF, in the repository and in every checkout.
+#
+# Prettier and the checks expect LF, and the shell scripts have to be LF to
+# run in the Docker image. A Windows checkout with `core.autocrlf` on wrote
+# CRLF into the working copy, and then `npm run format:check` flagged every
+# file and a comment check read lines ending in `\r`. This wins over
+# `core.autocrlf`, so the working copy is what the repository holds.
+* text=auto eol=lf
+
+# Binary, so no line ending is ever looked for in them. `text=auto` would
+# usually tell; these say so rather than leave it to a guess.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.mp3 binary
+*.m4a binary
+*.opus binary
+*.ogg binary
+*.flac binary
+*.wav binary
+*.webm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
+*.onnx binary
+*.jks binary
+*.keystore binary

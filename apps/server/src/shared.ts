@@ -81,10 +81,14 @@ export function createShared(
     analysisGate: new Gate(1),
     serverId: serverIdOf(config),
     metrics,
+    // The counts are closed before the wait on the model, not after it, so
+    // they are shut by the time `container.close()` returns. Windows will not
+    // delete a database that is still open, and a test's data folder, removed
+    // straight after, was refused for metrics.db.
     close: async () => {
       keepAwake.stop()
-      await soundModel.close()
       metrics.close()
+      await soundModel.close()
     },
   }
 }

@@ -47,12 +47,15 @@ export function defaultDirs({
   // work on. `npm run dev` sets it, so the dev server can never be pointed at
   // your own collection by accident.
   const dir = APP_DIR_NAME + profileSuffix(profile)
+  // Joined the way `platform` writes paths, not the machine running this: a
+  // Mac's folders asked for on Windows are still a Mac's, with `/`.
+  const paths = platform === 'win32' ? path.win32 : path.posix
   return {
-    libraryDir: path.join(home, 'Music', dir),
+    libraryDir: paths.join(home, 'Music', dir),
     dataDir:
       platform === 'darwin'
-        ? path.join(home, 'Library', 'Application Support', dir)
-        : path.join(home, '.local', 'share', dir),
+        ? paths.join(home, 'Library', 'Application Support', dir)
+        : paths.join(home, '.local', 'share', dir),
   }
 }
 

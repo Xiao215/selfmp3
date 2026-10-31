@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 /**
  * A `.env` for this machine's own settings — the signing certificate's name,
@@ -24,10 +24,13 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
  */
 export function dotEnvCandidates(toplevel, commonDir) {
   const files = []
-  if (toplevel) files.push(join(toplevel, '.env'))
+  // Both resolved, so the two are spelled alike and the same file is not read
+  // twice: on Windows a path with no drive keeps none through `join`, and
+  // `resolve` gives it `C:`.
+  if (toplevel) files.push(resolve(toplevel, '.env'))
   if (commonDir) {
     // `.git` in the main checkout, an absolute `…/main/.git` from a worktree.
-    const gitDir = isAbsolute(commonDir) ? commonDir : resolve(toplevel ?? '.', commonDir)
+    const gitDir = resolve(toplevel ?? '.', commonDir)
     const main = join(dirname(gitDir), '.env')
     if (!files.includes(main)) files.push(main)
   }

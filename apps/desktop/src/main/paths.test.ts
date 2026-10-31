@@ -1,18 +1,24 @@
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
 
-const ROOT = '/Applications/self.mp3.app/Contents/Resources/app/web'
+// The root as the machine running the test writes one, since the shell is
+// handed its own: on Windows `C:\…\web`, which the answer is spelled under
+// with `\`. A Mac's path there was rewritten by `normalize` and fenced off.
+const ROOT = path.resolve('/Applications/self.mp3.app/Contents/Resources/app/web')
 
 describe('resolveWithinRoot', () => {
   it('resolves an ordinary asset', () => {
     expect(resolveWithinRoot(ROOT, '/_expo/static/js/web/index.js')).toBe(
-      `${ROOT}/_expo/static/js/web/index.js`,
+      path.join(ROOT, '_expo/static/js/web/index.js'),
     )
   })
 
   it('decodes what the URL escaped', () => {
-    expect(resolveWithinRoot(ROOT, '/assets/a%20song.png')).toBe(`${ROOT}/assets/a song.png`)
+    expect(resolveWithinRoot(ROOT, '/assets/a%20song.png')).toBe(
+      path.join(ROOT, 'assets/a song.png'),
+    )
   })
 
   it('answers null for the root itself, which means index.html', () => {
@@ -38,7 +44,7 @@ describe('resolveWithinRoot', () => {
   })
 
   it('does not mistake a sibling directory for the root', () => {
-    expect(resolveWithinRoot('/app/web', '/../web-other/secret.txt')).toBeNull()
+    expect(resolveWithinRoot(path.resolve('/app/web'), '/../web-other/secret.txt')).toBeNull()
   })
 })
 

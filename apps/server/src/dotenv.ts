@@ -27,10 +27,13 @@ export function dotEnvCandidates(
   commonDir: string | undefined,
 ): string[] {
   const files: string[] = []
-  if (toplevel) files.push(path.join(toplevel, '.env'))
+  // Both resolved, so the two are spelled alike and the same file is not read
+  // twice: on Windows a path with no drive keeps none through `join`, and
+  // `resolve` gives it `C:`.
+  if (toplevel) files.push(path.resolve(toplevel, '.env'))
   if (commonDir) {
     // `.git` in the main checkout, an absolute `…/main/.git` from a worktree.
-    const gitDir = path.isAbsolute(commonDir) ? commonDir : path.resolve(toplevel ?? '.', commonDir)
+    const gitDir = path.resolve(toplevel ?? '.', commonDir)
     const main = path.join(path.dirname(gitDir), '.env')
     if (!files.includes(main)) files.push(main)
   }

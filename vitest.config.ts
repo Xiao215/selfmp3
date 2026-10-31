@@ -44,6 +44,13 @@ export default defineConfig({
     // exactly the kind of red that reads as green at a glance.
     exclude: [...configDefaults.exclude, 'apps/app/**/*.test.tsx'],
     environment: 'node',
+    // Longer on Windows only. A test that imports the app's engine loads the
+    // whole client package from source the first time, and loading files is
+    // several times slower there: 2.4 s for that one import on a quiet
+    // Windows laptop, past five seconds with the rest of the suite on the
+    // other cores, so six tests timed out on every full run. Five seconds is
+    // vitest's own default, kept wherever CI runs.
+    testTimeout: process.platform === 'win32' ? 20_000 : 5_000,
     // A server made in a test never downloads the listening model's 750 MB;
     // the sound tests hand theirs a fake model instead.
     env: { SELFMP3_SOUND: 'false' },

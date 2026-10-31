@@ -12,7 +12,7 @@
     "doctor": "npx --yes expo-doctor",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json",
     "lint": "eslint .",
-    "clean": "rm -rf .expo ios android dist public/sw.js public/privacy.html public/bucket.html",
+    "clean": "node ../../scripts/rm.mjs .expo ios android dist public/sw.js public/privacy.html public/bucket.html",
     "web": "npm run build:pages && expo start --web",
     "build:sw": "node scripts/sw.mjs",
     "build:pages": "node scripts/pages.mjs",

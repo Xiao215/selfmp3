@@ -11,7 +11,7 @@
     "dev": "node scripts/dev.mjs",
     "dist": "node scripts/dist.mjs",
     "typecheck": "tsc --build",
-    "clean": "rm -rf dist dist-types release resources tsconfig.tsbuildinfo",
+    "clean": "node ../../scripts/rm.mjs dist dist-types release resources tsconfig.tsbuildinfo",
     "icon": "node scripts/icon.mjs"
   },
   "devDependencies": {

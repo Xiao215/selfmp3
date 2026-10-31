@@ -25,7 +25,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc --build",
-    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+    "clean": "node ../../scripts/rm.mjs dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
     "@selfmp3/replica": "*",

@@ -167,14 +167,30 @@ describe('ytdlpAgeDays', () => {
 /**
  * A look-up is a request to YouTube like any other, and this checks it is
  * treated as one: the arguments every call carries, the cookies, the budget,
- * and the bot wall. The stand-in for `yt-dlp` is a script on PATH rather than
- * a replaced function, for the reason importQueue.test.ts gives — an earlier
+ * and the bot wall. The stand-in for `yt-dlp` is a script run in its place
+ * rather than a replaced function, for the reason importQueue.test.ts gives — an earlier
  * searcher called yt-dlp on its own, with none of those, and nothing between
  * the service and the binary should be able to hide that happening again.
  */
+/**
+ * A stand-in for yt-dlp in `dir`, and the command that runs it. A script for
+ * Node rather than for a shell, so it runs on Windows too. It writes down what
+ * it was asked, one argument a line, and then does `rest`.
+ */
+function standIn(dir: string, rest = ''): [string, string] {
+  const file = path.join(dir, 'yt-dlp.cjs')
+  fs.writeFileSync(
+    file,
+    `const fs = require('node:fs')
+const at = name => require('node:path').join(${JSON.stringify(dir)}, name)
+fs.writeFileSync(at('args.txt'), process.argv.slice(2).map(arg => arg + '\\n').join(''))
+${rest}`,
+  )
+  return [process.execPath, file]
+}
+
 describe('YtDlpService.probe', () => {
   let dir: string
-  let savedPath: string | undefined
   let state: ThrottleState
   let throttle: YtThrottleService
   let cookiesFile: string
@@ -194,19 +210,14 @@ describe('YtDlpService.probe', () => {
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-probe-'))
-    const bin = path.join(dir, 'bin')
-    fs.mkdirSync(bin)
-    fs.writeFileSync(
-      path.join(bin, 'yt-dlp'),
-      `#!/bin/sh
-printf '%s\\n' "$@" > "${dir}/args.txt"
-if [ -f "${dir}/stderr.txt" ]; then cat "${dir}/stderr.txt" >&2; exit 1; fi
-cat "${dir}/stdout.json"
+    const command = standIn(
+      dir,
+      `if (fs.existsSync(at('stderr.txt'))) {
+  process.stderr.write(fs.readFileSync(at('stderr.txt')))
+  process.exitCode = 1
+} else process.stdout.write(fs.readFileSync(at('stdout.json')))
 `,
-      { mode: 0o755 },
     )
-    savedPath = process.env.PATH
-    process.env.PATH = `${bin}${path.delimiter}${savedPath ?? ''}`
 
     // The cookie file has to exist: the service checks for it before yt-dlp
     // would silently run signed out without one.
@@ -225,11 +236,11 @@ cat "${dir}/stdout.json"
       createLogger('silent'),
       () => ({ ytCookieSource: 'file', ytCookieBrowser: 'chrome', ytCookieFile: cookiesFile }),
       throttle,
+      command,
     )
   })
 
   afterEach(() => {
-    process.env.PATH = savedPath
     fs.rmSync(dir, { recursive: true, force: true })
   })
 
@@ -311,7 +322,6 @@ cat "${dir}/stdout.json"
  */
 describe('a queue job that reaches yt-dlp just after a pause began', () => {
   let dir: string
-  let savedPath: string | undefined
   let state: ThrottleState
   let service: YtDlpService
 
@@ -322,17 +332,6 @@ describe('a queue job that reaches yt-dlp just after a pause began', () => {
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-paused-'))
-    const bin = path.join(dir, 'bin')
-    fs.mkdirSync(bin)
-    fs.writeFileSync(
-      path.join(bin, 'yt-dlp'),
-      `#!/bin/sh
-printf '%s\\n' "$@" > "${dir}/args.txt"
-`,
-      { mode: 0o755 },
-    )
-    savedPath = process.env.PATH
-    process.env.PATH = `${bin}${path.delimiter}${savedPath ?? ''}`
 
     // Tokens to spare, so the pause is the only thing in the way — and a
     // stopped clock, so anything that decides to wait it out waits forever.
@@ -345,11 +344,11 @@ printf '%s\\n' "$@" > "${dir}/args.txt"
         () => false,
         () => NOW,
       ),
+      standIn(dir),
     )
   })
 
   afterEach(() => {
-    process.env.PATH = savedPath
     fs.rmSync(dir, { recursive: true, force: true })
   })
 

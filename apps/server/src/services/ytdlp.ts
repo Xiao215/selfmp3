@@ -373,6 +373,7 @@ export class YtDlpService {
   readonly #logger: Logger
   readonly #cookies: () => YtCookieSettings
   readonly #throttle: YtThrottleService
+  readonly #command: readonly [string, ...string[]]
   #cachedStatus: ToolStatus | null = null
 
   /**
@@ -382,11 +383,28 @@ export class YtDlpService {
    * `throttle` is spent by every call that reaches YouTube — a probe, a
    * preview and a download are the same request from the same address as far
    * as YouTube is concerned, so they come out of one budget.
+   *
+   * `command` is what is run as yt-dlp, with any arguments of its own: the
+   * `yt-dlp` on PATH, unless a test hands it a stand-in. One put on PATH
+   * instead was a shell script, which Windows cannot run by name without a
+   * shell — and there the real yt-dlp, if installed, answered in its place.
    */
-  constructor(logger: Logger, cookies: () => YtCookieSettings, throttle: YtThrottleService) {
+  constructor(
+    logger: Logger,
+    cookies: () => YtCookieSettings,
+    throttle: YtThrottleService,
+    command: readonly [string, ...string[]] = ['yt-dlp'],
+  ) {
     this.#logger = logger.child('yt-dlp')
     this.#cookies = cookies
     this.#throttle = throttle
+    this.#command = command
+  }
+
+  /** `run`, of yt-dlp. */
+  #run(args: readonly string[], options: RunOptions): Promise<RunResult> {
+    const [command, ...own] = this.#command
+    return run(command, [...own, ...args], options)
   }
 
   /**
@@ -474,7 +492,7 @@ export class YtDlpService {
     if (this.#cachedStatus && !force) return this.#cachedStatus
 
     const [ytdlp, ffmpeg] = await Promise.all([
-      run('yt-dlp', ['--version'], { timeoutMs: 10_000 }),
+      this.#run(['--version'], { timeoutMs: 10_000 }),
       run('ffmpeg', ['-version'], { timeoutMs: 10_000 }),
     ])
 
@@ -517,8 +535,7 @@ export class YtDlpService {
         ...(wait === 'interactive' ? { maxWaitMs: INTERACTIVE_WAIT_MS } : { waitOutPause: false }),
       })
     }
-    const result = await run(
-      'yt-dlp',
+    const result = await this.#run(
       [
         ...BASE_ARGS,
         '--dump-single-json',
@@ -575,8 +592,7 @@ export class YtDlpService {
     if (asksYouTube(url)) {
       await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
     }
-    const result = await run(
-      'yt-dlp',
+    const result = await this.#run(
       [
         ...BASE_ARGS,
         '--format',
@@ -644,7 +660,7 @@ export class YtDlpService {
 
     args.push(...(await this.#cookieArgs()), '--', input.url)
 
-    const result = await run('yt-dlp', args, {
+    const result = await this.#run(args, {
       timeoutMs: 20 * 60 * 1000,
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onProgress

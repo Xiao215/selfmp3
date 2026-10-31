@@ -21,8 +21,8 @@ import { YtThrottleService } from './ytThrottle.js'
  * YouTube refusing the address for rate says nothing about the song and must
  * not consume it. Everything below drives the real queue and the real
  * YtDlpService against a real SQLite. The one thing stood in for is the
- * `yt-dlp` binary itself, by a script on PATH that fails with whatever a test
- * tells it to say.
+ * `yt-dlp` binary itself, by a script the service runs in its place that
+ * fails with whatever a test tells it to say.
  *
  * That is deliberate. An earlier version of this file replaced `download` with
  * a function that threw yt-dlp's raw words, and passed — while in the server
@@ -77,7 +77,6 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
   let db: Database.Database
   let now: number
   let dir: string
-  let savedPath: string | undefined
 
   /** What the stand-in `yt-dlp` will print to stderr before exiting 1. */
   function ytDlpFailsWith(message: string): void {
@@ -101,21 +100,24 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
 
     // `--version` answers like the real thing so the tool check passes; any
     // other call is a download, which is logged and then fails as instructed.
-    const bin = path.join(dir, 'bin')
-    fs.mkdirSync(bin)
+    // A script for Node rather than for a shell, so it runs on Windows too.
+    const at = (name: string) => JSON.stringify(path.join(dir, name))
+    const standIn = path.join(dir, 'yt-dlp.cjs')
     fs.writeFileSync(
-      path.join(bin, 'yt-dlp'),
-      `#!/bin/sh
-if [ "$1" = "--version" ]; then echo 2026.08.19; exit 0; fi
-echo call >> "${dir}/calls.log"
-if [ -f "${dir}/hang" ]; then exec sleep 60; fi
-cat "${dir}/stderr.txt" >&2
-exit 1
+      standIn,
+      `const fs = require('node:fs')
+if (process.argv[2] === '--version') {
+  console.log('2026.08.19')
+  process.exit(0)
+}
+fs.appendFileSync(${at('calls.log')}, 'call\\n')
+if (fs.existsSync(${at('hang')})) setTimeout(() => undefined, 60_000)
+else {
+  process.stderr.write(fs.readFileSync(${at('stderr.txt')}))
+  process.exitCode = 1
+}
 `,
-      { mode: 0o755 },
     )
-    savedPath = process.env.PATH
-    process.env.PATH = `${bin}${path.delimiter}${savedPath ?? ''}`
 
     db = new Database(':memory:')
     migrate(db, createLogger('silent'))
@@ -151,7 +153,10 @@ exit 1
       scanner: { ingest: nothing },
       lyrics: { fetchRemote: async () => null, writeSidecar: nothing },
       covers: { saveFromUrl: nothing },
-      ytdlp: new YtDlpService(createLogger('silent'), () => settings.get(), throttle),
+      ytdlp: new YtDlpService(createLogger('silent'), () => settings.get(), throttle, [
+        process.execPath,
+        standIn,
+      ]),
       cloud: { connected: false, uploadSong: nothing, kick: () => undefined },
       keepAwake: { hold: () => () => undefined },
       metrics,
@@ -162,7 +167,6 @@ exit 1
 
   afterEach(() => {
     queue.stop()
-    process.env.PATH = savedPath
     fs.rmSync(dir, { recursive: true, force: true })
   })
 

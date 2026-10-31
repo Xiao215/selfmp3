@@ -149,11 +149,15 @@ describe('ArtistNameLookup', () => {
   })
 
   it('stops when MusicBrainz does not answer, and asks again next time', async () => {
+    // Two songs for 周杰伦, so he is asked about first: artists go by how many
+    // songs they have, and only then by name, in the machine's own language.
+    // With one each, a machine set to Chinese put 幾田りら first, by pinyin.
+    const library = ['周杰伦', '周杰伦', '幾田りら']
     down = true
-    expect(await lookup(['周杰伦', '幾田りら']).fill()).toBe(0)
+    expect(await lookup(library).fill()).toBe(0)
     expect(asked).toEqual(['search 周杰伦'])
     down = false
-    expect(await lookup(['周杰伦', '幾田りら']).fill()).toBe(2)
+    expect(await lookup(library).fill()).toBe(2)
   })
 
   it('keeps to MusicBrainz’s pace, a request a second', async () => {

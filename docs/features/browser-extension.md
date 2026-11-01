@@ -332,6 +332,7 @@ sends — tags, and never a playlist.
 
 | State | Shown when | Drawn as |
 |---|---|---|
+| Sign in to find your server | Not signed in, and the address typed into the options does not answer | Sign in with Google first, Try again, and the address that did not answer under them; the header says *Not signed in*. Signing in finds the server, so a dead address is not put forward as the server being down |
 | Not a music page | No YouTube link, or no page kind | Paste box (one link or twenty) and the last five imports |
 | Looking up | Preview running (yt-dlp, ~2–3 s) | The song card as a skeleton, with the page title |
 | Song (`E1`) | Single, not in the library | Card with the title and artist as fields, "Tidied from …" when `tidyVideoTitle` changed it, tag chips with the last import's tags on, "+ new", Import to your library |

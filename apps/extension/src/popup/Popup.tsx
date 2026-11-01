@@ -23,6 +23,7 @@ import {
 import {
   Added,
   Away,
+  SignedOut,
   BucketFooter,
   Checking,
   Connect,
@@ -264,6 +265,14 @@ export function Popup(): ReactNode {
         return <Checking />
       case 'connect':
         return <Connect onOptions={openOptions} />
+      case 'signedOut':
+        return (
+          <SignedOut
+            baseUrl={server?.baseUrl ?? null}
+            onSignIn={openOptions}
+            onRetry={() => void status.refetch()}
+          />
+        )
       case 'away':
         return <Away onRetry={() => void status.refetch()} onOptions={openOptions} />
       case 'paste':

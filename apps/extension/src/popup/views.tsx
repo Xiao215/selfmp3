@@ -172,6 +172,42 @@ export function Connect({ onOptions }: { onOptions: () => void }): ReactNode {
   )
 }
 
+/**
+ * A typed-in address that did not answer, and no account. Sign-in leads: it
+ * is what finds the server, and a dead address from the options page reads as
+ * a server that is down when the server is fine.
+ */
+export function SignedOut({
+  baseUrl,
+  onSignIn,
+  onRetry,
+}: {
+  baseUrl: string | null
+  onSignIn: () => void
+  onRetry: () => void
+}): ReactNode {
+  return (
+    <State
+      title="Sign in to find your server"
+      actions={
+        <>
+          <button type="button" className="primary" onClick={onSignIn}>
+            Sign in with Google
+          </button>
+          <button type="button" className="tonal" onClick={onRetry}>
+            Try again
+          </button>
+        </>
+      }
+    >
+      <p>Sign in with the account your library uses, and the extension finds your server itself.</p>
+      {baseUrl && (
+        <p className="quiet">{hostOf(baseUrl)}, the address in the options, didn’t answer.</p>
+      )}
+    </State>
+  )
+}
+
 export function Away({
   onRetry,
   onOptions,

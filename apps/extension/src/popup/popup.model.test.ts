@@ -97,11 +97,11 @@ const base: PopupInputs = {
 const view = (patch: Partial<PopupInputs>) => popupView({ ...base, ...patch })
 
 describe('connectionOf', () => {
-  it('reads each way in: none, the server itself, the bucket, or a server that is asleep', () => {
+  it('reads each way in: none, the server itself, the bucket, or a typed-in one asleep while signed out', () => {
     const server = { baseUrl: 'http://localhost:4600', typed: true }
     const status = { server: null, account: null, songCount: null, noServer: false }
     expect(connectionOf({ ...status, mode: 'none' })).toBe('none')
-    expect(connectionOf({ ...status, mode: 'away', server })).toBe('away')
+    expect(connectionOf({ ...status, mode: 'away', server })).toBe('signedOut')
     expect(connectionOf({ ...status, mode: 'server', server, songCount: 36 })).toBe('ready')
     expect(connectionOf({ ...status, mode: 'bucket', account: 'x@y.z' })).toBe('bucket')
   })
@@ -168,6 +168,7 @@ describe('popupView', () => {
   it('asks for a server before anything else', () => {
     expect(view({ connection: 'checking', job: job() }).name).toBe('checking')
     expect(view({ connection: 'none', job: job() }).name).toBe('connect')
+    expect(view({ connection: 'signedOut', job: job() }).name).toBe('signedOut')
     expect(view({ connection: 'away', job: job() }).name).toBe('away')
   })
 
@@ -345,6 +346,7 @@ describe('the header', () => {
   it('names the way in, not its address', () => {
     expect(connectionLabel('ready')).toBe('Your server')
     expect(connectionLabel('bucket')).toBe('Via your bucket')
+    expect(connectionLabel('signedOut')).toBe('Not signed in')
     expect(connectionLabel('away')).toBe('Not answering')
     expect(connectionLabel('none')).toBeNull()
     expect(connectionLabel('checking')).toBeNull()

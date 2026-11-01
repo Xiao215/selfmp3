@@ -184,6 +184,15 @@ describe('asking about a link', () => {
     expect(calls.filter(call => call === 'GET /api/library')).toHaveLength(1)
   })
 
+  it('says which of a page of videos are yours, reading the library once', async () => {
+    const { handlers, calls } = await connected()
+    expect(
+      await handlers.owned({ type: 'owned', videoIds: ['YQHsXMglC9A', 'ZRtdQ81jPUQ'] }),
+    ).toEqual({ videoIds: ['YQHsXMglC9A'] })
+    expect(await handlers.owned({ type: 'owned', videoIds: [] })).toEqual({ videoIds: [] })
+    expect(calls.filter(call => call === 'GET /api/library')).toHaveLength(1)
+  })
+
   it('offers the tags — never a playlist', async () => {
     const { handlers } = await connected()
     const choices = await handlers.choices({ type: 'choices' })

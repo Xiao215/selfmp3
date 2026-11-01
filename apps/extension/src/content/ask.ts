@@ -1,4 +1,4 @@
-import type { PageRequest, PillState } from '../bridge.js'
+import type { PageReplies, PageRequest } from '../bridge.js'
 
 /**
  * How the content script asks the worker, without zod.
@@ -8,14 +8,17 @@ import type { PageRequest, PillState } from '../bridge.js'
  * would only put 60 KB of schema into every YouTube page for nothing.
  */
 
-type PageReply =
-  | { readonly ok: true; readonly value: PillState }
-  | { readonly ok: false; readonly message: string }
+type PageReply<T> =
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string }
 
-export async function askPage(request: PageRequest): Promise<PageReply> {
+export async function askPage<R extends PageRequest>(
+  request: R,
+): Promise<PageReply<PageReplies[R['type']]>> {
   try {
     const reply: unknown = await chrome.runtime.sendMessage(request)
-    if (reply && typeof reply === 'object' && 'ok' in reply) return reply as PageReply
+    if (reply && typeof reply === 'object' && 'ok' in reply) {
+      return reply as PageReply<PageReplies[R['type']]>
+    }
     return { ok: false, message: 'The extension did not answer.' }
   } catch {
     // The extension was reloaded or updated under the page: the pill stops

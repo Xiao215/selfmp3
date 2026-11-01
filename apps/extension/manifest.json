@@ -38,6 +38,12 @@
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://music.youtube.com/*"],
+      "js": ["page-world.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ]
 }

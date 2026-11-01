@@ -6,7 +6,7 @@ import {
   youtubeWatchUrl,
   type ImportJob,
 } from '@selfmp3/shared'
-import type { Handlers, PageRequest, PillState } from '../bridge.js'
+import type { Handlers, PageReplies, PageRequest, PillState } from '../bridge.js'
 import type { Route } from './connection.js'
 
 /**
@@ -88,7 +88,10 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
     return imports.find(each => sameLink(url, each.url)) ?? null
   }
 
-  return async function handle(request: PageRequest): Promise<PillState> {
+  return async function handle(request: PageRequest): Promise<PageReplies[PageRequest['type']]> {
+    // The checks on a page's song rows: yes or no for each video it named.
+    if (request.type === 'owned') return handlers.owned(request)
+
     const videoId = youtubeVideoId(request.url)
     if (!videoId) return idle
     const url = youtubeWatchUrl(videoId)

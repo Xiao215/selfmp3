@@ -482,7 +482,7 @@ export const SongRow = memo(function SongRow({
         </View>
 
         {target(
-          styles.mainWide,
+          [styles.mainWide, albumColumn && styles.mainShare],
           <>
             <Cover uri={artUri} title={song.album || song.title} size={coverSize.rowDense} />
             <View style={styles.text}>
@@ -619,6 +619,11 @@ const UNREAD = {
   accessibilityElementsHidden: true,
   importantForAccessibility: 'no-hide-descendants',
 } as const
+
+/** The title's share of a desktop row beside the album's column. */
+const TITLE_SHARE = '46%'
+/** The widest a desktop row is drawn (E). */
+const ROW_MAX_WIDTH = 1280
 
 /** The page has room for the album column. */
 const ROOM_FOR_ALBUM = 1
@@ -885,7 +890,11 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   /* At desktop width: 7 by 10, 12 between cells. */
+  // Held, the whole row, to a reading width: on a very wide page the album
+  // and the length stay near the title rather than across the page from it
+  // (P1 C), and the length still ends every row in the same place.
   rowWide: {
+    maxWidth: ROW_MAX_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -919,13 +928,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingVertical: 3,
   },
-  // Held, with the album's column, to a reading width: on a very wide page
-  // the album and the length stay near the title rather than across the page
-  // from it (P1 C).
   mainWide: {
     flex: 1,
     minWidth: 0,
-    maxWidth: 720,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -1033,12 +1038,16 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
-  /* A fixed column, so it lines up down the page; the title takes the slack. */
+  /*
+   * With the album's column the title takes one share of the row on every
+   * list, so the album starts at the same place whether or not a tag lane
+   * follows it: the lane comes out of the album's room, never the title's.
+   */
+  mainShare: { flexGrow: 0, flexShrink: 0, flexBasis: TITLE_SHARE },
+  /* What the title leaves, up to the tags or the length. */
   albumColumn: {
-    flexBasis: '20%',
-    maxWidth: 320,
-    flexGrow: 0,
-    flexShrink: 0,
+    flex: 1,
+    minWidth: 0,
     color: theme.colors.textMuted,
     fontSize: type.small,
     ...COLUMN_START,

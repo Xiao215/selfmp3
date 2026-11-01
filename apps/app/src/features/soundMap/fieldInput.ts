@@ -6,22 +6,22 @@ export function fieldCursor(_armed: boolean): ViewStyle | null {
   return null
 }
 
-/** A scroll or a trackpad pinch over the field, at a point of it. */
+/** A scroll or a trackpad pinch over the field, at a point of it: each zooms about it. */
 export interface FieldWheel {
-  readonly dx: number
+  /** Up, away from you, is negative and zooms in. */
   readonly dy: number
   /**
-   * Zoom rather than move: a trackpad pinch, whose small steps zoom quickly
-   * (`pinch`), or a wheel with ⌘ held, whose notches are a hundred points
-   * each and zoom gently.
+   * What sent it: a trackpad pinch, whose small steps zoom quickly; a
+   * mouse's wheel, whose notches are a hundred points each and glide; or a
+   * trackpad's two fingers, a frame at a time.
    */
-  readonly zoom: 'pinch' | 'wheel' | null
+  readonly from: 'pinch' | 'notch' | 'scroll'
   readonly x: number
   readonly y: number
 }
 
 /**
- * Scrolling over the sound map moves it, and a pinch or ⌘-scroll zooms
+ * Scrolling over the sound map zooms it, however it scrolls
  * (fieldInput.web.ts). A phone has no wheel: fingers move and zoom it,
  * through the field's own gestures.
  */
@@ -29,6 +29,9 @@ export function useFieldWheel(
   _ref: RefObject<View | null>,
   _onWheel: (wheel: FieldWheel) => void,
 ): void {}
+
+/** Arrow keys held, as a direction to move the map in (fieldInput.web.ts). A phone has no arrows. */
+export function useFieldKeys(_onKeys: (direction: { x: number; y: number }) => void): void {}
 
 /** Shift held, which arms drawing on a computer (fieldInput.web.ts). A phone has no Shift. */
 export function useShiftHeld(): boolean {

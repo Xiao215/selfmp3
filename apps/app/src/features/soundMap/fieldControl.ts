@@ -35,8 +35,11 @@ interface FieldEvents {
   readonly pathEnd: () => void
 }
 
-/** How much a point of wheel zooms: a pinch's steps are small, a wheel's notch is 100 points. */
-const ZOOM_PER_POINT = { pinch: 0.01, wheel: 0.002 } as const
+/**
+ * How much a point of scroll zooms: a pinch's steps are small; a mouse's
+ * notch is 100 points, and a trackpad's two fingers send about as much.
+ */
+const ZOOM_PER_POINT = { pinch: 0.01, notch: 0.002, scroll: 0.002 } as const
 
 /** A wheel that has stopped for this long has settled. */
 const WHEEL_SETTLE_MS = 120
@@ -47,6 +50,11 @@ const WHEEL_SETTLE_MS = 120
  * stretch of milliseconds, as a map's wheel does.
  */
 const WHEEL_GLIDE_MS = 70
+
+/** How fast the arrow keys move the map, in points a millisecond. */
+const KEY_SPEED = 0.9
+/** How quickly the arrow keys' move gets up to speed, and slows once they are let go. */
+const KEY_EASE_MS = 90
 
 /** A pinch let go this recently: a pan ending with it is not a flick. */
 const PINCH_GRACE_MS = 250
@@ -85,6 +93,8 @@ export class FieldControl {
   #glide: { scale: number; at: { x: number; y: number } } | null = null
   /** When a pinch last ended, or 0 while one is under way. */
   #pinchEnded = -Infinity
+  /** The arrow keys' move, while they are held or it is slowing: which way, and how fast now. */
+  #keyMove: { direction: { x: number; y: number }; speed: { x: number; y: number } } | null = null
 
   listen(events: FieldEvents): () => void {
     this.#events = events
@@ -187,16 +197,14 @@ export class FieldControl {
   wheel(wheel: FieldWheel): void {
     const view = this.#view
     if (!view) return
-    if (wheel.zoom === 'wheel') {
-      this.#glideBy(Math.exp(-wheel.dy * ZOOM_PER_POINT.wheel), { x: wheel.x, y: wheel.y })
+    const factor = Math.exp(-wheel.dy * ZOOM_PER_POINT[wheel.from])
+    if (wheel.from === 'notch') {
+      this.#glideBy(factor, { x: wheel.x, y: wheel.y })
       return
     }
     this.#land()
     this.#touched = true
-    const next = wheel.zoom
-      ? zoomAt(view, Math.exp(-wheel.dy * ZOOM_PER_POINT[wheel.zoom]), { x: wheel.x, y: wheel.y })
-      : panBy(view, -wheel.dx, -wheel.dy)
-    this.#set(next, false)
+    this.#set(zoomAt(view, factor, { x: wheel.x, y: wheel.y }), false)
     if (this.#wheelTimer) clearTimeout(this.#wheelTimer)
     this.#wheelTimer = setTimeout(() => this.#settle(), WHEEL_SETTLE_MS)
   }
@@ -231,6 +239,49 @@ export class FieldControl {
       const share = 1 - Math.exp(-(now - last) / WHEEL_GLIDE_MS)
       last = now
       this.#set(zoomAt(from, Math.exp(left * share), heading.at), false)
+      this.#flight = requestAnimationFrame(frame)
+    }
+    this.#flight = requestAnimationFrame(frame)
+  }
+
+  /**
+   * The arrow keys held, as a direction (none: let go): the map slides that
+   * way, as a map's does, getting up to speed and slowing to a stop rather
+   * than jumping a step at each key repeat. An arrow shows more of the map
+   * that way, so the map itself moves the other.
+   */
+  keys(direction: { x: number; y: number }): void {
+    const length = Math.hypot(direction.x, direction.y)
+    const unit =
+      length === 0 ? { x: 0, y: 0 } : { x: direction.x / length, y: direction.y / length }
+    const moving = this.#keyMove
+    if (moving) {
+      moving.direction = unit
+      return
+    }
+    if (length === 0 || !this.#view) return
+    this.#land()
+    this.#touched = true
+    const move = { direction: unit, speed: { x: 0, y: 0 } }
+    this.#keyMove = move
+    let last = Date.now()
+    const frame = (): void => {
+      const view = this.#view
+      if (this.#keyMove !== move || !view) return
+      const now = Date.now()
+      const ms = Math.min(50, now - last)
+      last = now
+      const share = 1 - Math.exp(-ms / KEY_EASE_MS)
+      move.speed.x += (move.direction.x * KEY_SPEED - move.speed.x) * share
+      move.speed.y += (move.direction.y * KEY_SPEED - move.speed.y) * share
+      const still = move.direction.x === 0 && move.direction.y === 0
+      if (still && Math.hypot(move.speed.x, move.speed.y) < 0.02) {
+        this.#keyMove = null
+        this.#flight = null
+        this.#settle()
+        return
+      }
+      this.#set(panBy(view, -move.speed.x * ms, -move.speed.y * ms), false)
       this.#flight = requestAnimationFrame(frame)
     }
     this.#flight = requestAnimationFrame(frame)
@@ -276,6 +327,7 @@ export class FieldControl {
   }
 
   pinchStart(): void {
+    this.#events?.hold(null)
     this.#land()
     this.#touched = true
     this.#pinchFrom = 1
@@ -296,6 +348,7 @@ export class FieldControl {
   }
 
   panStart(translationX: number, translationY: number): void {
+    this.#events?.hold(null)
     this.#land()
     this.#touched = true
     this.#panFrom = { x: translationX, y: translationY }
@@ -389,6 +442,7 @@ export class FieldControl {
     this.#flight = null
     this.#heading = null
     this.#glide = null
+    this.#keyMove = null
     this.#settle()
   }
 

@@ -88,14 +88,14 @@ counts it and a notification says when it is in. Left in your bucket it says
 you from video to video without a reload, and it is not drawn where there is no
 song.
 
-**A check on the songs you have.** A small green check sits on every song row
-that is already in your library: YouTube Music's Up next, its playlists,
+**A mark on the songs you have.** The app's note on a small accent coin sits on
+every song row that is already in your library: YouTube Music's Up next, its playlists,
 albums and search results, and the playlist beside a YouTube watch page. It
 goes before the duration, or after the title where a row has no duration.
 A row is yours when its video is the one you imported, so the album track and
 the music video of one song are two different rows. In Up next, a row with a
 Song/Video switch counts as yours when either half is. A song you import from
-the pill gets its check at once. One imported or removed in the app shows
+the pill gets its mark at once. One imported or removed in the app shows
 within five minutes.
 
 **The popup, from the toolbar.** The same song, with everything to decide first:
@@ -460,8 +460,9 @@ which the Import page understands from the share target.
   version once per question. Answers are kept for five minutes, and the old
   answer keeps drawing while the new one is asked, so checks do not blink. A
   question the worker could not answer counts as "not yours" for the same time.
-- The check is a `selfmp3-check` element with a closed shadow root, like the
-  pill, with the pill's check mark in `--good`.
+- The mark is a `selfmp3-check` element with a closed shadow root, like the
+  pill: the pill's note mark in `--on-accent` on a 20 px `--accent` coin. A
+  plain green check came first and read as one of YouTube's own marks.
 
 ## The watcher (F1)
 

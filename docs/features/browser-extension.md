@@ -198,6 +198,21 @@ Bricolage Grotesque for the name and a list's title, and Instrument Serif for th
 options page's headline. Dark first, and Paper when the system is light. The
 popup stays 360 wide.
 
+**The options page** is one centred column (A1 on the Oct 31 canvas): the
+name and **Open self.mp3**, the headline, then one card for the connection
+(B1). Signed in, the card names the account and draws where an import goes —
+*This browser → Your server → Your library* in green while the server answers,
+*This browser → Your bucket* then a dashed line to the server while it sleeps,
+or the amber *No computer works for your library yet* with **Open self.mp3**.
+Signed out, the card is one step, **Sign in with Google**, and an address that
+stopped answering is named under it with **Forget it**. Then *Three ways to
+save* (C1), each with a small drawing — the pill beside Like, the right-click
+item, the toolbar popup — faded until you sign in. The address is a row at the
+foot (D1), *Connect by address instead*, that opens in place; a token field
+appears only once the server has asked for one, and a connected address
+becomes a row of its own with **Forget**. Nothing about buckets, servers or
+sync shows on the page as it first opens.
+
 **The tokens are not copied.** `apps/extension/scripts/theme.mjs` reads the
 compiled tokens from `packages/client` (`darkPalette`, `lightPalette`, `radius`,
 `type`, `fonts`…) and writes every one as a custom property into
@@ -332,6 +347,7 @@ sends — tags, and never a playlist.
 
 | State | Shown when | Drawn as |
 |---|---|---|
+| Sign in to find your server | Not signed in, and the address typed into the options does not answer | Sign in with Google first, Try again, and the address that did not answer under them; the header says *Not signed in*. Signing in finds the server, so a dead address is not put forward as the server being down |
 | Not a music page | No YouTube link, or no page kind | Paste box (one link or twenty) and the last five imports |
 | Looking up | Preview running (yt-dlp, ~2–3 s) | The song card as a skeleton, with the page title |
 | Song (`E1`) | Single, not in the library | Card with the title and artist as fields, "Tidied from …" when `tidyVideoTitle` changed it, tag chips with the last import's tags on, "+ new", Import to your library |

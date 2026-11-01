@@ -29,9 +29,12 @@ import { importable, type PageKind } from '../pageKind.js'
  *
  * `ready` is the server itself, and only it can read a link. `bucket` is the
  * link left for the server to take when it wakes: everything the popup can
- * still offer, and nothing it cannot.
+ * still offer, and nothing it cannot. `signedOut` is a typed-in address that
+ * did not answer, with no account to find another server through: signing in
+ * is the way forward, not that address. `away` is the worker itself not
+ * answering the popup.
  */
-export type Connection = 'checking' | 'none' | 'away' | 'ready' | 'bucket'
+export type Connection = 'checking' | 'none' | 'signedOut' | 'away' | 'ready' | 'bucket'
 
 export function connectionOf(status: Status): Connection {
   switch (status.mode) {
@@ -40,7 +43,7 @@ export function connectionOf(status: Status): Connection {
     case 'bucket':
       return 'bucket'
     case 'away':
-      return 'away'
+      return 'signedOut'
     default:
       return 'none'
   }
@@ -70,6 +73,7 @@ export interface PopupInputs {
 type PopupView =
   | { readonly name: 'checking' }
   | { readonly name: 'connect' }
+  | { readonly name: 'signedOut' }
   | { readonly name: 'away' }
   | { readonly name: 'paste' }
   | { readonly name: 'looking' }
@@ -105,6 +109,7 @@ export function shouldLookUp(page: PageKind, typed: boolean): boolean {
 export function popupView(input: PopupInputs): PopupView {
   if (input.connection === 'checking') return { name: 'checking' }
   if (input.connection === 'none') return { name: 'connect' }
+  if (input.connection === 'signedOut') return { name: 'signedOut' }
   if (input.connection === 'away') return { name: 'away' }
   if (input.connection === 'bucket') return bucketView(input)
 
@@ -303,6 +308,8 @@ export function connectionLabel(connection: Connection): string | null {
       return 'Your server'
     case 'bucket':
       return 'Via your bucket'
+    case 'signedOut':
+      return 'Not signed in'
     case 'away':
       return 'Not answering'
     default:

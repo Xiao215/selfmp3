@@ -319,11 +319,16 @@ export function ImportScreen({
             spellCheck={false}
             accessibilityLabel="Links to import"
           />
-          {/* Search for words, Look it up for links: the one commit, inside the field. */}
+          {/*
+           * Search for words, Look it up for links: the one commit, inside the
+           * field. While it looks, it stays lit: dimmed onto the plain surface,
+           * its spinner (the accent's ink, near-black in dark mode) was lost
+           * against it. A press then does nothing, as `submit` waits on `ready`.
+           */}
           <IconButton
             label={commit}
-            filled={live ? 'accent' : true}
-            disabled={!live}
+            filled={live || preview.isPending ? 'accent' : true}
+            disabled={!live && !preview.isPending}
             size={COMMIT_SIZE}
             onPress={submit}
             testID={query !== null ? 'import-search' : 'import-look-up'}

@@ -5,12 +5,15 @@ import {
   boundsOf,
   centredOn,
   fitView,
+  flung,
+  heldOn,
   keptClear,
   liveView,
   MAX_SCALE,
   stillView,
   tileSide,
   toMap,
+  panBy,
   toScreen,
   zoomAt,
 } from './soundMapView.model'
@@ -131,5 +134,34 @@ describe('the live view', () => {
     const still = stillView({ scale: 2, x: 1, y: 1 })
     expect(still.now()).toEqual({ scale: 2, x: 1, y: 1 })
     expect(() => still.watch(() => {})()).not.toThrow()
+  })
+})
+
+describe('moving the sound map by hand', () => {
+  const field = { width: 1000, height: 600 }
+  const base = baseOf(field)
+
+  it('keeps the songs under the middle of the field, however far a drag pulls the map', () => {
+    const bounds = { x0: 0.2, y0: 0.3, x1: 0.8, y1: 0.7 }
+    const view = fitView(field, bounds)
+    // Held as it is while the middle is over the songs.
+    expect(heldOn(panBy(view, 100, -50), field, bounds)).toEqual(panBy(view, 100, -50))
+    // Dragged far off to the right: back until the songs' left edge is under the middle.
+    const held = heldOn(panBy(view, 5000, 0), field, bounds)
+    expect(toScreen(held, base, { x: 0.2, y: 0.5 }).x).toBeCloseTo(500, 5)
+    // The middle is that of what the page leaves clear.
+    const insets = { top: 100, bottom: 0, right: 400 }
+    const right = heldOn(panBy(view, 0, 5000), field, bounds, insets)
+    expect(toScreen(right, base, { x: 0.5, y: 0.3 }).y).toBeCloseTo(100 + 250, 5)
+  })
+
+  it('carries a flick on, slowing to a stop, further the faster it was thrown', () => {
+    const slow = flung({ x: 1, y: 0 }, 5000)
+    const fast = flung({ x: 3, y: -1 }, 5000)
+    expect(slow.done).toBe(true)
+    expect(fast.x).toBeGreaterThan(slow.x * 2.9)
+    expect(fast.y).toBeLessThan(0)
+    expect(flung({ x: 1, y: 0 }, 100).x).toBeLessThan(slow.x)
+    expect(flung({ x: 1, y: 0 }, 100).done).toBe(false)
   })
 })

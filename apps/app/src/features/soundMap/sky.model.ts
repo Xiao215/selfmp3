@@ -338,6 +338,60 @@ export function chainAlong(
   return [...ids].sort((a, b) => where(a) - where(b) || a - b)
 }
 
+/**
+ * The sky's songs by where they are on the map: a grid over its square, so a
+ * frame looks only at the cells on screen and a pointer only at the cells
+ * round it, rather than at every song (2026-10-31: with 5,000 songs a frame
+ * spent most of its time on songs off screen).
+ */
+export interface SkyGrid {
+  /** Cells a side. */
+  readonly side: number
+  /** Each cell's songs, row by row; within a cell, in the order given. */
+  readonly cells: readonly (readonly SkyPoint[])[]
+}
+
+/** About this many songs a cell, so a screen close in looks at a few cells. */
+const GRID_FILL = 6
+
+export function skyGrid(points: readonly SkyPoint[]): SkyGrid {
+  const side = Math.max(4, Math.min(128, Math.round(Math.sqrt(points.length / GRID_FILL))))
+  const cells: SkyPoint[][] = Array.from({ length: side * side }, () => [])
+  for (const point of points) cells[cellIndex(side, point.x, point.y)]!.push(point)
+  return { side, cells }
+}
+
+const cellOf = (side: number, value: number): number =>
+  Math.min(side - 1, Math.max(0, Math.floor(value * side)))
+const cellIndex = (side: number, x: number, y: number): number =>
+  cellOf(side, y) * side + cellOf(side, x)
+
+/**
+ * The songs within a part of the map (0–1, as `visibleRect` gives it), in an
+ * order that is the same from frame to frame, so glows that overlap keep
+ * which is over which as the map moves.
+ */
+export function pointsIn(
+  grid: SkyGrid,
+  rect: { x0: number; y0: number; x1: number; y1: number },
+): SkyPoint[] {
+  const { side, cells } = grid
+  const out: SkyPoint[] = []
+  const gx0 = cellOf(side, rect.x0)
+  const gx1 = cellOf(side, rect.x1)
+  const gy1 = cellOf(side, rect.y1)
+  for (let gy = cellOf(side, rect.y0); gy <= gy1; gy++) {
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (const point of cells[gy * side + gx]!) {
+        if (point.x >= rect.x0 && point.x <= rect.x1 && point.y >= rect.y0 && point.y <= rect.y1) {
+          out.push(point)
+        }
+      }
+    }
+  }
+  return out
+}
+
 /** The nearest song to a point of the field within `reach` points, for a pointer over the map. */
 export function songUnder(
   points: readonly SkyPoint[],
@@ -435,6 +489,86 @@ export function glint(side: number): { dx: number; dy: number; reach: number } {
   return { dx: side * 0.41, dy: -side * 0.41, reach: Math.max(8, side * 0.42) }
 }
 
+/** Covers this wide wear their titles underneath. */
+export const NAMES_FROM = 30
+
+/** A cover's name: how far under it, how tall, and how much wider than the cover it may run. */
+export const NAME_GAP = 3
+export const NAME_HEIGHT = 13
+export const NAME_SPILL = 16
+
+/** An open cover on screen, for working out which wear their names. */
+interface ShownCover {
+  readonly id: number
+  readonly x: number
+  readonly y: number
+  readonly side: number
+  readonly bright: number
+}
+
+/**
+ * Which open covers wear their names: the most played first, each only where
+ * its name would lie over no other cover and no name already placed, as a
+ * map places its labels. In a crowd, names under one cover ran over the next
+ * and over each other (2026-10-31).
+ */
+export function namedCovers(covers: readonly ShownCover[]): Set<number> {
+  const CELL = 48
+  const cells = new Map<string, { id: number; x0: number; y0: number; x1: number; y1: number }[]>()
+  const keys = (x0: number, y0: number, x1: number, y1: number): string[] => {
+    const out: string[] = []
+    for (let gx = Math.floor(x0 / CELL); gx <= Math.floor(x1 / CELL); gx++) {
+      for (let gy = Math.floor(y0 / CELL); gy <= Math.floor(y1 / CELL); gy++)
+        out.push(`${gx},${gy}`)
+    }
+    return out
+  }
+  const put = (box: { id: number; x0: number; y0: number; x1: number; y1: number }): void => {
+    for (const key of keys(box.x0, box.y0, box.x1, box.y1)) {
+      const list = cells.get(key)
+      if (list) list.push(box)
+      else cells.set(key, [box])
+    }
+  }
+  for (const cover of covers) {
+    const half = cover.side / 2
+    put({
+      id: cover.id,
+      x0: cover.x - half,
+      y0: cover.y - half,
+      x1: cover.x + half,
+      y1: cover.y + half,
+    })
+  }
+  const named = new Set<number>()
+  const order = [...covers].sort((a, b) => b.bright - a.bright || a.id - b.id)
+  for (const cover of order) {
+    const wide = (cover.side + NAME_SPILL) / 2
+    const top = cover.y + cover.side / 2 + NAME_GAP
+    const name = {
+      id: -1 - cover.id,
+      x0: cover.x - wide,
+      y0: top,
+      x1: cover.x + wide,
+      y1: top + NAME_HEIGHT,
+    }
+    const clear = keys(name.x0, name.y0, name.x1, name.y1).every(key =>
+      (cells.get(key) ?? []).every(
+        box =>
+          box.id === cover.id ||
+          box.x1 <= name.x0 ||
+          box.x0 >= name.x1 ||
+          box.y1 <= name.y0 ||
+          box.y0 >= name.y1,
+      ),
+    )
+    if (!clear) continue
+    named.add(cover.id)
+    put(name)
+  }
+  return named
+}
+
 /** How far a ring round a song reaches: round its cover once it has opened, else its star. */
 export function ringRadius(point: Pick<SkyPoint, 'bright'>, scale: number, least: number): number {
   return Math.max(least, starLook(point, scale).side * 0.7)
@@ -524,10 +658,11 @@ export function deepTwinkle(star: DeepStar, beat: number): number {
 }
 
 /** The three twinkles' lengths, a rise and a fall each, apart so they never line up. */
-export const DEEP_BEATS_MS = [3100, 4300, 5700] as const
+const DEEP_BEATS_MS = [3100, 4300, 5700] as const
 
 /** Where a twinkle is at a moment, 0–1. */
 export function deepBeat(beat: 0 | 1 | 2, ms: number): number {
+  'worklet'
   return 0.5 - 0.5 * Math.cos((2 * Math.PI * ms) / DEEP_BEATS_MS[beat])
 }
 

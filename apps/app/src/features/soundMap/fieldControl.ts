@@ -6,6 +6,9 @@ import {
   boundsOf,
   centredOn,
   fitView,
+  FLING_LEAST,
+  flung,
+  heldOn,
   keptClear,
   panBy,
   pathReach,
@@ -38,6 +41,16 @@ const ZOOM_PER_POINT = { pinch: 0.01, wheel: 0.002 } as const
 /** A wheel that has stopped for this long has settled. */
 const WHEEL_SETTLE_MS = 120
 
+/**
+ * A mouse's wheel zooms by gliding to where its notches point rather than
+ * jumping a notch at a time: it closes this much of the way in each such
+ * stretch of milliseconds, as a map's wheel does.
+ */
+const WHEEL_GLIDE_MS = 70
+
+/** A pinch let go this recently: a pan ending with it is not a flick. */
+const PINCH_GRACE_MS = 250
+
 /** How long a flight to a tag, a song or the whole map takes. */
 const FLY_MS = 420
 
@@ -68,6 +81,10 @@ export class FieldControl {
   #touched = false
   /** A song to show as soon as the field has a size: the map opened on it. */
   #waiting: MapPlace | null = null
+  /** Where a mouse's wheel is gliding the zoom to, while it glides. */
+  #glide: { scale: number; at: { x: number; y: number } } | null = null
+  /** When a pinch last ended, or 0 while one is under way. */
+  #pinchEnded = -Infinity
 
   listen(events: FieldEvents): () => void {
     this.#events = events
@@ -170,6 +187,10 @@ export class FieldControl {
   wheel(wheel: FieldWheel): void {
     const view = this.#view
     if (!view) return
+    if (wheel.zoom === 'wheel') {
+      this.#glideBy(Math.exp(-wheel.dy * ZOOM_PER_POINT.wheel), { x: wheel.x, y: wheel.y })
+      return
+    }
     this.#land()
     this.#touched = true
     const next = wheel.zoom
@@ -178,6 +199,41 @@ export class FieldControl {
     this.#set(next, false)
     if (this.#wheelTimer) clearTimeout(this.#wheelTimer)
     this.#wheelTimer = setTimeout(() => this.#settle(), WHEEL_SETTLE_MS)
+  }
+
+  /**
+   * A mouse's notch: the zoom glides there, about the pointer, and a notch
+   * while it glides goes further from where it was heading. It settles once
+   * it arrives.
+   */
+  #glideBy(factor: number, at: { x: number; y: number }): void {
+    const view = this.#view
+    if (!view) return
+    const glide = this.#glide
+    if (!glide) this.#land()
+    this.#touched = true
+    const scale = zoomAt(view, (glide ? glide.scale / view.scale : 1) * factor, at).scale
+    this.#glide = { scale, at }
+    if (glide) return
+    let last = Date.now()
+    const frame = (): void => {
+      const now = Date.now()
+      const heading = this.#glide
+      const from = this.#view
+      if (!heading || !from) return
+      const left = Math.log(heading.scale / from.scale)
+      if (Math.abs(left) < 0.003) {
+        this.#flight = null
+        this.#glide = null
+        this.#set(zoomAt(from, heading.scale / from.scale, heading.at), true)
+        return
+      }
+      const share = 1 - Math.exp(-(now - last) / WHEEL_GLIDE_MS)
+      last = now
+      this.#set(zoomAt(from, Math.exp(left * share), heading.at), false)
+      this.#flight = requestAnimationFrame(frame)
+    }
+    this.#flight = requestAnimationFrame(frame)
   }
 
   tap(x: number, y: number): void {
@@ -223,6 +279,12 @@ export class FieldControl {
     this.#land()
     this.#touched = true
     this.#pinchFrom = 1
+    this.#pinchEnded = 0
+  }
+
+  pinchEnd(): void {
+    this.#pinchEnded = Date.now()
+    this.gestureEnd()
   }
 
   pinchMove(scale: number, focalX: number, focalY: number): void {
@@ -247,10 +309,43 @@ export class FieldControl {
     this.#panFrom = { x: translationX, y: translationY }
   }
 
-  /** A move or a pinch let go. */
+  /**
+   * A move let go at a speed, in points a second: a flick carries the map on,
+   * slowing, as any map does; a pinch just ended is not a flick.
+   */
+  panEnd(velocityX: number, velocityY: number): void {
+    this.#panFrom = null
+    const velocity = { x: velocityX / 1000, y: velocityY / 1000 }
+    const pinched = this.#pinchEnded === 0 || Date.now() - this.#pinchEnded < PINCH_GRACE_MS
+    if (pinched || Math.hypot(velocity.x, velocity.y) < FLING_LEAST) return
+    const from = this.#view
+    if (!from) return
+    this.#land()
+    const start = Date.now()
+    let was = { x: 0, y: 0 }
+    const frame = (): void => {
+      const now = flung(velocity, Date.now() - start)
+      const view = this.#view
+      if (!view) return
+      const next = panBy(view, now.x - was.x, now.y - was.y)
+      was = now
+      // Against the edge of the songs, it stops there.
+      const held = this.#held(next)
+      if (now.done || held !== next) {
+        this.#flight = null
+        this.#set(held, true)
+        return
+      }
+      this.#set(next, false)
+      this.#flight = requestAnimationFrame(frame)
+    }
+    this.#flight = requestAnimationFrame(frame)
+  }
+
+  /** A move or a pinch let go: the map settles, unless a flick carries it on. */
   gestureEnd(): void {
     this.#panFrom = null
-    this.#settle()
+    if (this.#flight === null) this.#settle()
   }
 
   #mapAt(x: number, y: number): MapPlace | null {
@@ -293,10 +388,19 @@ export class FieldControl {
     cancelAnimationFrame(this.#flight)
     this.#flight = null
     this.#heading = null
+    this.#glide = null
     this.#settle()
   }
 
+  /** Kept over the songs (`heldOn`), once there are songs and a field. */
+  #held(view: MapView): MapView {
+    return this.#field && this.#bounds
+      ? heldOn(view, this.#field, this.#bounds, this.#insets)
+      : view
+  }
+
   #set(view: MapView, settle: boolean): void {
+    view = this.#held(view)
     this.#view = view
     this.#events?.show(view)
     if (settle) this.#events?.settle(view)

@@ -14,6 +14,7 @@ import { Cover } from '../../ui/components/Cover'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ImportFoot, useImportPage } from './ImportPage'
+import { enqueueImport } from './deviceImports'
 import { chooseAllIn } from './importDraft'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useFindSongs } from './useFindSongs'
@@ -94,7 +95,7 @@ export function ImportReview({
   }
 
   const enqueue = useMutation({
-    mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, tagIds)),
+    mutationFn: (current: Review) => enqueueImport(source.api, importRequest(current, tagIds)),
     onSuccess: () => {
       countUse('import')
       // The songs are in the queue now, which Import shows under Currently importing.

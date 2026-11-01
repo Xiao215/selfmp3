@@ -8,7 +8,7 @@
 export type { ApiTransport, ClientRequestInit } from './platform.js'
 
 export { ApiError, failureText, failureWords } from './api/error.js'
-export { createApi, type Api } from './api/api.js'
+export { createApi, enqueuedBeforeFailing, type Api } from './api/api.js'
 export { createMediaUrl, type MediaUrl } from './api/media.js'
 
 export {

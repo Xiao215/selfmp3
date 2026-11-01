@@ -11,13 +11,8 @@ import {
   YtDlpService,
   ytdlpAgeDays,
 } from './ytdlp.js'
-import {
-  freshState,
-  PAUSE_MS,
-  RateLimitedError,
-  YtThrottleService,
-  type ThrottleState,
-} from './ytThrottle.js'
+import { freshState, PAUSE_MS, type ThrottleState } from '@selfmp3/shared'
+import { RateLimitedError, YtThrottleService } from './ytThrottle.js'
 
 describe('toProbedTrack', () => {
   const WATCH = 'https://www.youtube.com/watch?v=ZRtdQ81jPUQ'

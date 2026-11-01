@@ -1,5 +1,5 @@
 import type { Db } from '../db/index.js'
-import { freshState, type ThrottleState } from '../services/ytThrottle.js'
+import { freshState, type ThrottleState } from '@selfmp3/shared'
 
 /**
  * The one row that remembers how fast this server may ask YouTube for things.

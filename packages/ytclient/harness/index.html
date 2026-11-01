@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>self.mp3 — client download harness</title>
+    <style>
+      body {
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        max-width: 760px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      label {
+        display: block;
+        margin: 0.5rem 0;
+      }
+      input[type='text'] {
+        width: 100%;
+        font: inherit;
+      }
+      pre {
+        background: #111;
+        color: #ddd;
+        padding: 1rem;
+        white-space: pre-wrap;
+        min-height: 8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Client download harness</h1>
+    <p>
+      youtubei.js runs in this page; the self.mp3 extension only carries its requests. Load the
+      extension from <code>apps/extension/dist</code> first.
+    </p>
+    <form id="form">
+      <label>Video id or link <input type="text" id="video" value="fJ9rUzIMcZQ" /></label>
+      <label
+        >Clients, in order <input type="text" id="clients" value="" placeholder="default"
+      /></label>
+      <label><input type="checkbox" id="po" checked /> Mint a PO token</label>
+      <button type="submit">Download</button>
+    </form>
+    <p><audio id="audio" controls></audio> <a id="save" hidden>Save the file</a></p>
+    <pre id="log"></pre>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

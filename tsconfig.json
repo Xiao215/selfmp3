@@ -17,6 +17,7 @@
     { "path": "./packages/replica" },
     { "path": "./packages/client" },
     { "path": "./packages/desktop-bridge" },
+    { "path": "./packages/ytclient" },
     { "path": "./apps/desktop" },
     { "path": "./apps/extension" },
     { "path": "./apps/server" },

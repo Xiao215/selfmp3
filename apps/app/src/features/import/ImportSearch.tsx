@@ -17,6 +17,7 @@ import { ImportFoot, useImportPage } from './ImportPage'
 import { useFindSongs } from './useFindSongs'
 import { useSongSearch } from './useSongSearch'
 import { comingIn, importRequest, stillFinding } from './review.model'
+import { enqueueImport } from './deviceImports'
 import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
@@ -76,7 +77,7 @@ export function ImportSearch({
   })
 
   const enqueue = useMutation({
-    mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, tagIds)),
+    mutationFn: (current: Review) => enqueueImport(source.api, importRequest(current, tagIds)),
     onSuccess: () => {
       countUse('import')
       // The songs are in the queue, which Import shows; the search is done, and so are its tags.

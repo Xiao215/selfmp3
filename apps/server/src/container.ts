@@ -33,6 +33,7 @@ import { YtDlpService } from './services/ytdlp.js'
 import { YtThrottleService } from './services/ytThrottle.js'
 import { ThrottleRepository } from './repositories/throttle.js'
 import { ImportQueueService } from './services/importQueue.js'
+import { TagWriter } from './services/tagWriter.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import type { MetadataLookupService } from './services/lookup.js'
 import { smartFeaturesFor, type SmartFeatures } from './ai/smart.js'
@@ -448,6 +449,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     throttle,
     cloud: cloudSync,
     keepAwake,
+    tagWriter: new TagWriter({ logger }),
     metrics: shared.metrics,
     logger,
   })

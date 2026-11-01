@@ -1,5 +1,5 @@
 import { DEFAULT_ACCENT_HUE, darkPalette } from '@selfmp3/client/core'
-import { DEFAULT_APP_URL } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, YT_PROXY_PAGES } from '@selfmp3/shared'
 import type { Handlers } from '../bridge.js'
 import { serve, servePage } from '../bridge.js'
 import { createCloud } from './cloud.js'
@@ -8,6 +8,8 @@ import { createPageHandler } from './pill.js'
 import { installMenus, openPopupWindow } from './menus.js'
 import { idbStore } from './store.js'
 import { ALARM, ALARM_MINUTES, createWatcher } from './watcher.js'
+import { ytProxy } from './ytProxy.js'
+import { readOptions } from './options.js'
 
 /**
  * The extension's background worker: the one part of it that talks to a server
@@ -130,6 +132,22 @@ async function quickImport(url: string): Promise<void> {
 }
 
 installMenus({ quickImport, openReview: openPopupWindow })
+
+// The app's requests to YouTube, carried past CORS for the page (ytProxy.ts).
+chrome.runtime.onConnectExternal.addListener(
+  ytProxy({
+    fetch: (input, init) => fetch(input, init),
+    pages: YT_PROXY_PAGES,
+    // Off unless the person turned it on in the options; then the cookie Chrome keeps for YouTube.
+    signIn: async () => {
+      if (!(await readOptions(store)).useYouTubeSignIn) return null
+      // Asked for only when the option was turned on, and given back when it was turned off.
+      if (!(await chrome.permissions.contains({ permissions: ['cookies'] }))) return null
+      const cookie = await chrome.cookies.get({ url: 'https://www.youtube.com', name: 'SAPISID' })
+      return cookie?.value ?? null
+    },
+  }),
+)
 
 /** One read of the queue for the badge, from the alarm or a worker starting. */
 const tick = (): void => {

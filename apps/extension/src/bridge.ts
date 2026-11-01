@@ -11,6 +11,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { siteOf } from './content/anchors.js'
+import { ExtensionOptionsSchema } from './background/options.js'
 
 /**
  * The only door between the extension's pages and its background worker.
@@ -56,6 +57,9 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('requests') }),
   z.object({ type: z.literal('cancelRequest'), uid: z.string().min(1).max(100) }),
+  /** The extension's own options (background/options.ts). */
+  z.object({ type: z.literal('options') }),
+  z.object({ type: z.literal('setOptions'), useYouTubeSignIn: z.boolean() }),
 ])
 export type BridgeRequest = z.output<typeof BridgeRequestSchema>
 export type RequestType = BridgeRequest['type']
@@ -129,6 +133,8 @@ export const REPLIES = {
   requestImport: ImportRequestViewSchema,
   requests: ImportRequestListSchema,
   cancelRequest: OkSchema,
+  options: ExtensionOptionsSchema,
+  setOptions: ExtensionOptionsSchema,
 } satisfies Record<RequestType, z.ZodTypeAny>
 
 export type Reply<T extends RequestType> = z.output<(typeof REPLIES)[T]>

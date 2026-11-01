@@ -13,6 +13,7 @@ import { createRouter, type Route, type Router } from './connection.js'
 import { LibraryCache } from './library.js'
 import { serverApi, timedFetch } from './server.js'
 import type { KeyValueStore } from './store.js'
+import { readOptions, writeOptions } from './options.js'
 
 /**
  * What the worker does with each request from a page (bridge.ts): everything
@@ -209,6 +210,9 @@ export function createHandlers({
 
   return {
     status,
+
+    options: () => readOptions(store),
+    setOptions: ({ useYouTubeSignIn }) => writeOptions(store, { useYouTubeSignIn }),
 
     async connect({ baseUrl, token }) {
       const address = normaliseBaseUrl(baseUrl)

@@ -136,7 +136,9 @@ beforeEach(() => {
   mockSearch
     .mockReset()
     .mockImplementation((query: string) => Promise.resolve({ items: ANSWERS[query] ?? [] }))
-  mockEnqueue.mockReset().mockResolvedValue({ jobs: [], skipped: 0, playlistId: null })
+  mockEnqueue
+    .mockReset()
+    .mockResolvedValue({ jobs: [], skipped: 0, playlistId: null, device: null, leases: [] })
 })
 
 /**

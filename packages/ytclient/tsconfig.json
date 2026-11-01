@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // The browser's: this package runs in a page, and BotGuard needs a real
+    // `window` to run at all.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "references": [{ "path": "../shared" }],
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}

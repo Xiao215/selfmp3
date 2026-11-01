@@ -28,6 +28,7 @@ import {
   ErrorBodySchema,
   HealthSchema,
   ImportEnqueueResultSchema,
+  ImportDeviceRenewResultSchema,
   IMPORT_ENQUEUE_MAX,
   AlreadyHaveResponseSchema,
   ImportCoverToneSchema,
@@ -95,6 +96,7 @@ import {
   type DeviceCommand,
   type DeviceHeartbeat,
   type ImportEnqueue,
+  type ImportEnqueueResult,
   type ImportFindRequest,
   type ImportPreviewItem,
   type OfflineScope,
@@ -259,6 +261,22 @@ export interface ApiOptions {
 }
 
 export type Api = ReturnType<typeof createApi>
+
+/**
+ * What an import too big for one enqueue had queued before a later part
+ * failed: those songs are in the queue, and the device's are held for it
+ * under these leases. Carried on the error, so the device still takes them.
+ */
+interface EnqueuedBeforeFailing {
+  readonly jobs: ImportEnqueueResult['jobs']
+  readonly leases: readonly NonNullable<ImportEnqueueResult['device']>[]
+}
+
+/** What `importEnqueue` had queued before the error it threw, if it had. */
+export function enqueuedBeforeFailing(error: unknown): EnqueuedBeforeFailing | null {
+  if (typeof error !== 'object' || error === null || !('enqueued' in error)) return null
+  return (error as { enqueued: EnqueuedBeforeFailing }).enqueued
+}
 
 export function createApi({ context, fetch }: ApiOptions) {
   /**
@@ -585,8 +603,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     importTools: (refresh = false) =>
       request('GET', `/api/import/tools${refresh ? '?refresh=1' : ''}`, ToolStatusSchema),
 
-    importPreview: (url: string) =>
-      request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
+    importPreview: (url: string, options: { warmListen?: boolean } = {}) =>
+      request('POST', '/api/import/preview', ImportPreviewSchema, { url, ...options }),
 
     /** Words looked for on YouTube Music and 网易云 at once, as review rows (`/import/search`). */
     importSearch: (query: string) =>
@@ -617,25 +635,83 @@ export function createApi({ context, fetch }: ApiOptions) {
     /**
      * Songs put in the import queue: past `IMPORT_ENQUEUE_MAX`, as several
      * requests, one after another, answered as one. A playlist the first part
-     * made is where the rest go.
+     * made is where the rest go. Each part held for this device comes with a
+     * lease of its own (docs/features/client-download.md): `leases` has them
+     * all, in order.
      */
     importEnqueue: async (input: ImportEnqueue) => {
       const enqueue = (part: ImportEnqueue) =>
         request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, part)
       let answer = await enqueue({ ...input, items: input.items.slice(0, IMPORT_ENQUEUE_MAX) })
+      const leases = answer.device ? [answer.device] : []
       for (let at = IMPORT_ENQUEUE_MAX; at < input.items.length; at += IMPORT_ENQUEUE_MAX) {
         const items = input.items.slice(at, at + IMPORT_ENQUEUE_MAX)
         const into = answer.playlistId
-        const next = await enqueue(
-          into === null ? { ...input, items } : { ...input, items, playlistId: into },
-        )
+        let next: ImportEnqueueResult
+        try {
+          next = await enqueue(
+            into === null ? { ...input, items } : { ...input, items, playlistId: into },
+          )
+        } catch (error) {
+          const enqueued: EnqueuedBeforeFailing = { jobs: answer.jobs, leases }
+          throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+            enqueued,
+          })
+        }
+        if (next.device) leases.push(next.device)
         answer = {
           jobs: [...answer.jobs, ...next.jobs],
           skipped: answer.skipped + next.skipped,
           playlistId: answer.playlistId ?? next.playlistId,
+          device: answer.device ?? next.device,
         }
       }
-      return answer
+      return { ...answer, leases }
+    },
+
+    // --- songs this device downloads itself (docs/features/client-download.md)
+
+    /** Keep the lease on the jobs this device holds, with how far each download has got. */
+    importDeviceRenew: (
+      lease: string,
+      progress: readonly { id: string; percent: number }[],
+      holding: readonly string[],
+    ) =>
+      request('POST', '/api/import/device/renew', ImportDeviceRenewResultSchema, {
+        lease,
+        progress,
+        holding,
+      }),
+
+    importDeviceStart: (lease: string, id: string) =>
+      request('POST', '/api/import/device/start', OkSchema, { lease, id }),
+
+    /** This device cannot download it: the server does. */
+    importDeviceRelease: (lease: string, id: string, reason: string) =>
+      request('POST', '/api/import/device/release', OkSchema, {
+        lease,
+        id,
+        reason: reason.slice(0, 500),
+      }),
+
+    /**
+     * Where to send a job's file, and the credentials to send it with — or
+     * null with no server to send it to. The file is the platform's to send:
+     * a song is megabytes of bytes, which `ClientFetch` does not carry, and it
+     * takes longer than the platform's request timeout allows an answer.
+     */
+    importDeviceFileTarget: (
+      id: string,
+      lease: string,
+    ): { url: string; headers: Record<string, string> } | null => {
+      const { transport, fromCloud } = context()
+      if (fromCloud || !transport) return null
+      return {
+        url: transport.url(
+          `/api/import/device/jobs/${encodeURIComponent(id)}/file?lease=${encodeURIComponent(lease)}`,
+        ),
+        headers: { ...transport.headers?.() },
+      }
     },
 
     /** The queue, with the newest `finished` done jobs (the server's default when unsaid). */

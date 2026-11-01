@@ -1,5 +1,4 @@
-import type { Settings } from '@selfmp3/shared'
-import { isRateLimited } from './ytThrottle.js'
+import { isRateLimited, type Settings } from '@selfmp3/shared'
 import { YTDLP_UPDATE_HINT } from './ytdlpUpdate.js'
 
 /**

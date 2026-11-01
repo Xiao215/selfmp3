@@ -1,37 +1,75 @@
 @import '../ui/base.css';
 
 /*
- * The options page (docs/ui-mock `E5`): what the extension is and who it is
- * connected as on the left, what an import does and the other way in on the
- * right. One column when the tab is narrow.
+ * The options page (A1, the Oct 31 canvas): one centred column — what it
+ * is, the connection card (B1), three ways to save (C1), and the address
+ * folded into a card at the foot (D1).
  */
 .options {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 40px;
-  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 720px;
   margin: 0 auto;
-  padding: 44px 56px;
+  padding: 28px 24px 56px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 560px) {
   .options {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 28px;
-    padding: 32px 20px;
+    gap: 24px;
+    padding: 20px 16px 40px;
   }
 }
 
-.options-intro,
-.options-side {
+.options-head {
   display: flex;
-  flex-direction: column;
-  gap: 18px;
-  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.options-side {
-  padding-top: 6px;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-tag {
+  padding: 3px 9px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-sub);
+  color: var(--text-muted);
+}
+
+.open-app {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: var(--type-sub);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.open-app svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
 }
 
 .options h1 {
@@ -50,6 +88,7 @@
 }
 
 .lede {
+  max-width: 520px;
   margin: 0;
   font-size: var(--type-body);
   line-height: var(--leading-body);
@@ -57,16 +96,25 @@
 }
 
 .card {
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-card-lg);
   background: var(--surface-1);
   box-shadow: 0 1px 3px var(--card-shadow);
 }
 
-.account {
+/* The connection card (B1): who, then where an import goes. */
+.connection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+.who,
+.sign-in-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 14px 16px;
 }
 
 .avatar {
@@ -79,170 +127,556 @@
   background: var(--accent-dim);
   color: var(--accent-strong);
   font-family: var(--font-display);
+  font-size: var(--type-body);
 }
 
-.account-text {
+.who-text,
+.sign-in-text,
+.notice-text,
+.typed-text,
+.fold-text,
+.stop-text,
+.way-text,
+.dead-address-text {
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
   gap: 2px;
   min-width: 0;
 }
 
-.account-name {
+.who-text,
+.sign-in-text,
+.notice-text,
+.typed-text,
+.fold-text {
+  flex: 1 1 220px;
+}
+
+.who-text b {
   font-size: var(--type-body);
-  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.account-sub {
+.sign-in-text b {
+  font-size: var(--type-title);
+  line-height: var(--leading-title);
+}
+
+.who-text span,
+.sign-in-text span,
+.notice-text span,
+.typed-text span,
+.fold-text span,
+.stop-text span {
   font-size: var(--type-small);
+  line-height: var(--leading-small);
+  color: var(--text-muted);
+}
+
+.sign-in-text span,
+.notice-text span {
+  font-size: var(--type-sub);
+  line-height: var(--leading-sub);
   color: var(--text-secondary);
 }
 
-.account-in {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
+.sign-in {
+  padding: 24px;
 }
 
-.account-in p {
+.google {
+  height: 44px;
+  padding: 0 20px;
+  font-size: var(--type-body);
+  box-shadow: 0 0 0 4px var(--accent-wash);
+}
+
+.tonal.small {
+  height: 30px;
+  padding: 0 12px;
+  font-size: var(--type-small);
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+}
+
+.dot.warning {
+  background: var(--warning);
+}
+
+.dead-address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  border-radius: var(--radius-row);
+  background: var(--surface-0);
+}
+
+.dead-address-text {
+  display: block;
+  flex: 1;
+  font-size: var(--type-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.dead-address-text b {
+  color: var(--text-primary);
+}
+
+/* This browser → your server (or bucket) → your library. */
+.route {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 16px;
+  list-style: none;
+  border-radius: var(--radius-mini);
+  background: var(--surface-0);
+}
+
+.route li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.route li.line {
+  flex: 1 1 28px;
+  min-width: 20px;
+  height: 2px;
+  margin: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--good);
+}
+
+.route.bucket li.line {
+  background: var(--accent);
+}
+
+.route li.line.asleep {
+  height: 0;
+  border-top: 2px dashed var(--border-strong);
+  background: none;
+}
+
+.stop-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-cover);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.stop-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stop-icon svg.note {
+  fill: currentColor;
+  stroke: none;
+}
+
+.route.ready li.lit .stop-icon {
+  background: var(--good-wash);
+  color: var(--good);
+}
+
+.route.bucket li.lit .stop-icon {
+  background: var(--accent-wash);
+  color: var(--accent-strong);
+}
+
+.route li.asleep {
+  opacity: 0.6;
+}
+
+.stop-text b {
+  font-size: var(--type-sub);
+  white-space: nowrap;
+}
+
+.stop-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A narrow tab draws the route downwards, its lines turned on end. */
+@media (max-width: 560px) {
+  .route {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .route li.line {
+    flex: none;
+    width: 2px;
+    height: 14px;
+    min-width: 0;
+    margin: 4px 0 4px 16px;
+  }
+
+  .route li.line.asleep {
+    width: 0;
+    border-top: 0;
+    border-left: 2px dashed var(--border-strong);
+  }
+}
+
+.route-says {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: var(--type-sub);
   line-height: var(--leading-sub);
   color: var(--text-secondary);
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.route-says.ready .dot {
+  background: var(--good);
 }
 
-.account-in .account-hint {
-  font-size: var(--type-small);
-  line-height: var(--leading-small);
-  color: var(--text-muted);
+.route-says.bucket .dot {
+  background: var(--accent);
 }
 
-/* "Connect by address instead": a quiet line that opens onto the address. */
-.by-address > summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: fit-content;
-  cursor: pointer;
-  list-style: none;
-  font-size: var(--type-sub);
-  color: var(--text-muted);
-}
-
-.by-address > summary::-webkit-details-marker {
-  display: none;
-}
-
-.by-address > summary::after {
-  content: '';
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(45deg);
-  transition: transform var(--motion-fast) var(--ease-out);
-}
-
-.by-address[open] > summary::after {
-  margin-top: 3px;
-  transform: rotate(-135deg);
-}
-
-.by-address > summary:hover {
-  color: var(--text-secondary);
-}
-
-.setting {
+.notice {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  min-height: 54px;
-  padding: 10px 16px;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-mini);
+}
+
+.notice.warning {
+  background: var(--warning-wash);
+}
+
+.notice-text b {
+  font-size: var(--type-sub);
+}
+
+.notice .primary {
+  text-decoration: none;
+}
+
+/* Three ways to save (C1): a drawing of each, then its two lines. */
+.ways {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ways-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+/* Signed out, they are what comes after signing in. */
+.ways-grid.later {
+  opacity: 0.72;
+}
+
+.way {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--surface-1);
+}
+
+.way-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 112px;
+  padding: 0 14px;
+  background: var(--surface-2);
+}
+
+.way-text {
+  padding: 14px 16px 16px;
+}
+
+.way-text b {
   font-size: var(--type-body);
 }
 
-.setting > span:first-child {
-  flex-grow: 1;
-  min-width: 0;
+.way-text span {
+  font-size: var(--type-sub);
+  line-height: var(--leading-sub);
+  color: var(--text-secondary);
+}
+
+.art-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  font-size: var(--type-small);
+  white-space: nowrap;
+}
+
+.art-lit {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.art-pill.art-lit {
+  box-shadow: 0 0 0 4px var(--accent-wash);
+}
+
+.art-pill .note,
+.art-icon .note {
+  fill: currentColor;
+}
+
+.art-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 176px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-cover);
+  background: var(--surface-1);
+  font-size: var(--type-tiny);
+  color: var(--text-muted);
+}
+
+.art-menu span {
+  padding: 5px 8px;
+  border-radius: var(--radius-cover-sm);
+  white-space: nowrap;
+}
+
+.art-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 12px 0 0 auto;
+}
+
+.art-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-cover-sm);
+  box-shadow: 0 0 0 4px var(--accent-wash);
+}
+
+.art-popup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 150px;
+  height: 50px;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-cover);
+  background: var(--surface-1);
+}
+
+.art-cover {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-cover-sm);
+  background: var(--accent-dim);
+}
+
+.art-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+}
+
+.art-lines span {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--text-secondary);
+}
+
+.art-lines span + span {
+  width: 55%;
+  background: var(--border-strong);
+}
+
+/* The address (D1): a row at the foot that opens in place. */
+.by-address {
+  overflow: hidden;
+  border-radius: var(--radius-card);
+}
+
+.typed,
+.fold {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+.typed-text b,
+.fold-text b {
+  font-size: var(--type-body);
   overflow-wrap: anywhere;
 }
 
-/* The address and its button in one pill, as `E5` draws the other way in. */
-.address {
+.link-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-cover);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.link-mark svg,
+.chevron {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chevron {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.fold[aria-expanded='true'] .chevron {
+  transform: rotate(90deg);
+}
+
+.fold:hover .fold-text b {
+  color: var(--accent-strong);
+}
+
+.address-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.address-form .field input {
+  padding: 12px 14px;
+  font-size: var(--type-body);
+}
+
+.try {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 48px;
-  padding: 0 7px 0 18px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-1);
-  box-shadow: 0 1px 3px var(--card-shadow);
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--type-small);
+  color: var(--text-muted);
 }
 
-.address:focus-within {
-  box-shadow: 0 0 0 1.5px var(--accent);
-}
-
-.address input {
-  flex-grow: 1;
-  min-width: 0;
-  border: 0;
-  padding: 0;
-  background: none;
-  font-size: var(--type-body);
-  outline: none;
-}
-
-.address .tonal {
-  height: 34px;
+.try-chip {
+  padding: 4px 10px;
   background: var(--surface-3);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: var(--type-small);
 }
 
-.field input {
-  background: var(--surface-1);
+.try-chip:hover {
+  color: var(--text-primary);
+  background: var(--surface-selected);
+}
+
+.token {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-row);
+  background: var(--warning-wash);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.quiet-button {
+  background: none;
+  color: var(--text-secondary);
+}
+
+.options-foot {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 4px;
+  font-size: var(--type-small);
+  color: var(--text-muted);
 }
 
 /*
  * The page answering a pointer or the keyboard.
  *
  * A full-tab page is the one place in the extension with room for a pointer to
- * wander, so its controls are the one place a hover is worth drawing. The ring
- * around the address grows into place rather than appearing, and a button's
- * tone slides: one length, the shortest, for every one of them, so nothing here
- * is on a clock of its own. Only the properties a state actually changes are
+ * wander, so its controls are the one place a hover is worth drawing. A
+ * field's ring grows into place rather than appearing, and a button's tone
+ * slides: one length, the shortest, for every one of them, so nothing here is
+ * on a clock of its own. Only the properties a state actually changes are
  * listed, which keeps a repaint off everything else.
  */
-.address,
 .field input,
-.field textarea,
 .primary,
 .tonal,
-.link {
+.open-app,
+.try-chip,
+.fold-text b {
   transition:
     background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
     box-shadow var(--motion-fast) var(--ease-out),
     color var(--motion-fast) var(--ease-out),
     opacity var(--motion-fast) var(--ease-out);
 }
 
 /* One tone up under the pointer, as a row of the app's lifts. */
-.tonal:hover:not(:disabled) {
+.tonal:hover:not(:disabled),
+.open-app:hover {
   background: var(--surface-selected);
-}
-
-.link:hover:not(:disabled) {
-  color: var(--accent-strong);
 }
 
 /*
@@ -250,12 +684,14 @@
  * an improvement — and only the sliding between them goes.
  */
 @media (prefers-reduced-motion: reduce) {
-  .address,
   .field input,
-  .field textarea,
   .primary,
   .tonal,
-  .link {
+  .open-app,
+  .try-chip,
+  .fold-text b,
+  .chevron,
+  .ways-grid {
     transition: none;
   }
 }

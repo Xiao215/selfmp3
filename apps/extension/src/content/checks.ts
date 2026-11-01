@@ -1,8 +1,11 @@
+import { NOTE_PATH } from '../ui/mark.js'
 import type { Site } from './anchors.js'
 import { findRows, placeOf, type FoundRow } from './rows.js'
 
 /**
- * The green check on each song row that is already yours (D1).
+ * The mark on each song row that is already yours (D1): the app's note on an
+ * accent coin, the extension's own icon made small. A plain check was tried
+ * first and read as one of YouTube's own marks; this one cannot be.
  *
  * Asked of the worker a page's worth of videos at a time, and remembered for a
  * few minutes, so a queue scrolling past is one question rather than one per
@@ -28,12 +31,17 @@ const LABEL = 'In your self.mp3 library'
 
 const SHADOW_CSS = `
   :host { all: initial }
-  svg { display: block; color: var(--good) }
+  span {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: var(--on-accent);
+  }
+  svg { display: block }
 `
 
 const SVG = 'http://www.w3.org/2000/svg'
 
-/** The check, built as elements: the page's Trusted Types policy may refuse `innerHTML`. */
+/** The coin, built as elements: the page's Trusted Types policy may refuse `innerHTML`. */
 function createCheck(document: Document, theme: string): HTMLElement {
   const element = document.createElement(CHECK_TAG)
   element.setAttribute('style', OUTER_STYLE)
@@ -43,24 +51,19 @@ function createCheck(document: Document, theme: string): HTMLElement {
   const shadow = element.attachShadow({ mode: 'closed' })
   const style = document.createElement('style')
   style.textContent = theme + SHADOW_CSS
+  const coin = document.createElement('span')
   const svg = document.createElementNS(SVG, 'svg')
   svg.setAttribute('viewBox', '0 0 24 24')
-  svg.setAttribute('width', '16')
-  svg.setAttribute('height', '16')
+  svg.setAttribute('width', '12')
+  svg.setAttribute('height', '12')
   svg.setAttribute('aria-hidden', 'true')
   const path = document.createElementNS(SVG, 'path')
-  // The pill's check, so "In library" and a row's mark are the same mark.
-  path.setAttribute('d', 'm5 12 5 5L20 7')
-  const stroke: readonly (readonly [string, string])[] = [
-    ['fill', 'none'],
-    ['stroke', 'currentColor'],
-    ['stroke-width', '3'],
-    ['stroke-linecap', 'round'],
-    ['stroke-linejoin', 'round'],
-  ]
-  for (const [name, value] of stroke) path.setAttribute(name, value)
+  // The pill's note, so the pill and a row's mark are the same mark.
+  path.setAttribute('d', NOTE_PATH)
+  path.setAttribute('fill', 'currentColor')
   svg.append(path)
-  shadow.append(style, svg)
+  coin.append(svg)
+  shadow.append(style, coin)
   return element
 }
 

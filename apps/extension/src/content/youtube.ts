@@ -45,7 +45,7 @@ let following: string | null = null
 
 const site = siteOf(location.hostname)
 
-/** The green check on each song row that is yours, on any page of the site (checks.ts). */
+/** The note mark on each song row that is yours, on any page of the site (checks.ts). */
 const checks = site
   ? createChecks({
       document,

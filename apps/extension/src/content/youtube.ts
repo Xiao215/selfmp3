@@ -5,7 +5,9 @@ import THEME from '../ui/theme.css'
 import { findAnchor, siteOf } from './anchors.js'
 import type { PillState } from '../bridge.js'
 import { askPage } from './ask.js'
+import { createChecks } from './checks.js'
 import { createPill, PILL_TAG, type PillHandles } from './pill.js'
+import { VIDEOS_ATTRIBUTE } from './videoIds.js'
 
 /**
  * The pill on YouTube, YouTube Music and m.youtube.com (B1).
@@ -42,6 +44,19 @@ let seenUrl = ''
 let following: string | null = null
 
 const site = siteOf(location.hostname)
+
+/** The green check on each song row that is yours, on any page of the site (checks.ts). */
+const checks = site
+  ? createChecks({
+      document,
+      site,
+      ask: async videoIds => {
+        const reply = await askPage({ type: 'owned', videoIds })
+        return reply.ok ? reply.value.videoIds : null
+      },
+      theme: THEME,
+    })
+  : null
 
 /** The address last read, and its video: the observer below asks on every mutation YouTube makes. */
 let readHref: string | null = null
@@ -87,7 +102,13 @@ async function refresh(videoId: string): Promise<PillState | null> {
   })
   if (!reply.ok) return null
   if (pill && pill.videoId === videoId) pill.draw(reply.value)
+  ownedIfIn(videoId, reply.value)
   return reply.value
+}
+
+/** The song is in the library now, so its rows in the queue say so too. */
+function ownedIfIn(videoId: string, state: PillState): void {
+  if (state.state === 'have' || state.state === 'added') checks?.markOwned(videoId)
 }
 
 /**
@@ -128,6 +149,7 @@ function clicked(clickedPill: PillHandles): void {
     if (!pill || pill.videoId !== videoId) return
     if (reply.ok) {
       pill.draw(reply.value)
+      ownedIfIn(videoId, reply.value)
       if (reply.value.state === 'importing' || reply.value.state === 'queued') follow(videoId)
     } else {
       pill.draw({ state: 'failed', progress: null, jobId: null, message: reply.message })
@@ -196,11 +218,22 @@ function start(): void {
   document.addEventListener('yt-navigate-finish', ensureSoon)
 
   let settling: ReturnType<typeof setTimeout> | null = null
+  let scanning: ReturnType<typeof setTimeout> | null = null
   new MutationObserver(() => {
+    // The rows are on every page, the pill only on a watch page.
+    if (scanning) clearTimeout(scanning)
+    scanning = setTimeout(() => checks?.scan(), SETTLE_MS)
     if (!videoIdNow()) return
     if (settling) clearTimeout(settling)
     settling = setTimeout(ensure, SETTLE_MS)
-  }).observe(document.body, { childList: true, subtree: true })
+  }).observe(document.body, {
+    childList: true,
+    subtree: true,
+    // A reused row changes its link, or the video the page-world script wrote on it.
+    attributes: true,
+    attributeFilter: ['href', VIDEOS_ATTRIBUTE],
+  })
+  checks?.scan()
 }
 
 start()

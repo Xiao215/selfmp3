@@ -88,6 +88,16 @@ counts it and a notification says when it is in. Left in your bucket it says
 you from video to video without a reload, and it is not drawn where there is no
 song.
 
+**A check on the songs you have.** A small green check sits on every song row
+that is already in your library: YouTube Music's Up next, its playlists,
+albums and search results, and the playlist beside a YouTube watch page. It
+goes before the duration, or after the title where a row has no duration.
+A row is yours when its video is the one you imported, so the album track and
+the music video of one song are two different rows. In Up next, a row with a
+Song/Video switch counts as yours when either half is. A song you import from
+the pill gets its check at once. One imported or removed in the app shows
+within five minutes.
+
 **The popup, from the toolbar.** The same song, with everything to decide first:
 the title tidied out of the video's own (see the importing section of the
 [README](../../README.md)) and the artist, both fields you can change before it
@@ -153,7 +163,7 @@ the badge is only ever about what you did here.
 |---|---|
 | `activeTab` | the address of the tab when you open the popup |
 | `identity` | the Google sign-in window, and the address it comes back to |
-| youtube.com, m.youtube.com, music.youtube.com | the pill in the page |
+| youtube.com, m.youtube.com, music.youtube.com | the pill and the checks in the page |
 | `contextMenus` | the two right-click items |
 | `notifications` | one notice when a batch of imports finishes |
 | `alarms` | keeping the badge right when Chrome has stopped the worker |
@@ -169,6 +179,7 @@ the badge is only ever about what you did here.
 | The typed door between the pages and that worker | `apps/extension/src/bridge.ts` |
 | The popup: what it shows, and what draws it | `apps/extension/src/popup/popup.model.ts`, `views.tsx` |
 | The pill: where it goes, what it is, when to look again | `apps/extension/src/content/` |
+| The checks on song rows: which rows, where the check goes, and the script that reads Up next's videos | `apps/extension/src/content/rows.ts`, `checks.ts`, `videoIds.ts` |
 | The badge and the notification | `apps/extension/src/background/jobs.model.ts`, `watcher.ts` |
 | Options | `apps/extension/src/options/` |
 | The look: the app's tokens, written into CSS by every build, and the parts both pages share | `apps/extension/scripts/theme.mjs`, `apps/extension/src/ui/` |
@@ -183,9 +194,9 @@ Two rules the code keeps, and the reasons:
   your copy of the library lives: two copies would hand out the same log
   sequence number twice, which is the one thing the bucket cannot survive.
 - **A content script is treated as the page it runs in.** It has a channel of its
-  own that can do exactly one thing — hand over a link, and be told what the pill
-  should say. It is never told your tags, your playlists, your server's address
-  or its token.
+  own that can do two things: hand over a link and be told what the pill should
+  say, or name some videos and be told which of them are yours. It is never
+  told your tags, your playlists, your server's address or its token.
 
 What is not built yet is in [`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
 
@@ -425,6 +436,32 @@ which the Import page understands from the share target.
   The second opens `popup.html?url=` in a small window (`openPopupWindow` in
   `background/menus.ts`), the popup with a link given instead of a tab, because a context-menu click cannot open the
   action popup reliably.
+
+## The checks on song rows (D1)
+
+- **Which rows** live in `rows.ts`, per site: `ytmusic-player-queue-item` (Up
+  next), `ytmusic-responsive-list-item-renderer` (playlists, albums, search;
+  an artist's or an album's row links elsewhere and is skipped) and
+  `ytd-playlist-panel-video-renderer` (the playlist beside a www watch page).
+  Video cards on YouTube's home, search and sidebar are not rows and get
+  nothing yet. m.youtube.com has no rows here.
+- **Up next has no links.** A queue row's video is only in the data Polymer
+  hands it, a property the page's own JavaScript sets, which a content script
+  cannot see from its own world. So a second, tiny script runs in the page's
+  world (`"world": "MAIN"` in the manifest, YouTube Music only):
+  `videoIds.ts` reads `data.videoId`, plus both halves under a Song/Video
+  wrapper, and writes them on the row as `data-selfmp3-videos`. It asks
+  nothing of the extension. Polymer reuses rows as the queue moves, so it
+  writes again after every change, and the content script watches that
+  attribute and `href`s as well as added nodes.
+- **Asking.** `checks.ts` sends the videos it has not seen as one `owned`
+  request on the page channel: at most 500 at a time, valid video ids only.
+  The worker answers from the same link index as `songFor`, reading the library
+  version once per question. Answers are kept for five minutes, and the old
+  answer keeps drawing while the new one is asked, so checks do not blink. A
+  question the worker could not answer counts as "not yours" for the same time.
+- The check is a `selfmp3-check` element with a closed shadow root, like the
+  pill, with the pill's check mark in `--good`.
 
 ## The watcher (F1)
 

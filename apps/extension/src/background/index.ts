@@ -75,8 +75,9 @@ const handlers: Handlers = createHandlers({ store, fetch: workerFetch, watcher, 
 
 // The popup and the options page: a queue read from there clears the `!`.
 serve(forPages(handlers, watcher), explain)
-// The pill's channel, which learns nothing about the library but this one song —
-// and whose polling from a YouTube tab is not anyone looking at the badge.
+// The pill's channel, which learns nothing about the library but yes or no for
+// the videos a page names — and whose polling from a YouTube tab is not anyone
+// looking at the badge.
 servePage(
   createPageHandler(handlers, async () => (await router.route()).mode),
   explain,

@@ -5,7 +5,12 @@ import {
   type Api,
   type ServerConnection,
 } from '@selfmp3/client/core'
-import { DEFAULT_LOCAL_SERVER_URL, linkIdentity, type ImportJob } from '@selfmp3/shared'
+import {
+  DEFAULT_LOCAL_SERVER_URL,
+  linkIdentity,
+  youtubeWatchUrl,
+  type ImportJob,
+} from '@selfmp3/shared'
 import { z } from 'zod'
 import { BridgeError, type Handlers, type Status } from '../bridge.js'
 import type { Cloud } from './cloud.js'
@@ -308,6 +313,18 @@ export function createHandlers({
       if (!key) return null
       const { api, identity } = await answering()
       return (await library.get(identity, api)).links[key] ?? null
+    },
+
+    // The same index as `songFor`, read once for a whole page of rows.
+    async owned({ videoIds }) {
+      const { api, identity } = await answering()
+      const { links } = await library.get(identity, api)
+      return {
+        videoIds: videoIds.filter(id => {
+          const key = linkIdentity(youtubeWatchUrl(id))
+          return key !== null && key in links
+        }),
+      }
     },
 
     async enqueue({ request, label }) {

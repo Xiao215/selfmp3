@@ -22,6 +22,13 @@ import { siteOf } from './content/anchors.js'
  * for the desktop app.
  */
 
+/** A page's worth of YouTube video ids: what a song row is known by. */
+const VideoIdsSchema = z.array(z.string().regex(/^[\w-]{11}$/)).max(500)
+
+/** The ones of those that are yours, and nothing else about them. */
+export const OwnedSchema = z.object({ videoIds: z.array(z.string()) })
+export type Owned = z.infer<typeof OwnedSchema>
+
 export const BridgeRequestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('status') }),
   z.object({
@@ -39,6 +46,8 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
   /** The popup's "+ new": a tag made before the import that uses it. */
   z.object({ type: z.literal('createTag'), name: TagNameSchema }),
   z.object({ type: z.literal('songFor'), url: z.string().max(2000) }),
+  /** Which of these videos are in the library, for the checks on a page's song rows. */
+  z.object({ type: z.literal('owned'), videoIds: VideoIdsSchema }),
   z.object({
     type: z.literal('enqueue'),
     request: ImportEnqueueSchema,
@@ -122,6 +131,7 @@ export const REPLIES = {
   choices: ChoicesSchema,
   createTag: TagSchema,
   songFor: SongHitSchema.nullable(),
+  owned: OwnedSchema,
   enqueue: ImportEnqueueResultSchema,
   queue: ImportQueueSchema,
   cancel: OkSchema,
@@ -152,6 +162,12 @@ export type Handlers = {
 export const PageRequestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('pillState'), url: z.string().max(2000) }),
   z.object({ type: z.literal('pillImport'), url: z.string().max(2000) }),
+  /**
+   * The song rows on the page: which of their videos are yours. A page learns
+   * no more than the pill already tells it one link at a time — yes or no for
+   * a video it named — and never a title, an id of ours, or a count.
+   */
+  z.object({ type: z.literal('owned'), videoIds: VideoIdsSchema }),
 ])
 export type PageRequest = z.output<typeof PageRequestSchema>
 
@@ -169,6 +185,13 @@ export const PillStateSchema = z.object({
   message: z.string().nullable(),
 })
 export type PillState = z.infer<typeof PillStateSchema>
+
+/** What each of a content script's questions is answered with. */
+export interface PageReplies {
+  pillState: PillState
+  pillImport: PillState
+  owned: Owned
+}
 
 export const EnvelopeSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: z.unknown() }),
@@ -247,10 +270,10 @@ export function serve(
 
 /**
  * The worker's side of the content script's channel: the same envelope, a much
- * smaller question, and a reply that says only what the pill draws.
+ * smaller question, and a reply that says only what the pill or a row's check draws.
  */
 export function servePage(
-  handle: (request: PageRequest) => Promise<PillState>,
+  handle: (request: PageRequest) => Promise<PageReplies[PageRequest['type']]>,
   explain: (error: unknown) => { message: string; status: number },
 ): void {
   chrome.runtime.onMessage.addListener(

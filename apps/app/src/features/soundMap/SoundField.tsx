@@ -24,12 +24,12 @@ const RING_AFTER_MS = 90
  * The sound map's field (docs/features/sound-map.md): the sky, and the
  * gestures over it.
  *
- * One finger moves the map and pinching zooms it, as on any map; a double
- * tap zooms in. A tap plays what is there. Holding still for a moment, then
+ * One finger moves the map and pinching zooms it, as on any map; a flick
+ * carries it on, and a double tap zooms in. A tap plays what is there. Holding still for a moment, then
  * dragging, draws: a ring fills under the finger, a light tap of the phone's
  * engine says drawing has begun. `armed` — the pen, or Shift on a computer —
  * makes the next drag draw at once, and moving takes two fingers meanwhile.
- * A computer's wheel moves it, and a pinch or ⌘-scroll zooms.
+ * A trackpad's two fingers move it; a mouse's wheel, a pinch or ⌘-scroll zooms.
  */
 export function SoundField({
   control,
@@ -154,12 +154,13 @@ export function SoundField({
       .runOnJS(true)
       .onStart(event => control.panStart(event.translationX, event.translationY))
       .onUpdate(event => control.panMove(event.translationX, event.translationY))
+      .onEnd(event => control.panEnd(event.velocityX, event.velocityY))
       .onFinalize(() => control.gestureEnd())
     const pinch = Gesture.Pinch()
       .runOnJS(true)
       .onStart(() => control.pinchStart())
       .onUpdate(event => control.pinchMove(event.scale, event.focalX, event.focalY))
-      .onEnd(() => control.gestureEnd())
+      .onEnd(() => control.pinchEnd())
     return Gesture.Race(draw, Gesture.Simultaneous(pinch, move), Gesture.Exclusive(doubleTap, tap))
   }, [control, armed])
 

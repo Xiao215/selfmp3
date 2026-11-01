@@ -255,29 +255,59 @@ export function panBy(view: MapView, dx: number, dy: number): MapView {
 }
 
 /**
+ * The view moved back, if need be, so the songs are not left off screen: the
+ * middle of what the page leaves clear stays over the part of the map the
+ * songs are in, as a map keeps you from dragging it away into nothing. Until
+ * 2026-10-31 a drag or a flick could leave an empty sky, with no way back but
+ * the button.
+ */
+export function heldOn(
+  view: MapView,
+  field: FieldSize,
+  bounds: MapBounds,
+  insets: FieldInsets = NO_INSETS,
+): MapView {
+  const base = baseOf(field)
+  const a = toScreen(view, base, { x: bounds.x0, y: bounds.y0 })
+  const b = toScreen(view, base, { x: bounds.x1, y: bounds.y1 })
+  const middle = {
+    x: (field.width - insets.right) / 2,
+    y: insets.top + (field.height - insets.top - insets.bottom) / 2,
+  }
+  const into = (at: number, low: number, high: number): number =>
+    at < low ? at - low : at > high ? at - high : 0
+  const dx = into(middle.x, Math.min(a.x, b.x), Math.max(a.x, b.x))
+  const dy = into(middle.y, Math.min(a.y, b.y), Math.max(a.y, b.y))
+  return dx === 0 && dy === 0 ? view : { ...view, x: view.x + dx, y: view.y + dy }
+}
+
+/** How quickly a flick slows: its speed is kept at this share each millisecond, as a phone's lists slow. */
+const FLING_KEEP = 0.997
+/** A flick slower than this, in points a millisecond, is a release, not a throw. */
+export const FLING_LEAST = 0.25
+
+/**
+ * How far a flick has carried the map `ms` after the finger let go at
+ * `velocity` points a millisecond, slowing all the while; and whether it has
+ * stopped.
+ */
+export function flung(
+  velocity: { x: number; y: number },
+  ms: number,
+): { x: number; y: number; done: boolean } {
+  const tau = -1 / Math.log(FLING_KEEP)
+  const share = 1 - Math.pow(FLING_KEEP, ms)
+  const speed = Math.hypot(velocity.x, velocity.y) * Math.pow(FLING_KEEP, ms)
+  return { x: velocity.x * tau * share, y: velocity.y * tau * share, done: speed < 0.02 }
+}
+
+/**
  * A tile's side on screen at a scale: small when the whole library is in
  * view, growing as you zoom in, but more slowly than the songs spread apart,
  * so zooming in opens gaps between them.
  */
 export function tileSide(scale: number): number {
   return Math.min(64, Math.max(7, 8 * Math.pow(scale, 0.6)))
-}
-
-/** The part of the map on screen, 0–1, with a tile's width of margin. */
-export function visibleRect(
-  view: MapView,
-  base: number,
-  field: FieldSize,
-): { x0: number; y0: number; x1: number; y1: number } {
-  const margin = tileSide(view.scale)
-  const a = toMap(view, base, { x: -margin, y: -margin })
-  const b = toMap(view, base, { x: field.width + margin, y: field.height + margin })
-  return {
-    x0: Math.min(a.x, b.x),
-    y0: Math.min(a.y, b.y),
-    x1: Math.max(a.x, b.x),
-    y1: Math.max(a.y, b.y),
-  }
 }
 
 /** How far from a drawn path a song may be to be taken: about a finger's width on screen. */

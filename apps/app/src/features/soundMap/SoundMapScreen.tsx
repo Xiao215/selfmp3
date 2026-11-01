@@ -4,6 +4,7 @@ import { View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg'
 import { StyleSheet, ScopedTheme } from 'react-native-unistyles'
 import { plural, type MapPlace } from '@selfmp3/shared'
 import {
@@ -39,6 +40,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { pageFrame } from '../../ui/surfaces'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { useSvgId } from '../../ui/useSvgId'
 import { ScrollView } from '../../ui/components/Scroll'
 import { showFailure, showToast, showUndoToast } from '../../ui/toast'
 import { newPlaylist } from '../playlists/playlists.model'
@@ -438,6 +440,10 @@ export function SoundMapScreen(): ReactNode {
               />
             </View>
 
+            {head > 0 ? (
+              <HeadScrim height={head} beside={panel ? TRAY_PANEL_WIDTH + space.md : 0} />
+            ) : null}
+
             <SafeAreaView
               edges={['top']}
               style={[styles.top, panel && styles.topBesidePanel]}
@@ -586,11 +592,40 @@ export function SoundMapScreen(): ReactNode {
   )
 }
 
+/** How far under the page's head its scrim fades out. */
+const SCRIM_FADE = 40
+
+/**
+ * A night fading in under the page's head, so a cover or a bright star that
+ * moves under the name and the tag chips never sits behind them as if it
+ * were part of them, as the head of a map over its tiles does (2026-10-31:
+ * open covers ran behind "Sound map").
+ */
+function HeadScrim({ height, beside }: { height: number; beside: number }): ReactNode {
+  const id = useSvgId('soundmaphead')
+  const total = height + SCRIM_FADE
+  return (
+    <View pointerEvents="none" style={[styles.scrim, { height: total, right: beside }]}>
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#04050b" stopOpacity={0.88} />
+            <Stop offset={String(height / total)} stopColor="#04050b" stopOpacity={0.62} />
+            <Stop offset="1" stopColor="#04050b" stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill={`url(#${id})`} />
+      </Svg>
+    </View>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: '#04050b' },
   empty: { flex: 1, backgroundColor: theme.colors.surface0 },
   emptyHead: { padding: space.md },
   top: { position: 'absolute', left: 0, right: 0, top: 0 },
+  scrim: { position: 'absolute', left: 0, top: 0 },
   head: { gap: space.md },
   chipRowPhone: { flexGrow: 0, marginHorizontal: -space.gutter },
   chipRowWide: { flexGrow: 0, marginHorizontal: -space.gutterWide },

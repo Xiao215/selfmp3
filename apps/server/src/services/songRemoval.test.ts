@@ -8,6 +8,7 @@ import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
+import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
 import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
@@ -33,6 +34,7 @@ describe('SongRemovalService', () => {
   let db: Database.Database
   let songs: SongRepository
   let tags: TagRepository
+  let playlists: PlaylistRepository
   let search: LyricsSearchRepository
   let cloud: CloudRepository
   let lyricsCache: LyricsCache
@@ -48,6 +50,7 @@ describe('SongRemovalService', () => {
     migrate(db, logger)
     songs = new SongRepository(db)
     tags = new TagRepository(db)
+    playlists = new PlaylistRepository(db)
     search = new LyricsSearchRepository(db)
     cloud = new CloudRepository(db)
     const storage = new LocalStorageDriver(path.join(root, 'library'))
@@ -60,6 +63,7 @@ describe('SongRemovalService', () => {
       storage,
       songs,
       tags,
+      playlists,
       cloud,
       lyrics,
       covers,
@@ -156,6 +160,36 @@ describe('SongRemovalService', () => {
       expect(tags.all().map(tag => tag.name)).toEqual(['loud', 'new'])
       expect(songs.byId(two.id)).not.toBeNull()
       expect(changes).toBe(1)
+    })
+
+    it('takes a kept playlist out with the last song it had, for good', async () => {
+      const one = addSong('A - One')
+      const two = addSong('B - Two')
+      const only = playlists.create({ name: 'Only one', description: '', kind: 'manual' }, [one.id])
+      const both = playlists.create({ name: 'Both', description: '', kind: 'manual' }, [
+        one.id,
+        two.id,
+      ])
+      // Made a moment ago and not filled yet: not the removal's to take.
+      playlists.create({ name: 'New', description: '', kind: 'manual' })
+      // Emptied, but an import is on its way to fill it.
+      const waiting = playlists.create({ name: 'Waiting', description: '', kind: 'manual' }, [
+        one.id,
+      ])
+      db.prepare(
+        "INSERT INTO import_jobs (id, url, status, playlist_id) VALUES ('j', 'https://x', 'queued', ?)",
+      ).run(waiting.id)
+      const onlyUid = (
+        db.prepare('SELECT uid FROM playlists WHERE id = ?').get(only.id) as { uid: string }
+      ).uid
+
+      await removal.remove([one.id])
+
+      expect(playlists.byId(only.id)).toBeNull()
+      expect(playlists.all().map(playlist => playlist.name)).toEqual(['Both', 'New', 'Waiting'])
+      expect(playlists.songIds(both)).toEqual([two.id])
+      // Noted, so the bucket's older snapshot does not bring it back (migration 58).
+      expect(cloud.wasPlaylistRemoved(onlyUid)).toBe(true)
     })
 
     it('deletes the copy on disk, its sidecar and the folder they were in', async () => {
@@ -296,6 +330,7 @@ describe('SongRemovalService', () => {
         storage,
         songs,
         tags,
+        playlists,
         cloud,
         lyrics,
         covers: new CoverService(config, songs, logger),

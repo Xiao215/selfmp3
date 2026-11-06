@@ -75,6 +75,8 @@ export class PlaylistRepository {
   readonly #byId
   readonly #insert
   readonly #delete
+  readonly #keptHolding
+  readonly #deleteIfEmpty
   readonly #items
   readonly #maxPosition
   readonly #insertItem
@@ -105,6 +107,21 @@ export class PlaylistRepository {
     `)
 
     this.#delete = db.prepare('DELETE FROM playlists WHERE id = ?')
+    this.#keptHolding = db.prepare<[number], { id: number }>(`
+      SELECT i.playlist_id AS id
+        FROM playlist_items i JOIN playlists p ON p.id = i.playlist_id
+       WHERE i.song_id = ? AND p.kind = 'manual'
+    `)
+    // Migration 58's rule, one playlist at a time.
+    this.#deleteIfEmpty = db.prepare(`
+      DELETE FROM playlists
+       WHERE id = ? AND kind = 'manual'
+         AND NOT EXISTS (SELECT 1 FROM playlist_items i WHERE i.playlist_id = playlists.id)
+         AND NOT EXISTS (
+               SELECT 1 FROM import_jobs j
+                WHERE j.playlist_id = playlists.id AND j.status IN ('queued', 'running', 'error')
+             )
+    `)
 
     this.#items = db.prepare<[number], { song_id: number }>(`
       SELECT song_id
@@ -381,6 +398,25 @@ export class PlaylistRepository {
 
   delete(id: number): void {
     this.#delete.run(id)
+  }
+
+  /** The kept playlists any of these songs are on: the ones taking them out may empty. */
+  keptHolding(songIds: readonly number[]): number[] {
+    const ids = new Set<number>()
+    for (const songId of songIds) {
+      for (const row of this.#keptHolding.all(songId)) ids.add(row.id)
+    }
+    return [...ids]
+  }
+
+  /**
+   * Delete those of these kept playlists left with no songs: one exists once
+   * it has a song (migration 58). A live one stays, its rules may match songs
+   * later, and so does one an import has yet to fill. Each deleted is noted in
+   * `removed_playlists` by the database itself. The ids deleted.
+   */
+  deleteIfEmpty(ids: readonly number[]): number[] {
+    return ids.filter(id => this.#deleteIfEmpty.run(id).changes > 0)
   }
 
   /**

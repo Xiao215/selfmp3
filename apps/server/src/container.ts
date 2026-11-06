@@ -496,6 +496,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
         tagRemoval.remove(id)
       },
     },
+    playlists,
     cloud: cloudRepo,
     lyrics,
     covers,

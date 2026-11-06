@@ -2012,6 +2012,7 @@ describe('CloudSyncService', () => {
         storage,
         songs,
         tags,
+        playlists,
         cloud,
         lyrics: new LyricsService(storage, logger, () => Promise.reject(new Error('offline'))),
         covers,

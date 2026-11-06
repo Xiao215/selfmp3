@@ -8,6 +8,7 @@ import {
   noSongsProblem,
   playlistPatchProblem,
   playlistSongsProblem,
+  playlistsEmptiedBy,
   tagFlips,
   tagsAfter,
   tagNamed,
@@ -163,7 +164,9 @@ export function tagSongs(
  * Out of the library, on every device — with each tag only these songs had,
  * as the server's own removal takes them (`tagsEmptiedBy`). Those go as
  * `tagEmptied`, not `tagRemoved`: another device may be putting one on a song
- * this one has not heard of, and then it stays.
+ * this one has not heard of, and then it stays. Each kept playlist only these
+ * songs were on goes too (`playlistsEmptiedBy`), as taking its last song out
+ * of it deletes it.
  */
 export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
   const known = knownSongs(ctx, ids)
@@ -171,10 +174,16 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
     ctx.view.library.tags,
     known.flatMap(([id]) => ctx.view.byId.songs.get(id) ?? []),
   )
+  const playlists = playlistsEmptiedBy(
+    ctx.view.library.playlists,
+    ctx.view.playlistSongs,
+    known.map(([id]) => id),
+  )
   return [
     ...known.map(([, uid]) => ({ type: 'songRemoved' as const, hlc: ctx.stamp(), uid })),
     ...lettingGoOf(ctx, emptied, new Set(known.map(([, uid]) => uid))),
     ...emptied.map(id => ({ type: 'tagEmptied' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
+    ...playlists.flatMap(id => removePlaylist(ctx, id)),
   ]
 }
 

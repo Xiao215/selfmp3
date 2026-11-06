@@ -198,3 +198,27 @@ export function tagsEmptiedBy(
     .filter(tag => tag.songCount > 0 && (losing.get(tag.id) ?? 0) >= tag.songCount)
     .map(tag => tag.id)
 }
+
+/**
+ * The kept playlists that removing these songs leaves with none: those whose
+ * every song is among them. A kept playlist exists once it has a song and
+ * goes with its last one (server migration 58), so a song removed from the
+ * library takes it too, everywhere — as its own `playlistRemoved` in the log,
+ * as the server's own removal deletes it. One with no songs to begin with is
+ * not among them: one just made is yours to fill. Nor is a live one, whose
+ * rules may match songs later.
+ */
+export function playlistsEmptiedBy(
+  playlists: readonly { readonly id: number; readonly kind: string }[],
+  songsOf: Readonly<Record<number, readonly number[]>>,
+  removed: readonly number[],
+): number[] {
+  const gone = new Set(removed)
+  return playlists
+    .filter(playlist => {
+      if (playlist.kind !== 'manual') return false
+      const songIds = songsOf[playlist.id] ?? []
+      return songIds.length > 0 && songIds.every(id => gone.has(id))
+    })
+    .map(playlist => playlist.id)
+}

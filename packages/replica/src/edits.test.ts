@@ -170,9 +170,24 @@ describe('editing songs', () => {
       ['tagEmptied', uid('1')],
     ])
     expect(d.apply(changes).library.tags.map(tag => tag.name)).toEqual(['rain'])
+    // No tag goes with song b; the playlist it is now the last song of does.
     expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'b')]).map(c => c.type)).toEqual([
       'songRemoved',
+      'playlistRemoved',
     ])
+  })
+
+  // R6D-1: the playlist stayed at 0 songs on every device, as one emptied on a server did.
+  it('takes a kept playlist out with its last songs, and no playlist they leave songs in', () => {
+    const d = device()
+    expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')]).map(c => c.type)).toEqual([
+      'songRemoved',
+      'tagEmptied',
+    ])
+    const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a'), d.idOf('songs', 'b')])
+    expect(changes.filter(c => c.type === 'playlistRemoved').map(c => c.uid)).toEqual([uid('7')])
+    // The live one stays: its rules may match songs later.
+    expect(d.apply(changes).library.playlists.map(p => p.name)).toEqual(['Loved'])
   })
 
   // R3-M7: the tag went everywhere, and the song tagged with it lost it.

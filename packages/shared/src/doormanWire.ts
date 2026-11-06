@@ -239,6 +239,8 @@ export const DOORMAN_PATHS = {
   rooms: ROOMS,
   shared: SHARED,
   share: SHARE,
+  /** Files that left your bucket: your links that lend one say so (`ShareGone`). */
+  shareGone: `${SHARE}/gone`,
 
   /** One page of a folder: `/v1/list?prefix=log/&cursor=…`. */
   listing: (prefix: string, cursor?: string | null): string =>

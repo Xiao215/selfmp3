@@ -7,6 +7,7 @@ import {
   ShareActionSchema,
   ShareAskBodySchema,
   ShareCreateSchema,
+  ShareGoneSchema,
   ShareIdSchema,
   ShareLinkSchema,
   ShareSummarySchema,
@@ -30,7 +31,7 @@ import {
   type IdIndex,
 } from './doRelay.js'
 import { secureHex, sha256Hex } from './encoding.js'
-import { json, methodNotAllowed, notFound, readJson } from './http.js'
+import { json, methodNotAllowed, noContent, notFound, readJson } from './http.js'
 import { facePicture, type Session } from './sessions.js'
 import { YOURS_HEADER } from './share.js'
 
@@ -180,6 +181,14 @@ export async function share(ctx: Context): Promise<Response> {
     return list(ctx, await requireSession(ctx), 'in')
   }
 
+  if (parts.length === 1 && parts[0] === 'gone') {
+    if (method !== 'POST') return methodNotAllowed(['POST'])
+    const session = await requireSession(ctx)
+    const body = await readJson(ctx.request, ShareGoneSchema)
+    await goneFromBucket(ctx, session.sub, body.keys)
+    return noContent()
+  }
+
   const id = ShareIdSchema.safeParse(parts[0])
   if (!id.success) throw notFound('no such link')
   const object = shareObject(ctx, id.data)
@@ -297,6 +306,28 @@ async function forgetIfUnused(ctx: Context, sub: string, id: string): Promise<vo
   const gone = await object.fetch('https://share/act', post({ sub, action: { type: 'forget' } }))
   await gone.body?.cancel()
   if (gone.ok) await linkIndex(ctx, 'out', sub).forget(id)
+}
+
+/**
+ * `POST /v1/share/gone`: files its sender deleted from their bucket. Every
+ * link they sent is told at once, as their list of links asks them all, and
+ * each marks gone the songs it lends those files of: a link whose songs all
+ * went has ended, and says so before anyone presses Play. One the link no
+ * longer knows comes off the list, as it would there.
+ */
+async function goneFromBucket(ctx: Context, sub: string, keys: readonly string[]): Promise<void> {
+  const index = linkIndex(ctx, 'out', sub)
+  const answers = await Promise.all(
+    (await index.ids()).map(async id => {
+      const answer = await shareObject(ctx, id).fetch(
+        'https://share/files-gone',
+        post({ sub, keys }),
+      )
+      await answer.body?.cancel()
+      return { id, forgotten: answer.status === 403 || answer.status === 404 }
+    }),
+  )
+  await index.forget(...answers.filter(each => each.forgotten).map(each => each.id))
 }
 
 /**

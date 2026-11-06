@@ -9,6 +9,7 @@ import {
   DoormanGrantMadeSchema,
   DoormanListSchema,
   DoormanMeSchema,
+  SHARE_GONE_MOST,
   doormanRequest,
   parseChangesHeader,
   type CloudConnect,
@@ -238,6 +239,17 @@ class DoormanCloudStore implements CloudStore {
       allowStatus: [404],
     })
     this.#noteOwnMove(response)
+  }
+
+  async unlend(keys: readonly string[]): Promise<void> {
+    for (let at = 0; at < keys.length; at += SHARE_GONE_MOST) {
+      const response = await this.#doorman.request('POST', DOORMAN_PATHS.shareGone, {
+        token: this.#token,
+        body: Buffer.from(JSON.stringify({ keys: keys.slice(at, at + SHARE_GONE_MOST) })),
+        headers: { 'Content-Type': 'application/json' },
+      })
+      await response.body?.cancel()
+    }
   }
 
   async changes(): Promise<string | null> {

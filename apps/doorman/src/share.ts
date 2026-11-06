@@ -8,6 +8,7 @@ import {
   RoomSongSchema,
   ShareActionSchema,
   ShareDocSchema,
+  ShareGoneSchema,
   ShareLineSchema,
   ShareNameSchema,
   applyShareAction,
@@ -174,6 +175,7 @@ const AskSchema = z.object({
 })
 const PlayedSchema = z.object({ entry: RoomIdSchema, fromStart: z.boolean() })
 const GoneSchema = z.object({ entry: RoomIdSchema })
+const FilesGoneSchema = z.object({ sub: SubSchema, keys: ShareGoneSchema.shape.keys })
 const ActSchema = z.object({ sub: SubSchema, action: ShareActionSchema })
 const SongsSchema = z.object({
   sub: SubSchema,
@@ -240,6 +242,8 @@ export class Share {
           return await this.#played(PlayedSchema.parse(await request.json()))
         case 'POST /gone':
           return await this.#gone(GoneSchema.parse(await request.json()))
+        case 'POST /files-gone':
+          return await this.#filesGone(FilesGoneSchema.parse(await request.json()))
         case 'POST /ask':
           return await this.#ask(AskSchema.parse(await request.json()))
         case 'POST /act':
@@ -385,6 +389,28 @@ export class Share {
     const found = await this.#found()
     if (!found) return MISSING()
     const next = shareGone(found.doc, input.entry, this.#runtime.now())
+    if (next !== found.doc) await this.#save(next, found.secrets)
+    return new Response(null, { status: 204 })
+  }
+
+  /**
+   * Its sender deleted these files from their bucket: every song whose audio
+   * is one of them is gone now, before anyone presses Play and finds out.
+   * Another account's word for it counts for nothing.
+   */
+  async #filesGone(input: z.infer<typeof FilesGoneSchema>): Promise<Response> {
+    const found = await this.#found()
+    if (!found) return MISSING()
+    if (input.sub !== found.secrets.owner) {
+      return answer(403, DOORMAN_ERROR.shareForbidden, 'that link is not one of yours')
+    }
+    const deleted = new Set(input.keys)
+    const now = this.#runtime.now()
+    let next = found.doc
+    for (const entry of found.doc.entries) {
+      const audio = keyOf(entry.song, 'audio')
+      if (audio !== null && deleted.has(audio)) next = shareGone(next, entry.id, now)
+    }
     if (next !== found.doc) await this.#save(next, found.secrets)
     return new Response(null, { status: 204 })
   }

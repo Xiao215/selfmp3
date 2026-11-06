@@ -2364,6 +2364,38 @@ describe('CloudSyncService', () => {
       expect(cloud.hasFile(`audio/${sha('one')}.m4a`)).toBe(false)
     })
 
+    it('tells the share links that lend a removed song’s audio, once it is deleted', async () => {
+      const service = lettingGo()
+      const gone = addSong('A - One', 'one')
+      addSong('B - Two', 'two')
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      expect(bucket.unlent).toEqual([])
+
+      await removalService().remove([gone])
+      expect(bucket.unlent).toEqual([])
+      await service.syncNow()
+
+      // Its audio only: a link's song is gone when its audio is.
+      expect(bucket.unlent).toEqual([[`audio/${sha('one')}.m4a`]])
+    })
+
+    it('still finishes the pass when the doorman will not hear of it', async () => {
+      const service = lettingGo()
+      const gone = addSong('A - One', 'one')
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      // A doorman from before `/v1/share/gone` takes `gone` for a link's id.
+      bucket.unlend = () => Promise.reject(new CloudError('other', 'no such link'))
+
+      await removalService().remove([gone])
+      await service.syncNow()
+
+      expect(bucket.keys('audio/')).toEqual([])
+      expect(cloud.trashedKeys()).toEqual([])
+      expect(service.status().lastError).toBeNull()
+    })
+
     it('does not take a removed song back from the bucket when told to look again', async () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'one')

@@ -15,6 +15,7 @@ import { MemberPictureSchema, RoomIdSchema, RoomMemberNameSchema, RoomSongSchema
  *   GET  /v1/share/<id>/files/<entry>/<part>?k=<key>    → the file
  *   POST /v1/share/<id>/ask?k=<key>        ShareAsk     → ShareLink        ask its sender again
  *   POST /v1/share/<id>/act                ShareAction  → ShareLink | 204  (signed in)
+ *   POST /v1/share/gone                    ShareGone    → 204              your files that left your bucket
  *
  * The key is what opens it: the id alone lets nobody in. It rides in the
  * query for the reason a room's token does — an audio element cannot send a
@@ -179,6 +180,19 @@ export type ShareCreate = z.infer<typeof ShareCreateSchema>
 /** Asking for it again: a guest gives a name; a session's own name is used when there is one. */
 export const ShareAskBodySchema = z.object({ name: RoomMemberNameSchema })
 export type ShareAskBody = z.infer<typeof ShareAskBodySchema>
+
+/** The most files one `POST /v1/share/gone` names; a server with more sends them in turns. */
+export const SHARE_GONE_MOST = 500
+
+/**
+ * Files deleted from the sender's bucket, by key: the server says so once it
+ * has emptied its trash, and every link of theirs that lends one of them
+ * marks that song gone at once, rather than when someone next presses Play.
+ */
+export const ShareGoneSchema = z.object({
+  keys: z.array(z.string().min(1).max(300)).min(1).max(SHARE_GONE_MOST),
+})
+export type ShareGone = z.infer<typeof ShareGoneSchema>
 
 export const ShareActionSchema = z.discriminatedUnion('type', [
   /** The sender's: shared again, the same link, its month from now. Answers its asks. */

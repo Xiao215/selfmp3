@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Image,
@@ -71,6 +71,7 @@ import {
 import { ShareSong, SongStill, useShareStage } from './ShareSong'
 import { CoverRail, listSummary, RAIL_WIDTH, UpNext } from './ShareRail'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
+import { useAskAgainWhenBack } from './useAskAgainWhenBack'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
 import { useOwnCover } from './useOwnCover'
@@ -112,16 +113,8 @@ export function ShareLinkScreen(): ReactNode {
   const { status } = useConnection()
   const { data: link, isLoading, isFetching, error, refetch } = useShareLink(id, key)
   const online = useOnline()
-
-  // Back online, a link that could not be reached is asked for again: a page
-  // opened with no network has its queries think they were online all along,
-  // so they never ask again by themselves.
-  const wasOnline = useRef(online)
-  useEffect(() => {
-    const back = online && !wasOnline.current
-    wasOnline.current = online
-    if (back && !link) void refetch()
-  }, [online, link, refetch])
+  const trouble = link ? null : linkTrouble(id, key, error)
+  useAskAgainWhenBack(trouble === 'unreachable' && !isFetching, () => void refetch())
 
   if (!link) {
     if (isLoading || (status === 'loading' && id && key)) {
@@ -133,7 +126,7 @@ export function ShareLinkScreen(): ReactNode {
     }
     return (
       <GoneLink
-        trouble={linkTrouble(id, key, error)}
+        trouble={trouble ?? 'unreachable'}
         signedIn={status === 'ready'}
         offline={!online}
         onRetry={() => void refetch()}

@@ -224,7 +224,8 @@ is left to draw, so the page shows an empty sleeve, its record half out, in the 
 page (`GoneLink`). A link cut short when it was copied gets the same page with a torn sleeve.
 Only the doorman's own answer that there is no such link (404, 410) says so: with no network,
 or the doorman failing or busy, the same page has its sleeve whole and says _Can't reach this
-link_ (or _You're offline_) with Try again, and asks again by itself once the network is back.
+link_ (in a browser with no network, _You're offline_) with Try again, and asks again by itself
+once the network is back or the app comes back to the front.
 Agreed with Xiao on 2026-10-24
 ([proposal](https://claude.ai/artifact/6nN1BsomzspYT3CWTUuhW9), picks A1 B1 D, no extra
 way on).

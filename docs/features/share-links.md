@@ -134,7 +134,9 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
   move the cue). The wash and the words follow the song.
   - **Opening on a song.** The address can name one of its songs, `?s=<entry>`, and the
     page opens on it instead of the first. The address follows the page's song (as Now
-    Playing's names its song), so in a browser a copied address opens where it was. Shared
+    Playing's names its song), so in a browser a copied address opens where it was. A song
+    its sender has since removed opens the list on its first, saying _“<song>” was removed
+    from this list_. Shared
     while one of the list's songs plays, the sheet offers _Open on <song>_, on by default;
     the doorman carries the `s` on to the app, and a chat's card shows that song's cover.
   - **On a computer** the songs are a rail of covers down the window's left edge, 76 points
@@ -220,6 +222,9 @@ after the link ends (`SHARE_KEPT_MS`), then forgets the link entirely. A forgott
 page says _This link is gone_ and asks the reader to have it shared again. Nothing of the link
 is left to draw, so the page shows an empty sleeve, its record half out, in the middle of the
 page (`GoneLink`). A link cut short when it was copied gets the same page with a torn sleeve.
+Only the doorman's own answer that there is no such link (404, 410) says so: with no network,
+or the doorman failing or busy, the same page has its sleeve whole and says _Can't reach this
+link_ (or _You're offline_) with Try again, and asks again by itself once the network is back.
 Agreed with Xiao on 2026-10-24
 ([proposal](https://claude.ai/artifact/6nN1BsomzspYT3CWTUuhW9), picks A1 B1 D, no extra
 way on).

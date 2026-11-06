@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Image,
@@ -11,7 +11,6 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
-  DoormanError,
   formatLongDuration,
   hasColour,
   plural,
@@ -32,6 +31,7 @@ import {
   yoursOf,
 } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { useOnline } from '../../offline/useOnline'
 import { usePlayerCommands, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
@@ -60,6 +60,8 @@ import { useGetSongs } from '../room/useGetSongs'
 import { GoneLink } from './GoneLink'
 import {
   gettable,
+  goneAskedFor,
+  linkTrouble,
   shareHeadLine,
   shareStage,
   shareStartOf,
@@ -108,7 +110,18 @@ export function ShareLinkScreen(): ReactNode {
   const id = ShareIdSchema.safeParse(params.id ?? '').success ? (params.id ?? null) : null
   const key = ShareKeySchema.safeParse(params.key ?? '').success ? (params.key ?? null) : null
   const { status } = useConnection()
-  const { data: link, isLoading, error } = useShareLink(id, key)
+  const { data: link, isLoading, isFetching, error, refetch } = useShareLink(id, key)
+  const online = useOnline()
+
+  // Back online, a link that could not be reached is asked for again: a page
+  // opened with no network has its queries think they were online all along,
+  // so they never ask again by themselves.
+  const wasOnline = useRef(online)
+  useEffect(() => {
+    const back = online && !wasOnline.current
+    wasOnline.current = online
+    if (back && !link) void refetch()
+  }, [online, link, refetch])
 
   if (!link) {
     if (isLoading || (status === 'loading' && id && key)) {
@@ -118,8 +131,15 @@ export function ShareLinkScreen(): ReactNode {
         </SafeAreaView>
       )
     }
-    const wrongKey = !key || (error instanceof DoormanError && error.status === 403)
-    return <GoneLink torn={!id || wrongKey} signedIn={status === 'ready'} />
+    return (
+      <GoneLink
+        trouble={linkTrouble(id, key, error)}
+        signedIn={status === 'ready'}
+        offline={!online}
+        onRetry={() => void refetch()}
+        retrying={isFetching}
+      />
+    )
   }
   return <LinkPage link={link} s={params.s} t={params.t} />
 }
@@ -196,6 +216,12 @@ function LinkPage({
       entries.findIndex(entry => entry.id === s),
     ),
   )
+  // A song the address names that its sender has since removed: the list
+  // opens on its first, and says why, once.
+  const goneTitle = goneAskedFor(link, s)?.song.title ?? null
+  useEffect(() => {
+    if (goneTitle) showToast(`“${goneTitle}” was removed from this list`)
+  }, [goneTitle])
   // Kept on the song playing, so the page stays on it once the list stops.
   // Adjusted during render, as React has a value follow another.
   if (playingAt !== undefined && playingAt !== cued) setCued(playingAt)

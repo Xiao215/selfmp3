@@ -28,6 +28,16 @@ export function fullDiskProblem(
   return `the disk holding ${dir} is full (${free} bytes free): free some space there and start the server again`
 }
 
+/**
+ * Whether an error is a write the disk had no room for: SQLite's
+ * SQLITE_FULL ("database or disk is full"), or ENOSPC from a file's own.
+ * Worth trying again once space frees, unlike a file that will not read.
+ */
+export function isDiskFull(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code
+  return code === 'SQLITE_FULL' || code === 'ENOSPC'
+}
+
 /** The room kept aside in the data folder to start in on a full disk (`keepRoomToStart`). */
 const ROOM_TO_START_BYTES = 16 * 1024 * 1024
 /** The file that holds it: no database's, so a backup leaves it out (cli/backup.ts). */

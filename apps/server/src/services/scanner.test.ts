@@ -617,3 +617,47 @@ describe('a cover that could not be kept', () => {
     }
   })
 })
+
+/**
+ * A song whose file came in while the disk was full. Its row could not be
+ * written, and the file does not change after, so no watch event comes to say
+ * look again: the scanner has to come back for it by itself once there may be
+ * room, the way it does for a cover (bug bash R6D-4).
+ */
+describe('a song that could not be added for a full disk', () => {
+  it('is added by a sweep the scanner brings back by itself', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { songs, scanner } = build(['A - One.m4a'])
+    const disk = { full: true }
+    const insert = songs.insert.bind(songs)
+    songs.insert = (song: Parameters<SongRepository['insert']>[0]) => {
+      if (disk.full) throw new Database.SqliteError('database or disk is full', 'SQLITE_FULL')
+      return insert(song)
+    }
+    try {
+      expect(await scanner.scan()).toMatchObject({ added: 0 })
+      disk.full = false
+
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      await vi.waitFor(() => expect(songs.byPath('A - One.m4a')).not.toBeNull())
+    } finally {
+      scanner.stop()
+      vi.useRealTimers()
+    }
+  })
+
+  it('is not come back for when it is just a file that will not read', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { scanner } = build([BAD])
+    const scan = vi.spyOn(scanner, 'scan')
+    try {
+      await scanner.scan()
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(scan).toHaveBeenCalledTimes(1)
+    } finally {
+      scanner.stop()
+      vi.useRealTimers()
+    }
+  })
+})

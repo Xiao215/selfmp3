@@ -202,11 +202,11 @@ export function tagsEmptiedBy(
 /**
  * The kept playlists that removing these songs leaves with none: those whose
  * every song is among them. A kept playlist exists once it has a song and
- * goes with its last one (server migration 58), so a song removed from the
- * library takes it too, everywhere — as its own `playlistRemoved` in the log,
- * as the server's own removal deletes it. One with no songs to begin with is
- * not among them: one just made is yours to fill. Nor is a live one, whose
- * rules may match songs later.
+ * goes with its last one (server migration 58), wherever that song is taken
+ * out from — as `playlistEmptied` in the log, as the server's own removal lets
+ * it go, so another device filling it meanwhile keeps it. One with no songs to
+ * begin with is not among them: one just made is yours to fill. Nor is a live
+ * one, whose rules may match songs later.
  */
 export function playlistsEmptiedBy(
   playlists: readonly { readonly id: number; readonly kind: string }[],

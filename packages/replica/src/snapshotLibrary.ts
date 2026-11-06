@@ -68,6 +68,11 @@ export interface CloudLibrary {
     readonly tags: ReadonlyMap<number, Tag>
     readonly playlists: ReadonlyMap<number, Playlist>
   }
+  /**
+   * Kept playlists that went with their last songs (`playlistEmptied`), by
+   * the id they had here, to their uid: a song put in one brings it back.
+   */
+  readonly emptiedPlaylists: ReadonlyMap<number, string>
   /** The uid behind each id in this library, for turning an edit into a change. */
   readonly uids: {
     readonly songs: ReadonlyMap<number, string>
@@ -183,6 +188,14 @@ export function snapshotToLibrary(
     }
   })
 
+  // Before the ids are handed back: each keeps the id it had while it was here.
+  const emptiedPlaylists = new Map(
+    (snapshot.emptiedPlaylists ?? []).map(playlist => [
+      idFor(playlists, playlist.uid),
+      playlist.uid,
+    ]),
+  )
+
   return {
     library: {
       songs: librarySongs,
@@ -228,6 +241,7 @@ export function snapshotToLibrary(
       tags: new Map(libraryTags.map(tag => [tag.id, tag])),
       playlists: new Map(libraryPlaylists.map(playlist => [playlist.id, playlist])),
     },
+    emptiedPlaylists,
     uids: {
       songs: flip(songIdOf),
       tags: flip(tagIdOf),

@@ -122,6 +122,17 @@ export const PlaylistEditedSchema = z.object({
 
 export const PlaylistRemovedSchema = z.object({ type: z.literal('playlistRemoved'), ...at })
 
+/**
+ * A kept playlist's last songs were taken out of it, or out of the library,
+ * so it goes with them — unless it has a song by the time this is applied.
+ * As `tagEmptied` is for a tag: another device may be filling it that very
+ * moment, so a playlist gone this way is kept aside (the snapshot's
+ * `emptiedPlaylists`) and comes back when a song is put in it, whenever that
+ * change arrives — if it would have won over that song's own taking out.
+ * Only `playlistRemoved`, which someone asked for, is for good.
+ */
+export const PlaylistEmptiedSchema = z.object({ type: z.literal('playlistEmptied'), ...at })
+
 /** A song put into a manual playlist (at the end) or taken out of it. */
 export const PlaylistSongSchema = z.object({
   type: z.literal('playlistSong'),
@@ -199,6 +210,7 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   PlaylistCreatedSchema,
   PlaylistEditedSchema,
   PlaylistRemovedSchema,
+  PlaylistEmptiedSchema,
   PlaylistSongSchema,
   PlaylistOrderedSchema,
   PlaylistUnfollowedSchema,

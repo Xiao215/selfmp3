@@ -273,7 +273,7 @@ export class CloudIngest {
       }
 
       case 'playlistCreated': {
-        if (this.#sync.playlist(change.uid)) return false
+        if (this.#sync.playlist(change.uid) || this.#playlists.emptied(change.uid)) return false
         this.#playlists.insertSynced({
           uid: change.uid,
           name: change.name,
@@ -314,14 +314,28 @@ export class CloudIngest {
 
       case 'playlistRemoved': {
         const playlist = this.#sync.playlist(change.uid)
-        if (!playlist) return false
+        // For good, even if it had gone with its last songs already.
+        if (!playlist) return this.#playlists.forgetEmptied(change.uid)
         this.#playlists.delete(playlist.id)
         return true
       }
 
-      case 'playlistSong': {
+      case 'playlistEmptied': {
         const playlist = this.#sync.playlist(change.uid)
+        // Filled again since, here or on another device, it stays; so does one
+        // an import here has yet to fill.
+        return playlist !== null && this.#playlists.letGoEmptied([playlist.id]).length > 0
+      }
+
+      case 'playlistSong': {
         const song = this.#played(change.songUid)
+        // A kept playlist that went with its last songs comes back for a song
+        // put in it by a change that wins, as the shared rule does.
+        const emptied = change.on && song ? this.#playlists.emptied(change.uid) : null
+        if (emptied && song && hlcWins(change.hlc, emptied.songStamps[song.uid])) {
+          this.#playlists.bringBack(change.uid)
+        }
+        const playlist = this.#sync.playlist(change.uid)
         if (!playlist || playlist.kind !== 'manual' || !song) return false
         const stamp = this.#sync.stamp('playlistSong', change.uid, song.uid)
         if (!hlcWins(change.hlc, stamp)) return false

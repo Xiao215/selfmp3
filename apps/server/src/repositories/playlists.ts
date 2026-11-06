@@ -16,6 +16,47 @@ import {
 import type { Db } from '../db/index.js'
 import type { PlaylistRow } from '../db/rows.js'
 
+/** A kept playlist that went with its last songs (`playlistEmptied`), kept aside to come back. */
+export interface EmptiedPlaylist {
+  readonly uid: string
+  /** The id it had here, to come back under; null for one a snapshot kept aside. */
+  readonly id: number | null
+  readonly name: string
+  readonly description: string
+  readonly pinned: boolean
+  readonly createdAt: string
+  readonly updatedAt: string
+  /** Its field stamps and its songs' stamps, as `CloudPlaylist` has them. */
+  readonly stamps: Readonly<Record<string, string>>
+  readonly songStamps: Readonly<Record<string, string>>
+}
+
+interface EmptiedPlaylistRow {
+  uid: string
+  id: number | null
+  name: string
+  description: string
+  pinned: number
+  created_at: string
+  updated_at: string
+  stamps: string
+  song_stamps: string
+}
+
+function emptiedPlaylist(row: EmptiedPlaylistRow): EmptiedPlaylist {
+  return {
+    uid: row.uid,
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    pinned: row.pinned === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    stamps: JSON.parse(row.stamps) as Record<string, string>,
+    songStamps: JSON.parse(row.song_stamps) as Record<string, string>,
+  }
+}
+
 /** A song as a live playlist's rules read it, straight from the database. */
 interface RuleSongRow {
   id: number
@@ -76,7 +117,16 @@ export class PlaylistRepository {
   readonly #insert
   readonly #delete
   readonly #keptHolding
-  readonly #deleteIfEmpty
+  readonly #leftEmpty
+  readonly #keepAside
+  readonly #emptied
+  readonly #emptiedById
+  readonly #allEmptied
+  readonly #addEmptied
+  readonly #bringBack
+  readonly #restoreStamps
+  readonly #forgetEmptied
+  readonly #unremove
   readonly #items
   readonly #maxPosition
   readonly #insertItem
@@ -113,8 +163,8 @@ export class PlaylistRepository {
        WHERE i.song_id = ? AND p.kind = 'manual'
     `)
     // Migration 58's rule, one playlist at a time.
-    this.#deleteIfEmpty = db.prepare(`
-      DELETE FROM playlists
+    this.#leftEmpty = db.prepare<[number], { id: number }>(`
+      SELECT id FROM playlists
        WHERE id = ? AND kind = 'manual'
          AND NOT EXISTS (SELECT 1 FROM playlist_items i WHERE i.playlist_id = playlists.id)
          AND NOT EXISTS (
@@ -122,6 +172,43 @@ export class PlaylistRepository {
                 WHERE j.playlist_id = playlists.id AND j.status IN ('queued', 'running', 'error')
              )
     `)
+    // Its stamps with it, before the row's deletion takes them.
+    this.#keepAside = db.prepare(`
+      INSERT OR REPLACE INTO emptied_playlists
+        (uid, id, name, description, pinned, created_at, updated_at, last_played_at, stamps, song_stamps)
+      SELECT p.uid, p.id, p.name, p.description, p.pinned, p.created_at, p.updated_at, p.last_played_at,
+             (SELECT json_group_object(field, hlc) FROM sync_stamps
+               WHERE kind = 'playlist' AND uid = p.uid),
+             (SELECT json_group_object(field, hlc) FROM sync_stamps
+               WHERE kind = 'playlistSong' AND uid = p.uid)
+        FROM playlists p WHERE p.id = ?
+    `)
+    this.#emptied = db.prepare<[string], EmptiedPlaylistRow>(
+      'SELECT * FROM emptied_playlists WHERE uid = ?',
+    )
+    this.#emptiedById = db.prepare<[number], EmptiedPlaylistRow>(
+      'SELECT * FROM emptied_playlists WHERE id = ?',
+    )
+    this.#allEmptied = db.prepare<[], EmptiedPlaylistRow>(
+      'SELECT * FROM emptied_playlists ORDER BY uid',
+    )
+    this.#addEmptied = db.prepare(`
+      INSERT INTO emptied_playlists
+        (uid, name, description, pinned, created_at, updated_at, stamps, song_stamps)
+      VALUES (@uid, @name, @description, @pinned, @createdAt, @updatedAt, @stamps, @songStamps)
+      ON CONFLICT (uid) DO NOTHING
+    `)
+    this.#bringBack = db.prepare(`
+      INSERT INTO playlists
+        (id, uid, name, description, kind, rules, pinned, created_at, updated_at, last_played_at)
+      SELECT id, uid, name, description, 'manual', NULL, pinned, created_at, updated_at, last_played_at
+        FROM emptied_playlists WHERE uid = ?
+    `)
+    this.#restoreStamps = db.prepare<[string, string, string]>(
+      'INSERT OR REPLACE INTO sync_stamps (kind, uid, field, hlc) SELECT ?, ?, key, value FROM json_each(?)',
+    )
+    this.#forgetEmptied = db.prepare('DELETE FROM emptied_playlists WHERE uid = ?')
+    this.#unremove = db.prepare('DELETE FROM removed_playlists WHERE uid = ?')
 
     this.#items = db.prepare<[number], { song_id: number }>(`
       SELECT song_id
@@ -410,13 +497,75 @@ export class PlaylistRepository {
   }
 
   /**
-   * Delete those of these kept playlists left with no songs: one exists once
-   * it has a song (migration 58). A live one stays, its rules may match songs
-   * later, and so does one an import has yet to fill. Each deleted is noted in
-   * `removed_playlists` by the database itself. The ids deleted.
+   * Let go of those of these kept playlists left with no songs: one exists
+   * once it has a song (migration 58). A live one stays, its rules may match
+   * songs later, and so does one an import has yet to fill. Each is kept
+   * aside as it was (`playlistEmptied`, migration 59), so a song another
+   * device puts in it meanwhile — or an Undo — brings it back, and noted in
+   * `removed_playlists` by the database itself. The ids let go of.
    */
-  deleteIfEmpty(ids: readonly number[]): number[] {
-    return ids.filter(id => this.#deleteIfEmpty.run(id).changes > 0)
+  letGoEmptied(ids: readonly number[]): number[] {
+    return this.#db.transaction(() =>
+      ids.filter(id => {
+        if (!this.#leftEmpty.get(id)) return false
+        this.#keepAside.run(id)
+        this.#delete.run(id)
+        return true
+      }),
+    )()
+  }
+
+  /** A kept playlist that went with its last songs, by its uid. */
+  emptied(uid: string): EmptiedPlaylist | null {
+    const row = this.#emptied.get(uid)
+    return row ? emptiedPlaylist(row) : null
+  }
+
+  /** One that went with its last songs from this server, by the id it had here. */
+  emptiedById(id: number): EmptiedPlaylist | null {
+    const row = this.#emptiedById.get(id)
+    return row ? emptiedPlaylist(row) : null
+  }
+
+  allEmptied(): EmptiedPlaylist[] {
+    return this.#allEmptied.all().map(emptiedPlaylist)
+  }
+
+  /** One a snapshot kept aside, for a server taking the bucket's library. */
+  addEmptied(playlist: Omit<EmptiedPlaylist, 'id'>): void {
+    this.#addEmptied.run({
+      uid: playlist.uid,
+      name: playlist.name,
+      description: playlist.description,
+      pinned: playlist.pinned ? 1 : 0,
+      createdAt: playlist.createdAt,
+      updatedAt: playlist.updatedAt,
+      stamps: JSON.stringify(playlist.stamps),
+      songStamps: JSON.stringify(playlist.songStamps),
+    })
+  }
+
+  /**
+   * One that went with its last songs, back as it was, stamps and all, under
+   * the id it had. Its id here, or null when it is not one that went that way.
+   */
+  bringBack(uid: string): number | null {
+    return this.#db.transaction((): number | null => {
+      const playlist = this.emptied(uid)
+      if (!playlist) return null
+      const made = this.#bringBack.run(uid)
+      this.#restoreStamps.run('playlist', uid, JSON.stringify(playlist.stamps))
+      this.#restoreStamps.run('playlistSong', uid, JSON.stringify(playlist.songStamps))
+      this.#forgetEmptied.run(uid)
+      // Back, so nothing to keep a snapshot from giving back.
+      this.#unremove.run(uid)
+      return playlist.id ?? Number(made.lastInsertRowid)
+    })()
+  }
+
+  /** For good: true when it was kept aside. */
+  forgetEmptied(uid: string): boolean {
+    return this.#forgetEmptied.run(uid).changes > 0
   }
 
   /**

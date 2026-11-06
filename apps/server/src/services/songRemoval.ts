@@ -70,7 +70,7 @@ export class SongRemovalService {
   readonly #storage: StorageDriver
   readonly #songs: SongRepository
   readonly #tags: Pick<TagRepository, 'all' | 'delete'>
-  readonly #playlists: Pick<PlaylistRepository, 'keptHolding' | 'deleteIfEmpty'>
+  readonly #playlists: Pick<PlaylistRepository, 'keptHolding' | 'letGoEmptied'>
   readonly #cloud: Pick<CloudRepository, 'trashSong'>
   readonly #lyrics: Pick<LyricsService, 'deleteSidecar'>
   readonly #covers: Pick<CoverService, 'delete'>
@@ -84,7 +84,7 @@ export class SongRemovalService {
     storage: StorageDriver
     songs: SongRepository
     tags: Pick<TagRepository, 'all' | 'delete'>
-    playlists: Pick<PlaylistRepository, 'keptHolding' | 'deleteIfEmpty'>
+    playlists: Pick<PlaylistRepository, 'keptHolding' | 'letGoEmptied'>
     /** Where a removed song's bucket files wait to be deleted. */
     cloud: Pick<CloudRepository, 'trashSong'>
     lyrics: Pick<LyricsService, 'deleteSidecar'>
@@ -160,8 +160,9 @@ export class SongRemovalService {
     for (const tagId of tagsEmptiedBy(tags, removed)) this.#tags.delete(tagId)
     // So does a kept playlist they were the last songs of, as one goes with
     // the last song taken out of it: left, it stayed at 0 for good (bug bash
-    // R6D-1). Again only those: an empty one made a moment ago is yours to fill.
-    this.#playlists.deleteIfEmpty(playlists)
+    // R6D-1). Again only those: an empty one made a moment ago is yours to
+    // fill. Kept aside, as one another device empties is (`playlistEmptied`).
+    this.#playlists.letGoEmptied(playlists)
     return { songs: removed, alreadyGone }
   }
 

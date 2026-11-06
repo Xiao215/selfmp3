@@ -380,6 +380,88 @@ describe('a tag its last songs took with them', () => {
   })
 })
 
+describe('a kept playlist its last songs took with them', () => {
+  // Device B takes out every song it sees, and the playlist goes with them.
+  const emptying: Change[] = [
+    { type: 'playlistSong', hlc: at(1, 'web-bbbb'), uid: LIST, songUid: SONG_A, on: false },
+    { type: 'playlistSong', hlc: at(1.5, 'web-bbbb'), uid: LIST, songUid: SONG_B, on: false },
+    { type: 'playlistEmptied', hlc: at(2, 'web-bbbb'), uid: LIST },
+  ]
+
+  it('goes, and is kept aside in the snapshot', () => {
+    const library = replay(emptying)
+    expect(library.playlists.has(LIST)).toBe(false)
+    const written = snapshotOf(library, { writtenAt: 'now', writtenBy: 'mac-aaaa', upTo: {} })
+    expect(written.emptiedPlaylists?.map(each => each.uid)).toEqual([LIST])
+    expect(CloudSnapshotSchema.safeParse(written).success).toBe(true)
+  })
+
+  // R7H-1: device A, offline, puts a song in it that B never saw. B's
+  // emptying took the playlist, and A's song with it, on every device.
+  it('stays with a song another device put in it, in whatever order they arrive', () => {
+    const adding: Change = {
+      type: 'playlistSong',
+      hlc: at(3, 'mac-aaaa'),
+      uid: LIST,
+      songUid: SONG_C,
+      on: true,
+    }
+    for (const added of [adding, { ...adding, hlc: at(0.5, 'mac-aaaa') }]) {
+      for (const order of permutations([...emptying, added])) {
+        const library = syncLibrary(snapshot())
+        // One at a time, as the server hears them, pass by pass.
+        for (const change of order) applyChange(library, change)
+        expect(library.playlists.get(LIST)?.songUids).toEqual([SONG_C])
+        expect(library.emptiedPlaylists.size).toBe(0)
+      }
+    }
+  })
+
+  it('stays gone for a song put back by a change older than its taking out', () => {
+    // A put SONG_A back before B took it out: B's taking out wins, either way round.
+    const late: Change = {
+      type: 'playlistSong',
+      hlc: at(0.5, 'mac-aaaa'),
+      uid: LIST,
+      songUid: SONG_A,
+      on: true,
+    }
+    // B's own changes come in the order B made them; A's lands anywhere among them.
+    for (let place = 0; place <= emptying.length; place++) {
+      const order = [...emptying.slice(0, place), late, ...emptying.slice(place)]
+      const library = syncLibrary(snapshot())
+      for (const change of order) applyChange(library, change)
+      expect(library.playlists.has(LIST)).toBe(false)
+      expect([...library.emptiedPlaylists.keys()]).toEqual([LIST])
+    }
+  })
+
+  it('comes back from the snapshot that left it out', () => {
+    const written = snapshotOf(replay(emptying), {
+      writtenAt: 'now',
+      writtenBy: 'mac-aaaa',
+      upTo: {},
+    })
+    const library = replay(
+      [{ type: 'playlistSong', hlc: at(3, 'mac-aaaa'), uid: LIST, songUid: SONG_C, on: true }],
+      written,
+    )
+    expect(library.playlists.get(LIST)).toMatchObject({ name: 'Mix', songUids: [SONG_C] })
+  })
+
+  it('does not come back once it is removed for good, and a live one never goes', () => {
+    const removed = replay([
+      ...emptying,
+      { type: 'playlistRemoved', hlc: at(3), uid: LIST },
+      { type: 'playlistSong', hlc: at(4, 'mac-aaaa'), uid: LIST, songUid: SONG_C, on: true },
+    ])
+    expect(removed.playlists.has(LIST)).toBe(false)
+    expect(removed.emptiedPlaylists.size).toBe(0)
+    const live = replay([{ type: 'playlistEmptied', hlc: at(1), uid: LIVE }])
+    expect(live.playlists.has(LIVE)).toBe(true)
+  })
+})
+
 describe('smart rules about tags', () => {
   const tagged = (tagUid: string) => ({
     match: 'all' as const,

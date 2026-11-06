@@ -190,6 +190,8 @@ describe('SongRemovalService', () => {
       expect(playlists.songIds(both)).toEqual([two.id])
       // Noted, so the bucket's older snapshot does not bring it back (migration 58).
       expect(cloud.wasPlaylistRemoved(onlyUid)).toBe(true)
+      // And kept aside, as one another device empties is: a song put in it brings it back.
+      expect(playlists.emptied(onlyUid)?.name).toBe('Only one')
     })
 
     it('deletes the copy on disk, its sidecar and the folder they were in', async () => {

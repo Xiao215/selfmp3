@@ -157,6 +157,7 @@ describe('CloudIngest', () => {
       stamps: sync.allStamps(),
       aliases: sync.aliases(),
       emptiedTags: sync.emptiedTags(),
+      emptiedPlaylists: playlists.allEmptied(),
       merged: sync.merges(),
       upTo: sync.cursors(),
     })
@@ -186,6 +187,8 @@ describe('CloudIngest', () => {
       artistNames: [...library.artistNames.values()],
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
       emptiedTags: library.emptied.size > 0 ? [...library.emptied.values()] : undefined,
+      emptiedPlaylists:
+        library.emptiedPlaylists.size > 0 ? [...library.emptiedPlaylists.values()] : undefined,
       merged: library.merged.size > 0 ? Object.fromEntries(library.merged) : undefined,
     }
   }
@@ -201,6 +204,7 @@ describe('CloudIngest', () => {
       artistNames: [...snapshot.artistNames].sort((a, b) => a.artist.localeCompare(b.artist)),
       aliases: snapshot.aliases ?? {},
       emptiedTags: byUid(snapshot.emptiedTags ?? []),
+      emptiedPlaylists: byUid(snapshot.emptiedPlaylists ?? []),
       merged: snapshot.merged ?? {},
     }
   }
@@ -549,6 +553,58 @@ describe('CloudIngest', () => {
       expect(sync.emptiedTags()).toEqual([])
       expect(comparable(serverSnapshot())).toEqual(
         comparable(replayed(before, [...removing, tagging])),
+      )
+    }
+  })
+
+  // R7H-1: a phone took every song it saw out of a playlist while a browser
+  // that had not heard put another in. The playlist and that song were lost everywhere.
+  it('keeps a playlist another device emptied when a song was put in it, in either order', () => {
+    for (const late of [false, true]) {
+      db.exec('DELETE FROM songs; DELETE FROM playlists; DELETE FROM emptied_playlists')
+      const a = addSong('Alpha')
+      const b = addSong('Bravo')
+      const c = addSong('Charlie')
+      const road = playlists.create({ name: 'Road', description: '', kind: 'manual', rules: null })
+      playlists.add(road.id, [a, b])
+      const before = serverSnapshot()
+      const ROAD = uidOf('playlists', road.id)
+      const phone = 'iphone-aaaa2222'
+      const emptying: Change[] = [
+        {
+          type: 'playlistSong',
+          hlc: at(2, phone),
+          uid: ROAD,
+          songUid: uidOf('songs', a),
+          on: false,
+        },
+        {
+          type: 'playlistSong',
+          hlc: at(3, phone),
+          uid: ROAD,
+          songUid: uidOf('songs', b),
+          on: false,
+        },
+        { type: 'playlistEmptied', hlc: at(4, phone), uid: ROAD },
+      ]
+      // Stamped after the emptying, or before it but heard of after.
+      const adding: Change = {
+        type: 'playlistSong',
+        hlc: at(late ? 1 : 5),
+        uid: ROAD,
+        songUid: uidOf('songs', c),
+        on: true,
+      }
+      // In two passes, the emptying first, as the server reads one log, then the other.
+      ingest.apply(emptying)
+      expect(playlists.byId(road.id)).toBeNull()
+      expect(serverSnapshot().emptiedPlaylists?.map(each => each.uid)).toEqual([ROAD])
+      ingest.apply([adding])
+      expect(playlists.songIds(road)).toEqual([c])
+      expect(playlists.byId(road.id)?.name).toBe('Road')
+      expect(playlists.allEmptied()).toEqual([])
+      expect(comparable(serverSnapshot())).toEqual(
+        comparable(replayed(before, [...emptying, adding])),
       )
     }
   })

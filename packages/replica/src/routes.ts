@@ -556,7 +556,8 @@ export function createCloudRoutes(
             changes: edits.removeFromPlaylist(ctx, id(params), songIds),
             answer: (view): RemovedFromPlaylist => ({
               removed,
-              playlist: playlistOf(view, view.uids.playlists.get(id(params))),
+              // Null once its last songs took it with them.
+              playlist: view.byId.playlists.get(id(params)) ?? null,
             }),
           }
         })

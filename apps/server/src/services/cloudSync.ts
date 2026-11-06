@@ -2722,6 +2722,7 @@ export class CloudSyncService {
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
       emptiedTags: sync?.emptiedTags() ?? [],
+      emptiedPlaylists: playlists.allEmptied(),
       merged: sync?.merges() ?? new Map(),
       upTo: sync?.cursors() ?? {},
       imports: importRequests?.recent() ?? [],

@@ -9,7 +9,7 @@ import { usePlayingSongId } from '../../player/PlayerProvider'
 import { lightTap } from '../../ports/haptics'
 import { nativeDriver } from '../../ports/nativeDriver'
 import type { FieldControl } from './fieldControl'
-import { fieldCursor, useFieldWheel } from './fieldInput'
+import { fieldCursor, useFieldKeys, useFieldWheel } from './fieldInput'
 import { SkyLayer } from './SkyLayer'
 import type { TagRegion } from '@selfmp3/client'
 import type { MapTake, SkyPoint } from './sky.model'
@@ -17,8 +17,12 @@ import { baseOf, liveView, type FieldSize, type MapView } from './soundMapView.m
 
 /** How long a finger holds still before a drag draws rather than moves the map. */
 const HOLD_MS = 320
-/** The ring under a holding finger shows only after this, so a tap or a move never flickers one. */
-const RING_AFTER_MS = 90
+/**
+ * The ring under a holding finger shows only after this: a finger that is
+ * about to move the map rests a moment first, and at 90 ms the ring flashed
+ * under nearly every drag before it began (Xiao, 2026-11-01).
+ */
+const RING_AFTER_MS = 180
 
 /**
  * The sound map's field (docs/features/sound-map.md): the sky, and the
@@ -29,7 +33,7 @@ const RING_AFTER_MS = 90
  * dragging, draws: a ring fills under the finger, a light tap of the phone's
  * engine says drawing has begun. `armed` — the pen, or Shift on a computer —
  * makes the next drag draw at once, and moving takes two fingers meanwhile.
- * A trackpad's two fingers move it; a mouse's wheel, a pinch or ⌘-scroll zooms.
+ * On a computer any scroll or pinch zooms, and a drag or the arrow keys move it.
  */
 export function SoundField({
   control,
@@ -72,6 +76,8 @@ export function SoundField({
   // The view the stars were last drawn for: changes only when a move settles.
   const [settled, setSettled] = useState<MapView | null>(null)
   const [hold, setHold] = useState<{ x: number; y: number } | null>(null)
+  const ringTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => clearTimeout(ringTimer.current ?? undefined), [])
   const fieldRef = useRef<View>(null)
   const playing = usePlayingSongId()
   const [pulse, setPulse] = useState<{ x: number; y: number } | null>(null)
@@ -97,7 +103,13 @@ export function SoundField({
         press: (spot, point, reach) => {
           if (handlers.current.onPress(spot, reach)) setPulse(point)
         },
-        hold: setHold,
+        // The ring waits for the finger to stay put; one that moves first never sees it.
+        hold: point => {
+          clearTimeout(ringTimer.current ?? undefined)
+          ringTimer.current = null
+          if (point) ringTimer.current = setTimeout(() => setHold(point), RING_AFTER_MS)
+          else setHold(null)
+        },
         pathStart: spot => handlers.current.onPathStart(spot),
         pathMove: (spot, reach) => handlers.current.onPathMove(spot, reach),
         pathEnd: () => handlers.current.onPathEnd(),
@@ -114,6 +126,7 @@ export function SoundField({
     [control],
   )
   useFieldWheel(fieldRef, wheel => control.wheel(wheel))
+  useFieldKeys(direction => control.keys(direction))
 
   // Built again only when the pen or Shift changes what a drag does.
   const gesture = useMemo(() => {
@@ -207,7 +220,6 @@ function HoldRing({ at }: { at: { x: number; y: number } }): ReactNode {
     const run = Animated.timing(grow, {
       toValue: 1,
       duration: HOLD_MS - RING_AFTER_MS,
-      delay: RING_AFTER_MS,
       useNativeDriver: nativeDriver,
     })
     run.start()
@@ -221,8 +233,8 @@ function HoldRing({ at }: { at: { x: number; y: number } }): ReactNode {
         {
           left: at.x - RING / 2,
           top: at.y - RING / 2,
-          opacity: grow.interpolate({ inputRange: [0, 0.05, 1], outputRange: [0, 0.6, 1] }),
-          transform: [{ scale: grow.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }],
+          opacity: grow.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+          transform: [{ scale: grow.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }],
         },
       ]}
     />

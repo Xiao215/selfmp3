@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import type { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { answerRange } from '@selfmp3/shared'
@@ -110,6 +111,15 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
   res.once('close', () => gone.abort())
   try {
     const stream = await source.open(answer.start, answer.end, gone.signal)
+    if (gone.signal.aborted) {
+      // Gone while it opened. `pipeline` refuses a response that has already
+      // closed and leaves the upstream alone, whose own error then had nobody
+      // listening and took the whole server down; it is let go here instead.
+      const upstream = stream as Readable
+      upstream.on('error', () => {})
+      upstream.destroy()
+      return
+    }
     await pipeline(stream, res)
   } catch (error) {
     // That is normal behaviour, not an error worth surfacing.

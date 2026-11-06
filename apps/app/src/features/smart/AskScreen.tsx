@@ -19,7 +19,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
+import type { NativeStackNavigationProp } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -81,7 +82,7 @@ import { AnswerView } from './AnswerScreen'
 import { AnswerActions } from './AnswerParts'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
-import { forgetThread, keepThread, keptThread } from './askThread.store'
+import { forgetThread, keepThread, keptThread, newThread } from './askThread.store'
 import {
   keepAnswer,
   type keptAnswer,
@@ -165,7 +166,7 @@ const FIRST_STEPS = [
  * (A2): songs answered are added there rather than played.
  */
 export function AskScreen(): ReactNode {
-  const params = useLocalSearchParams<{ q?: string; to?: string }>()
+  const params = useLocalSearchParams<{ q?: string; to?: string; thread?: string }>()
   const { state: room } = useRoom()
   const adding = params.to === 'room' ? room : null
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
@@ -193,11 +194,21 @@ export function AskScreen(): ReactNode {
     line: null,
   })
   const opened = typeof params.q === 'string' ? params.q.trim() : ''
-  // A page drawn again finds the conversation it had (`askThread.store`).
+  // A visit's conversation is its thread, named in the address: a page drawn
+  // again finds the conversation it had, a new visit starts its own, and one
+  // reloaded, its turns gone, doesn't ask its question again (`askThread.store`).
+  const [thread] = useState(() => (typeof params.thread === 'string' ? params.thread : newThread()))
   const [turns, setTurns] = useState<readonly Turn[]>(
-    () => keptThread(opened) ?? (opened ? [turnFor(opened, [])] : []),
+    () => keptThread(thread) ?? (opened ? [turnFor(opened, [])] : []),
   )
-  useEffect(() => keepThread(opened, turns), [opened, turns])
+  // Its words wait in the field instead, asked again only with a press.
+  const [unasked] = useState(() => (turns.length === 0 ? opened : ''))
+  useEffect(() => keepThread(thread, turns), [thread, turns])
+  // On the page's own route: the router refuses before the app's layout is up, as on a reload.
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
+  useEffect(() => {
+    if (params.thread !== thread) navigation.setParams({ thread })
+  }, [params.thread, thread, navigation])
   const { back } = usePageBack('/search')
   // The words typed are the field's own (`AskField`): kept here, every key
   // would draw the whole conversation again. The page only hears whether
@@ -206,6 +217,9 @@ export function AskScreen(): ReactNode {
   const [keys, setKeys] = useState<AnswerKeys | null>(null)
   const field = useRef<TextInput>(null)
   const draft = useRef<DraftHandle>(null)
+  useEffect(() => {
+    if (unasked) draft.current?.write(unasked)
+  }, [unasked])
 
   const latest = turns.at(-1)
   const latestId = latest?.id ?? null
@@ -297,9 +311,9 @@ export function AskScreen(): ReactNode {
   const pageWidth = useContentWidth()
   // ‹ lets the conversation go: the same question asked again starts afresh.
   const leave = useCallback(() => {
-    forgetThread(opened)
+    forgetThread(thread)
     back()
-  }, [opened, back])
+  }, [thread, back])
   const show = useCallback(
     (id: number | null) => {
       setChosen({ latest: latestId, shown: id })

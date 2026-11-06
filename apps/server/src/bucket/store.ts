@@ -70,6 +70,13 @@ export interface CloudStore {
     end: number,
     signal?: AbortSignal,
   ): Promise<NodeJS.ReadableStream | null>
+  /**
+   * These files were deleted from the bucket: every share link that lends one
+   * says its song is gone now, rather than when someone next presses Play
+   * (docs/features/share-links.md). Only a bucket reached through the doorman
+   * has links to tell.
+   */
+  unlend?(keys: readonly string[]): Promise<void>
 }
 
 /**

@@ -150,23 +150,29 @@ development build (27 ms at the whole-map view), the first title in a new script
 
 | | Phone | Computer |
 |---|---|---|
-| Move | one finger (or two); a flick carries it on | drag, or a trackpad's two fingers; a flick carries it on |
-| Zoom | pinch; double tap zooms in | a mouse's wheel, trackpad pinch, ⌘ / Ctrl + scroll, double click; +, − |
+| Move | one finger (or two); a flick carries it on | drag, a flick carries it on; the arrow keys |
+| Zoom | pinch; double tap zooms in | any scroll: a mouse's wheel, a trackpad's two fingers or pinch; double click; +, − |
 | Play what's there | tap | click |
 | Draw | hold still a moment, then drag; or the pen, for one stroke | the same, or Shift-drag |
 
-A mouse's wheel zooms, as a map's does, and a trackpad's two fingers move (Xiao, 2026-10-27:
-the wheel moved the map up and down). A browser sends both as the same wheel, so
-`wheel.model.ts` tells them apart: lines or pages, a Mac's notch (4.000244… points) or a
-large whole step are a mouse; sideways movement, Chrome's and Safari's older field at three
-times the new one, or small steps are a trackpad; and a gesture keeps the source it began
-with, so a trackpad's fast flick never turns into a zoom halfway. A mouse's notch glides
-the zoom about the pointer rather than jumping (closing most of the way in about 70 ms,
-`WHEEL_GLIDE_MS`), and a notch while it glides goes on from where it was heading.
+Every scroll zooms, as a map's does, and up and down are a drag or the arrow keys (Xiao,
+2026-10-27: the wheel moved the map up and down; 2026-11-01: a trackpad's two fingers still
+did, and zooming took ⌘). Sideways scrolling does nothing. A browser sends a mouse's wheel
+and a trackpad's two fingers as the same wheel, so `wheel.model.ts` tells them apart, only
+to decide how a step zooms: lines or pages, a Mac's notch (4.000244… points) or a large
+whole step are a mouse; sideways movement, Chrome's and Safari's older field at three times
+the new one, or small steps are a trackpad; and a gesture keeps the source it began with.
+A mouse's notch glides the zoom about the pointer rather than jumping (closing most of the
+way in about 70 ms, `WHEEL_GLIDE_MS`), and a notch while it glides goes on from where it
+was heading; a trackpad's steps come a frame at a time and zoom as they come. The arrow
+keys slide the map while held (`FieldControl.keys`), getting up to speed and slowing to a
+stop over about 90 ms rather than stepping at each key repeat; two held go diagonally. They
+stand aside while someone types, and with ⌘, Ctrl or ⌥ held.
 
 A map is moved with one finger everywhere else, so it is here (B1). Drawing waits for a
-hold: a ring fills under the still finger (from 90 ms, so a tap or a move never flickers
-one) and at 320 ms (`HOLD_MS`) the phone gives a light tap and the drag draws. The pen
+hold: a ring fills under the still finger (from 180 ms, so a tap or a move never flickers
+one: at 90 ms it showed under nearly every drag, since a finger rests a moment before it
+moves, Xiao 2026-11-01) and at 320 ms (`HOLD_MS`) the phone gives a light tap and the drag draws. The pen
 button arms the next stroke without the hold, and moving then takes two fingers; it goes
 back to moving after the stroke. On a computer, Shift held does what the pen does
 (`useShiftHeld`), and the pointer is a hand, or a crosshair while drawing is armed.

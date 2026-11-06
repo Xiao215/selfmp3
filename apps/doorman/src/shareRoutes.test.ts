@@ -482,6 +482,38 @@ describe('a share link', () => {
     expect(renew.status).toBe(410)
   })
 
+  it('ends as soon as its sender’s server says the songs’ files were deleted', async () => {
+    const s = await setup()
+    const one = await make(s)
+    const both = await make(s, [song(1), song(2)], 'Both', 'list')
+    const other = await make(s, [song(2)])
+    const gone = (token: string | undefined, keys: unknown) =>
+      s.h.call('/v1/share/gone', { token, json: { keys } })
+
+    expect((await gone(undefined, [song(1).audio?.key])).status).toBe(401)
+    expect((await gone(s.me, [])).status).toBe(400)
+    // Mia's word for it reaches none of Xiao's links.
+    expect((await gone(s.mia, [song(1).audio?.key])).status).toBe(204)
+    expect((await link(await open(s, one))).ended).toBeNull()
+
+    // A cover is not the song: only its audio leaving ends it.
+    expect((await gone(s.me, [song(1).cover?.key])).status).toBe(204)
+    expect((await link(await open(s, one))).ended).toBeNull()
+
+    expect((await gone(s.me, [song(1).audio?.key])).status).toBe(204)
+    const ended = await link(await open(s, one))
+    expect(ended.ended).toEqual({ at: s.h.clock.now, why: 'removed' })
+    // Before anyone pressed Play: the bucket was never asked.
+    expect(s.h.bucket.requests.filter(request => request.url.pathname.includes('/audio/'))).toEqual(
+      [],
+    )
+
+    const half = await link(await open(s, both))
+    expect(half.ended).toBeNull()
+    expect(half.entries.map(entry => entry.gone)).toEqual([true, false])
+    expect((await link(await open(s, other))).ended).toBeNull()
+  })
+
   it('comes off a list when forgotten, and is gone for everyone when its sender forgets it', async () => {
     const s = await setup()
     const made = await make(s)

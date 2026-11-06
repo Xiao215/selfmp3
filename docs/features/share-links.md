@@ -277,9 +277,15 @@ link's ⋯ holds:
 
 ## At the edges
 
-- **You remove the song.** The first play that finds its file gone from your bucket marks it
-  gone. When all of a link's songs are gone, the link ends: _Xiao removed this song_, with no
-  Ask again.
+- **You remove the song.** Once your server has deleted its audio from your bucket (the pass
+  after the snapshot without it goes up, docs/SYNC.md), it tells the doorman which files went
+  (`POST /v1/share/gone`), and every link you sent that lends one marks that song gone at once.
+  When all of a link's songs are gone, the link ends: _Xiao removed this song_, with no Ask
+  again. Its page says so before anyone presses Play, so a copy of the song a browser or phone
+  kept from an earlier play never plays again: the page asks the doorman first. A page already
+  open finds out when it next asks, within five minutes. A file another song still names is not
+  deleted, so its links play on. Should the word not get through, or the link be past the newest
+  200 you sent, the first play that finds the file gone from your bucket marks it gone instead.
 - **Your bucket hits its daily cap.** The audio read is refused for the day, as any read is.
   The link does not end because of it. Whoever opens it is told _Whoever sent it has run out
   of their daily quota_ (`lender_cap_exceeded`, not `bucket_cap_exceeded`, so their own bucket
@@ -329,6 +335,7 @@ GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics
 GET  /l/<id>/<key>[?s=<entry>][&t=0:42]        a chat app: its card; anyone else: on to the app
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget
+POST /v1/share/gone                  ShareGone   → 204            files deleted from your bucket
 ```
 
 **Deploying.** The `SHARES` binding and the `v4` migration are in

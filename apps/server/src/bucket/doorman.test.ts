@@ -2,7 +2,7 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 import { describe, expect, it } from 'vitest'
-import type { DoormanMe } from '@selfmp3/shared'
+import { SHARE_GONE_MOST, type DoormanMe } from '@selfmp3/shared'
 import { DOORMAN_ORIGIN, harness } from '../../../doorman/src/fakes.js'
 import { speakHttp1 } from '../http/outgoing.js'
 import { DoormanClient } from './doorman.js'
@@ -263,6 +263,21 @@ describe('DoormanClient', () => {
         { key: 'audio/b.m4a', size: 2 },
       ])
       expect(calls[1]?.url).toBe('https://doorman.test/v1/list?prefix=audio%2F&cursor=next')
+    })
+
+    it('tells the share links which files went, a few hundred at a time', async () => {
+      const { client, calls } = stand(() => new Response(null, { status: 204 }))
+      const keys = Array.from({ length: SHARE_GONE_MOST + 1 }, (_, n) => `audio/${n}.m4a`)
+      await client.store('t', 'test').unlend?.(keys)
+      expect(calls.map(call => [call.method, call.url])).toEqual([
+        ['POST', 'https://doorman.test/v1/share/gone'],
+        ['POST', 'https://doorman.test/v1/share/gone'],
+      ])
+      expect(calls.map(call => JSON.parse(call.body ?? '{}'))).toEqual([
+        { keys: keys.slice(0, SHARE_GONE_MOST) },
+        { keys: keys.slice(SHARE_GONE_MOST) },
+      ])
+      expect(calls[0]?.headers['content-type']).toBe('application/json')
     })
 
     it('does not mind deleting what is already gone', async () => {

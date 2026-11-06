@@ -1,5 +1,7 @@
 import { useEffect, useEffectEvent, useState, type RefObject } from 'react'
 import type { View, ViewStyle } from 'react-native'
+import { isComposing } from '../../shell/composing'
+import { focusOwnsKey } from '../../shell/keyOwner'
 import type { FieldWheel } from './fieldInput'
 import { mousePoints, wheelSource, type WheelSource } from './wheel.model'
 
@@ -15,11 +17,13 @@ const LINE = 16
 const PAGE = 400
 
 /**
- * The browser's wheel over the field: a trackpad's two fingers move the map,
- * and a mouse's wheel zooms it, as a map's does (`wheelSource`); a trackpad
- * pinch (which the browser sends as a wheel with Ctrl held) or a wheel with
- * ⌘ or Ctrl held zooms either way. Listened to directly, not passively, so
- * the page does not scroll or zoom as well.
+ * The browser's wheel over the field zooms the map, whatever sends it: a
+ * mouse's wheel, a trackpad's two fingers, or a trackpad pinch (which the
+ * browser sends as a wheel with Ctrl held). A drag or the arrow keys move it
+ * (Xiao, 2026-11-01: two fingers moved it, and zooming took ⌘). Which it was
+ * (`wheelSource`) decides only how a step zooms. Sideways scrolling is left
+ * alone. Listened to directly, not passively, so the page does not scroll or
+ * zoom as well.
  */
 export function useFieldWheel(
   ref: RefObject<View | null>,
@@ -40,14 +44,15 @@ export function useFieldWheel(
         at: event.timeStamp,
       }
       last = { source: wheelSource(sample, last), at: event.timeStamp }
+      if (event.deltaY === 0) return
       const unit = event.deltaMode === 1 ? LINE : event.deltaMode === 2 ? PAGE : 1
       const rect = node.getBoundingClientRect()
-      const mouse = last.source === 'mouse' && !event.ctrlKey
+      // A browser sends a trackpad pinch as a wheel with Ctrl held.
+      const pinch = event.ctrlKey && !event.metaKey
+      const mouse = last.source === 'mouse' && !pinch
       handle({
-        dx: mouse ? 0 : event.deltaX * unit,
         dy: mouse ? mousePoints(sample) : event.deltaY * unit,
-        // A browser sends a trackpad pinch as a wheel with Ctrl held.
-        zoom: event.ctrlKey && !event.metaKey ? 'pinch' : mouse || event.metaKey ? 'wheel' : null,
+        from: pinch ? 'pinch' : mouse ? 'notch' : 'scroll',
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
       })
@@ -55,6 +60,63 @@ export function useFieldWheel(
     node.addEventListener('wheel', listener, { passive: false })
     return () => node.removeEventListener('wheel', listener)
   }, [ref])
+}
+
+const ARROWS: Readonly<Record<string, { x: number; y: number }>> = {
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+  ArrowUp: { x: 0, y: -1 },
+  ArrowDown: { x: 0, y: 1 },
+}
+
+/**
+ * The arrow keys held down, as one direction (two held at once go
+ * diagonally), told each time it changes: the map moves that way while they
+ * are held. Not while someone is typing, or a menu or dialog has the keys,
+ * nor with ⌘, Ctrl or ⌥ held, which are the browser's and the app's. All let
+ * go of when the window loses focus, or a key released elsewhere would leave
+ * the map sliding.
+ */
+export function useFieldKeys(onKeys: (direction: { x: number; y: number }) => void): void {
+  const handle = useEffectEvent(onKeys)
+  useEffect(() => {
+    const held = new Set<string>()
+    const tell = (): void => {
+      let x = 0
+      let y = 0
+      for (const key of held) {
+        x += ARROWS[key]?.x ?? 0
+        y += ARROWS[key]?.y ?? 0
+      }
+      handle({ x, y })
+    }
+    const down = (event: KeyboardEvent): void => {
+      if (!(event.key in ARROWS) || event.metaKey || event.ctrlKey || event.altKey) return
+      if (isComposing(event) || focusOwnsKey(event.target, { typing: true })) return
+      event.preventDefault()
+      if (held.has(event.key)) return
+      held.add(event.key)
+      tell()
+    }
+    const up = (event: KeyboardEvent): void => {
+      if (!held.delete(event.key)) return
+      tell()
+    }
+    const off = (): void => {
+      if (held.size === 0) return
+      held.clear()
+      tell()
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    window.addEventListener('blur', off)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', off)
+      off()
+    }
+  }, [])
 }
 
 /**

@@ -2459,6 +2459,7 @@ export class CloudSyncService {
       trashed = trashed.filter(key => !isCoverPackKey(key) || (named !== null && !named.has(key)))
     }
     let deleted = 0
+    const audio: string[] = []
     for (const key of trashed) {
       if (this.#stopped) return
       const inflight = store.delete(key).finally(() => this.#deleting.delete(key))
@@ -2468,6 +2469,7 @@ export class CloudSyncService {
         cloud.forgetFile(key)
         await this.#deps.kept?.forget(key)
         deleted++
+        if (key.startsWith('audio/')) audio.push(key)
       } catch (error) {
         if (error instanceof CloudError && error.kind !== 'other') throw error
         this.#logger.warn('could not delete a removed song’s file from the bucket', {
@@ -2477,6 +2479,26 @@ export class CloudSyncService {
       }
     }
     if (deleted > 0) this.#logger.info('deleted removed songs’ files from the bucket', { deleted })
+    await this.#unlend(store, audio)
+  }
+
+  /**
+   * A removed song's audio is gone from the bucket: the share links that lend
+   * it end now, not when a friend next presses Play and the doorman finds it
+   * missing (docs/features/share-links.md, "At the edges"). That play is still
+   * how a link finds out when this word does not get through, so a refusal
+   * here is only a warning.
+   */
+  async #unlend(store: CloudStore, keys: readonly string[]): Promise<void> {
+    if (keys.length === 0 || !store.unlend) return
+    try {
+      await store.unlend(keys)
+    } catch (error) {
+      this.#logger.warn('could not tell share links their songs were removed', {
+        count: keys.length,
+        message: messageOf(error),
+      })
+    }
   }
 
   /**

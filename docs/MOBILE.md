@@ -441,9 +441,10 @@ builds came out (`announcesBuild`); Settings' About card says
 whether it is up to date, checks on asking and installs (`features/settings/AppUpdate.tsx`).
 Install brings up the same iOS question as the page; the app's data stays. After iOS's
 own Install it downloads the build but puts it in only once self.mp3 has left the
-screen, and from inside the app nothing shows that. So a message stays up saying the
-build goes in from the Home Screen, and its **Home** steps back there
-(`modules/home-screen`), where the icon shows the progress. The app started again says
+screen, and from inside the app nothing shows that. So once iOS's question is answered,
+the app steps back to the Home Screen itself (`modules/home-screen`), where the icon
+shows the progress. iOS doesn't say which answer it was, so Cancel steps back too, and
+coming back to the app says the build hasn't gone in. The app started again says
 "Updated to build …", or that the build has not gone in, with Install again and the
 install page in Safari. A new
 friend's iPhone needs a new build: an existing install keeps working, but the old build

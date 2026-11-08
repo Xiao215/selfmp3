@@ -176,10 +176,10 @@ async function player(next: typeof mockPlayer, position: number): Promise<void> 
   await act(async () => tell())
 }
 
-async function renderProvider(doc: RoomDoc): Promise<void> {
+async function renderProvider(doc: RoomDoc, who = M): Promise<void> {
   mockView = {
-    pass: { code: doc.code, token: 't', member: M },
-    state: roomStateFor(doc, M, Date.now()),
+    pass: { code: doc.code, token: 't', member: who },
+    state: roomStateFor(doc, who, Date.now()),
     offset: 0,
     link: 'live',
     lead: 'here',
@@ -196,6 +196,8 @@ beforeEach(() => {
   jest.clearAllMocks()
   mockIndex = libraryIndex([])
   mockMayPlay = true
+  mockPlayer = { playingId: null, playing: false, ranOut: false }
+  mockPosition = 0
 })
 afterEach(() => {
   jest.useRealTimers()
@@ -268,5 +270,19 @@ describe('a follower on a song of known length', () => {
     // The queue has it; the engine has yet to play it.
     await player({ playingId: roomTrackId(first), playing: false, ranOut: false }, 30)
     expect(mockCommands.toggle).not.toHaveBeenCalled()
+  })
+})
+
+describe('the host’s tab', () => {
+  it('plays nothing of a room whose final state it heard', async () => {
+    // Ended from the host's other tab, which let this one have the room.
+    const { doc } = roomPlaying(song(1), [song(2)])
+    jest.setSystemTime(START + 30_000)
+    await renderProvider(step(doc, X, { type: 'leave' }, Date.now()), X)
+    await act(async () => {
+      jest.advanceTimersByTime(3000)
+    })
+
+    expect(mockCommands.playFrom).not.toHaveBeenCalled()
   })
 })

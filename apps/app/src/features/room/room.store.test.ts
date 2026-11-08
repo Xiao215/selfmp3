@@ -20,8 +20,8 @@ const mocks = vi.hoisted(() => ({
   acts: [] as { code: string; type: string }[],
   /** Whether the next join comes in as the room's host. */
   host: false,
-  /** Whether the next join's room has a song you brought, which it lends from your bucket. */
-  lends: false,
+  /** What of yours the next join's room lends from your bucket: a song you brought, or a shelf. */
+  lends: null as 'songs' | 'shelf' | null,
   /** What the next join answers instead of a way in, when set. */
   refuseJoin: null as Error | null,
 }))
@@ -51,7 +51,8 @@ vi.mock('@selfmp3/client', async importActual => ({
           you: PASS.member,
           mode: mocks.mode,
           members: mocks.host ? [{ id: PASS.member, kind: 'host' }] : [],
-          entries: mocks.lends ? [{ id: 'e1', owner: PASS.member }] : [],
+          entries: mocks.lends === 'songs' ? [{ id: 'e1', owner: PASS.member }] : [],
+          shelves: mocks.lends === 'shelf' ? [{ member: PASS.member, songs: [] }] : [],
         },
       }
     },
@@ -125,7 +126,7 @@ describe('the room’s line', () => {
     mocks.acts.length = 0
     mocks.refuseJoin = null
     mocks.host = false
-    mocks.lends = false
+    mocks.lends = null
   })
   afterEach(async () => {
     if (store.currentRoom().pass) await leave()
@@ -255,15 +256,29 @@ describe('the room’s line', () => {
 
   it('keeps a friend in whose songs the room lends, when their leave does not reach the doorman', async () => {
     // Heard, the leave stops the room lending what they brought; unheard, it would go on.
-    mocks.lends = true
+    mocks.lends = 'songs'
     await inRoom()
     mocks.answers.push(Promise.reject(new TypeError('Failed to fetch')))
     await expect(store.leaveRoom()).rejects.toThrow('Failed to fetch')
     expect(store.currentRoom().pass?.code).toBe(PASS.code)
 
-    // Off to another room: not without leaving this one first.
+    // Off to another room: not without leaving this one first. The room it
+    // got into is left again, so no member of it waits there who never comes.
+    mocks.acts.length = 0
     mocks.answers.push(Promise.reject(new TypeError('Failed to fetch')))
     await expect(store.joinRoom('ZZ9999', 'Mia')).rejects.toThrow('Failed to fetch')
+    expect(store.currentRoom().pass?.code).toBe(PASS.code)
+    expect(mocks.acts).toEqual([
+      { code: PASS.code, type: 'leave' },
+      { code: 'ZZ9999', type: 'leave' },
+    ])
+  })
+
+  it('keeps a friend in whose shelf the room lends from, when their leave is not heard', async () => {
+    mocks.lends = 'shelf'
+    await inRoom()
+    mocks.answers.push(Promise.reject(new TypeError('Failed to fetch')))
+    await expect(store.leaveRoom()).rejects.toThrow('Failed to fetch')
     expect(store.currentRoom().pass?.code).toBe(PASS.code)
   })
 
@@ -313,5 +328,27 @@ describe('the room’s line', () => {
     await vi.waitFor(() => expect(store.currentRoom().lead).toBe('elsewhere'))
     otherCloses.resolve()
     await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
+  })
+
+  it('does not take up a room that ended while another tab played it', async () => {
+    const lock = `selfmp3-room ${PASS.code}`
+    const otherCloses = Promise.withResolvers<void>()
+    const otherHolds = Promise.withResolvers<void>()
+    void navigator.locks.request(lock, () => {
+      otherHolds.resolve()
+      return otherCloses.promise
+    })
+    await otherHolds.promise
+    const socket = await inRoom()
+    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('elsewhere'))
+    // The room ends; the tab that played it lets go before this one has finished it.
+    socket.gone()
+    otherCloses.resolve()
+    // Ours once the other tab is gone: this one, waiting before us, did not take it.
+    const ours = navigator.locks.request(lock, { signal: AbortSignal.timeout(2000) }, () => true)
+    await expect(ours).resolves.toBe(true)
+    expect(store.currentRoom().lead).not.toBe('here')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(store.currentRoom().pass).toBeNull()
   })
 })

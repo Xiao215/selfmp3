@@ -98,7 +98,8 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const host = state ? isHost(state) : false
   // One tab of a browser plays the room (`leadRoom`); the others leave their player be.
   const plays = room.lead === 'here'
-  const driving = host && plays
+  // A room's final state, heard before it is let go, is nothing to play on.
+  const driving = host && plays && state?.endedAt === null
 
   // A link plays through the host's server: looked for only by a host with a link to play.
   const hasLinks = state?.entries.some(entry => entry.song.link !== null) ?? false
@@ -300,7 +301,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const report = useCallback(() => {
     const now = currentRoom()
     if (!now.state || !isHost(now.state) || now.lead !== 'here' || reporting.current) return
-    if (tookLead.current) return
+    if (tookLead.current || now.state.endedAt !== null) return
     // Nothing loaded yet (the app just opened): the plan takes the room's
     // song up, and the room hears once it plays, not that nothing does.
     if (live.current.playingId === null && now.state.playing) return

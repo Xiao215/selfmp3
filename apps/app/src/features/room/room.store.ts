@@ -6,6 +6,7 @@ import {
   type DoormanFetch,
   type RoomAction,
   type RoomCreate,
+  type RoomJoined,
   type RoomState,
 } from '@selfmp3/shared'
 import {
@@ -351,6 +352,9 @@ export function connectRoom(): void {
         // The final state follows the word, when the room ended; wait a beat
         // for it so the room is remembered as it finished.
         const how = message.data.reason
+        // Over now, though: another tab of this browser must not take it up.
+        letGoOfRoom()
+        set({ lead: NO_LEAD })
         setTimeout(() => finishIfStill(pass, how), 300)
         return
       }
@@ -517,22 +521,37 @@ async function leaveFor(code: string): Promise<void> {
   if (ending) for (const listener of endedListeners) listener(ending, 'left')
 }
 
+/**
+ * Into a room just joined or opened, out of the one this device was in. When
+ * that one must hear it leave and does not (`leaveFor`), this device stays in
+ * it, and the new room is told this member has left: nobody stays in it who
+ * never comes, and one just opened ends.
+ */
+async function switchTo(joined: RoomJoined): Promise<void> {
+  const pass = { code: joined.code, member: joined.member, token: joined.token }
+  try {
+    await leaveFor(joined.code)
+  } catch (error) {
+    void roomApi.act(pass, { type: 'leave' }, null).catch(() => undefined)
+    throw error
+  }
+  enter(pass, joined.state)
+}
+
 /** Open a room: needs this device signed in. */
 export async function startRoom(input: RoomCreate): Promise<RoomState> {
   const token = await sessionToken()
   if (!token) throw new DoormanError(401, DOORMAN_ERROR.unauthorized, 'sign in to open a room')
   const joined = await roomApi.create(token, input)
+  await switchTo(joined)
   countUse('room')
-  await leaveFor(joined.code)
-  enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
   return joined.state
 }
 
 /** Join with a code: as a friend who can bring songs when signed in, else as a guest. */
 export async function joinRoom(code: string, name: string): Promise<RoomState> {
   const joined = await roomApi.join(code, name, await sessionToken())
-  await leaveFor(joined.code)
-  enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
+  await switchTo(joined)
   return joined.state
 }
 
@@ -558,13 +577,16 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
  * Whether leaving counts only once the doorman has heard it. The host's leave
  * ends the room for everyone: one it never got would end nothing, and the
  * room would play on, lending the host's songs, with nobody left who could
- * end it. A friend's stops the songs they brought being lent: one it never
- * got would leave them lent. Anyone else's socket is gone either way, so
- * they read as away.
+ * end it. A friend's stops the songs they brought, or put up on a shelf,
+ * being lent: one it never got would leave them lent. Anyone else's socket is
+ * gone either way, so they read as away.
  */
 function leaveMustBeHeard(state: RoomState | null): boolean {
   if (state === null || isHost(state)) return true
-  return state.entries.some(entry => entry.owner === state.you)
+  return (
+    state.entries.some(entry => entry.owner === state.you) ||
+    state.shelves.some(shelf => shelf.member === state.you)
+  )
 }
 
 /**

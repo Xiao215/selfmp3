@@ -549,7 +549,7 @@ describe('a player that follows the room', () => {
   it('takes up the room’s song, at the room’s place, and keeps in step on it', () => {
     const { doc, first, second } = started()
     expect(
-      followPlan(as(doc, M), 0, at(30), { currentId: second, ranOutAt: null, playsHere: true }),
+      followPlan(as(doc, M), 0, at(30), { currentId: second, leftAt: null, playsHere: true }),
     ).toEqual({
       kind: 'load',
       ids: [first, second],
@@ -557,7 +557,7 @@ describe('a player that follows the room', () => {
       autoplay: true,
     })
     expect(
-      followPlan(as(doc, M), 0, at(30), { currentId: first, ranOutAt: null, playsHere: true }),
+      followPlan(as(doc, M), 0, at(30), { currentId: first, leftAt: null, playsHere: true }),
     ).toMatchObject({
       kind: 'keep',
       position: 30,
@@ -568,7 +568,7 @@ describe('a player that follows the room', () => {
     // A moment past the end, the host there: its player moves the room on any second.
     const { doc, second } = started()
     expect(
-      followPlan(as(doc, M), 0, at(201), { currentId: second, ranOutAt: null, playsHere: true }),
+      followPlan(as(doc, M), 0, at(201), { currentId: second, leftAt: null, playsHere: true }),
     ).toEqual({
       kind: 'wait',
       away: null,
@@ -580,11 +580,10 @@ describe('a player that follows the room', () => {
     const away = online(doc, M)
     // Mid-song the room plays on without them.
     expect(
-      followPlan(as(away, M), 0, at(150), { currentId: first, ranOutAt: null, playsHere: true })
-        .kind,
+      followPlan(as(away, M), 0, at(150), { currentId: first, leftAt: null, playsHere: true }).kind,
     ).toBe('keep')
     expect(
-      followPlan(as(away, M), 0, at(203), { currentId: second, ranOutAt: null, playsHere: true }),
+      followPlan(as(away, M), 0, at(203), { currentId: second, leftAt: null, playsHere: true }),
     ).toEqual({
       kind: 'wait',
       away: 'Waiting for Xiao',
@@ -594,7 +593,7 @@ describe('a player that follows the room', () => {
   it('waits for a host whose socket stays open with nobody moving the room on', () => {
     const { doc, second } = started()
     expect(
-      followPlan(as(doc, M), 0, at(211), { currentId: second, ranOutAt: null, playsHere: true }),
+      followPlan(as(doc, M), 0, at(211), { currentId: second, leftAt: null, playsHere: true }),
     ).toEqual({
       kind: 'wait',
       away: 'Waiting for Xiao',
@@ -610,7 +609,7 @@ describe('a player that follows the room', () => {
       at(400),
     )
     expect(
-      followPlan(as(moved, M), 0, at(401), { currentId: second, ranOutAt: null, playsHere: true }),
+      followPlan(as(moved, M), 0, at(401), { currentId: second, leftAt: null, playsHere: true }),
     ).toMatchObject({
       kind: 'keep',
       position: 1,
@@ -636,24 +635,20 @@ describe('a player that follows the room', () => {
     it('keeps in step on it while it plays', () => {
       const { doc, link } = withLink()
       expect(
-        followPlan(as(doc, M), 0, at(500), { currentId: link, ranOutAt: null, playsHere: true })
-          .kind,
+        followPlan(as(doc, M), 0, at(500), { currentId: link, leftAt: null, playsHere: true }).kind,
       ).toBe('keep')
     })
 
     it('waits once the player has gone on from it by itself, rather than taking it up again', () => {
       const { doc, next } = withLink()
       const gone = online(doc, M)
-      expect(
-        followPlan(as(gone, M), 0, at(500), { currentId: next, ranOutAt: null, playsHere: true }),
-      ).toEqual({
+      const wentOn = { currentId: next, leftAt: 499, playsHere: true }
+      expect(followPlan(as(gone, M), 0, at(500), wentOn)).toEqual({
         kind: 'wait',
         away: 'Waiting for Xiao',
       })
       // The host still there: it moves the room on any second.
-      expect(
-        followPlan(as(doc, M), 0, at(500), { currentId: next, ranOutAt: null, playsHere: true }),
-      ).toEqual({
+      expect(followPlan(as(doc, M), 0, at(500), wentOn)).toEqual({
         kind: 'wait',
         away: null,
       })
@@ -664,8 +659,7 @@ describe('a player that follows the room', () => {
       const { doc, next } = withLink()
       const gone = online(doc, M)
       expect(
-        followPlan(as(gone, M), 0, at(30), { currentId: next, ranOutAt: null, playsHere: false })
-          .kind,
+        followPlan(as(gone, M), 0, at(30), { currentId: next, leftAt: 29, playsHere: false }).kind,
       ).toBe('load')
     })
 
@@ -677,16 +671,32 @@ describe('a player that follows the room', () => {
         { type: 'report', entryId: doc.playing?.entryId ?? null, position: 0, playing: true },
         at(600),
       )
-      const ranOut = { currentId: link, ranOutAt: 499, playsHere: true }
+      const ranOut = { currentId: link, leftAt: 499, playsHere: true }
       expect(followPlan(as(again, M), 0, at(601), ranOut, at(500))).toMatchObject({
         kind: 'keep',
         position: 1,
       })
     })
 
+    it('takes the link up again when the host goes back on it after this player went on', () => {
+      // This player's copy ended (or failed) early, and it went on by itself.
+      const { doc, next } = withLink()
+      const back = act(
+        doc,
+        X,
+        { type: 'report', entryId: doc.playing?.entryId ?? null, position: 20, playing: true },
+        at(40),
+      )
+      const wentOn = { currentId: next, leftAt: 35, playsHere: true }
+      expect(followPlan(as(back, M), 0, at(41), wentOn, at(36))).toMatchObject({
+        kind: 'load',
+        position: 21,
+      })
+    })
+
     it('waits once it ran out on it, and takes the host as away when nobody moves it on', () => {
       const { doc, link } = withLink()
-      const ended = { currentId: link, ranOutAt: 499, playsHere: true }
+      const ended = { currentId: link, leftAt: 499, playsHere: true }
       expect(followPlan(as(doc, M), 0, at(500), ended, at(495))).toEqual({
         kind: 'wait',
         away: null,

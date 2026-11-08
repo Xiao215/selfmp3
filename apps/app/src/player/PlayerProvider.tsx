@@ -149,6 +149,11 @@ export interface PlayerApi {
   toggle: () => void
   next: () => void
   previous: () => void
+  /**
+   * Whether a song can play on this device now: what Next and a song that
+   * ends pass over when it cannot (a room following its host asks the same).
+   */
+  mayPlay: (songId: number) => boolean
   seekTo: (seconds: number) => void
   /**
    * Forward or back from where the song is now: the menu's seek items, and the
@@ -250,6 +255,7 @@ type PlayerCommands = Pick<
   | 'toggle'
   | 'next'
   | 'previous'
+  | 'mayPlay'
   | 'seekTo'
   | 'seekBy'
   | 'getPosition'
@@ -1408,6 +1414,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       toggle,
       next,
       previous,
+      mayPlay,
       seekTo,
       seekBy,
       getPosition: stores.progress.getPosition,
@@ -1440,6 +1447,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       toggle,
       next,
       previous,
+      mayPlay,
       seekTo,
       seekBy,
       stores,

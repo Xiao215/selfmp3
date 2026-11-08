@@ -224,16 +224,17 @@ const HOST_LATE_SECONDS = 10
 interface FollowerPlayer {
   readonly currentId: number | null
   /**
-   * Where the room was on its song, by the room's clock, when this player ran
-   * out on it; null while it has not.
+   * Where the room was on its song, by the room's clock, when this player
+   * left it: ran out on it, or went on from it by itself to what the room
+   * has next. Null while it has not.
    */
-  readonly ranOutAt: number | null
+  readonly leftAt: number | null
   /** Whether the room's song can play on this device: a link may play on the host's only. */
   readonly playsHere: boolean
 }
 
-/** How far the room's clock may go back on a song this player ran out on before it is taken as played again. */
-const RAN_OUT_SLACK_SECONDS = 2
+/** How far the room's clock may go back on a song this player left before it is taken as played again. */
+const LEFT_SLACK_SECONDS = 2
 
 /**
  * Whether the room's song has played to its end without the host's player
@@ -242,10 +243,10 @@ const RAN_OUT_SLACK_SECONDS = 2
  * `HOST_LATE_SECONDS`). Null while the song plays or is paused.
  *
  * A link's length is not known (`lookUpLink`), so for one the end is this
- * player's: it ran out on the song while the room's clock went on from
- * there (not back: the host played it again), or went on by itself to what
- * the room has next — when the link could play here at all, since one that
- * cannot is passed over at once. How late the host is then counts from
+ * player's: it ran out on the song, or went on by itself to what the room
+ * has next — when the link could play here at all, since one that cannot is
+ * passed over at once — and the room's clock went on from there since (not
+ * back: the host played it again). How late the host is then counts from
  * `outSince`, when this device first saw it (local clock).
  */
 function playedOut(
@@ -264,14 +265,14 @@ function playedOut(
     if (over < 0) return null
     late = over >= HOST_LATE_SECONDS
   } else {
+    // Left it, and still where it left it or past: on it (ran out), or on what comes next.
     const next = state.order[0]
-    const ranOut =
-      player.currentId === roomTrackId(playing.entryId) &&
-      player.ranOutAt !== null &&
-      positionNow(state, offset, now) >= player.ranOutAt - RAN_OUT_SLACK_SECONDS
+    const onIt = player.currentId === roomTrackId(playing.entryId)
     const wentOn = player.playsHere && next !== undefined && player.currentId === roomTrackId(next)
-    const ended = ranOut || wentOn
-    if (!ended) return null
+    const left =
+      player.leftAt !== null &&
+      positionNow(state, offset, now) >= player.leftAt - LEFT_SLACK_SECONDS
+    if (!left || !(onIt || wentOn)) return null
     late = outSince !== null && now - outSince >= HOST_LATE_SECONDS * 1000
   }
   return hostOf(state)?.online === false || late ? 'away' : 'ending'

@@ -429,10 +429,11 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   // The song a follower last said it waits on the host for, so it is said once;
   // since when it has waited on this play of it (`followPlan`'s `outSince`,
   // keyed by the song and when it started); and where the room was when this
-  // player ran out on its song (`ranOutAt`).
+  // player left its song: ran out on it, or went on by itself to what the
+  // room has next (`leftAt`).
   const saidWaiting = useRef<string | null>(null)
   const waitingSince = useRef<{ play: string; at: number } | null>(null)
-  const ranOutOn = useRef<{ entryId: string; position: number } | null>(null)
+  const leftSong = useRef<{ entryId: string; position: number } | null>(null)
   const follow = useCallback(() => {
     const now = currentRoom()
     const room = now.state
@@ -444,11 +445,12 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     const entryId = room.playing?.entryId ?? null
     const at = Date.now()
     const onIt = entryId !== null && live.current.playingId === roomTrackId(entryId)
-    if (!onIt || !live.current.ranOut) ranOutOn.current = null
-    else if (ranOutOn.current?.entryId !== entryId) {
-      ranOutOn.current = { entryId, position: positionNow(room, now.offset, at) }
+    const next = room.order[0]
+    const onNext = next !== undefined && live.current.playingId === roomTrackId(next)
+    if (entryId === null || !((onIt && live.current.ranOut) || onNext)) leftSong.current = null
+    else if (leftSong.current?.entryId !== entryId) {
+      leftSong.current = { entryId, position: positionNow(room, now.offset, at) }
     }
-    const track = entryId === null ? undefined : roomTrack(roomTrackId(entryId))
     const play = room.playing && `${room.playing.entryId} ${room.playing.startedAt}`
     const since = waitingSince.current?.play === play ? waitingSince.current.at : null
     const plan = followPlan(
@@ -457,8 +459,8 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       at,
       {
         currentId: live.current.playingId,
-        ranOutAt: ranOutOn.current?.position ?? null,
-        playsHere: track !== undefined && (track.stream !== null || track.yours !== null),
+        leftAt: leftSong.current?.position ?? null,
+        playsHere: entryId !== null && commands.mayPlay(roomTrackId(entryId)),
       },
       since,
     )
@@ -489,9 +491,11 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     }
   }, [commands])
 
+  // Run as the player leaves the room's song too, so where it left it is
+  // the room's place then, not after the host has moved it (`leftAt`).
   useEffect(() => {
     follow()
-  }, [state, plays, follow])
+  }, [state, plays, ranOut, playingId, follow])
 
   // The steady checks: a follower's drift, and a host's seek the room has not heard of.
   const inRoom = state !== null

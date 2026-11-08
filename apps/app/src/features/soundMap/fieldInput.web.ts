@@ -1,8 +1,11 @@
 import { useEffect, useEffectEvent, useState, type RefObject } from 'react'
-import type { View, ViewStyle } from 'react-native'
+import type { View, ViewProps, ViewStyle } from 'react-native'
+import { plural } from '@selfmp3/shared'
 import { isComposing } from '../../shell/composing'
-import { focusOwnsKey } from '../../shell/keyOwner'
-import type { FieldWheel } from './fieldInput'
+import { focusOwnsKey, OWNS_SPACE } from '../../shell/keyOwner'
+import { FOCUS_OVER, setTabbing, tabbing } from '../../shell/tabbing'
+import type { FieldAccess, FieldWheel } from './fieldInput'
+import type { FieldKey } from './fieldKeys.model'
 import { mousePoints, wheelSource, type WheelSource } from './wheel.model'
 
 export type { FieldWheel } from './fieldInput'
@@ -91,6 +94,7 @@ export function useFieldKeys(onKeys: (direction: { x: number; y: number }) => vo
       handle({ x, y })
     }
     const down = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented) return
       if (!(event.key in ARROWS) || event.metaKey || event.ctrlKey || event.altKey) return
       if (isComposing(event) || focusOwnsKey(event.target, { typing: true })) return
       event.preventDefault()
@@ -118,6 +122,118 @@ export function useFieldKeys(onKeys: (direction: { x: number; y: number }) => vo
     }
   }, [])
 }
+
+/** The keys the field answers while it has focus, as what they ask of the map. */
+function fieldKeyOf(event: KeyboardEvent): FieldKey | null {
+  const arrow = ARROWS[event.key]
+  if (arrow) return { key: 'arrow', direction: arrow }
+  switch (event.key) {
+    case 'Enter':
+    case ' ':
+      return { key: 'enter' }
+    case 'Escape':
+      return { key: 'escape' }
+    case '+':
+    case '=':
+      return { key: 'in' }
+    case '-':
+    case '_':
+      return { key: 'out' }
+    default:
+      return null
+  }
+}
+
+/**
+ * The field's own keys, while it has focus (`answerKey`): told each key with
+ * whether Shift is held, which arms a line, and answering whether it was the
+ * map's. One it takes is kept from the page, whose arrows would move the map
+ * and whose Escape would let go of the tray; one it leaves goes on to them.
+ * A key it takes moves focus with the keyboard, so it turns the focus ring
+ * on, as a list's arrows do.
+ *
+ * Told too when the field gains focus, and whether the keyboard brought it
+ * there, which is when it chooses a song (a click leaves focus behind
+ * without one), and when it loses focus within the window rather than to
+ * another window, which lets go of the song.
+ */
+export function useFieldFocus(
+  ref: RefObject<View | null>,
+  on: {
+    key: (key: FieldKey, shift: boolean) => boolean
+    focus: (keyboard: boolean) => void
+    blur: () => void
+  },
+): void {
+  const key = useEffectEvent(on.key)
+  const focus = useEffectEvent(on.focus)
+  const blur = useEffectEvent(on.blur)
+  useEffect(() => {
+    const node = ref.current as unknown as HTMLElement | null
+    if (!node) return
+    const down = (event: KeyboardEvent): void => {
+      if (event.target !== node || event.defaultPrevented || isComposing(event)) return
+      // The gesture handler takes Enter and Space on the field as a tap at its
+      // middle, which would play what is there and let go of the tray: the
+      // field answers them itself, and none reaches it.
+      if (event.key === 'Enter' || event.key === ' ') event.stopImmediatePropagation()
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const asked = fieldKeyOf(event)
+      if (!asked) return
+      // A held Enter would play, or start and end a line, as fast as the keyboard repeats.
+      const handled = event.repeat && asked.key === 'enter' ? true : key(asked, event.shiftKey)
+      if (!handled) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setTabbing(true)
+    }
+    const gained = (event: FocusEvent): void => {
+      if (event.target === node) focus(tabbing())
+    }
+    const lost = (event: FocusEvent): void => {
+      if (event.target === node && document.hasFocus()) blur()
+    }
+    // In the capture phase, so it answers before the gesture handler's own
+    // listener on the same element.
+    node.addEventListener('keydown', down, true)
+    node.addEventListener('focus', gained)
+    node.addEventListener('blur', lost)
+    return () => {
+      node.removeEventListener('keydown', down, true)
+      node.removeEventListener('focus', gained)
+      node.removeEventListener('blur', lost)
+    }
+  }, [ref])
+}
+
+/** A browser speaks the song chosen from a live region of the field's own (`SoundField`). */
+export const SPEAKS_CHOICE = true
+
+/** What the keys did is said from the field's live region (`SPEAKS_CHOICE`), not aloud here. */
+export function announce(_words: string): void {}
+
+/**
+ * The field to a browser: one Tab stop that runs its own keys, as an
+ * application does, named with what is on it and what the keys do (the
+ * page's hint says what a pointer does). While a song is chosen Space plays
+ * it rather than pausing the page's music (`OWNS_SPACE`). Its focus ring is
+ * drawn over the sky (`FOCUS_OVER`), round the whole map, and the song chosen
+ * wears one of its own.
+ */
+export function fieldAccess({ songs, chosen }: FieldAccess): ViewProps {
+  return {
+    role: 'application',
+    tabIndex: 0,
+    accessibilityLabel: `Sound map, ${plural(songs, 'song', 'songs')}. ${KEYS_SAID}`,
+    // Its focus ring is drawn over the sky, and while a song is chosen Space plays it.
+    ...{
+      dataSet: { ...FOCUS_OVER.dataSet, ...(chosen === null ? null : OWNS_SPACE.dataSet) },
+    },
+  }
+}
+
+const KEYS_SAID =
+  'The arrow keys go from song to song, and Enter plays one. Shift+Enter starts a line, the arrows carry it, and Enter ends it. Escape lets go of the song, and then the arrows move the map. Plus and minus zoom.'
 
 /**
  * Shift held down: a drag draws rather than moves, as the pen does for one

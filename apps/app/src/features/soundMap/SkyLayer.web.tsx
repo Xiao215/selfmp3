@@ -34,7 +34,9 @@ import {
   starAlpha,
   starLook,
   skyGrid,
+  hoverAfter,
   type DeepStar,
+  type LitBy,
   type SkyGrid,
   type SkyLayerProps,
   type SkyPoint,
@@ -71,6 +73,14 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   const accent = useUnistyles().theme.colors.accent
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   useFieldPointer(pointerRef, setHover)
+  // A song the keys choose or the page flies to is newer than a pointer
+  // resting on the field (`hoverAfter`).
+  const litBy: LitBy = { chosen: props.chosen ?? null, shown: props.shown ?? 0 }
+  const [litWas, setLitWas] = useState(litBy)
+  if (litBy.chosen !== litWas.chosen || litBy.shown !== litWas.shown) {
+    setLitWas(litBy)
+    setHover(before => hoverAfter(litWas, litBy, before))
+  }
   const byId = useMemo(() => new Map(props.points.map(point => [point.id, point])), [props.points])
   const grid = useMemo(() => skyGrid(props.points), [props.points])
 
@@ -468,10 +478,12 @@ function draw(
       y1: Math.max(a.y, b.y),
     })
   }
-  // The star under the pointer, named before it is pressed; else the one the
-  // pointer is on in the tray's list. Once its cover is open it is lit and
-  // the rest of the sky dims round it (H3).
+  // The star under the pointer, named before it is pressed; else the song the
+  // keys chose; else the one the pointer is on in the tray's list (a song lit
+  // there lets go of the keys' one, so the newer of those two is named).
+  // Once its cover is open it is lit and the rest of the sky dims round it (H3).
   const reachUnder = Math.max(14, tile / 2 + 4)
+  const chosen = props.chosen == null ? null : (byId.get(props.chosen) ?? null)
   const under =
     (pointer
       ? songUnder(
@@ -485,7 +497,9 @@ function draw(
           pointer,
           reachUnder,
         )
-      : null) ?? (lit === null ? null : (byId.get(lit) ?? null))
+      : null) ??
+    chosen ??
+    (lit === null ? null : (byId.get(lit) ?? null))
   const underOpen = under !== null && starLook(under, view.scale).share > 0.5
   const shade = (point: SkyPoint): number => (underOpen && point !== under ? SPOTLIGHT_DIM : 1)
   const shown: { point: SkyPoint; x: number; y: number; look: StarLook }[] = []
@@ -721,6 +735,32 @@ function draw(
     ctx.stroke()
     tooltip(ctx, song, spot, Math.max(14, starLook(under, view.scale).side / 2 + 8), field)
   }
+
+  // The keys' song wears the focus ring, in the accent, as anything the
+  // keyboard is on does: drawn on its own, so the pointer over another star
+  // names that one and the ring stays where the keys are.
+  if (chosen) {
+    const spot = at(chosen)
+    const look = starLook(chosen, view.scale)
+    ctx.strokeStyle = accent
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    if (look.share > 0.5) {
+      // Just outside its cover, spotlit (and so larger) when it is the one named.
+      const side =
+        (chosen === under ? Math.max(SPOTLIGHT_COVER, look.side * 1.15) : look.side) + FOCUS_GAP * 2
+      ctx.roundRect(
+        spot.x - side / 2,
+        spot.y - side / 2,
+        side,
+        side,
+        look.corner * (side / look.side),
+      )
+    } else {
+      ctx.arc(spot.x, spot.y, ringRadius(chosen, view.scale, 7), 0, Math.PI * 2)
+    }
+    ctx.stroke()
+  }
 }
 
 /**
@@ -798,6 +838,8 @@ const SPOTLIGHT_DIM = 0.3
 const SPOTLIGHT_COVER = 52
 /** How far inside a lit cover's edge its glow is cast from. */
 const SPOTLIGHT_INSET = 2
+/** How far outside the keys' lit cover its focus ring is drawn. */
+const FOCUS_GAP = 3
 
 const FONT = '-apple-system, system-ui, "PingFang SC", "Hiragino Sans", sans-serif'
 

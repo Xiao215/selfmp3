@@ -27,7 +27,9 @@ import { setTabbing, TABBING_SELECTOR } from './tabbing'
  *
  * A list that clips what it holds — the sidebar, a shelf, a strip of chips —
  * cut the ring of whatever was at its edge to one side of it, so anything in
- * one (`FOCUS_INSIDE`) wears it just inside its own edge instead.
+ * one (`FOCUS_INSIDE`) wears it just inside its own edge instead. The sound
+ * map fills the page and is covered by its own canvases, which hid a ring
+ * inside it, so it (`FOCUS_OVER`) wears one drawn over them.
  *
  * A song row's press target lies under its cover and title only, and a ring
  * round that would stop partway along the row, so the row wears it instead,
@@ -45,6 +47,8 @@ const TEXT_FIELD = 'input:not([type="range"]):not([type="checkbox"]):not([type="
 const ROW_PRESS = '[data-row-press]'
 /** A list that clips what it holds (`FOCUS_INSIDE`). */
 const CLIPPED = '[data-focus-inside]'
+/** Something whose own drawing covers it (`FOCUS_OVER`). */
+const COVERED = '[data-focus-over]'
 
 function css(accent: string): string {
   return `
@@ -55,6 +59,8 @@ ${TEXT_FIELD}:focus, textarea:focus { border-color: ${accent} !important; }
 ${TABBING_SELECTOR} ${ROW_PRESS}:focus-visible { outline: none; }
 ${TABBING_SELECTOR} [${SONG_ROW}]:has(${ROW_PRESS}:focus-visible) { outline: 2px solid ${accent}; outline-offset: -2px; }
 ${TABBING_SELECTOR} ${CLIPPED} :focus-visible { outline-offset: -2px; }
+${TABBING_SELECTOR} ${COVERED}:focus-visible { outline: none; }
+${TABBING_SELECTOR} ${COVERED}:focus-visible::after { content: ''; position: absolute; inset: 0; border: 2px solid ${accent}; pointer-events: none; }
 ${FORCED}
 `
 }

@@ -74,6 +74,10 @@ export interface SkyLayerProps {
   readonly playing: number | null
   /** The song the pointer is on in the tray's list: ringed and named on the map. */
   readonly lit: number | null
+  /** The song the keyboard or a screen reader has chosen: ringed in the accent, over the others. */
+  readonly chosen?: number | null
+  /** How many times the page has flown to a song (a tray row's Show, Find the song playing). */
+  readonly shown?: number
   /** How much of the field's right the tray's panel covers: a song's card keeps clear of it. */
   readonly panel: number
   /** Where the map was just pressed, for a moment. */
@@ -390,6 +394,26 @@ export function pointsIn(
     }
   }
   return out
+}
+
+/** What has lit a song other than the pointer: the keys' choice, and how many times the page flew to one. */
+export interface LitBy {
+  readonly chosen: number | null
+  readonly shown: number
+}
+
+/**
+ * The pointer's place over the field once something else lights a song: a
+ * song newly chosen with the keys, or flown to (Show, Find the song
+ * playing), is newer than a pointer resting there, which the map slides
+ * under and which would name whatever star came beneath it. Let go of
+ * (null), it names a star again once it moves. The keys letting go of their
+ * song lights nothing new, and leaves it.
+ */
+export function hoverAfter<T>(was: LitBy, now: LitBy, hover: T | null): T | null {
+  if (now.shown !== was.shown) return null
+  if (now.chosen !== null && now.chosen !== was.chosen) return null
+  return hover
 }
 
 /** The nearest song to a point of the field within `reach` points, for a pointer over the map. */

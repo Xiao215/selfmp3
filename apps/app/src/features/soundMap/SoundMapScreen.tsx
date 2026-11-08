@@ -71,7 +71,8 @@ const SHEET_SHARE = 0.5
  * name, the tags as chips that light their own songs and fly to them, and in
  * the corner the pen and the way to the song playing.
  *
- * A tap plays the songs nearest it. Holding, then dragging, draws: a line
+ * A tap plays the songs nearest it; without a pointer, the keys go from song
+ * to song and play and draw from there (`SoundField`). Holding, then dragging, draws: a line
  * takes the songs along it as a drift from one place to the other, a loop
  * the songs inside. Each stroke goes into the tray, a section of its own in
  * its colour, to play, add to Up next or save as a playlist: on a computer a
@@ -227,19 +228,26 @@ export function SoundMapScreen(): ReactNode {
     strokeRef.current = [spot]
     setStroke([spot])
   }, [])
-  const onPathMove = useCallback((spot: MapPlace, within: number) => {
+  // A finger's points closer than a step are one; a song the keys went to is
+  // always its own, however near the one before.
+  const onPathMove = useCallback((spot: MapPlace, within: number, exact = false) => {
     reach.current = within
     const last = strokeRef.current[strokeRef.current.length - 1]
-    if (last && Math.hypot(spot.x - last.x, spot.y - last.y) < PATH_STEP) return
+    if (!exact && last && Math.hypot(spot.x - last.x, spot.y - last.y) < PATH_STEP) return
     strokeRef.current = [...strokeRef.current, spot]
     setStroke(strokeRef.current)
   }, [])
+  const onPathCancel = useCallback(() => {
+    strokeRef.current = []
+    setStroke([])
+  }, [])
   const { done: hintDone } = hint
-  const onPathEnd = useCallback(() => {
+  // How many songs the stroke took, for the keys to say.
+  const onPathEnd = useCallback((): number => {
     const drawn = strokeRef.current
     strokeRef.current = []
     setStroke([])
-    if (drawn.length < 2) return
+    if (drawn.length < 2) return 0
     setPen(false)
     hintDone()
     const loop = isLoop(drawn, reach.current * LOOP_CLOSE)
@@ -247,7 +255,7 @@ export function SoundMapScreen(): ReactNode {
       ? songsInside(places, drawn, songs)
       : songsAlongPath(places, drawn, reach.current, songs)
     // Nothing taken: the stroke simply goes, as it came, with no word about it.
-    if (ids.length === 0) return
+    if (ids.length === 0) return 0
     const take: Omit<MapTake, 'id' | 'tone'> = {
       kind: loop ? 'loop' : 'line',
       name: loop ? loopName(places, ids, songs, tags) : pathName(places, drawn, songs, tags),
@@ -257,6 +265,7 @@ export function SoundMapScreen(): ReactNode {
     }
     const id = nextTake.current++
     setTakes(before => [...before, { ...take, id, tone: takeTone(before) }])
+    return ids.length
   }, [places, songs, tags, hintDone])
 
   const playTray = (): void => {
@@ -437,6 +446,7 @@ export function SoundMapScreen(): ReactNode {
                 onPathStart={onPathStart}
                 onPathMove={onPathMove}
                 onPathEnd={onPathEnd}
+                onPathCancel={onPathCancel}
               />
             </View>
 

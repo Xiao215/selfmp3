@@ -239,7 +239,9 @@ function SongSky(
   )
 
   // Settled, or anything drawn changed: recorded for where the map is.
-  const { points, songs, regions, lens, takes, playing, lit, panel, base } = props
+  const { points, songs, regions, lens, takes, playing, panel, base } = props
+  // What the keys chose is lit as a song from the tray is: VoiceOver rings the field itself.
+  const lit = props.chosen ?? props.lit
   useLayoutEffect(() => {
     latest.current = { props, art, accent, grid, byId }
     record(live.now())
@@ -679,7 +681,8 @@ function paintSky(
     x1: Math.max(a.x, b.x),
     y1: Math.max(a.y, b.y),
   })
-  const lit = props.lit === null ? undefined : byId.get(props.lit)
+  const litId = props.chosen ?? props.lit
+  const lit = litId === null ? undefined : byId.get(litId)
   const litOpen = lit !== undefined && starLook(lit, view.scale).share > 0.5
   const shade = (point: SkyPoint): number => (litOpen && point !== lit ? SPOTLIGHT_DIM : 1)
   const shown: { point: SkyPoint; x: number; y: number; look: StarLook }[] = []

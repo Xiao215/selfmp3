@@ -10,6 +10,7 @@ import {
   deepTwinkle,
   dustSpecks,
   flareReach,
+  hoverAfter,
   glowReach,
   lensTags,
   namedCovers,
@@ -278,5 +279,28 @@ describe('the night sky', () => {
         { id: 6, x: 4, y: 2, side: 40, bright: 0.8 },
       ]),
     ]).toEqual([6])
+  })
+})
+
+describe('a pointer resting on the map, once something else lights a song', () => {
+  const hover = { x: 120, y: 80 }
+  const was = { chosen: 4, shown: 2 }
+
+  it('is set aside for a song newly chosen with the keys', () => {
+    expect(hoverAfter(was, { chosen: 5, shown: 2 }, hover)).toBeNull()
+    expect(hoverAfter({ chosen: null, shown: 2 }, { chosen: 4, shown: 2 }, hover)).toBeNull()
+  })
+
+  it('is set aside for each flight to a song, the same song again included', () => {
+    expect(hoverAfter(was, { chosen: 4, shown: 3 }, hover)).toBeNull()
+    expect(hoverAfter({ chosen: null, shown: 3 }, { chosen: null, shown: 4 }, hover)).toBeNull()
+  })
+
+  it('stays while the choice is unchanged', () => {
+    expect(hoverAfter(was, { chosen: 4, shown: 2 }, hover)).toBe(hover)
+  })
+
+  it('stays when the keys let go of their song, which lights nothing new', () => {
+    expect(hoverAfter(was, { chosen: null, shown: 2 }, hover)).toBe(hover)
   })
 })

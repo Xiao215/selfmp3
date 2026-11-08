@@ -1,5 +1,6 @@
 import type { MapPlace } from '@selfmp3/shared'
 import type { FieldWheel } from './fieldInput'
+import type { FieldSpot } from './fieldKeys.model'
 import {
   baseOf,
   between,
@@ -13,6 +14,7 @@ import {
   panBy,
   pathReach,
   toMap,
+  toScreen,
   zoomAt,
   type FieldInsets,
   type FieldSize,
@@ -33,6 +35,8 @@ interface FieldEvents {
   readonly pathStart: (spot: MapPlace) => void
   readonly pathMove: (spot: MapPlace, reach: number) => void
   readonly pathEnd: () => void
+  /** The page flew to a song (a tray row's Show, Find the song playing): newer than the keys' choice. */
+  readonly toSong: () => void
 }
 
 /**
@@ -157,6 +161,7 @@ export class FieldControl {
       return
     }
     const target = centredOn(view, field, place, Math.max(view.scale, SONG_SCALE), this.#insets)
+    this.#events?.toSong()
     this.#touched = true
     if (instant) this.#set(target, true)
     else this.#fly(target)
@@ -177,15 +182,51 @@ export class FieldControl {
   /** The + and − buttons: about the middle of what the page leaves clear. */
   zoomBy(factor: number): void {
     const view = this.#view
+    const middle = this.middle()
+    if (view && middle) this.#fly(zoomAt(view, factor, middle))
+  }
+
+  /**
+   * + and − on the keyboard: about the song it has chosen, which stays where
+   * it is, or the middle as the buttons zoom.
+   */
+  zoomAbout(place: MapPlace | null, factor: number): void {
+    const view = this.#view
+    const point = place ? this.screenOf(place) : null
+    if (!view || !point) {
+      this.zoomBy(factor)
+      return
+    }
+    this.#fly(zoomAt(view, factor, point))
+  }
+
+  /** Where a song is drawn on the field now, in points. */
+  screenOf(place: MapPlace): { x: number; y: number } | null {
+    if (!this.#view || !this.#field) return null
+    return toScreen(this.#view, baseOf(this.#field), place)
+  }
+
+  /** Where each song is drawn on the field now: what the keyboard steps between. */
+  spotsOf(places: readonly (MapPlace & { id: number })[]): FieldSpot[] {
+    const view = this.#view
     const field = this.#field
-    if (!view || !field) return
+    if (!view || !field) return []
+    const base = baseOf(field)
+    return places.map(place => ({ id: place.id, ...toScreen(view, base, place) }))
+  }
+
+  /** The middle of what the page leaves clear of its head, tray and panel. */
+  middle(): { x: number; y: number } | null {
+    const field = this.#field
+    if (!field) return null
     const { top, bottom, right } = this.#insets
-    this.#fly(
-      zoomAt(view, factor, {
-        x: (field.width - right) / 2,
-        y: top + (field.height - top - bottom) / 2,
-      }),
-    )
+    return { x: (field.width - right) / 2, y: top + (field.height - top - bottom) / 2 }
+  }
+
+  /** A finger's reach on the map as it is now (`pathReach`): how near a song a press or a line takes it. */
+  reach(): number | null {
+    if (!this.#view || !this.#field) return null
+    return pathReach(this.#view, baseOf(this.#field))
   }
 
   /** A double tap: in, about where it landed, as a street map does. */

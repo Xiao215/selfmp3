@@ -34,7 +34,9 @@ import {
   starAlpha,
   starLook,
   skyGrid,
+  hoverAfter,
   type DeepStar,
+  type LitBy,
   type SkyGrid,
   type SkyLayerProps,
   type SkyPoint,
@@ -71,12 +73,13 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   const accent = useUnistyles().theme.colors.accent
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   useFieldPointer(pointerRef, setHover)
-  // A song the keys choose is newer than a pointer resting on the field, over
-  // which the map slides to follow it: the pointer names a star again once it moves.
-  const [chosenWas, setChosenWas] = useState(props.chosen)
-  if (props.chosen !== chosenWas) {
-    setChosenWas(props.chosen)
-    if (props.chosen != null) setHover(null)
+  // A song the keys choose or the page flies to is newer than a pointer
+  // resting on the field (`hoverAfter`).
+  const litBy: LitBy = { chosen: props.chosen ?? null, shown: props.shown ?? 0 }
+  const [litWas, setLitWas] = useState(litBy)
+  if (litBy.chosen !== litWas.chosen || litBy.shown !== litWas.shown) {
+    setLitWas(litBy)
+    setHover(before => hoverAfter(litWas, litBy, before))
   }
   const byId = useMemo(() => new Map(props.points.map(point => [point.id, point])), [props.points])
   const grid = useMemo(() => skyGrid(props.points), [props.points])

@@ -134,6 +134,8 @@ export function SoundField({
   const [keys, setKeys] = useState(NO_FIELD_KEYS)
   const keysRef = useRef(keys)
   const [said, setSaid] = useState('')
+  // How many times the page has flown to a song: the sky sets a resting pointer aside then.
+  const [shown, setShown] = useState(0)
   // What the keys did, said: from the live region in a browser, and on a
   // phone (where the song chosen is the field's value) aloud.
   const say = (words: string): void => {
@@ -262,6 +264,7 @@ export function SoundField({
         pathEnd: () => handlers.current.onPathEnd(),
         // Each Show is its own, even of the song the tray already lit.
         toSong: () => {
+          setShown(count => count + 1)
           if (keysRef.current.line === null) letGo.current()
         },
       }),
@@ -359,6 +362,7 @@ export function SoundField({
             playing={playing}
             lit={lit}
             chosen={keys.chosen}
+            shown={shown}
             panel={panel}
             pulse={pulse}
             songs={songs}

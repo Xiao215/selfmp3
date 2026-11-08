@@ -636,6 +636,9 @@ function send(socket: RoomSocket, message: RoomServerMessage): void {
   }
 }
 
+/** `WebSocket.READY_STATE_OPEN`, which only the Workers runtime defines. */
+const SOCKET_OPEN = 1
+
 /**
  * The Durable Object class, exported from index.ts by the name wrangler.toml
  * binds (`Room`). It hands the runtime's storage, alarm and hibernating
@@ -665,7 +668,13 @@ export class RoomObject {
         state.acceptWebSocket(pair[1], [member])
         return new Response(null, { status: 101, webSocket: pair[0] })
       },
-      sockets: () => state.getWebSockets().map(socketOf),
+      // Only the open ones: a socket is still listed, closing, in its own
+      // `webSocketClose`, and the others would hear its member is still here.
+      sockets: () =>
+        state
+          .getWebSockets()
+          .filter(ws => ws.readyState === SOCKET_OPEN)
+          .map(socketOf),
       now: () => Date.now(),
     })
   }
@@ -693,6 +702,11 @@ export class RoomObject {
       // Already closed.
     }
     await this.#room.closed()
+  }
+
+  /** A socket that broke rather than closed: gone all the same. */
+  async webSocketError(ws: WebSocket): Promise<void> {
+    await this.webSocketClose(ws, 1011, 'the socket broke')
   }
 
   alarm(): Promise<void> {

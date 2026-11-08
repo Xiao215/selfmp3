@@ -342,10 +342,10 @@ describe('what plays', () => {
     expect(roomOrder(doc)).toEqual([])
   })
 
-  it('numbers each thing a member asks of the host’s player', () => {
+  it('numbers each thing a member asks of the host’s player, and stamps when it was asked', () => {
     let doc = act(room(), M, { type: 'skip' })
-    doc = act(doc, K, { type: 'skip' })
-    expect(doc.want).toEqual({ seq: 2, kind: 'skip', by: K })
+    doc = act(doc, K, { type: 'skip' }, 2500)
+    expect(doc.want).toEqual({ seq: 2, kind: 'skip', by: K, at: 2500 })
   })
 
   it('keeps no more than its share of played songs', () => {

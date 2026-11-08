@@ -7,7 +7,9 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { bodyText, pageFrame, pageTitle } from '../../ui/surfaces'
 import { BackButton } from '../../ui/components/BackButton'
 import { BrandMark } from '../../ui/components/BrandMark'
+import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import type { LinkTrouble } from './share.model'
 
 /**
  * A share link the page cannot show (A1, B1 and D of the gone-link proposal):
@@ -16,30 +18,62 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
  * link's page — a cover, then its name, then what to do — with an empty
  * sleeve where the cover was, its record half out; a link cut short has a
  * torn one. In the middle of the page, as the link's own column is.
+ *
+ * Out of reach — no network, or the doorman failing — the link may well still
+ * be there: its sleeve is whole, with the record in it, and Try again asks for
+ * it again; the page asks by itself once the network is back.
  */
-export function GoneLink({ torn, signedIn }: { torn: boolean; signedIn: boolean }): ReactNode {
+export function GoneLink({
+  trouble,
+  signedIn,
+  offline = false,
+  onRetry,
+  retrying = false,
+}: {
+  trouble: LinkTrouble
+  signedIn: boolean
+  offline?: boolean
+  onRetry?: () => void
+  retrying?: boolean
+}): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
+  const words = WORDS[trouble === 'unreachable' && offline ? 'offline' : trouble]
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={[styles.page, pageFrame(wide)]} testID="share-missing">
+      <View
+        style={[styles.page, pageFrame(wide)]}
+        testID={trouble === 'unreachable' ? 'share-unreachable' : 'share-missing'}
+      >
         {/* No sidebar here, even on a computer: Back is the way into your own library. */}
         {signedIn ? <BackButton to="/" always /> : null}
         <View style={styles.middle}>
-          <Sleeve size={wide ? 200 : 160} torn={torn} />
+          <Sleeve size={wide ? 200 : 160} trouble={trouble} />
           <View style={styles.words}>
             <Text style={styles.title} accessibilityRole="header">
-              {torn ? 'That link isn’t all there' : 'This link is gone'}
+              {words.title}
             </Text>
-            <Text style={styles.line}>
-              {torn
-                ? 'Check it was copied whole, or ask for it again.'
-                : 'Shared links are cleared ninety days after they end. Ask whoever sent it to share it again.'}
-            </Text>
+            <Text style={styles.line}>{words.line}</Text>
           </View>
+          {trouble === 'unreachable' && onRetry ? (
+            <Button label="Try again" busy={retrying} onPress={onRetry} />
+          ) : null}
         </View>
       </View>
     </SafeAreaView>
   )
+}
+
+const WORDS: Record<LinkTrouble | 'offline', { title: string; line: string }> = {
+  torn: {
+    title: 'That link isn’t all there',
+    line: 'Check it was copied whole, or ask for it again.',
+  },
+  gone: {
+    title: 'This link is gone',
+    line: 'Shared links are cleared ninety days after they end. Ask whoever sent it to share it again.',
+  },
+  unreachable: { title: 'Can’t reach this link', line: 'Try again in a moment.' },
+  offline: { title: 'You’re offline', line: 'The link opens once you’re back online.' },
 }
 
 /** Where the torn sleeve's two pieces part, as fractions of its side: the top piece's edge, then the bottom's. */
@@ -63,11 +97,11 @@ const TEAR_BOTTOM = [
 ]
 
 /**
- * The empty sleeve, with the record half out of it and faded; or, torn, in
- * two pieces with no record. The app's mark sits faint on the sleeve, as a
+ * The empty sleeve, with the record half out of it and faded; torn, in two
+ * pieces with no record; or, out of reach, whole with the record in it. The app's mark sits faint on the sleeve, as a
  * cover-less song's does.
  */
-function Sleeve({ size, torn }: { size: number; torn: boolean }): ReactNode {
+function Sleeve({ size, trouble }: { size: number; trouble: LinkTrouble }): ReactNode {
   const { theme } = useUnistyles()
   const c = theme.colors
   const disc = size * 0.46
@@ -83,13 +117,18 @@ function Sleeve({ size, torn }: { size: number; torn: boolean }): ReactNode {
     />
   )
   // The sleeve stands over the words; the record sticks out past them.
-  const box = torn
-    ? { width: size + 8, height: size + 8 }
-    : { width: size + disc, height: size, transform: [{ translateX: disc / 2 }] }
+  const box =
+    trouble === 'torn'
+      ? { width: size + 8, height: size + 8 }
+      : trouble === 'gone'
+        ? { width: size + disc, height: size, transform: [{ translateX: disc / 2 }] }
+        : { width: size, height: size }
   return (
     <View style={box}>
       <Svg width="100%" height="100%">
-        {torn ? (
+        {trouble === 'unreachable' ? (
+          sleeve()
+        ) : trouble === 'torn' ? (
           <>
             <Defs>
               <ClipPath id="tornTop">

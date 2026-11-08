@@ -1,4 +1,5 @@
 import {
+  DoormanError,
   formatShareStart,
   parseShareStart,
   plural,
@@ -24,6 +25,34 @@ type ShareStage = 'live' | 'lastDay' | 'ended'
 export function shareStage(link: Pick<ShareLink, 'endsAt' | 'ended'>, now: number): ShareStage {
   if (link.ended || now >= link.endsAt) return 'ended'
   return link.endsAt - now <= SHARE_LAST_DAY_MS ? 'lastDay' : 'live'
+}
+
+/**
+ * Why a link's page has no link to show: cut short when it was copied, or its
+ * key not the link's (torn); the doorman saying there is no such link, which
+ * is one forgotten after it ended (gone); or no answer at all — no network,
+ * the doorman failing or busy — when the link may well still be there, and
+ * opens once it is asked again.
+ */
+export type LinkTrouble = 'torn' | 'gone' | 'unreachable'
+
+export function linkTrouble(id: string | null, key: string | null, error: unknown): LinkTrouble {
+  if (!id || !key) return 'torn'
+  if (error instanceof DoormanError && error.status === 403) return 'torn'
+  if (error instanceof DoormanError && error.gone) return 'gone'
+  return 'unreachable'
+}
+
+/**
+ * The song a list's address names (`?s=<entry>`) when its sender has removed
+ * it: the page opens on another, and says why.
+ */
+export function goneAskedFor(
+  link: Pick<ShareLink, 'kind' | 'entries'>,
+  s: string | undefined,
+): ShareLink['entries'][number] | null {
+  if (link.kind !== 'list' || !s) return null
+  return link.entries.find(entry => entry.id === s && entry.gone) ?? null
 }
 
 /** "20 Oct", in the reader's own way of writing a date. */

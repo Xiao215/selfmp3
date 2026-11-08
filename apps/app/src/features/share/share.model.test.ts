@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { DOORMAN_ERROR, DoormanError } from '@selfmp3/shared'
 import type { RoomSong, ShareLink, ShareSummary, Song } from '@selfmp3/shared'
 import { libraryIndex, roomTrackId } from '@selfmp3/client'
 import {
   gettable,
+  goneAskedFor,
+  linkTrouble,
   receivedLine,
   removeLinksWords,
   sentCountLine,
@@ -284,5 +287,56 @@ describe('where a link starts', () => {
     expect(shareWords(words)).toBe('干杯 · 五月天')
     expect(shareWords({ ...words, start: 42 })).toBe('干杯 · 五月天 · from 0:42')
     expect(shareWords({ ...words, artist: null, start: 3723 })).toBe('干杯 · from 1:02:03')
+  })
+})
+
+describe('a link the page has no link for', () => {
+  const ID = '0123456789abcdef'
+  const KEY = 'fedcba9876543210'
+  const refused = (status: number, code: DoormanError['code']): DoormanError =>
+    new DoormanError(status, code, 'refused')
+
+  it('is torn when it was cut short or its key is not the link’s', () => {
+    expect(linkTrouble(null, KEY, null)).toBe('torn')
+    expect(linkTrouble(ID, null, null)).toBe('torn')
+    expect(linkTrouble(ID, KEY, refused(403, DOORMAN_ERROR.shareForbidden))).toBe('torn')
+  })
+
+  it('is gone only when the doorman says there is no such link', () => {
+    expect(linkTrouble(ID, KEY, refused(404, DOORMAN_ERROR.shareMissing))).toBe('gone')
+    expect(linkTrouble(ID, KEY, refused(410, DOORMAN_ERROR.shareEnded))).toBe('gone')
+  })
+
+  it('is out of reach with no network, or the doorman failing, busy or not answering', () => {
+    const noAnswer = new DoormanError(0, DOORMAN_ERROR.unreachable, 'Failed to fetch')
+    expect(linkTrouble(ID, KEY, noAnswer)).toBe('unreachable')
+    expect(linkTrouble(ID, KEY, refused(500, DOORMAN_ERROR.internal))).toBe('unreachable')
+    expect(linkTrouble(ID, KEY, refused(502, DOORMAN_ERROR.unexpected))).toBe('unreachable')
+    expect(linkTrouble(ID, KEY, refused(429, DOORMAN_ERROR.unexpected))).toBe('unreachable')
+    expect(linkTrouble(ID, KEY, new TypeError('Failed to fetch'))).toBe('unreachable')
+    // Offline before it was asked for: the ask waits for the network.
+    expect(linkTrouble(ID, KEY, null)).toBe('unreachable')
+  })
+})
+
+describe('a list link opened on a song', () => {
+  const list = link({
+    kind: 'list',
+    name: 'Mix',
+    entries: [
+      { id: 'aaaaaaaaaaaa', song: song(1), gone: false },
+      { id: 'bbbbbbbbbbbb', song: song(2), gone: true },
+    ],
+  })
+
+  it('names the song when its sender removed it', () => {
+    expect(goneAskedFor(list, 'bbbbbbbbbbbb')?.song.title).toBe('Song 2')
+  })
+
+  it('names none for a song still there, no song, a song not in it, or a one-song link', () => {
+    expect(goneAskedFor(list, 'aaaaaaaaaaaa')).toBeNull()
+    expect(goneAskedFor(list, undefined)).toBeNull()
+    expect(goneAskedFor(list, 'cccccccccccc')).toBeNull()
+    expect(goneAskedFor({ ...list, kind: 'song' }, 'bbbbbbbbbbbb')).toBeNull()
   })
 })

@@ -98,6 +98,8 @@ HTTP), it reconnects by itself, it survives Tailscale Funnel and any proxy witho
 handling, and it needs no dependency. The compression middleware skips `/api/events`, since a
 buffered stream is not a stream. A stream that stops reading — more than a megabyte waiting to
 go to it — is dropped (`MAX_QUEUED_BYTES`); its client reconnects and the replay catches it up.
+At most 200 streams are open at once (`MAX_STREAMS`): past that the oldest is closed and its
+client reconnects the same way, so one device with a token cannot open streams without end.
 
 The library version starts each boot from the server's clock, so a device reconnecting after
 a restart is never told a number it saw before for a different library. A browser replaces a

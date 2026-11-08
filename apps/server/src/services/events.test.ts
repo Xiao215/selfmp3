@@ -5,6 +5,7 @@ import {
   encodeSsePreamble,
   EventHub,
   MAX_QUEUED_BYTES,
+  MAX_STREAMS,
   type EventSink,
 } from './events.js'
 
@@ -59,6 +60,25 @@ describe('EventHub', () => {
     expect(ended).toBe(true)
     expect(hub.size).toBe(1)
     expect(reading.text).toContain('"version":2')
+    hub.stop()
+  })
+
+  it('closes the oldest stream when too many are open, and keeps the newest', () => {
+    const hub = new EventHub(logger)
+    const ended: number[] = []
+    const sinks = Array.from({ length: MAX_STREAMS + 5 }, (_, index) => {
+      const sink = new BufferSink()
+      return Object.assign(sink, { end: () => ended.push(index) })
+    })
+    const closes = sinks.map(sink => hub.subscribe(sink, []))
+    expect(hub.size).toBe(MAX_STREAMS)
+    expect(ended).toEqual([0, 1, 2, 3, 4])
+    hub.broadcast({ type: 'library', version: 3 })
+    expect(sinks[4].text).not.toContain('"version":3')
+    expect(sinks[MAX_STREAMS + 4].text).toContain('"version":3')
+    // A closed stream's own close, when its response ends, changes nothing.
+    closes[0]()
+    expect(hub.size).toBe(MAX_STREAMS)
     hub.stop()
   })
 

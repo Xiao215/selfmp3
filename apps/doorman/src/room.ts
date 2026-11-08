@@ -173,7 +173,7 @@ export const LentFileSchema = z.union([
   }),
   z.object({ listen: z.string().url() }),
 ])
-type LentFile = z.infer<typeof LentFileSchema>
+export type LentFile = z.infer<typeof LentFileSchema>
 
 /** A refusal's code, by what was refused. */
 const ROOM_REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> = {
@@ -340,8 +340,22 @@ export class Room {
         return answer(403, DOORMAN_ERROR.roomForbidden, 'sign in as yourself to bring your songs')
       }
     }
-    const next = applyRoomAction(doc, member, input.action, this.#runtime.now(), this.#newId)
+    let made: string | null = null
+    const newId = (): string => (made = this.#newId())
+    const next = applyRoomAction(doc, member, input.action, this.#runtime.now(), newId)
     if (isRoomRefusal(next)) return refusal(next)
+    if (input.action.type === 'again' && made !== null) {
+      // A shared playlist's song played again is lent as the first was, and
+      // still only while the playlist has it (rooms.ts asks on every read).
+      const secrets = await this.#secrets()
+      const lend = secrets.entryLends?.[input.action.entryId]
+      if (lend) {
+        await this.#runtime.storage.put<Secrets>('secrets', {
+          ...secrets,
+          entryLends: { ...secrets.entryLends, [made]: lend },
+        })
+      }
+    }
     await this.#save(next, input.action.type === 'kick' ? input.action.member : null)
     return Response.json(this.#stateFor(next, member))
   }

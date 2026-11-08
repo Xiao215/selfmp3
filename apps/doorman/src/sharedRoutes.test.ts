@@ -306,6 +306,62 @@ describe('a room and a shared playlist', () => {
     expect(refused.status).toBe(403)
   })
 
+  it('plays a shared playlist’s song again as it played, while the playlist still has it', async () => {
+    const s = await setup()
+    const made = await make(s)
+    await s.h.call(`/v1/shared/${made.id}/join`, {
+      token: s.mia,
+      json: { invite: made.invite, name: 'Mia' },
+    })
+    await s.h.call(`/v1/shared/${made.id}/act`, {
+      token: s.mia,
+      json: { type: 'add', song: song(2) },
+    })
+    const kept = await playlist(await s.h.call(`/v1/shared/${made.id}`, { token: s.mia }))
+    const { host } = await room(s)
+    const filled = RoomStateSchema.parse(
+      await (
+        await s.h.call(`/v1/rooms/${host.code}/from-shared?t=${host.token}`, {
+          token: s.me,
+          json: { shared: made.id },
+        })
+      ).json(),
+    )
+    const twos = filled.entries.find(item => item.song.title === 'Song 2')?.id ?? ''
+    const act = (token: string, json: unknown) =>
+      s.h.call(`/v1/rooms/${host.code}/act?t=${token}`, { json })
+    await act(host.token, { type: 'report', entryId: twos, position: 0, playing: true })
+    await act(host.token, { type: 'report', entryId: null, position: 0, playing: false })
+
+    // A guest puts it in again: it is still Mia's, and still plays for them.
+    const ana = RoomJoinedSchema.parse(
+      await (await s.h.call(`/v1/rooms/${host.code}/join`, { json: { name: 'Ana' } })).json(),
+    )
+    const again = RoomStateSchema.parse(
+      await (await act(ana.token, { type: 'again', entryId: twos })).json(),
+    )
+    const copy = again.entries.at(-1)
+    expect([copy?.song.title, copy?.from, copy?.fromPicture]).toEqual([
+      'Song 2',
+      'Mia',
+      MIA.picture,
+    ])
+    const read = await s.h.call(
+      `/v1/rooms/${host.code}/files/${copy?.id ?? ''}/audio?t=${ana.token}`,
+    )
+    expect(await read.text()).toBe('two')
+
+    // Mia takes it out of the playlist: it is not put in again to fail later.
+    const two = kept.entries.find(item => item.song.title === 'Song 2')?.id ?? ''
+    await s.h.call(`/v1/shared/${made.id}/act`, {
+      token: s.mia,
+      json: { type: 'remove', entryId: two },
+    })
+    const refused = await act(ana.token, { type: 'again', entryId: twos })
+    expect(refused.status).toBe(404)
+    expect(await refused.text()).toContain('no longer lent')
+  })
+
   it('stops lending a song once it is out of the playlist, or its owner is', async () => {
     const s = await setup()
     const made = await make(s)

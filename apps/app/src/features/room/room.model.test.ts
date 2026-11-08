@@ -335,6 +335,26 @@ describe('keep it going', () => {
   })
 })
 
+describe('keep it going, once a friend left', () => {
+  it('brings none of their songs back', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    for (let n = 1; n <= 13; n++) {
+      if (n > 1) doc = act(doc, X, { type: 'add', song: song(n) })
+      const entry = doc.entries.at(-1)?.id ?? ''
+      doc = act(doc, X, { type: 'report', entryId: entry, position: 0, playing: true }, 2000 + n)
+    }
+    doc = act(doc, X, { type: 'report', entryId: null, position: 0, playing: false }, 3000)
+    // Song 1 played long enough ago to come back, while Mia is here.
+    const mias = doc.entries[0]?.id
+    const again = (state: RoomState) =>
+      keepGoingPicks(state, 4, { random: () => 0 }).filter(
+        pick => pick.type === 'again' && pick.entryId === mias,
+      )
+    expect(again(as(doc, X))).toHaveLength(1)
+    expect(again(as(act(doc, M, { type: 'leave' }), X))).toEqual([])
+  })
+})
+
 describe('keep it going, from the host’s library', () => {
   it('brings songs of the host’s the room does not have, nearest in sound first', () => {
     const doc = act(room(), M, { type: 'add', song: song(1) })

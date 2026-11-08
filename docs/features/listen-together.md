@@ -141,6 +141,10 @@ sheet:
   song, so each play counts against the owner's daily Backblaze downloads. A friend whose
   bucket has hit its cap has their songs skipped, and the room says so once.
 
+**A friend who leaves** leaves their waiting songs to play; nothing else of theirs is read
+from their bucket after, so their played songs are not played again. One the host removes
+takes their waiting songs with them, those someone else put in again too.
+
 **Keeping in step.** The host's player is the clock. It reports what it is on and where.
 The room keeps the song and when it started, on the doorman's clock. Each device works the
 position out with its own clock's offset from the doorman's, measured by a ping on the
@@ -188,7 +192,8 @@ song and move it; a moved song leaves the turns and stays where it was put (`roo
 left, the room adds songs that sound like the last ones, taking turns between the people whose
 songs were played. Its switch says *When the list runs low, plays more of what people brought*.
 
-- **Where the songs come from:** shelves, and songs that played, leaving out the last dozen.
+- **Where the songs come from:** shelves, and songs that played, leaving out the last dozen
+  and the songs of anyone who left.
   A young room with nothing of its own to bring back yet takes songs from the host's library
   that it does not have, nearest in sound where the host's vectors say.
 - **How a song is picked:** each person's turn is the song of theirs whose sound is nearest
@@ -277,7 +282,8 @@ Its page:
 - **Play together** opens a room filled with it. Its songs are lent from each owner's bucket
   even when the owner is not in the room, and named for them, for as long as they are in the
   playlist: the doorman asks the playlist on every read, so a song taken out, or an owner who
-  leaves, stops playing in the room at once.
+  leaves, stops playing in the room at once. Played again, it is the same song lent the same
+  way; one the playlist no longer has is refused then, not later.
 - **Add songs** adds from your library; songs already in it are marked *Already in*.
 - **Invite** shares a link and a QR code: `/shared/<id>/join/<invite>`. Joining needs an
   account; an invite opened before signing in opens again after.

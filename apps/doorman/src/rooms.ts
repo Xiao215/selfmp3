@@ -26,6 +26,7 @@ import {
   type ActRequest,
   type CreateRequest,
   type JoinRequest,
+  type LentFile,
 } from './room.js'
 import { LentSongsSchema } from './shared.js'
 import { newSharedId, rememberShared, sharedObject } from './sharedRoutes.js'
@@ -90,6 +91,17 @@ export async function rooms(ctx: Context): Promise<Response> {
     // Bringing a song from a library needs whoever brings it signed in: it
     // will be lent from their bucket. Nothing else does.
     const session = body.type === 'add' ? await requireSession(ctx) : null
+    if (body.type === 'again') {
+      // A shared playlist's song goes in again only while the playlist still
+      // lends it, said now rather than by every read of the copy failing.
+      const lent = await ask(withToken('/file', { entry: body.entryId, part: 'audio' }))
+      if (lent.ok) {
+        const refused = await notLent(ctx, LentFileSchema.parse(await lent.json()))
+        if (refused) return refused
+      } else {
+        await lent.body?.cancel()
+      }
+    }
     const act: ActRequest = { action: body, sub: session?.sub ?? null }
     return relayed(await ask(withToken('/act'), post(act)))
   }
@@ -107,16 +119,8 @@ export async function rooms(ctx: Context): Promise<Response> {
     const lent = await ask(withToken('/file', { entry, part }))
     if (!lent.ok) return relayed(lent)
     const file = LentFileSchema.parse(await lent.json())
-    if ('shared' in file && file.shared) {
-      // A shared playlist's song is lent for as long as it is in it and its
-      // owner is too: the playlist says so on every read, not once at import.
-      const query = new URLSearchParams({ sub: file.sub, audio: file.shared.audio })
-      const still = await sharedObject(ctx, file.shared.id).fetch(
-        `https://shared/lends?${query.toString()}`,
-      )
-      if (!still.ok) return relayed(still)
-      await still.body?.cancel()
-    }
+    const refused = await notLent(ctx, file)
+    if (refused) return refused
     return lentAnswer(
       'listen' in file
         ? await listenThrough(ctx, file.listen, method)
@@ -222,6 +226,23 @@ async function listenThrough(
 
 /** Room actions arrive as the action itself; the session that brings a song comes from its header. */
 const ActBodySchema = RoomActionSchema
+
+/**
+ * Why a shared playlist's song is not lent any more, or null when it still
+ * is or is not a shared playlist's. It is lent for as long as it is in the
+ * playlist and its owner is too: the playlist says so on every read, not
+ * once at import.
+ */
+async function notLent(ctx: Context, file: LentFile): Promise<Response | null> {
+  if (!('shared' in file) || !file.shared) return null
+  const query = new URLSearchParams({ sub: file.sub, audio: file.shared.audio })
+  const still = await sharedObject(ctx, file.shared.id).fetch(
+    `https://shared/lends?${query.toString()}`,
+  )
+  if (!still.ok) return relayed(still)
+  await still.body?.cancel()
+  return null
+}
 
 async function create(ctx: Context, namespace: DurableObjectNamespace): Promise<Response> {
   const session = await requireSession(ctx)

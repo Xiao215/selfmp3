@@ -239,6 +239,32 @@ describe('songs a friend brings', () => {
     expect((await act(s, mia, { type: 'skip' })).status).toBe(410)
   })
 
+  it('lend nothing new once the friend left: what waits finishes, nothing played comes again', async () => {
+    const s = await setup()
+    s.h.bucket.put(`mia/audio/${'cd'.repeat(32)}.m4a`, 'abcdefghij', { contentType: 'audio/mp4' })
+    const mia = await join(s, 'Mia', s.friend)
+    const ana = await join(s, 'Ana')
+    await act(s, mia, { type: 'add', song: song('played') }, s.friend)
+    const added = await state(
+      await act(
+        s,
+        mia,
+        { type: 'add', song: song('waiting', `audio/${'cd'.repeat(32)}.m4a`) },
+        s.friend,
+      ),
+    )
+    const [played, waiting] = added.entries.map(entry => entry.id)
+    await act(s, s.room, { type: 'report', entryId: played, position: 0, playing: true })
+    await act(s, s.room, { type: 'report', entryId: null, position: 0, playing: false })
+    expect((await act(s, mia, { type: 'leave' })).status).toBe(200)
+
+    const again = await act(s, s.room, { type: 'again', entryId: played })
+    expect(again.status).toBe(404)
+    expect(await again.text()).toContain('has left the room')
+    expect((await file(s, ana, played ?? '')).status).toBe(404)
+    expect(await (await file(s, ana, waiting ?? '')).text()).toBe('abcdefghij')
+  })
+
   it('stop being lent to someone the host removed', async () => {
     const s = await setup()
     const mia = await join(s, 'Mia', s.friend)

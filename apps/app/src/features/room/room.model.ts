@@ -1,5 +1,6 @@
 import {
   canAct,
+  canPlayAgain,
   playedEntries,
   plural,
   ROOM_MAX_WAITING,
@@ -329,7 +330,8 @@ export function freshWant(state: RoomState, lastSeq: number): RoomState['want'] 
 /**
  * Songs to add when the list runs low, taking turns between the people whose
  * songs are in the room: from shelves, and songs that played, leaving out the
- * last few to play so nothing comes straight back. As actions the host sends.
+ * last few to play so nothing comes straight back, and the songs of anyone
+ * who left. As actions the host sends.
  *
  * With `closeness` — how near a song sounds to what just played
  * (`soundTarget`) — each person's turn is the nearest of theirs; a song with
@@ -368,6 +370,8 @@ export function keepGoingPicks(
   }
   const seen = new Set<string>()
   for (const entry of playedEntries(state)) {
+    // Someone who left lends nothing new.
+    if (!canPlayAgain(state, entry)) continue
     const key = keyOf(entry.song)
     if (seen.has(key)) continue
     seen.add(key)

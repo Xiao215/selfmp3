@@ -341,6 +341,10 @@ export function applyRoomAction(
       }
       const next = action.entryId === null ? undefined : entryById(action.entryId)
       if (action.entryId !== null && !next) return refuse('missing', 'that song is not in the room')
+      // The host's player gone back to a played song: only one that may go in again.
+      if (next && next.playedAt !== null && !canPlayAgain(doc, next)) {
+        return refuse('missing', 'whoever that song is from has left the room')
+      }
       const entries = doc.entries.map(entry => {
         if (entry.id === doc.playing?.entryId) return { ...entry, playedAt: now }
         if (entry.id === next?.id) return { ...entry, at: null, playedAt: null }

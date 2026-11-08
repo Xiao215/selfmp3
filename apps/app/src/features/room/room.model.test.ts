@@ -164,6 +164,23 @@ describe('the host’s player', () => {
     expect(entryOfTrack(as(doc, X), 42)).toBeNull()
   })
 
+  it('takes the room’s song back up when it went back to a song of someone who left', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    doc = act(doc, X, { type: 'add', song: song(2) })
+    const [mias, next] = doc.entries.map(entry => entry.id ?? '')
+    doc = act(doc, X, { type: 'report', entryId: mias ?? '', position: 0, playing: true })
+    doc = act(doc, X, { type: 'report', entryId: next ?? '', position: 1, playing: true })
+    const back = { currentId: roomTrackId(mias ?? ''), playing: true, ranOut: false }
+    const report = { entryId: mias ?? '', playing: true, position: 0 }
+    // While Mia is here, Previous goes back to her song and the room hears it.
+    expect(hostPlan(as(doc, X), back).kind).toBe('follow')
+    expect(needsReport(as(doc, X), 0, 5000, report)).toBe(true)
+
+    doc = act(doc, M, { type: 'leave' })
+    expect(hostPlan(as(doc, X), back)).toEqual({ kind: 'resume', ids: [roomTrackId(next ?? '')] })
+    expect(needsReport(as(doc, X), 0, 5000, report)).toBe(false)
+  })
+
   it('tells the room only what it does not already know', () => {
     let doc = act(room(), M, { type: 'add', song: song(1) })
     const first = doc.entries[0]?.id ?? ''

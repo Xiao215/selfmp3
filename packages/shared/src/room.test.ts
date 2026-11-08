@@ -297,6 +297,11 @@ describe('songs a room is lent', () => {
     expect(canReadEntry(doc, A, m1 ?? '', 'audio')).toBeNull()
     expect(canReadEntry(doc, A, m1 ?? '', 'cover')?.owner).toBe(M)
     expect(canReadEntry(doc, A, m2 ?? '', 'audio')?.owner).toBe(M)
+
+    // The host's player gone back to it is not taken as what plays either.
+    const back = { type: 'report', entryId: m1 ?? '', position: 0, playing: true } as const
+    expect(applyRoomAction(doc, X, back, 3000, newId)).toMatchObject({ refused: 'missing' })
+    expect(act(doc, X, { ...back, entryId: m2 ?? '' }).playing?.entryId).toBe(m2)
   })
 
   it('takes out a removed friend’s songs someone else put in again', () => {

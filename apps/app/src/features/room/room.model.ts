@@ -245,7 +245,9 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
  *   been added since: go on to it.
  * - `resume`: the player has nothing loaded — the app was opened again, a
  *   page reloaded — while the room is on a song: take it up where the room
- *   says it is, rather than telling the room nothing plays.
+ *   says it is, rather than telling the room nothing plays. Also when the
+ *   player went back to a played song of someone who left, which the room
+ *   will not play again (`canPlayAgain`).
  * - `none`: the player is busy with something of your own, or there is
  *   nothing to play.
  */
@@ -271,6 +273,9 @@ export function hostPlan(
   const onRoomSong =
     player.currentId !== null &&
     state.entries.some(entry => roomTrackId(entry.id) === player.currentId)
+  if (onRoomSong && state.playing && !mayReport(state, entryOfTrack(state, player.currentId))) {
+    return { kind: 'resume', ids: [roomTrackId(state.playing.entryId), ...upcoming] }
+  }
   if (onRoomSong) {
     return player.ranOut && upcoming.length > 0
       ? { kind: 'advance', upcoming }
@@ -312,12 +317,22 @@ export function needsReport(
   player: { readonly entryId: string | null; readonly playing: boolean; readonly position: number },
 ): boolean {
   const playing = state.playing
+  if (!mayReport(state, player.entryId)) return false
   if ((playing?.entryId ?? null) !== player.entryId) return true
   if (!playing) return false
   if ((playing.pausedAt === null) !== player.playing) return true
   return (
     Math.abs(roomPosition(playing, now + offset) - player.position) > HOST_DRIFT_SECONDS[state.mode]
   )
+}
+
+/**
+ * Whether the room would take this entry as what the host's player is on: not
+ * a played song of someone who left (`canPlayAgain`), which it refuses.
+ */
+function mayReport(state: RoomState, entryId: string | null): boolean {
+  const entry = entryId === null ? undefined : state.entries.find(other => other.id === entryId)
+  return !entry || entry.playedAt === null || canPlayAgain(state, entry)
 }
 
 /** A request from a member the host's player has not acted on yet. */

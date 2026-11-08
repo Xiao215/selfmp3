@@ -223,9 +223,17 @@ const HOST_LATE_SECONDS = 10
 /** What a follower's player is doing, as `followPlan` reads it. */
 interface FollowerPlayer {
   readonly currentId: number | null
-  /** It stopped because its list ran out. */
-  readonly ranOut: boolean
+  /**
+   * Where the room was on its song, by the room's clock, when this player ran
+   * out on it; null while it has not.
+   */
+  readonly ranOutAt: number | null
+  /** Whether the room's song can play on this device: a link may play on the host's only. */
+  readonly playsHere: boolean
 }
+
+/** How far the room's clock may go back on a song this player ran out on before it is taken as played again. */
+const RAN_OUT_SLACK_SECONDS = 2
 
 /**
  * Whether the room's song has played to its end without the host's player
@@ -234,9 +242,11 @@ interface FollowerPlayer {
  * `HOST_LATE_SECONDS`). Null while the song plays or is paused.
  *
  * A link's length is not known (`lookUpLink`), so for one the end is this
- * player's: it ran out on the song, or went on by itself to what the room
- * has next. How late the host is then counts from `outSince`, when this
- * device first saw it (local clock).
+ * player's: it ran out on the song while the room's clock went on from
+ * there (not back: the host played it again), or went on by itself to what
+ * the room has next — when the link could play here at all, since one that
+ * cannot is passed over at once. How late the host is then counts from
+ * `outSince`, when this device first saw it (local clock).
  */
 function playedOut(
   state: RoomState,
@@ -255,9 +265,12 @@ function playedOut(
     late = over >= HOST_LATE_SECONDS
   } else {
     const next = state.order[0]
-    const ended =
-      (player.currentId === roomTrackId(playing.entryId) && player.ranOut) ||
-      (next !== undefined && player.currentId === roomTrackId(next))
+    const ranOut =
+      player.currentId === roomTrackId(playing.entryId) &&
+      player.ranOutAt !== null &&
+      positionNow(state, offset, now) >= player.ranOutAt - RAN_OUT_SLACK_SECONDS
+    const wentOn = player.playsHere && next !== undefined && player.currentId === roomTrackId(next)
+    const ended = ranOut || wentOn
     if (!ended) return null
     late = outSince !== null && now - outSince >= HOST_LATE_SECONDS * 1000
   }
@@ -455,16 +468,21 @@ export function needsReport(
  */
 const WANT_FRESH_MS = 5000
 
-/** A request from a member the host's player has not taken in yet, and whether to act on it. */
+/**
+ * A request from a member the host's player has not taken in yet, and
+ * whether to act on it. One with no stamp (`RoomWantSchema`) is done if it
+ * came while this device could hear the room (`heard`: its line live).
+ */
 export function freshWant(
   state: RoomState,
   lastSeq: number,
-  offset: number,
-  now: number,
+  clock: { readonly offset: number; readonly now: number; readonly heard: boolean },
 ): { readonly want: NonNullable<RoomState['want']>; readonly act: boolean } | null {
   const want = state.want
   if (!want || want.seq <= lastSeq) return null
-  return { want, act: now + offset - want.at <= WANT_FRESH_MS }
+  const act =
+    want.at === undefined ? clock.heard : clock.now + clock.offset - want.at <= WANT_FRESH_MS
+  return { want, act }
 }
 
 // --- keep it going ------------------------------------------------------------------

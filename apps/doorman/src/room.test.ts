@@ -2,6 +2,7 @@ import {
   addRoomMember,
   DEFAULT_ROOM_RIGHTS,
   newRoomDoc,
+  type RoomDoc,
   RoomServerMessageSchema,
   type RoomState,
 } from '@selfmp3/shared'
@@ -39,7 +40,7 @@ class RuntimeSocket {
   }
 }
 
-function objectWith(sockets: RuntimeSocket[]): RoomObject {
+function objectWith(sockets: RuntimeSocket[], kept?: (doc: RoomDoc) => unknown): RoomObject {
   let doc = newRoomDoc({
     code: 'KQ7482',
     host: { id: X, name: 'Xiao', picture: null },
@@ -55,7 +56,7 @@ function objectWith(sockets: RuntimeSocket[]): RoomObject {
   )
   if ('refused' in joined) throw new Error(joined.message)
   doc = joined
-  const values = new Map<string, unknown>([['doc', doc]])
+  const values = new Map<string, unknown>([['doc', kept ? kept(doc) : doc]])
   const state = {
     storage: {
       get: (key: string) => Promise.resolve(values.get(key)),
@@ -89,5 +90,18 @@ describe('a socket the runtime closes', () => {
     const ana = new RuntimeSocket(A, 1)
     await objectWith([host, ana]).webSocketError(host as unknown as WebSocket)
     expect(ana.lastState()?.members.find(member => member.id === X)?.online).toBe(false)
+  })
+})
+
+describe('a room kept before wants were stamped', () => {
+  it('still reads, want and all', async () => {
+    const host = new RuntimeSocket(X, 3)
+    const ana = new RuntimeSocket(A, 1)
+    const object = objectWith([host, ana], doc => ({
+      ...doc,
+      want: { seq: 3, kind: 'skip', by: A },
+    }))
+    await object.webSocketClose(host as unknown as WebSocket, 1001, 'tab closed')
+    expect(ana.lastState()?.want).toEqual({ seq: 3, kind: 'skip', by: A })
   })
 })

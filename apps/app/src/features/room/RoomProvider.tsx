@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { router } from 'expo-router'
-import { clientApi, publicServerBase, queryKeys, shouldResync, yoursOf } from '@selfmp3/client'
+import {
+  clientApi,
+  publicServerBase,
+  queryKeys,
+  roomTrackId,
+  shouldResync,
+  yoursOf,
+} from '@selfmp3/client'
 import {
   ROOM_VECTORS_AT_ONCE,
   packVector,
@@ -320,7 +327,12 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       lastWant.current = { code: state.code, seq: state.want?.seq ?? 0 }
       return
     }
-    const fresh = freshWant(state, lastWant.current.seq, currentRoom().offset, Date.now())
+    const now = currentRoom()
+    const fresh = freshWant(state, lastWant.current.seq, {
+      offset: now.offset,
+      now: Date.now(),
+      heard: now.link === 'live',
+    })
     if (!fresh) return
     const { want } = fresh
     lastWant.current = { code: state.code, seq: want.seq }
@@ -415,9 +427,12 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   }, [])
 
   // The song a follower last said it waits on the host for, so it is said once;
-  // and since when it has waited on it (`followPlan`'s `outSince`).
+  // since when it has waited on this play of it (`followPlan`'s `outSince`,
+  // keyed by the song and when it started); and where the room was when this
+  // player ran out on its song (`ranOutAt`).
   const saidWaiting = useRef<string | null>(null)
-  const waitingSince = useRef<{ entryId: string; at: number } | null>(null)
+  const waitingSince = useRef<{ play: string; at: number } | null>(null)
+  const ranOutOn = useRef<{ entryId: string; position: number } | null>(null)
   const follow = useCallback(() => {
     const now = currentRoom()
     const room = now.state
@@ -427,16 +442,28 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     if (now.link !== 'live') return
     const onRoomSong = roomTrack(live.current.playingId ?? 0) !== undefined
     const entryId = room.playing?.entryId ?? null
-    const since = waitingSince.current?.entryId === entryId ? waitingSince.current.at : null
     const at = Date.now()
+    const onIt = entryId !== null && live.current.playingId === roomTrackId(entryId)
+    if (!onIt || !live.current.ranOut) ranOutOn.current = null
+    else if (ranOutOn.current?.entryId !== entryId) {
+      ranOutOn.current = { entryId, position: positionNow(room, now.offset, at) }
+    }
+    const track = entryId === null ? undefined : roomTrack(roomTrackId(entryId))
+    const play = room.playing && `${room.playing.entryId} ${room.playing.startedAt}`
+    const since = waitingSince.current?.play === play ? waitingSince.current.at : null
     const plan = followPlan(
       room,
       now.offset,
       at,
-      { currentId: live.current.playingId, ranOut: live.current.ranOut },
+      {
+        currentId: live.current.playingId,
+        ranOutAt: ranOutOn.current?.position ?? null,
+        playsHere: track !== undefined && (track.stream !== null || track.yours !== null),
+      },
       since,
     )
-    if (plan.kind === 'wait' && entryId && since === null) waitingSince.current = { entryId, at }
+    if (plan.kind !== 'wait') waitingSince.current = null
+    else if (play && since === null) waitingSince.current = { play, at }
     switch (plan.kind) {
       case 'stop':
         if (onRoomSong && live.current.playing) commands.toggle()

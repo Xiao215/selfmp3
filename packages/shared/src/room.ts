@@ -320,7 +320,7 @@ export function applyRoomAction(
     case 'play':
       return {
         ...touched,
-        want: { seq: (doc.want?.seq ?? 0) + 1, kind: action.type, by: memberId },
+        want: { seq: (doc.want?.seq ?? 0) + 1, kind: action.type, by: memberId, at: now },
       }
     case 'report': {
       const startedAt = now - action.position * 1000

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   answers: [] as Promise<unknown>[],
   /** Every action sent, with the room it was sent to. */
   acts: [] as { code: string; type: string }[],
+  /** Whether the next join comes in as the room's host. */
+  host: false,
   /** What the next join answers instead of a way in, when set. */
   refuseJoin: null as Error | null,
 }))
@@ -42,7 +44,12 @@ vi.mock('@selfmp3/client', async importActual => ({
       return {
         ...PASS,
         code,
-        state: { code, you: PASS.member, mode: mocks.mode, members: [] },
+        state: {
+          code,
+          you: PASS.member,
+          mode: mocks.mode,
+          members: mocks.host ? [{ id: PASS.member, kind: 'host' }] : [],
+        },
       }
     },
     state: () => new Promise(() => undefined),
@@ -114,6 +121,7 @@ describe('the room’s line', () => {
     mocks.answers.length = 0
     mocks.acts.length = 0
     mocks.refuseJoin = null
+    mocks.host = false
   })
   afterEach(async () => {
     if (store.currentRoom().pass) await leave()
@@ -166,12 +174,15 @@ describe('the room’s line', () => {
   it('keeps a newer room over the answer to an older action', async () => {
     await inRoom()
     const older = Promise.withResolvers<unknown>()
-    mocks.answers.push(older.promise, Promise.resolve({ code: PASS.code, serverTime: 200 }))
+    mocks.answers.push(
+      older.promise,
+      Promise.resolve({ code: PASS.code, serverTime: 200, members: [] }),
+    )
     const first = store.roomAct({ type: 'skip' })
     await store.roomAct({ type: 'skip' })
     expect(store.currentRoom().state?.serverTime).toBe(200)
     // The first action's answer lands last, from before the second.
-    older.resolve({ code: PASS.code, serverTime: 100 })
+    older.resolve({ code: PASS.code, serverTime: 100, members: [] })
     await first
     expect(store.currentRoom().state?.serverTime).toBe(200)
   })
@@ -211,7 +222,8 @@ describe('the room’s line', () => {
     expect(store.currentRoom().pass?.code).toBe('ZZ9999')
   })
 
-  it('stays in the room when its leave does not reach the doorman', async () => {
+  it('keeps the host in the room when their end does not reach the doorman', async () => {
+    mocks.host = true
     await inRoom()
     const ended: string[] = []
     const stop = store.onRoomEnded(state => ended.push(state.code))
@@ -227,6 +239,26 @@ describe('the room’s line', () => {
     stop()
     expect(store.currentRoom().pass).toBeNull()
     expect(ended).toEqual([PASS.code])
+  })
+
+  it('lets a guest leave here though the doorman did not hear it', async () => {
+    await inRoom()
+    mocks.answers.push(Promise.reject(new TypeError('Failed to fetch')))
+    await expect(store.leaveRoom()).resolves.toBe(false)
+    expect(store.currentRoom().pass).toBeNull()
+    expect(mocks.prefs.get('room.pass')).toBe('null')
+  })
+
+  it('lets a host go whose pass the doorman refuses outright', async () => {
+    mocks.host = true
+    await inRoom()
+    mocks.answers.push(
+      Promise.reject(
+        new DoormanError(401, DOORMAN_ERROR.roomUnauthorized, 'that is not a way into this room'),
+      ),
+    )
+    await expect(store.leaveRoom()).resolves.toBe(false)
+    expect(store.currentRoom().pass).toBeNull()
   })
 
   it('takes a room that is already over as left', async () => {

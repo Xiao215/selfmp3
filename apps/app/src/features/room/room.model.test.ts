@@ -206,17 +206,37 @@ describe('the host’s player', () => {
     })
   })
 
-  it('acts on each thing a friend asked once', () => {
-    const doc = act(room(), M, { type: 'skip' })
-    expect(freshWant(as(doc, X), 0, true)).toMatchObject({ want: { kind: 'skip' }, act: true })
-    expect(freshWant(as(doc, X), 1, true)).toBeNull()
+  it('takes the room’s song up over its own music, in a tab that just took the room over', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    const [first] = doc.entries.map(entry => entry.id)
+    doc = act(doc, X, { type: 'report', entryId: first ?? null, position: 0, playing: true })
+    // The tab was playing a song of its own while another tab played the room.
+    const own = { currentId: 42, playing: true, ranOut: false }
+    expect(hostPlan(as(doc, X), own).kind).toBe('none')
+    expect(hostPlan(as(doc, X), { ...own, tookLead: true })).toEqual({
+      kind: 'resume',
+      ids: [roomTrackId(first ?? '')],
+    })
   })
 
-  it('takes in, without doing, what was asked while it could not hear the room', () => {
+  it('acts on each thing a friend asked once', () => {
+    // Asked at 2000 on the doorman's clock, heard straight away.
+    const doc = act(room(), M, { type: 'skip' })
+    expect(freshWant(as(doc, X), 0, 0, 2100)).toMatchObject({ want: { kind: 'skip' }, act: true })
+    expect(freshWant(as(doc, X), 1, 0, 2100)).toBeNull()
+  })
+
+  it('does what was asked over a short blip in its line, by the doorman’s clock', () => {
+    const doc = act(room(), M, { type: 'skip' })
+    // Heard 2 s on, by a device whose own clock runs 10 s ahead of the doorman's.
+    expect(freshWant(as(doc, X), 0, -10_000, 14_000)?.act).toBe(true)
+  })
+
+  it('takes in, without doing, what was asked long before it heard it', () => {
     // A friend's Skip while the host was offline comes in as the line is back,
     // half a minute on: done then, it would skip whatever plays by then.
     const doc = act(room(), M, { type: 'skip' })
-    expect(freshWant(as(doc, X), 0, false)).toMatchObject({ want: { seq: 1 }, act: false })
+    expect(freshWant(as(doc, X), 0, 0, 32_000)).toMatchObject({ want: { seq: 1 }, act: false })
   })
 })
 
@@ -513,27 +533,35 @@ describe('a player that follows the room', () => {
 
   it('takes up the room’s song, at the room’s place, and keeps in step on it', () => {
     const { doc, first, second } = started()
-    expect(followPlan(as(doc, M), 0, at(30), second)).toEqual({
+    expect(followPlan(as(doc, M), 0, at(30), { currentId: second, ranOut: false })).toEqual({
       kind: 'load',
       ids: [first, second],
       position: 30,
       autoplay: true,
     })
-    expect(followPlan(as(doc, M), 0, at(30), first)).toMatchObject({ kind: 'keep', position: 30 })
+    expect(followPlan(as(doc, M), 0, at(30), { currentId: first, ranOut: false })).toMatchObject({
+      kind: 'keep',
+      position: 30,
+    })
   })
 
   it('does not take the song up again past its end, which the host has yet to move on', () => {
     // A moment past the end, the host there: its player moves the room on any second.
     const { doc, second } = started()
-    expect(followPlan(as(doc, M), 0, at(201), second)).toEqual({ kind: 'wait', away: null })
+    expect(followPlan(as(doc, M), 0, at(201), { currentId: second, ranOut: false })).toEqual({
+      kind: 'wait',
+      away: null,
+    })
   })
 
   it('waits for a host who closed their tab once the song has ended', () => {
     const { doc, first, second } = started()
     const away = online(doc, M)
     // Mid-song the room plays on without them.
-    expect(followPlan(as(away, M), 0, at(150), first).kind).toBe('keep')
-    expect(followPlan(as(away, M), 0, at(203), second)).toEqual({
+    expect(followPlan(as(away, M), 0, at(150), { currentId: first, ranOut: false }).kind).toBe(
+      'keep',
+    )
+    expect(followPlan(as(away, M), 0, at(203), { currentId: second, ranOut: false })).toEqual({
       kind: 'wait',
       away: 'Waiting for Xiao',
     })
@@ -541,7 +569,7 @@ describe('a player that follows the room', () => {
 
   it('waits for a host whose socket stays open with nobody moving the room on', () => {
     const { doc, second } = started()
-    expect(followPlan(as(doc, M), 0, at(211), second)).toEqual({
+    expect(followPlan(as(doc, M), 0, at(211), { currentId: second, ranOut: false })).toEqual({
       kind: 'wait',
       away: 'Waiting for Xiao',
     })
@@ -555,9 +583,62 @@ describe('a player that follows the room', () => {
       { type: 'report', entryId: doc.entries[1]?.id ?? null, position: 0, playing: true },
       at(400),
     )
-    expect(followPlan(as(moved, M), 0, at(401), second)).toMatchObject({
+    expect(
+      followPlan(as(moved, M), 0, at(401), { currentId: second, ranOut: false }),
+    ).toMatchObject({
       kind: 'keep',
       position: 1,
+    })
+  })
+
+  describe('on a link, whose length is not known', () => {
+    const withLink = (): { doc: RoomDoc; link: number; next: number } => {
+      let doc = act({ ...room(), mode: 'everyone' }, A, {
+        type: 'addLink',
+        song: song(9, { uid: null, audio: null, duration: 0, link: 'https://youtu.be/abc' }),
+      })
+      doc = act(doc, M, { type: 'add', song: song(2) })
+      const [link, next] = doc.entries.map(entry => entry.id)
+      doc = act(doc, X, { type: 'report', entryId: link ?? null, position: 0, playing: true })
+      return {
+        doc: online(doc, X, M),
+        link: roomTrackId(link ?? ''),
+        next: roomTrackId(next ?? ''),
+      }
+    }
+
+    it('keeps in step on it while it plays', () => {
+      const { doc, link } = withLink()
+      expect(followPlan(as(doc, M), 0, at(500), { currentId: link, ranOut: false }).kind).toBe(
+        'keep',
+      )
+    })
+
+    it('waits once the player has gone on from it by itself, rather than taking it up again', () => {
+      const { doc, next } = withLink()
+      const gone = online(doc, M)
+      expect(followPlan(as(gone, M), 0, at(500), { currentId: next, ranOut: false })).toEqual({
+        kind: 'wait',
+        away: 'Waiting for Xiao',
+      })
+      // The host still there: it moves the room on any second.
+      expect(followPlan(as(doc, M), 0, at(500), { currentId: next, ranOut: false })).toEqual({
+        kind: 'wait',
+        away: null,
+      })
+    })
+
+    it('waits once it ran out on it, and takes the host as away when nobody moves it on', () => {
+      const { doc, link } = withLink()
+      const ended = { currentId: link, ranOut: true }
+      expect(followPlan(as(doc, M), 0, at(500), ended, at(495))).toEqual({
+        kind: 'wait',
+        away: null,
+      })
+      expect(followPlan(as(doc, M), 0, at(500), ended, at(489))).toEqual({
+        kind: 'wait',
+        away: 'Waiting for Xiao',
+      })
     })
   })
 })

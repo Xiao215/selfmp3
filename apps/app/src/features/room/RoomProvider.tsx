@@ -124,10 +124,10 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   }, [state, pass, host, hasLinks, cloudServer])
 
   // What the engine's callbacks and the timers read, current without re-wiring.
-  const live = useRef({ playingId, playing, queueIndex: queue.index })
+  const live = useRef({ playingId, playing, ranOut, queueIndex: queue.index })
   useEffect(() => {
-    live.current = { playingId, playing, queueIndex: queue.index }
-  }, [playingId, playing, queue.index])
+    live.current = { playingId, playing, ranOut, queueIndex: queue.index }
+  }, [playingId, playing, ranOut, queue.index])
 
   // A friend coming in: a tap on the phone and their name, wherever you are (M2).
   const seen = useRef<{ code: string; ids: Set<string> } | null>(null)
@@ -240,6 +240,14 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
 
   // --- the host ---------------------------------------------------------------
 
+  // A tab that waited on another of the host's and now plays the room: it
+  // takes the room's song up, whatever of its own it had on, before it
+  // reports anything (`hostPlan`).
+  const tookLead = useRef(false)
+  useEffect(() => {
+    if (room.lead === 'elsewhere') tookLead.current = true
+  }, [room.lead])
+
   useEffect(() => {
     if (!state || !driving) return
     const plan = hostPlan(state, {
@@ -247,7 +255,9 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       playing,
       ranOut,
       takeOver: roomMayTakeOver(),
+      tookLead: tookLead.current,
     })
+    if (plan.kind !== 'resume') tookLead.current = false
     switch (plan.kind) {
       case 'start': {
         const hint = takeRoomStartHint()
@@ -283,6 +293,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const report = useCallback(() => {
     const now = currentRoom()
     if (!now.state || !isHost(now.state) || now.lead !== 'here' || reporting.current) return
+    if (tookLead.current) return
     // Nothing loaded yet (the app just opened): the plan takes the room's
     // song up, and the room hears once it plays, not that nothing does.
     if (live.current.playingId === null && now.state.playing) return
@@ -309,7 +320,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       lastWant.current = { code: state.code, seq: state.want?.seq ?? 0 }
       return
     }
-    const fresh = freshWant(state, lastWant.current.seq, currentRoom().link === 'live')
+    const fresh = freshWant(state, lastWant.current.seq, currentRoom().offset, Date.now())
     if (!fresh) return
     const { want } = fresh
     lastWant.current = { code: state.code, seq: want.seq }
@@ -403,8 +414,10 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     return () => setRoomTransport(null)
   }, [])
 
-  // The song a follower last said it waits on the host for, so it is said once.
+  // The song a follower last said it waits on the host for, so it is said once;
+  // and since when it has waited on it (`followPlan`'s `outSince`).
   const saidWaiting = useRef<string | null>(null)
+  const waitingSince = useRef<{ entryId: string; at: number } | null>(null)
   const follow = useCallback(() => {
     const now = currentRoom()
     const room = now.state
@@ -413,7 +426,17 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     // has goes on as it is, and is put in step once the room is back.
     if (now.link !== 'live') return
     const onRoomSong = roomTrack(live.current.playingId ?? 0) !== undefined
-    const plan = followPlan(room, now.offset, Date.now(), live.current.playingId)
+    const entryId = room.playing?.entryId ?? null
+    const since = waitingSince.current?.entryId === entryId ? waitingSince.current.at : null
+    const at = Date.now()
+    const plan = followPlan(
+      room,
+      now.offset,
+      at,
+      { currentId: live.current.playingId, ranOut: live.current.ranOut },
+      since,
+    )
+    if (plan.kind === 'wait' && entryId && since === null) waitingSince.current = { entryId, at }
     switch (plan.kind) {
       case 'stop':
         if (onRoomSong && live.current.playing) commands.toggle()

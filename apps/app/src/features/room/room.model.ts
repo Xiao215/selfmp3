@@ -220,20 +220,48 @@ export function positionNow(state: RoomState, offset: number, now: number): numb
  */
 const HOST_LATE_SECONDS = 10
 
+/** What a follower's player is doing, as `followPlan` reads it. */
+interface FollowerPlayer {
+  readonly currentId: number | null
+  /** It stopped because its list ran out. */
+  readonly ranOut: boolean
+}
+
 /**
  * Whether the room's song has played to its end without the host's player
  * moving the room on, which only it does: `ending` while it may yet, `away`
  * once the host is gone (their socket closed, or late past
- * `HOST_LATE_SECONDS`). Null while the song plays, is paused, or has no
- * length to go by.
+ * `HOST_LATE_SECONDS`). Null while the song plays or is paused.
+ *
+ * A link's length is not known (`lookUpLink`), so for one the end is this
+ * player's: it ran out on the song, or went on by itself to what the room
+ * has next. How late the host is then counts from `outSince`, when this
+ * device first saw it (local clock).
  */
-function playedOut(state: RoomState, offset: number, now: number): 'ending' | 'away' | null {
+function playedOut(
+  state: RoomState,
+  offset: number,
+  now: number,
+  player: FollowerPlayer,
+  outSince: number | null,
+): 'ending' | 'away' | null {
   const playing = state.playing
   if (!playing || playing.pausedAt !== null) return null
   const duration = state.entries.find(entry => entry.id === playing.entryId)?.song.duration ?? 0
-  const over = positionNow(state, offset, now) - duration
-  if (duration <= 0 || over < 0) return null
-  return hostOf(state)?.online === false || over >= HOST_LATE_SECONDS ? 'away' : 'ending'
+  let late: boolean
+  if (duration > 0) {
+    const over = positionNow(state, offset, now) - duration
+    if (over < 0) return null
+    late = over >= HOST_LATE_SECONDS
+  } else {
+    const next = state.order[0]
+    const ended =
+      (player.currentId === roomTrackId(playing.entryId) && player.ranOut) ||
+      (next !== undefined && player.currentId === roomTrackId(next))
+    if (!ended) return null
+    late = outSince !== null && now - outSince >= HOST_LATE_SECONDS * 1000
+  }
+  return hostOf(state)?.online === false || late ? 'away' : 'ending'
 }
 
 /**
@@ -269,16 +297,19 @@ export function followPlan(
   state: RoomState,
   offset: number,
   now: number,
-  currentId: number | null,
+  player: FollowerPlayer,
+  outSince: number | null = null,
 ): FollowPlan {
   if (!state.playing) return { kind: 'stop' }
-  const out = playedOut(state, offset, now)
+  const out = playedOut(state, offset, now, player, outSince)
   if (out) return { kind: 'wait', away: out === 'away' ? waitingLine(state) : null }
   const id = roomTrackId(state.playing.entryId)
   const upcoming = state.order.map(roomTrackId)
   const position = positionNow(state, offset, now)
   const playing = state.playing.pausedAt === null
-  if (currentId !== id) return { kind: 'load', ids: [id, ...upcoming], position, autoplay: playing }
+  if (player.currentId !== id) {
+    return { kind: 'load', ids: [id, ...upcoming], position, autoplay: playing }
+  }
   return { kind: 'keep', upcoming, playing, position }
 }
 
@@ -335,8 +366,10 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
  * - `advance`: the player ran out on the room's last song, and a song has
  *   been added since: go on to it.
  * - `resume`: the player has nothing loaded — the app was opened again, a
- *   page reloaded — while the room is on a song: take it up where the room
- *   says it is, rather than telling the room nothing plays.
+ *   page reloaded — while the room is on a song, or this tab has just taken
+ *   the room over from the host's other tab (`tookLead`) whatever it was
+ *   playing: take it up where the room says it is, rather than telling the
+ *   room nothing plays.
  * - `none`: the player is busy with something of your own, or there is
  *   nothing to play.
  */
@@ -356,6 +389,8 @@ export function hostPlan(
     readonly ranOut: boolean
     /** The room was opened to play over your own music (`RoomStartHint`). */
     readonly takeOver?: boolean
+    /** This tab took the room over from another of the host's (`leadRoom`) and has yet to take it up. */
+    readonly tookLead?: boolean
   },
 ): HostPlan {
   const upcoming = state.order.map(roomTrackId)
@@ -367,7 +402,7 @@ export function hostPlan(
       ? { kind: 'advance', upcoming }
       : { kind: 'follow', upcoming }
   }
-  if (player.currentId === null && state.playing !== null) {
+  if ((player.currentId === null || player.tookLead) && state.playing !== null) {
     return { kind: 'resume', ids: [roomTrackId(state.playing.entryId), ...upcoming] }
   }
   if (state.playing === null && (!player.playing || player.takeOver) && upcoming.length > 0) {
@@ -412,18 +447,24 @@ export function needsReport(
 }
 
 /**
- * A request from a member the host's player has not taken in yet, and
- * whether to act on it: not one that came while this device could not hear
- * the room (`heard` false: its line down, or still coming back). Done once
- * the line is back, perhaps a minute on, it would skip whatever plays by
- * then; the asker was told the host's player is away (`followerPress`).
+ * How old, on the doorman's clock, a request may be when the host's player
+ * hears it and still be done. A host there hears one within a second; one
+ * that comes in after its line was down — half a minute on, say — would skip
+ * whatever plays by then, so it is let go (the asker was told the host's
+ * player is away once the doorman knew, `hostAway`).
  */
+const WANT_FRESH_MS = 5000
+
+/** A request from a member the host's player has not taken in yet, and whether to act on it. */
 export function freshWant(
   state: RoomState,
   lastSeq: number,
-  heard: boolean,
+  offset: number,
+  now: number,
 ): { readonly want: NonNullable<RoomState['want']>; readonly act: boolean } | null {
-  return state.want && state.want.seq > lastSeq ? { want: state.want, act: heard } : null
+  const want = state.want
+  if (!want || want.seq <= lastSeq) return null
+  return { want, act: now + offset - want.at <= WANT_FRESH_MS }
 }
 
 // --- keep it going ------------------------------------------------------------------

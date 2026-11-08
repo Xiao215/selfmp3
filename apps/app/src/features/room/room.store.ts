@@ -552,19 +552,30 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
 }
 
 /**
- * Leave: the host's leaving ends the room for everyone. Only once the doorman
- * has heard it: a leave it never got would end nothing, and the room would
- * play on, lending the host's songs, with nobody left who could end it. So a
- * device that cannot reach it stays in the room and is told why (the error,
- * as `sayRoomFailure` words it); a room already over is as good as left.
+ * Leave: the host's leaving ends the room for everyone, so a host's leave
+ * counts only once the doorman has heard it: one it never got would end
+ * nothing, and the room would play on, lending the host's songs, with nobody
+ * left who could end it. A host that cannot reach it stays in the room and is
+ * told why (the error, as `sayRoomFailure` words it). Anyone else leaves here
+ * whatever the doorman heard: their socket is gone, so they read as away, and
+ * their songs stay in the list either way. So does a host whose pass the
+ * doorman refuses outright, which no retry would change. A room already over
+ * is as good as left. Says whether the doorman heard it.
  */
-export async function leaveRoom(): Promise<void> {
+export async function leaveRoom(): Promise<boolean> {
   const pass = view.pass
-  if (!pass) return
+  if (!pass) return true
+  const mustBeHeard = view.state === null || isHost(view.state)
   try {
     await roomApi.act(pass, { type: 'leave' }, null)
   } catch (error) {
-    if (!(error instanceof DoormanError && error.gone)) throw error
+    if (!(error instanceof DoormanError && error.gone)) {
+      const refused = error instanceof DoormanError && error.code === DOORMAN_ERROR.roomUnauthorized
+      if (mustBeHeard && !refused) throw error
+      finishIfStill(pass, 'left')
+      return false
+    }
   }
   finishIfStill(pass, 'left')
+  return true
 }

@@ -155,13 +155,17 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
   const localPlaying = usePlayerPlaying()
   const row = playingRow(state)
   const song = row ? (roomTrack(row.trackId)?.song ?? roomTrackSong(row.entry)) : null
+  const { lead } = useRoom()
   if (!row || !song) return <RoomEmpty state={state} />
-  const host = isHost(state)
+  // The host's player, in the tab that plays the room (`leadRoom`). In the
+  // host's other tabs the card asks the room, as a friend's does, and the
+  // tab that plays it does what is asked.
+  const drives = isHost(state) && lead === 'here'
   const paused = state.playing?.pausedAt !== null
-  const playing = host ? localPlaying : !paused
+  const playing = drives ? localPlaying : !paused
   const mayToggle = youMay(state, playing ? 'pause' : 'play')
-  // The host's own player has Next; a friend's card is their only way to skip.
-  const maySkip = !host && youMay(state, 'skip')
+  // The host's own player has Next; anyone else's card is their only way to skip.
+  const maySkip = !drives && youMay(state, 'skip')
   const whose = !row.owner
     ? row.entry.from
       ? `${row.entry.from}’s`
@@ -194,7 +198,7 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
           glyph={iconSize.nav}
           playing={playing}
           onPress={() =>
-            host ? commands.toggle() : ask(state, { type: playing ? 'pause' : 'play' })
+            drives ? commands.toggle() : ask(state, { type: playing ? 'pause' : 'play' })
           }
           testID="room-toggle"
         />
@@ -222,16 +226,18 @@ function RoomEmpty({ state }: { state: RoomState }): ReactNode {
   const { theme } = useUnistyles()
   const commands = usePlayerCommands()
   const addSongs = useAddSongs()
+  const { lead } = useRoom()
   const waiting = state.order.length
   const mayAdd = youMay(state, 'add') || youMay(state, 'again') || youMay(state, 'addLink')
   // Songs waiting and nothing playing: the host's player has not started on
-  // them (it was busy, or a song would not play). The host starts it here.
+  // them (it was busy, or a song would not play). The host starts it here,
+  // in the tab that plays the room.
   if (waiting > 0) {
     return (
       <View style={styles.empty} testID="room-empty">
         <Text style={styles.emptyTitle}>Nothing playing yet</Text>
         <Text style={styles.emptyText}>{plural(waiting, 'song', 'songs')} waiting</Text>
-        {isHost(state) ? (
+        {isHost(state) && lead === 'here' ? (
           <View style={styles.actions}>
             <Button
               label="Play"

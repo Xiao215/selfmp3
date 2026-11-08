@@ -94,6 +94,7 @@ const ALLOWED = new Map([
   ['EscapeOptions', 'the useEscape hook, both twins'],
   ['HotkeyOptions', 'the useHotkeys hook, both twins'],
   ['Hotkeys', 'the useHotkeys hook, both twins'],
+  ['FieldAccess', 'the sound map’s fieldAccess, both twins'],
   // Props shared by a component and its twin.
   ['SongVisualProps', 'SongVisual, both twins'],
   ['MovingProps', 'StageMove, both twins'],

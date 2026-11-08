@@ -154,6 +154,7 @@ development build (27 ms at the whole-map view), the first title in a new script
 | Zoom | pinch; double tap zooms in | any scroll: a mouse's wheel, a trackpad's two fingers or pinch; double click; +, − |
 | Play what's there | tap | click |
 | Draw | hold still a moment, then drag; or the pen, for one stroke | the same, or Shift-drag |
+| Without a pointer | VoiceOver/TalkBack: swipe through the songs, double tap plays, actions draw | Tab in; arrows go from song to song; Enter plays; Shift+Enter, arrows, Enter draw |
 
 Every scroll zooms, as a map's does, and up and down are a drag or the arrow keys (Xiao,
 2026-10-27: the wheel moved the map up and down; 2026-11-01: a trackpad's two fingers still
@@ -176,6 +177,23 @@ moves, Xiao 2026-11-01) and at 320 ms (`HOLD_MS`) the phone gives a light tap an
 button arms the next stroke without the hold, and moving then takes two fingers; it goes
 back to moving after the stroke. On a computer, Shift held does what the pen does
 (`useShiftHeld`), and the pointer is a hand, or a crosshair while drawing is armed.
+
+Without a pointer (R7G-1, 2026-11-08) the field is one Tab stop (`role="application"`,
+named with its keys). Tab in chooses the song nearest the middle, ringed in the accent and
+named, and a live region says its title and artist; the field itself wears the focus ring
+over the sky (`FOCUS_OVER`). With a song chosen the arrow keys step to the nearest song that
+way (`songToward`, `fieldKeys.model.ts`), the map sliding just far enough to keep it in view,
+and Enter or Space plays it as a tap there does. Armed (the pen, or Shift+Enter), Enter
+starts a line at the song instead; the arrows carry it from song to song, back to its start
+makes a loop, Enter ends it and it goes into the tray as a drawn one does, and Escape drops
+it. Escape lets go of the song, and then the arrows move the map again and Enter chooses
+anew; + and − zoom about the song. A click leaves focus on the field without choosing, so
+a pointer's arrows still move the map. The gesture handler takes Enter and Space on a
+focused view for a tap at its middle; the field's own listener answers them first and keeps
+them from it. On a phone, VoiceOver and TalkBack have the field as one adjustable element:
+a swipe up or down steps through the songs in bands, each near the one before
+(`readingOrder`), the song is its value, a double tap plays it, and its "Start a line here"
+and "End the line here" actions draw a straight line between two songs.
 
 The first visit acts it out once (`MapHint.tsx`, guide `sound-map-draw`): a finger's circle
 holds and draws a line between two places, then holds and goes round a loop, each with its

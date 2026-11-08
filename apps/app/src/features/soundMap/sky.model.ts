@@ -74,6 +74,8 @@ export interface SkyLayerProps {
   readonly playing: number | null
   /** The song the pointer is on in the tray's list: ringed and named on the map. */
   readonly lit: number | null
+  /** The song the keyboard or a screen reader has chosen: ringed in the accent, over the others. */
+  readonly chosen?: number | null
   /** How much of the field's right the tray's panel covers: a song's card keeps clear of it. */
   readonly panel: number
   /** Where the map was just pressed, for a moment. */

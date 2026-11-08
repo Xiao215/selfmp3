@@ -71,7 +71,8 @@ const SHEET_SHARE = 0.5
  * name, the tags as chips that light their own songs and fly to them, and in
  * the corner the pen and the way to the song playing.
  *
- * A tap plays the songs nearest it. Holding, then dragging, draws: a line
+ * A tap plays the songs nearest it; without a pointer, the keys go from song
+ * to song and play and draw from there (`SoundField`). Holding, then dragging, draws: a line
  * takes the songs along it as a drift from one place to the other, a loop
  * the songs inside. Each stroke goes into the tray, a section of its own in
  * its colour, to play, add to Up next or save as a playlist: on a computer a
@@ -233,6 +234,10 @@ export function SoundMapScreen(): ReactNode {
     if (last && Math.hypot(spot.x - last.x, spot.y - last.y) < PATH_STEP) return
     strokeRef.current = [...strokeRef.current, spot]
     setStroke(strokeRef.current)
+  }, [])
+  const onPathCancel = useCallback(() => {
+    strokeRef.current = []
+    setStroke([])
   }, [])
   const { done: hintDone } = hint
   const onPathEnd = useCallback(() => {
@@ -437,6 +442,7 @@ export function SoundMapScreen(): ReactNode {
                 onPathStart={onPathStart}
                 onPathMove={onPathMove}
                 onPathEnd={onPathEnd}
+                onPathCancel={onPathCancel}
               />
             </View>
 

@@ -468,11 +468,13 @@ function draw(
       y1: Math.max(a.y, b.y),
     })
   }
-  // The star under the pointer, named before it is pressed; else the one the
-  // pointer is on in the tray's list. Once its cover is open it is lit and
-  // the rest of the sky dims round it (H3).
+  // The song the keys chose; else the star under the pointer, named before it
+  // is pressed; else the one the pointer is on in the tray's list. Once its
+  // cover is open it is lit and the rest of the sky dims round it (H3).
   const reachUnder = Math.max(14, tile / 2 + 4)
+  const chosen = props.chosen == null ? null : (byId.get(props.chosen) ?? null)
   const under =
+    chosen ??
     (pointer
       ? songUnder(
           near(
@@ -485,7 +487,8 @@ function draw(
           pointer,
           reachUnder,
         )
-      : null) ?? (lit === null ? null : (byId.get(lit) ?? null))
+      : null) ??
+    (lit === null ? null : (byId.get(lit) ?? null))
   const underOpen = under !== null && starLook(under, view.scale).share > 0.5
   const shade = (point: SkyPoint): number => (underOpen && point !== under ? SPOTLIGHT_DIM : 1)
   const shown: { point: SkyPoint; x: number; y: number; look: StarLook }[] = []
@@ -702,20 +705,31 @@ function draw(
   // dimmed sky, its name under it (H3); while it is still a star, the star is
   // ringed and named beside it.
   const song = under ? songs.get(under.id) : undefined
+  // The keys' song wears the focus ring, in the accent, as anything the
+  // keyboard is on does.
+  const focus = under !== null && under === chosen
   if (under && song && underOpen) {
-    spotlight(
-      ctx,
-      song,
-      under,
-      at(under),
-      starLook(under, view.scale),
-      cover(song),
-      field.width - panel,
-    )
+    const look = starLook(under, view.scale)
+    spotlight(ctx, song, under, at(under), look, cover(song), field.width - panel)
+    if (focus) {
+      const side = Math.max(SPOTLIGHT_COVER, look.side * 1.15) + FOCUS_GAP * 2
+      const spot = at(under)
+      ctx.strokeStyle = accent
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.roundRect(
+        spot.x - side / 2,
+        spot.y - side / 2,
+        side,
+        side,
+        look.corner * (side / look.side),
+      )
+      ctx.stroke()
+    }
   } else if (under && song) {
     const spot = at(under)
-    ctx.strokeStyle = SKY_INK
-    ctx.lineWidth = 1.5
+    ctx.strokeStyle = focus ? accent : SKY_INK
+    ctx.lineWidth = focus ? 2 : 1.5
     ctx.beginPath()
     ctx.arc(spot.x, spot.y, ringRadius(under, view.scale, 7), 0, Math.PI * 2)
     ctx.stroke()
@@ -798,6 +812,8 @@ const SPOTLIGHT_DIM = 0.3
 const SPOTLIGHT_COVER = 52
 /** How far inside a lit cover's edge its glow is cast from. */
 const SPOTLIGHT_INSET = 2
+/** How far outside the keys' lit cover its focus ring is drawn. */
+const FOCUS_GAP = 3
 
 const FONT = '-apple-system, system-ui, "PingFang SC", "Hiragino Sans", sans-serif'
 

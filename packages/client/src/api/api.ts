@@ -562,10 +562,15 @@ export function createApi({ context, fetch }: ApiOptions) {
       return parts[parts.length - 1]!
     },
 
-    removeManyFromPlaylist: async (id: number, songIds: number[]): Promise<RemovedFromPlaylist> => {
+    removeManyFromPlaylist: async (
+      id: number,
+      songIds: number[],
+      keep?: boolean,
+    ): Promise<RemovedFromPlaylist> => {
       const parts = await inChunks(songIds, part =>
         request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, {
           songIds: part,
+          ...(keep ? { keep } : {}),
         }),
       )
       return {

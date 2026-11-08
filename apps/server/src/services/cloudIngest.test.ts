@@ -609,6 +609,129 @@ describe('CloudIngest', () => {
     }
   })
 
+  describe('a kept playlist another device emptied, met by changes from one that had not heard', () => {
+    const phone = 'iphone-aaaa2222'
+
+    /** Every order the two devices' changes could be read in, each device's own kept. */
+    function interleavings(a: readonly Change[], b: readonly Change[]): Change[][] {
+      if (a.length === 0) return [[...b]]
+      if (b.length === 0) return [[...a]]
+      const [firstA, ...restA] = a as [Change, ...Change[]]
+      const [firstB, ...restB] = b as [Change, ...Change[]]
+      return [
+        ...interleavings(restA, b).map(order => [firstA, ...order]),
+        ...interleavings(a, restB).map(order => [firstB, ...order]),
+      ]
+    }
+
+    /**
+     * Road with Alpha and Bravo, emptied by the phone, read one change at a
+     * time in each order with `other`: what the server publishes, which must
+     * be what a device replaying that order has, and the same every time.
+     */
+    function outcomes(other: (songs: { c: string }) => Change[]): unknown[] {
+      const seen: unknown[] = []
+      for (let n = 0; ; n++) {
+        db.exec('DELETE FROM songs; DELETE FROM playlists; DELETE FROM emptied_playlists')
+        db.exec('DELETE FROM sync_stamps')
+        const a = addSong('Alpha')
+        const b = addSong('Bravo')
+        const c = addSong('Charlie')
+        const road = playlists.create({
+          name: 'Road',
+          description: '',
+          kind: 'manual',
+          rules: null,
+        })
+        playlists.add(road.id, [a, b])
+        const before = serverSnapshot()
+        const ROAD = uidOf('playlists', road.id)
+        const emptying: Change[] = [
+          {
+            type: 'playlistSong',
+            hlc: at(1, phone),
+            uid: ROAD,
+            songUid: uidOf('songs', a),
+            on: false,
+          },
+          {
+            type: 'playlistSong',
+            hlc: at(1.5, phone),
+            uid: ROAD,
+            songUid: uidOf('songs', b),
+            on: false,
+          },
+          { type: 'playlistEmptied', hlc: at(2, phone), uid: ROAD },
+        ]
+        const orders = interleavings(
+          emptying,
+          other({ c: uidOf('songs', c) }).map(change => ({
+            ...change,
+            uid: change.uid === 'removed' ? uidOf('songs', a) : change.uid || ROAD,
+          })),
+        )
+        // Each pass makes new uids; named the same, the passes compare.
+        const names: Record<string, string> = {
+          [ROAD]: 'road',
+          [uidOf('songs', a)]: 'a',
+          [uidOf('songs', b)]: 'b',
+          [uidOf('songs', c)]: 'c',
+        }
+        const order = orders[n]
+        if (!order) return seen
+        for (const change of order) ingest.apply([change])
+        const published = comparable(serverSnapshot())
+        expect(published).toEqual(comparable(replayed(before, order)))
+        const named = JSON.stringify({
+          listed: published.playlists,
+          aside: published.emptiedPlaylists,
+        }).replace(/[0-9a-f]{32}/g, uid => names[uid] ?? uid)
+        seen.push(JSON.parse(named))
+      }
+    }
+
+    // A rename and a pin made where the playlist still had its songs were
+    // lost when they came in after the emptying, and kept when before.
+    it('keeps a rename and a pin made meanwhile, in whatever order', () => {
+      const seen = outcomes(() => [
+        { type: 'playlistEdited', hlc: at(3), uid: '', fields: { name: 'Drive', pinned: true } },
+      ])
+      expect(seen.length).toBe(4)
+      for (const each of seen) expect(each).toEqual(seen[0])
+      expect(seen[0]).toMatchObject({ aside: [{ name: 'Drive', pinned: true }] })
+    })
+
+    // A song put in and taken out again meanwhile left the playlist listed,
+    // empty, when the taking out came after the emptying.
+    it('lets it go again when a song put in meanwhile comes out again, in whatever order', () => {
+      const seen = outcomes(({ c }) => [
+        { type: 'playlistSong', hlc: at(5), uid: '', songUid: c, on: true },
+        { type: 'playlistSong', hlc: at(6), uid: '', songUid: c, on: false },
+      ])
+      expect(seen.length).toBe(10)
+      for (const each of seen) expect(each).toEqual(seen[0])
+      expect(seen[0]).toMatchObject({ listed: [] })
+    })
+
+    it('forgets a song of its that leaves the library while it is kept aside, in whatever order', () => {
+      const seen = outcomes(() => [{ type: 'songRemoved', hlc: at(3), uid: 'removed' }])
+      expect(seen.length).toBe(4)
+      for (const each of seen) expect(each).toEqual(seen[0])
+      expect(seen[0]).toMatchObject({ aside: [{ songStamps: { b: expect.any(String) } }] })
+      expect(seen[0]).not.toMatchObject({ aside: [{ songStamps: { a: expect.any(String) } }] })
+    })
+
+    it('lets it go again when a song put in meanwhile leaves the library, in whatever order', () => {
+      const seen = outcomes(({ c }) => [
+        { type: 'playlistSong', hlc: at(5), uid: '', songUid: c, on: true },
+        { type: 'songRemoved', hlc: at(6), uid: c },
+      ])
+      expect(seen.length).toBe(10)
+      for (const each of seen) expect(each).toEqual(seen[0])
+      expect(seen[0]).toMatchObject({ listed: [] })
+    })
+  })
+
   it('stops a playlist following its tags with the songs the phone kept', () => {
     const a = addSong('Alpha')
     const b = addSong('Bravo')

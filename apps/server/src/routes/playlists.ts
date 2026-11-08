@@ -170,6 +170,8 @@ export function playlistRoutes(container: Container): Router {
    * Taking out the last of a kept playlist's songs lets it go too, as one
    * exists once it has a song (`letGoEmptied`): kept aside, so a song put in
    * it again — an Undo, another device that had not heard — brings it back.
+   * Not when it undoes an add (`keep`): a playlist that was empty before the
+   * add stays, as it was.
    */
   router.post(
     '/playlists/:id/songs/remove',
@@ -181,7 +183,9 @@ export function playlistRoutes(container: Container): Router {
         const removed = container.db.transaction(() => {
           const taken = container.playlists.removeMany(params.id, body.songIds)
           container.edits.playlistSongs(params.id, body.songIds)
-          if (taken > 0) container.playlists.letGoEmptied([params.id])
+          if (taken > 0 && !body.keep) {
+            container.playlists.letGoEmptied([params.id], container.clock.tick())
+          }
           return taken
         })()
         if (removed > 0) container.bumpLibraryVersion()

@@ -140,6 +140,12 @@ export type AddToPlaylist = z.infer<typeof AddToPlaylistSchema>
  */
 export const RemoveFromPlaylistSchema = z.object({
   songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
+  /**
+   * Undoing an add: a kept playlist these leave empty stays, where taking out
+   * its last songs otherwise lets it go (`playlistEmptied`). It had none
+   * before the add, and was there.
+   */
+  keep: z.boolean().optional(),
 })
 export type RemoveFromPlaylist = z.infer<typeof RemoveFromPlaylistSchema>
 

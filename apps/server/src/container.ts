@@ -496,7 +496,12 @@ export function createContainer(configured: Config, options: ContainerOptions = 
         tagRemoval.remove(id)
       },
     },
-    playlists,
+    playlists: {
+      keptHolding: ids => playlists.keptHolding(ids),
+      // Marked as a device's `playlistEmptied` marks one, so it goes again
+      // once a song another device puts back is taken out.
+      letGoEmptied: ids => playlists.letGoEmptied(ids, clock.tick()),
+    },
     cloud: cloudRepo,
     lyrics,
     covers,

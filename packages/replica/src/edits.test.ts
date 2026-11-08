@@ -427,6 +427,18 @@ describe('editing playlists', () => {
     expect(back.emptiedPlaylists.size).toBe(0)
   })
 
+  // Undoing Ask's add to a playlist that had no songs deleted the playlist.
+  it('keeps a playlist the Undo of an add leaves empty', () => {
+    const d = device()
+    const mix = d.idOf('playlists', '7')
+    const [a, b] = ['a', 'b'].map(u => d.idOf('songs', u)) as [number, number]
+    const undo = edits.removeFromPlaylist(d.ctx(), mix, [a, b], true)
+    expect(undo.map(change => change.type)).toEqual(['playlistSong', 'playlistSong'])
+    const view = d.apply(undo)
+    expect(view.byId.playlists.get(mix)?.name).toBe('Mix')
+    expect(view.playlistSongs[mix] ?? []).toEqual([])
+  })
+
   it('lets a playlist that follows tags be put in an order by hand', () => {
     const d = device()
     const live = d.idOf('playlists', '8')
@@ -589,5 +601,26 @@ describe('replaying', () => {
     }
     expect(latestStamp(stamped)).toBe('0000000b2.0000.mac-3f9a1c2e')
     expect(latestStamp(null)).toBeNull()
+  })
+
+  // A device whose clock ran slow stamped a song put back in an emptied
+  // playlist below that song's taking out, so the playlist stayed gone.
+  it('counts the stamps of a playlist kept aside as the latest too', () => {
+    const aside: CloudSnapshot = {
+      ...BASE,
+      songs: [song('a', { stamps: { title: '0000000a1.0000.mac-3f9a1c2e' } })],
+      emptiedPlaylists: [
+        {
+          ...BASE.playlists[0]!,
+          songUids: [],
+          stamps: { emptied: '0000000c3.0000.iphone-aaaa2222' },
+          songStamps: { [uid('a')]: '0000000c2.0000.iphone-aaaa2222' },
+        },
+      ],
+    }
+    expect(latestStamp(aside)).toBe('0000000c3.0000.iphone-aaaa2222')
+    expect(
+      latestStamp({ ...aside, emptiedPlaylists: [{ ...aside.emptiedPlaylists![0]!, stamps: {} }] }),
+    ).toBe('0000000c2.0000.iphone-aaaa2222')
   })
 })

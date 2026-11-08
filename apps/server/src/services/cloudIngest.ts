@@ -189,8 +189,11 @@ export class CloudIngest {
         // Its bucket files wait for the snapshot without it before they go;
         // the bookkeeping that names them goes with the row, so it is read first.
         this.#cloud.trashSong(id)
+        const holding = this.#playlists.keptHolding([id])
         this.#songs.delete(id)
         removed.push({ id, path: song.path })
+        // A playlist once emptied goes as soon as it has no songs again.
+        this.#letGoMarked(holding)
         return true
       }
 
@@ -287,7 +290,8 @@ export class CloudIngest {
 
       case 'playlistEdited': {
         const playlist = this.#sync.playlist(change.uid)
-        if (!playlist) return false
+        // Kept aside, it is edited there, to come back as it was made.
+        if (!playlist) return this.#editAside(change)
         const update: UpdatePlaylist = {}
         for (const field of ['name', 'description', 'rules', 'pinned'] as const) {
           const value = change.fields[field]
@@ -322,9 +326,24 @@ export class CloudIngest {
 
       case 'playlistEmptied': {
         const playlist = this.#sync.playlist(change.uid)
+        if (!playlist) {
+          const aside = this.#playlists.emptied(change.uid)
+          if (!aside || !hlcWins(change.hlc, aside.stamps['emptied'])) return false
+          this.#playlists.updateEmptied({
+            ...aside,
+            stamps: { ...aside.stamps, emptied: change.hlc },
+          })
+          return true
+        }
+        // Marked whether it goes now or not, as the shared rule does: once
+        // emptied, it goes as soon as it has no songs again.
+        if (playlist.kind !== 'manual') return false
+        if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, 'emptied'))) return false
+        this.#sync.setStamp('playlist', change.uid, 'emptied', change.hlc)
         // Filled again since, here or on another device, it stays; so does one
         // an import here has yet to fill.
-        return playlist !== null && this.#playlists.letGoEmptied([playlist.id]).length > 0
+        this.#playlists.letGoEmptied([playlist.id])
+        return true
       }
 
       case 'playlistSong': {
@@ -343,6 +362,7 @@ export class CloudIngest {
         else this.#playlists.remove(playlist.id, song.id)
         this.#sync.setStamp('playlistSong', change.uid, song.uid, change.hlc)
         this.#dated(playlist, change.hlc)
+        if (!change.on) this.#letGoMarked([playlist.id])
         return true
       }
 
@@ -368,7 +388,7 @@ export class CloudIngest {
         // A playlist that follows tags takes a hand order too, so its order
         // travels between devices like any other.
         const playlist = this.#sync.playlist(change.uid)
-        if (!playlist) return false
+        if (!playlist) return this.#editAside(change)
         if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, 'order'))) return false
         const songIds = change.songUids.flatMap(uid => {
           const id = this.#played(uid)?.id ?? null
@@ -418,6 +438,53 @@ export class CloudIngest {
   }
 
   /** Dated by when the change was made, not when it arrived — and never back in time. */
+  /**
+   * Of these playlists, let go of the ones marked emptied that have no songs
+   * now (`emptied`, as the shared `putPlaylist` does): a song another device
+   * put in one and took out again leaves the same thing in either order.
+   */
+  #letGoMarked(ids: readonly number[]): void {
+    const marked = ids.filter(id => {
+      const uid = this.#sync.uids('playlists', [id]).get(id)
+      return uid !== undefined && this.#sync.stamp('playlist', uid, 'emptied') !== null
+    })
+    if (marked.length > 0) this.#playlists.letGoEmptied(marked)
+  }
+
+  /**
+   * A rename, a pin or a new order for a kept playlist that went with its
+   * last songs, made where it was not heard of yet: kept with it, field by
+   * field by the latest stamp, as the shared rule edits the one it keeps aside.
+   */
+  #editAside(change: Extract<Change, { type: 'playlistEdited' | 'playlistOrdered' }>): boolean {
+    const aside = this.#playlists.emptied(change.uid)
+    if (!aside) return false
+    const next = { ...aside, stamps: { ...aside.stamps } }
+    let changed = false
+    if (change.type === 'playlistOrdered') {
+      // It has no songs to put in order; the stamp is what a later order meets.
+      if (!hlcWins(change.hlc, next.stamps['order'])) return false
+      next.stamps['order'] = change.hlc
+      changed = true
+    } else {
+      for (const field of ['name', 'description', 'pinned'] as const) {
+        const value = change.fields[field]
+        if (value === undefined || !hlcWins(change.hlc, next.stamps[field])) continue
+        if (field === 'pinned') next.pinned = change.fields.pinned ?? next.pinned
+        else next[field] = change.fields[field] ?? next[field]
+        next.stamps[field] = change.hlc
+        changed = true
+      }
+    }
+    if (!changed) return false
+    const stamped = toSqliteTime(hlcTime(change.hlc))
+    this.#playlists.updateEmptied({
+      ...next,
+      updatedAt: stamped > next.updatedAt ? stamped : next.updatedAt,
+    })
+    return true
+  }
+
   #dated(playlist: { id: number; updatedAt: string }, hlc: string): void {
     const stamped = toSqliteTime(hlcTime(hlc))
     this.#playlists.setUpdatedAt(

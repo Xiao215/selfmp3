@@ -457,6 +457,8 @@ export function removeFromPlaylist(
   ctx: EditContext,
   id: number,
   songIds: readonly number[],
+  /** Undoing an add: it stays with none left, as it was before. */
+  keep = false,
 ): Change[] {
   const found = manual(ctx, id)
   const known = knownSongs(ctx, songIds)
@@ -472,7 +474,7 @@ export function removeFromPlaylist(
     ctx.view.playlistSongs,
     known.map(([songId]) => songId),
   )
-  if (emptied.length > 0)
+  if (emptied.length > 0 && !keep)
     changes.push({ type: 'playlistEmptied', hlc: ctx.stamp(), uid: found.uid })
   return changes
 }

@@ -436,6 +436,58 @@ describe('a kept playlist its last songs took with them', () => {
     }
   })
 
+  /** Every order two devices' logs can be read in, each device's own kept. */
+  function interleavings(a: readonly Change[], b: readonly Change[]): Change[][] {
+    if (a.length === 0) return [[...b]]
+    if (b.length === 0) return [[...a]]
+    const [firstA, ...restA] = a as [Change, ...Change[]]
+    const [firstB, ...restB] = b as [Change, ...Change[]]
+    return [
+      ...interleavings(restA, b).map(order => [firstA, ...order]),
+      ...interleavings(a, restB).map(order => [firstB, ...order]),
+    ]
+  }
+
+  /** The playlist, where it ended up, after each order: all the same, or the test says which differ. */
+  function outcomes(other: readonly Change[]): unknown[] {
+    return interleavings(emptying, other).map(order => {
+      const library = syncLibrary(snapshot())
+      for (const change of order) applyChange(library, change)
+      return {
+        listed: library.playlists.get(LIST) ?? null,
+        aside: library.emptiedPlaylists.get(LIST) ?? null,
+      }
+    })
+  }
+
+  it('keeps a rename and a pin made while it was kept aside, in whatever order', () => {
+    const renaming: Change[] = [
+      {
+        type: 'playlistEdited',
+        hlc: at(5, 'mac-aaaa'),
+        uid: LIST,
+        fields: { name: 'Road', pinned: true },
+      },
+      { type: 'playlistSong', hlc: at(6, 'mac-aaaa'), uid: LIST, songUid: SONG_C, on: true },
+    ]
+    const [first, ...rest] = outcomes(renaming)
+    expect(first).toMatchObject({
+      listed: { name: 'Road', pinned: true, songUids: [SONG_C] },
+      aside: null,
+    })
+    for (const other of rest) expect(other).toEqual(first)
+  })
+
+  it('goes again when a song another device put in it comes out again, in whatever order', () => {
+    const inAndOut: Change[] = [
+      { type: 'playlistSong', hlc: at(5, 'mac-aaaa'), uid: LIST, songUid: SONG_C, on: true },
+      { type: 'playlistSong', hlc: at(6, 'mac-aaaa'), uid: LIST, songUid: SONG_C, on: false },
+    ]
+    const [first, ...rest] = outcomes(inAndOut)
+    expect(first).toMatchObject({ listed: null, aside: { uid: LIST, songUids: [] } })
+    for (const other of rest) expect(other).toEqual(first)
+  })
+
   it('comes back from the snapshot that left it out', () => {
     const written = snapshotOf(replay(emptying), {
       writtenAt: 'now',

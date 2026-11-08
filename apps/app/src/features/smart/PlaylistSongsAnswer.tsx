@@ -155,7 +155,8 @@ export function PlaylistSongsAnswer({
       if (adding) {
         await add.mutateAsync({ playlistId, songIds })
         const added = `Added ${plural(songIds.length, 'song', 'songs')} to ${name}`
-        undoToast(added, () => removeMany.mutateAsync({ playlistId, songIds }))
+        // `keep`: one that was empty before the add stays, as it was.
+        undoToast(added, () => removeMany.mutateAsync({ playlistId, songIds, keep: true }))
         return added
       }
       await removeMany.mutateAsync({ playlistId, songIds })

@@ -145,4 +145,23 @@ describe('playlist routes', () => {
     ])
     expect(container.playlists.allEmptied()).toEqual([])
   })
+
+  // Undoing Ask's add to a playlist that had no songs deleted the playlist.
+  it('keeps a playlist the Undo of an add leaves empty', async () => {
+    const one = insert('One')
+    const road = container.playlists.create({
+      name: 'Road',
+      description: '',
+      kind: 'manual',
+      rules: null,
+    }).id
+    await send('POST', `/api/playlists/${road}/songs`, { songIds: [one] })
+    const undo = await send('POST', `/api/playlists/${road}/songs/remove`, {
+      songIds: [one],
+      keep: true,
+    })
+    expect(await undo.json()).toMatchObject({ removed: 1, playlist: { id: road, name: 'Road' } })
+    expect(container.playlists.byId(road)).not.toBeNull()
+    expect(container.playlists.allEmptied()).toEqual([])
+  })
 })

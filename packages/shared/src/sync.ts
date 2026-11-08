@@ -187,9 +187,17 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         const inIt = playlist.songUids.includes(change.uid)
         const stamped = playlist.songStamps?.[change.uid] !== undefined
         if (!inIt && !stamped) continue
-        library.playlists.set(playlist.uid, {
+        putPlaylist(library, {
           ...playlist,
           songUids: playlist.songUids.filter(uid => uid !== change.uid),
+          ...withoutKey('songStamps', playlist.songStamps, change.uid),
+        })
+      }
+      // One kept aside forgets the song too, as the server's snapshot does.
+      for (const playlist of library.emptiedPlaylists.values()) {
+        if (playlist.songStamps?.[change.uid] === undefined) continue
+        library.emptiedPlaylists.set(playlist.uid, {
+          ...playlist,
           ...withoutKey('songStamps', playlist.songStamps, change.uid),
         })
       }
@@ -321,7 +329,9 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'playlistEdited': {
-      const playlist = library.playlists.get(change.uid)
+      // Kept aside or not: a rename made while it is, by a device that had not
+      // heard, is there when it comes back, in whichever order the two arrive.
+      const playlist = playlistAnywhere(library, change.uid)
       if (!playlist) return false
       const next: Record<string, unknown> = { ...playlist }
       const stamps = { ...playlist.stamps }
@@ -342,7 +352,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         changed = true
       }
       if (!changed) return false
-      library.playlists.set(playlist.uid, {
+      putPlaylist(library, {
         ...(next as CloudPlaylist),
         stamps,
         updatedAt: laterTime(playlist.updatedAt, change.hlc),
@@ -355,14 +365,21 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       return library.playlists.delete(change.uid) || library.emptiedPlaylists.delete(change.uid)
 
     case 'playlistEmptied': {
-      const playlist = library.playlists.get(change.uid)
-      // Filled again since, on this device or another: it stays.
-      if (!playlist || playlist.kind !== 'manual' || playlist.songUids.length > 0) return false
-      library.playlists.delete(change.uid)
-      // With its stamps, so a late change that would have lost to them still
-      // loses, in whichever order the two arrive.
-      library.emptiedPlaylists.set(change.uid, playlist)
-      return true
+      const playlist = playlistAnywhere(library, change.uid)
+      if (!playlist || playlist.kind !== 'manual') return false
+      // Noted whether it goes now or not (`emptied`): a playlist once emptied
+      // goes as soon as it has no songs again, so a song another device put
+      // in it and took out again leaves the same thing in either order.
+      const marked = hlcWins(change.hlc, playlist.stamps?.['emptied'])
+      if (marked) {
+        putPlaylist(library, {
+          ...playlist,
+          stamps: { ...playlist.stamps, emptied: change.hlc },
+        })
+      }
+      // Filled again since, on this device or another, it stays; the rest is
+      // `putPlaylist`'s, which lets go of a marked one with no songs.
+      return marked
     }
 
     case 'playlistSong': {
@@ -379,7 +396,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       }
       if (!hlcWins(change.hlc, playlist.songStamps?.[songUid])) return false
       const has = playlist.songUids.includes(songUid)
-      library.playlists.set(playlist.uid, {
+      putPlaylist(library, {
         ...playlist,
         songUids: change.on
           ? has
@@ -421,7 +438,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'playlistOrdered': {
-      const playlist = library.playlists.get(change.uid)
+      const playlist = playlistAnywhere(library, change.uid)
       if (!playlist) return false
       if (!hlcWins(change.hlc, playlist.stamps?.['order'])) return false
       const order = change.songUids.map(uid => resolveSong(library, uid))
@@ -434,7 +451,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         playlist.kind === 'live'
           ? [...new Set([...playlist.songUids, ...order.filter(uid => library.songs.has(uid))])]
           : playlist.songUids
-      library.playlists.set(playlist.uid, {
+      putPlaylist(library, {
         ...playlist,
         songUids: reordered(current, order),
         stamps: { ...playlist.stamps, order: change.hlc },
@@ -519,6 +536,30 @@ function broughtBack(library: SyncLibrary, uid: string): boolean {
   if (same) library.aliases.set(uid, same.uid)
   else library.tags.set(uid, tag)
   return true
+}
+
+/** A playlist in the library, or kept aside since it went with its last songs. */
+function playlistAnywhere(library: SyncLibrary, uid: string): CloudPlaylist | null {
+  return library.playlists.get(uid) ?? library.emptiedPlaylists.get(uid) ?? null
+}
+
+/**
+ * A playlist as it is now, where it belongs: in the library, or kept aside
+ * when it is a kept one marked emptied (`playlistEmptied`) with no songs left.
+ * One kept aside stays there, edited, until a song brings it back.
+ */
+function putPlaylist(library: SyncLibrary, playlist: CloudPlaylist): void {
+  const aside =
+    library.emptiedPlaylists.has(playlist.uid) ||
+    (playlist.kind === 'manual' &&
+      playlist.songUids.length === 0 &&
+      playlist.stamps?.['emptied'] !== undefined)
+  if (aside) {
+    library.playlists.delete(playlist.uid)
+    library.emptiedPlaylists.set(playlist.uid, playlist)
+  } else {
+    library.playlists.set(playlist.uid, playlist)
+  }
 }
 
 /**

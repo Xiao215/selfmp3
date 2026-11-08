@@ -127,6 +127,8 @@ export class PlaylistRepository {
   readonly #restoreStamps
   readonly #forgetEmptied
   readonly #unremove
+  readonly #markEmptied
+  readonly #updateEmptied
   readonly #items
   readonly #maxPosition
   readonly #insertItem
@@ -209,6 +211,18 @@ export class PlaylistRepository {
     )
     this.#forgetEmptied = db.prepare('DELETE FROM emptied_playlists WHERE uid = ?')
     this.#unremove = db.prepare('DELETE FROM removed_playlists WHERE uid = ?')
+    // The latest of two, as `hlcWins` has it: stamps sort as they compare.
+    this.#markEmptied = db.prepare<[string, number]>(`
+      INSERT INTO sync_stamps (kind, uid, field, hlc)
+      SELECT 'playlist', uid, 'emptied', ? FROM playlists WHERE id = ?
+      ON CONFLICT (kind, uid, field) DO UPDATE SET hlc = max(hlc, excluded.hlc)
+    `)
+    this.#updateEmptied = db.prepare(`
+      UPDATE emptied_playlists
+         SET name = @name, description = @description, pinned = @pinned,
+             updated_at = @updatedAt, stamps = @stamps
+       WHERE uid = @uid
+    `)
 
     this.#items = db.prepare<[number], { song_id: number }>(`
       SELECT song_id
@@ -504,10 +518,14 @@ export class PlaylistRepository {
    * device puts in it meanwhile — or an Undo — brings it back, and noted in
    * `removed_playlists` by the database itself. The ids let go of.
    */
-  letGoEmptied(ids: readonly number[]): number[] {
+  letGoEmptied(ids: readonly number[], emptiedAt?: string): number[] {
     return this.#db.transaction(() =>
       ids.filter(id => {
         if (!this.#leftEmpty.get(id)) return false
+        // Marked as one that went with its last songs (`emptied`), as a
+        // device's `playlistEmptied` marks it: once back, it goes again as
+        // soon as it has no songs.
+        if (emptiedAt) this.#markEmptied.run(emptiedAt, id)
         this.#keepAside.run(id)
         this.#delete.run(id)
         return true
@@ -561,6 +579,21 @@ export class PlaylistRepository {
       this.#unremove.run(uid)
       return playlist.id ?? Number(made.lastInsertRowid)
     })()
+  }
+
+  /**
+   * Edit one kept aside: a rename, a pin or a new order made meanwhile by a
+   * device that had not heard is there when it comes back.
+   */
+  updateEmptied(playlist: Omit<EmptiedPlaylist, 'id' | 'createdAt' | 'songStamps'>): void {
+    this.#updateEmptied.run({
+      uid: playlist.uid,
+      name: playlist.name,
+      description: playlist.description,
+      pinned: playlist.pinned ? 1 : 0,
+      updatedAt: playlist.updatedAt,
+      stamps: JSON.stringify(playlist.stamps),
+    })
   }
 
   /** For good: true when it was kept aside. */

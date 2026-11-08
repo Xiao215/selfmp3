@@ -488,6 +488,24 @@ describe('a kept playlist its last songs took with them', () => {
     for (const other of rest) expect(other).toEqual(first)
   })
 
+  // Both emptied it, A first by the stamps: B's later taking out of B was
+  // lost when it reached the playlist kept aside, so a song put back between
+  // the two brought it back in some orders.
+  it('keeps the latest taking out of a song when both emptied it, in whatever order', () => {
+    const alsoEmptying: Change[] = [
+      { type: 'playlistSong', hlc: at(1.1), uid: LIST, songUid: SONG_A, on: false },
+      { type: 'playlistSong', hlc: at(1.2), uid: LIST, songUid: SONG_B, on: false },
+      { type: 'playlistEmptied', hlc: at(1.3), uid: LIST },
+      { type: 'playlistSong', hlc: at(1.4), uid: LIST, songUid: SONG_B, on: true },
+    ]
+    const [first, ...rest] = outcomes(alsoEmptying)
+    expect(first).toMatchObject({
+      listed: null,
+      aside: { songStamps: { [SONG_A]: at(1.1), [SONG_B]: at(1.5, 'web-bbbb') } },
+    })
+    for (const other of rest) expect(other).toEqual(first)
+  })
+
   it('comes back from the snapshot that left it out', () => {
     const written = snapshotOf(replay(emptying), {
       writtenAt: 'now',

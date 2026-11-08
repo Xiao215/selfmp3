@@ -164,4 +164,26 @@ describe('playlist routes', () => {
     expect(container.playlists.byId(road)).not.toBeNull()
     expect(container.playlists.allEmptied()).toEqual([])
   })
+
+  // Not one that went with its last songs once: it was kept aside before the
+  // add, and goes back there, as it does on a device.
+  it('puts a playlist the Undo of an add empties back aside if it went with its last songs', async () => {
+    const one = insert('Uno')
+    const road = container.playlists.create({
+      name: 'Back road',
+      description: '',
+      kind: 'manual',
+      rules: null,
+    }).id
+    container.playlists.add(road, [one])
+    await send('POST', `/api/playlists/${road}/songs/remove`, { songIds: [one] })
+    expect(container.playlists.byId(road)).toBeNull()
+    await send('POST', `/api/playlists/${road}/songs`, { songIds: [one] })
+    const undo = await send('POST', `/api/playlists/${road}/songs/remove`, {
+      songIds: [one],
+      keep: true,
+    })
+    expect(await undo.json()).toEqual({ removed: 1, playlist: null })
+    expect(container.playlists.emptiedById(road)?.name).toBe('Back road')
+  })
 })

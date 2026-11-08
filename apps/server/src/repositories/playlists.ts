@@ -129,6 +129,7 @@ export class PlaylistRepository {
   readonly #unremove
   readonly #markEmptied
   readonly #updateEmptied
+  readonly #markedEmptied
   readonly #items
   readonly #maxPosition
   readonly #insertItem
@@ -220,8 +221,12 @@ export class PlaylistRepository {
     this.#updateEmptied = db.prepare(`
       UPDATE emptied_playlists
          SET name = @name, description = @description, pinned = @pinned,
-             updated_at = @updatedAt, stamps = @stamps
+             updated_at = @updatedAt, stamps = @stamps, song_stamps = @songStamps
        WHERE uid = @uid
+    `)
+    this.#markedEmptied = db.prepare<[number], { found: number }>(`
+      SELECT 1 AS found FROM sync_stamps s JOIN playlists p ON p.uid = s.uid
+       WHERE p.id = ? AND s.kind = 'playlist' AND s.field = 'emptied'
     `)
 
     this.#items = db.prepare<[number], { song_id: number }>(`
@@ -585,7 +590,7 @@ export class PlaylistRepository {
    * Edit one kept aside: a rename, a pin or a new order made meanwhile by a
    * device that had not heard is there when it comes back.
    */
-  updateEmptied(playlist: Omit<EmptiedPlaylist, 'id' | 'createdAt' | 'songStamps'>): void {
+  updateEmptied(playlist: Omit<EmptiedPlaylist, 'id' | 'createdAt'>): void {
     this.#updateEmptied.run({
       uid: playlist.uid,
       name: playlist.name,
@@ -593,6 +598,7 @@ export class PlaylistRepository {
       pinned: playlist.pinned ? 1 : 0,
       updatedAt: playlist.updatedAt,
       stamps: JSON.stringify(playlist.stamps),
+      songStamps: JSON.stringify(playlist.songStamps),
     })
   }
 
@@ -680,6 +686,25 @@ export class PlaylistRepository {
     const affected = run([...new Set(songIds)])
     this.#touch.run(playlistId)
     return affected
+  }
+  /**
+   * Songs taken out by hand. Taking out the last of a kept playlist's songs
+   * lets it go too, marked (`emptiedAt`), as one exists once it has a song.
+   * Not when it undoes an add (`keep`): a playlist that was empty before the
+   * add stays, as it was — unless it went with its last songs once
+   * (`emptied`): then it was kept aside before the add, and goes back there,
+   * as it does on a device. How many were taken out.
+   */
+  takeOut(
+    playlistId: number,
+    songIds: readonly number[],
+    options: { keep: boolean; emptiedAt: string },
+  ): number {
+    const taken = this.removeMany(playlistId, songIds)
+    if (taken === 0) return 0
+    if (!options.keep) this.letGoEmptied([playlistId], options.emptiedAt)
+    else if (this.#markedEmptied.get(playlistId)) this.letGoEmptied([playlistId])
+    return taken
   }
 
   /**

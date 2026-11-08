@@ -629,7 +629,7 @@ describe('CloudIngest', () => {
      * time in each order with `other`: what the server publishes, which must
      * be what a device replaying that order has, and the same every time.
      */
-    function outcomes(other: (songs: { c: string }) => Change[]): unknown[] {
+    function outcomes(other: (songs: { a: string; b: string; c: string }) => Change[]): unknown[] {
       const seen: unknown[] = []
       for (let n = 0; ; n++) {
         db.exec('DELETE FROM songs; DELETE FROM playlists; DELETE FROM emptied_playlists')
@@ -665,10 +665,12 @@ describe('CloudIngest', () => {
         ]
         const orders = interleavings(
           emptying,
-          other({ c: uidOf('songs', c) }).map(change => ({
-            ...change,
-            uid: change.uid === 'removed' ? uidOf('songs', a) : change.uid || ROAD,
-          })),
+          other({ a: uidOf('songs', a), b: uidOf('songs', b), c: uidOf('songs', c) }).map(
+            change => ({
+              ...change,
+              uid: change.uid === 'removed' ? uidOf('songs', a) : change.uid || ROAD,
+            }),
+          ),
         )
         // Each pass makes new uids; named the same, the passes compare.
         const names: Record<string, string> = {
@@ -703,6 +705,24 @@ describe('CloudIngest', () => {
 
     // A song put in and taken out again meanwhile left the playlist listed,
     // empty, when the taking out came after the emptying.
+    // Both emptied it, the browser first by the stamps: the phone's later
+    // taking out of Bravo was lost when it reached the playlist kept aside,
+    // so a Bravo put back between the two brought it back in some orders.
+    it('keeps the latest taking out of a song when both emptied it, in whatever order', () => {
+      const seen = outcomes(({ a, b }) => [
+        { type: 'playlistSong', hlc: at(1.1), uid: '', songUid: a, on: false },
+        { type: 'playlistSong', hlc: at(1.2), uid: '', songUid: b, on: false },
+        { type: 'playlistEmptied', hlc: at(1.3), uid: '' },
+        { type: 'playlistSong', hlc: at(1.4), uid: '', songUid: b, on: true },
+      ])
+      expect(seen.length).toBe(35)
+      for (const each of seen) expect(each).toEqual(seen[0])
+      expect(seen[0]).toMatchObject({
+        listed: [],
+        aside: [{ songStamps: { a: at(1.1), b: at(1.5, phone) } }],
+      })
+    })
+
     it('lets it go again when a song put in meanwhile comes out again, in whatever order', () => {
       const seen = outcomes(({ c }) => [
         { type: 'playlistSong', hlc: at(5), uid: '', songUid: c, on: true },
@@ -730,6 +750,76 @@ describe('CloudIngest', () => {
       for (const each of seen) expect(each).toEqual(seen[0])
       expect(seen[0]).toMatchObject({ listed: [] })
     })
+  })
+
+  // Undoing Ask's add with `keep` left a playlist that had gone with its last
+  // songs once listed, empty and marked: a rename then kept it listed here
+  // and put it aside on every device.
+  it('puts a playlist an Undo of an add empties back aside if it went with its last songs once', () => {
+    for (const refilled of [true, false]) {
+      db.exec('DELETE FROM songs; DELETE FROM playlists; DELETE FROM emptied_playlists')
+      const one = addSong('One')
+      const x = addSong('Extra')
+      const road = playlists.create({ name: 'Road', description: '', kind: 'manual', rules: null })
+      playlists.add(road.id, [one])
+      const ROAD = uidOf('playlists', road.id)
+      const byHand = { keep: false, emptiedAt: at(1, 'mac-aaaa1111') }
+      // Its last song taken out: kept aside, marked.
+      playlists.takeOut(road.id, [one], byHand)
+      if (refilled) {
+        // Undone, then Ask puts Extra in, then One is taken out by hand.
+        playlists.bringBack(ROAD)
+        playlists.add(road.id, [one])
+        playlists.add(road.id, [x])
+        playlists.takeOut(road.id, [one], byHand)
+      } else {
+        // Ask puts Extra in the playlist kept aside.
+        playlists.bringBack(ROAD)
+        playlists.add(road.id, [x])
+      }
+      // The Undo of Ask's add.
+      playlists.takeOut(road.id, [x], { keep: true, emptiedAt: at(2, 'mac-aaaa1111') })
+      expect(playlists.byId(road.id)).toBeNull()
+      const before = serverSnapshot()
+      const rename: Change = {
+        type: 'playlistEdited',
+        hlc: at(3),
+        uid: ROAD,
+        fields: { name: 'Drive' },
+      }
+      ingest.apply([rename])
+      expect(playlists.emptied(ROAD)?.name).toBe('Drive')
+      expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, [rename])))
+    }
+  })
+
+  // One an import here is still filling stays, but was marked as emptied:
+  // listed with no songs and marked, which a rename then put aside on devices.
+  it('leaves a playlist an import is filling as it was, unmarked, when another device empties it', () => {
+    const a = addSong('Alpha')
+    const road = playlists.create({ name: 'Road', description: '', kind: 'manual', rules: null })
+    playlists.add(road.id, [a])
+    db.prepare(
+      "INSERT INTO import_jobs (id, url, status, playlist_id) VALUES ('j', 'https://x', 'queued', ?)",
+    ).run(road.id)
+    const ROAD = uidOf('playlists', road.id)
+    const phone = 'iphone-aaaa2222'
+    ingest.apply([
+      { type: 'playlistSong', hlc: at(1, phone), uid: ROAD, songUid: uidOf('songs', a), on: false },
+      { type: 'playlistEmptied', hlc: at(2, phone), uid: ROAD },
+    ])
+    expect(playlists.byId(road.id)).not.toBeNull()
+    expect(sync.stamp('playlist', ROAD, 'emptied')).toBeNull()
+    const before = serverSnapshot()
+    const rename: Change = {
+      type: 'playlistEdited',
+      hlc: at(3),
+      uid: ROAD,
+      fields: { name: 'Drive' },
+    }
+    ingest.apply([rename])
+    expect(playlists.byId(road.id)?.name).toBe('Drive')
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, [rename])))
   })
 
   it('stops a playlist following its tags with the songs the phone kept', () => {

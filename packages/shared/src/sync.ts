@@ -390,7 +390,9 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       if (change.on && library.songs.has(songUid)) {
         playlistBroughtBack(library, change.uid, songUid, change.hlc)
       }
-      const playlist = library.playlists.get(change.uid)
+      // One kept aside keeps the stamp of a song taken out of it meanwhile,
+      // so a later song put back meets the latest taking out.
+      const playlist = playlistAnywhere(library, change.uid)
       if (!playlist || playlist.kind !== 'manual' || !library.songs.has(songUid)) {
         return false
       }

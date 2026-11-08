@@ -167,11 +167,9 @@ export function playlistRoutes(container: Container): Router {
    * legal but unevenly supported, and this is the path the multi-select bar
    * uses on a phone. Removing from a playlist never touches the songs.
    *
-   * Taking out the last of a kept playlist's songs lets it go too, as one
-   * exists once it has a song (`letGoEmptied`): kept aside, so a song put in
-   * it again — an Undo, another device that had not heard — brings it back.
-   * Not when it undoes an add (`keep`): a playlist that was empty before the
-   * add stays, as it was.
+   * Taking out the last of a kept playlist's songs lets it go too
+   * (`PlaylistRepository.takeOut`): kept aside, so a song put in it again —
+   * an Undo, another device that had not heard — brings it back.
    */
   router.post(
     '/playlists/:id/songs/remove',
@@ -181,12 +179,11 @@ export function playlistRoutes(container: Container): Router {
         const live = playlistSongsProblem(requirePlaylist(params.id).kind)
         if (live) throw HttpError.refused(live)
         const removed = container.db.transaction(() => {
-          const taken = container.playlists.removeMany(params.id, body.songIds)
           container.edits.playlistSongs(params.id, body.songIds)
-          if (taken > 0 && !body.keep) {
-            container.playlists.letGoEmptied([params.id], container.clock.tick())
-          }
-          return taken
+          return container.playlists.takeOut(params.id, body.songIds, {
+            keep: body.keep ?? false,
+            emptiedAt: container.clock.tick(),
+          })
         })()
         if (removed > 0) container.bumpLibraryVersion()
         return { removed, playlist: container.playlists.byId(params.id) }

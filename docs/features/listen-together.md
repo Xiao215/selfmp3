@@ -141,8 +141,9 @@ sheet:
   song, so each play counts against the owner's daily Backblaze downloads. A friend whose
   bucket has hit its cap has their songs skipped, and the room says so once.
 
-**A friend who leaves** leaves their waiting songs to play; nothing else of theirs is read
-from their bucket after, so their played songs are not played again. One the host removes
+**A friend who leaves** leaves their waiting songs to play; none of their songs plays again
+after, from Again, Autoplay or the host's player. Their played songs' covers and words stay
+while the room is open, as everyone's do. One the host removes
 takes their waiting songs with them, those someone else put in again too.
 
 **Keeping in step.** The host's player is the clock. It reports what it is on and where.

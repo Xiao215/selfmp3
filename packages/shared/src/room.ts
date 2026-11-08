@@ -3,6 +3,7 @@ import type {
   RoomAction,
   RoomDoc,
   RoomEntry,
+  RoomFilePart,
   RoomMember,
   RoomMemberKind,
   RoomMode,
@@ -432,17 +433,24 @@ export function canPlayAgain(doc: Pick<RoomDoc, 'members'>, entry: RoomEntry): b
 }
 
 /**
- * Whether a member may still read an entry's files: the room is open, they
- * are in it, and the entry is in the list (waiting, playing or played). A
- * song whose owner left is read only while it waits or plays: what they
- * left behind finishes, and nothing more comes from their bucket.
+ * Whether a member may still read one of an entry's files: the room is open,
+ * they are in it, and the entry is in the list (waiting, playing or played).
+ * A song whose owner left plays only while it waits or plays: what they left
+ * behind finishes, and none of it plays again. Its cover and words stay, as
+ * every song's do while the room is open.
  */
-export function canReadEntry(doc: RoomDoc, memberId: string, entryId: string): RoomEntry | null {
+export function canReadEntry(
+  doc: RoomDoc,
+  memberId: string,
+  entryId: string,
+  part: RoomFilePart,
+): RoomEntry | null {
   if (doc.endedAt !== null) return null
   const member = doc.members.find(candidate => candidate.id === memberId)
   if (!member || member.left) return null
   const entry = doc.entries.find(candidate => candidate.id === entryId)
-  if (!entry || (entry.playedAt !== null && ownerLeft(doc, entry))) return null
+  if (!entry) return null
+  if (part === 'audio' && entry.playedAt !== null && ownerLeft(doc, entry)) return null
   return entry
 }
 

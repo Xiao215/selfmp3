@@ -265,6 +265,29 @@ describe('songs a friend brings', () => {
     expect(await (await file(s, ana, waiting ?? '')).text()).toBe('abcdefghij')
   })
 
+  it('keeps a played song’s cover for someone who came after its friend left', async () => {
+    const s = await setup()
+    const COVER = `covers/${SHA}.jpg`
+    s.h.bucket.put(`mia/${COVER}`, 'picture', { contentType: 'image/jpeg' })
+    const mia = await join(s, 'Mia', s.friend)
+    const added = await state(
+      await act(
+        s,
+        mia,
+        { type: 'add', song: { ...song('played'), cover: { key: COVER, size: 7 } } },
+        s.friend,
+      ),
+    )
+    const played = added.entries[0]?.id ?? ''
+    await act(s, s.room, { type: 'report', entryId: played, position: 0, playing: true })
+    await act(s, s.room, { type: 'report', entryId: null, position: 0, playing: false })
+    expect((await act(s, mia, { type: 'leave' })).status).toBe(200)
+
+    const ken = await join(s, 'Ken')
+    expect(await (await file(s, ken, played, 'cover')).text()).toBe('picture')
+    expect((await file(s, ken, played)).status).toBe(404)
+  })
+
   it('stop being lent to someone the host removed', async () => {
     const s = await setup()
     const mia = await join(s, 'Mia', s.friend)

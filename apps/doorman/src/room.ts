@@ -377,7 +377,9 @@ export class Room {
     const found = await this.#member(url)
     if (found instanceof Response) return found
     const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
-    const entry = canReadEntry(found.doc, found.member, url.searchParams.get('entry') ?? '')
+    const entry = part.success
+      ? canReadEntry(found.doc, found.member, url.searchParams.get('entry') ?? '', part.data)
+      : null
     if (!part.success || !entry) {
       return answer(404, DOORMAN_ERROR.roomMissing, 'that song is not in the room')
     }

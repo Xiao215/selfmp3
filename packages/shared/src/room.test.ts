@@ -228,7 +228,7 @@ describe('who may do what', () => {
   it('refuses everything once the room ended, and lends no files', () => {
     let doc = act(room(), M, { type: 'add', song: song('M1') })
     doc = act(doc, X, { type: 'end' })
-    expect(canReadEntry(doc, M, doc.entries[0]?.id ?? '')).toBeNull()
+    expect(canReadEntry(doc, M, doc.entries[0]?.id ?? '', 'audio')).toBeNull()
     expect(applyRoomAction(doc, M, { type: 'add', song: song('M2') }, 3000, newId)).toMatchObject({
       refused: 'ended',
     })
@@ -254,9 +254,9 @@ describe('songs a room is lent', () => {
   it('lends a friend’s song to members while it is in the room, and not to someone who left', () => {
     let doc = act(room(), M, { type: 'add', song: song('M1') })
     const m1 = doc.entries[0]?.id ?? ''
-    expect(canReadEntry(doc, A, m1)?.owner).toBe(M)
+    expect(canReadEntry(doc, A, m1, 'audio')?.owner).toBe(M)
     doc = act(doc, A, { type: 'leave' })
-    expect(canReadEntry(doc, A, m1)).toBeNull()
+    expect(canReadEntry(doc, A, m1, 'audio')).toBeNull()
   })
 
   it('plays a shared playlist’s song again as the same song from the same person', () => {
@@ -294,8 +294,9 @@ describe('songs a room is lent', () => {
     expect(
       applyRoomAction(doc, X, { type: 'again', entryId: m1 ?? '' }, 3000, newId),
     ).toMatchObject({ refused: 'missing' })
-    expect(canReadEntry(doc, A, m1 ?? '')).toBeNull()
-    expect(canReadEntry(doc, A, m2 ?? '')?.owner).toBe(M)
+    expect(canReadEntry(doc, A, m1 ?? '', 'audio')).toBeNull()
+    expect(canReadEntry(doc, A, m1 ?? '', 'cover')?.owner).toBe(M)
+    expect(canReadEntry(doc, A, m2 ?? '', 'audio')?.owner).toBe(M)
   })
 
   it('takes out a removed friend’s songs someone else put in again', () => {

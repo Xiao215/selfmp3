@@ -644,6 +644,12 @@ describe('CloudIngest', () => {
           rules: null,
         })
         playlists.add(road.id, [a, b])
+        // Fixed, not the wall clock's: passes a second apart compare too.
+        db.prepare('UPDATE playlists SET created_at = ?, updated_at = ? WHERE id = ?').run(
+          '2026-08-31 10:00:00',
+          '2026-08-31 10:00:00',
+          road.id,
+        )
         const before = serverSnapshot()
         const ROAD = uidOf('playlists', road.id)
         const emptying: Change[] = [

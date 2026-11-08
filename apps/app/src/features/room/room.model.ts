@@ -63,15 +63,25 @@ export function followerPress(
   onRoomSong: boolean,
 ): { readonly act: 'skip' | 'pause' | 'play' } | { readonly say: string } | null {
   if (isHost(state) || state.mode !== 'everyone' || !onRoomSong) return null
-  const host = state.members.find(member => member.kind === 'host')?.name ?? 'the host'
+  const hostMember = hostOf(state)
+  const host = hostMember?.name ?? 'the host'
   if (step === 'previous') return { say: 'A room only goes forward' }
-  if (step === 'next')
-    return youMay(state, 'skip') ? { act: 'skip' } : { say: `Only ${host} can skip` }
-  const act = state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
-  return youMay(state, act)
-    ? { act }
-    : { say: `Only ${host} can ${act === 'pause' ? 'pause' : 'play'} the room` }
+  const act =
+    step === 'next' ? 'skip' : state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
+  if (!youMay(state, act)) {
+    return { say: act === 'skip' ? `Only ${host} can skip` : `Only ${host} can ${act} the room` }
+  }
+  // Only the host's player does what is asked: with it away, nothing would
+  // happen now, and what was asked is dropped rather than done when it is back.
+  if (hostMember && !hostMember.online) return { say: awayLine(host) }
+  return { act }
 }
+
+function hostOf(state: RoomState): RoomMember | undefined {
+  return state.members.find(member => member.kind === 'host')
+}
+
+const awayLine = (host: string): string => `${host}’s player is away`
 
 /** The people still in the room, the host first. */
 export function peopleHere(state: RoomState): RoomMember[] {
@@ -193,6 +203,81 @@ export function playedRows(state: RoomState): RoomRow[] {
 /** Seconds into the playing song now, on this device's clock. */
 export function positionNow(state: RoomState, offset: number, now: number): number {
   return roomPosition(state.playing, now + offset)
+}
+
+/**
+ * How long the room's song may stand past its end before its host is taken
+ * to be away though the doorman still has their socket: a phone that walked
+ * out of signal keeps it open for a minute or more, while a host that is
+ * there moves the room on within a second or two.
+ */
+const HOST_LATE_SECONDS = 10
+
+/**
+ * Whether the room's song has played to its end without the host's player
+ * moving the room on, which only it does: `ending` while it may yet, `away`
+ * once the host is gone (their socket closed, or late past
+ * `HOST_LATE_SECONDS`). Null while the song plays, is paused, or has no
+ * length to go by.
+ */
+function playedOut(state: RoomState, offset: number, now: number): 'ending' | 'away' | null {
+  const playing = state.playing
+  if (!playing || playing.pausedAt !== null) return null
+  const duration = state.entries.find(entry => entry.id === playing.entryId)?.song.duration ?? 0
+  const over = positionNow(state, offset, now) - duration
+  if (duration <= 0 || over < 0) return null
+  return hostOf(state)?.online === false || over >= HOST_LATE_SECONDS ? 'away' : 'ending'
+}
+
+/**
+ * What a player that follows the room (on everyone's phones, not the host's)
+ * does now:
+ * - `stop`: nothing plays in the room: a song of the room's stops.
+ * - `wait`: the room's song has ended and only the host moves it on. It is
+ *   not played again from past its end, which ends at once and pulls the
+ *   player into the next song for a moment at every check; once the host is
+ *   `away`, the room's sound stops until they are back, with a word saying
+ *   whom it waits for.
+ * - `load`: the player is on another song: the room's, at the room's place.
+ * - `keep`: on the room's song: the room's list after it, playing or paused
+ *   as the room is, at its place.
+ */
+type FollowPlan =
+  | { readonly kind: 'stop' }
+  | { readonly kind: 'wait'; readonly away: string | null }
+  | {
+      readonly kind: 'load'
+      readonly ids: readonly number[]
+      readonly position: number
+      readonly autoplay: boolean
+    }
+  | {
+      readonly kind: 'keep'
+      readonly upcoming: readonly number[]
+      readonly playing: boolean
+      readonly position: number
+    }
+
+export function followPlan(
+  state: RoomState,
+  offset: number,
+  now: number,
+  currentId: number | null,
+): FollowPlan {
+  if (!state.playing) return { kind: 'stop' }
+  const out = playedOut(state, offset, now)
+  if (out) return { kind: 'wait', away: out === 'away' ? waitingLine(state) : null }
+  const id = roomTrackId(state.playing.entryId)
+  const upcoming = state.order.map(roomTrackId)
+  const position = positionNow(state, offset, now)
+  const playing = state.playing.pausedAt === null
+  if (currentId !== id) return { kind: 'load', ids: [id, ...upcoming], position, autoplay: playing }
+  return { kind: 'keep', upcoming, playing, position }
+}
+
+/** Whom a room whose host is away waits for. */
+function waitingLine(state: RoomState): string {
+  return `Waiting for ${hostOf(state)?.name ?? 'the host'}`
 }
 
 // --- tracks ---------------------------------------------------------------------
@@ -319,9 +404,19 @@ export function needsReport(
   )
 }
 
-/** A request from a member the host's player has not acted on yet. */
-export function freshWant(state: RoomState, lastSeq: number): RoomState['want'] {
-  return state.want && state.want.seq > lastSeq ? state.want : null
+/**
+ * A request from a member the host's player has not taken in yet, and
+ * whether to act on it: not one that came while this device could not hear
+ * the room (`heard` false: its line down, or still coming back). Done once
+ * the line is back, perhaps a minute on, it would skip whatever plays by
+ * then; the asker was told the host's player is away (`followerPress`).
+ */
+export function freshWant(
+  state: RoomState,
+  lastSeq: number,
+  heard: boolean,
+): { readonly want: NonNullable<RoomState['want']>; readonly act: boolean } | null {
+  return state.want && state.want.seq > lastSeq ? { want: state.want, act: heard } : null
 }
 
 // --- keep it going ------------------------------------------------------------------

@@ -42,6 +42,12 @@ interface RoomView {
   readonly offset: number
   /** Whether the socket is up: a room shown while it reconnects says so. */
   readonly link: 'connecting' | 'live' | 'offline'
+  /**
+   * Whether this tab plays the room: `here`, `elsewhere` (another tab of
+   * this browser does), or null while it is still asking (`leadRoom`).
+   * Always `here` where an app has one player.
+   */
+  readonly lead: 'here' | 'elsewhere' | null
 }
 
 const PASS_KEY = 'room.pass'
@@ -67,7 +73,18 @@ export const plainFetch: DoormanFetch = (url, init) => fetch(url, init as Reques
 
 export const roomApi = createRoomApi(doormanUrl, plainFetch)
 
-let view: RoomView = { pass: readPass(), state: null, offset: 0, link: 'offline' }
+/** The browser's Web Locks; none in the phone app, which has one player. */
+const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
+/** What `lead` is while there is no room to play, or nobody to share it with. */
+const NO_LEAD = locks ? null : 'here'
+
+let view: RoomView = {
+  pass: readPass(),
+  state: null,
+  offset: 0,
+  link: 'offline',
+  lead: NO_LEAD,
+}
 const listeners = new Set<() => void>()
 /**
  * How a room ended for this device: it left (or, as host, ended it), the host
@@ -226,11 +243,63 @@ function closeSocket(): void {
   socket = null
 }
 
+// --- one tab plays it ----------------------------------------------------------------
+
+/** The room this tab holds, or waits for, the lock of, and how to let it go. */
+let leading: { readonly code: string; readonly letGo: () => void } | null = null
+
+/**
+ * Play the room in this tab only if no other tab of this browser does. The
+ * tabs share one pass, kept in shared storage, so each would play the room —
+ * as its host, every one reporting its own player as the room's, which then
+ * flipped between their songs every few seconds. Whichever tab holds the
+ * room's Web Lock plays it; the others wait their turn, and the next takes
+ * over when it closes. Electron's one window is a tab like any other.
+ */
+function leadRoom(code: string): void {
+  if (!locks || leading?.code === code) return
+  letGoOfRoom()
+  set({ lead: null })
+  const waiting = new AbortController()
+  let release: (() => void) | null = null
+  const held = {
+    code,
+    letGo: () => {
+      waiting.abort()
+      release?.()
+    },
+  }
+  leading = held
+  const hold = (): Promise<void> => {
+    set({ lead: 'here' })
+    return new Promise(resolve => {
+      release = resolve
+    })
+  }
+  const name = `selfmp3-room ${code}`
+  void locks
+    .request(name, { ifAvailable: true }, lock => {
+      if (leading !== held) return undefined
+      if (lock) return hold()
+      set({ lead: 'elsewhere' })
+      return locks
+        .request(name, { signal: waiting.signal }, () => (leading === held ? hold() : undefined))
+        .catch(() => undefined)
+    })
+    .catch(() => undefined)
+}
+
+function letGoOfRoom(): void {
+  leading?.letGo()
+  leading = null
+}
+
 /** Open (or reopen) the socket for the room this device is in. */
 export function connectRoom(): void {
   const pass = view.pass
   closeSocket()
   if (!pass) return
+  leadRoom(pass.code)
   set({ link: 'connecting' })
   const opened = new WebSocket(roomApi.socketUrl(pass))
   socket = opened
@@ -344,8 +413,9 @@ function forgetRoom(): void {
   samples = []
   // A room left before its first song: the next one decides afresh.
   startHint = null
+  letGoOfRoom()
   prefs.set(PASS_KEY, 'null')
-  set({ pass: null, state: null, offset: 0, link: 'offline' })
+  set({ pass: null, state: null, offset: 0, link: 'offline', lead: NO_LEAD })
 }
 
 function enter(pass: RoomPass, state: RoomState): void {
@@ -481,10 +551,20 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
   }
 }
 
-/** Leave: the host's leaving ends the room for everyone. */
+/**
+ * Leave: the host's leaving ends the room for everyone. Only once the doorman
+ * has heard it: a leave it never got would end nothing, and the room would
+ * play on, lending the host's songs, with nobody left who could end it. So a
+ * device that cannot reach it stays in the room and is told why (the error,
+ * as `sayRoomFailure` words it); a room already over is as good as left.
+ */
 export async function leaveRoom(): Promise<void> {
-  const ending = view.state
-  await roomAct({ type: 'leave' }).catch(() => undefined)
-  forgetRoom()
-  if (ending) for (const listener of endedListeners) listener(ending, 'left')
+  const pass = view.pass
+  if (!pass) return
+  try {
+    await roomApi.act(pass, { type: 'leave' }, null)
+  } catch (error) {
+    if (!(error instanceof DoormanError && error.gone)) throw error
+  }
+  finishIfStill(pass, 'left')
 }

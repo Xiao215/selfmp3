@@ -2,14 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { router } from 'expo-router'
-import {
-  clientApi,
-  publicServerBase,
-  queryKeys,
-  roomTrackId,
-  shouldResync,
-  yoursOf,
-} from '@selfmp3/client'
+import { clientApi, publicServerBase, queryKeys, shouldResync, yoursOf } from '@selfmp3/client'
 import {
   ROOM_VECTORS_AT_ONCE,
   packVector,
@@ -39,6 +32,7 @@ import { useLibraryIndex } from '../../ui/songsById'
 import {
   arrivals,
   entryOfTrack,
+  followPlan,
   followerPress,
   freshWant,
   hostPlan,
@@ -95,6 +89,9 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const playing = usePlayerPlaying()
   const index = useLibraryIndex()
   const host = state ? isHost(state) : false
+  // One tab of a browser plays the room (`leadRoom`); the others leave their player be.
+  const plays = room.lead === 'here'
+  const driving = host && plays
 
   // A link plays through the host's server: looked for only by a host with a link to play.
   const hasLinks = state?.entries.some(entry => entry.song.link !== null) ?? false
@@ -230,10 +227,21 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     )
   }, [pastRooms])
 
+  // Another tab of this browser plays the room: said once, as this one comes in.
+  const saidElsewhere = useRef<string | null>(null)
+  useEffect(() => {
+    if (!state || room.lead !== 'elsewhere' || saidElsewhere.current === state.code) return
+    saidElsewhere.current = state.code
+    showToast({
+      say: 'The room plays in your other tab',
+      under: 'This one takes over if you close it.',
+    })
+  }, [state, room.lead])
+
   // --- the host ---------------------------------------------------------------
 
   useEffect(() => {
-    if (!state || !host) return
+    if (!state || !driving) return
     const plan = hostPlan(state, {
       currentId: playingId,
       playing,
@@ -268,13 +276,13 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       case 'none':
         return
     }
-  }, [state, host, playingId, playing, ranOut, commands])
+  }, [state, driving, playingId, playing, ranOut, commands])
 
   // What the host's player is on, told to the room whenever it differs from what the room says.
   const reporting = useRef(false)
   const report = useCallback(() => {
     const now = currentRoom()
-    if (!now.state || !isHost(now.state) || reporting.current) return
+    if (!now.state || !isHost(now.state) || now.lead !== 'here' || reporting.current) return
     // Nothing loaded yet (the app just opened): the plan takes the room's
     // song up, and the room hears once it plays, not that nothing does.
     if (live.current.playingId === null && now.state.playing) return
@@ -290,28 +298,30 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       })
   }, [commands])
   useEffect(() => {
-    if (host) report()
-  }, [host, state, playingId, playing, report])
+    if (driving) report()
+  }, [driving, state, playingId, playing, report])
 
   // What a friend asked of the host's player: each once, and none from before this device heard the room.
   const lastWant = useRef<{ code: string; seq: number } | null>(null)
   useEffect(() => {
-    if (!state || !host) return
+    if (!state || !driving) return
     if (lastWant.current?.code !== state.code) {
       lastWant.current = { code: state.code, seq: state.want?.seq ?? 0 }
       return
     }
-    const want = freshWant(state, lastWant.current.seq)
-    if (!want) return
+    const fresh = freshWant(state, lastWant.current.seq, currentRoom().link === 'live')
+    if (!fresh) return
+    const { want } = fresh
     lastWant.current = { code: state.code, seq: want.seq }
+    if (!fresh.act) return
     if (want.kind === 'skip') commands.next()
     else if ((want.kind === 'pause') === live.current.playing) commands.toggle()
-  }, [state, host, commands])
+  }, [state, driving, commands])
 
   // Autoplay (`keepGoing`): a couple of songs always waiting, while something plays.
   const keptFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!state || !host || !state.keepGoing || !state.playing) return
+    if (!state || !driving || !state.keepGoing || !state.playing) return
     if (state.order.length >= KEEP_WAITING || keptFor.current === state.playing.entryId) return
     keptFor.current = state.playing.entryId
     const wanted = KEEP_WAITING - state.order.length
@@ -335,7 +345,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
         if (song) await roomAct({ type: 'add', song }).catch(() => undefined)
       }
     })()
-  }, [state, host, pass, index])
+  }, [state, driving, pass, index])
 
   // How your own songs in the room sound, told to the room once each: what
   // the host's Autoplay ranks by. Read from your bucket's pack.
@@ -393,42 +403,53 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     return () => setRoomTransport(null)
   }, [])
 
+  // The song a follower last said it waits on the host for, so it is said once.
+  const saidWaiting = useRef<string | null>(null)
   const follow = useCallback(() => {
     const now = currentRoom()
     const room = now.state
-    if (!room || isHost(room) || room.mode !== 'everyone') return
+    if (!room || isHost(room) || room.mode !== 'everyone' || now.lead !== 'here') return
     // Reconnecting, what the room last said goes stale: the song this device
     // has goes on as it is, and is put in step once the room is back.
     if (now.link !== 'live') return
     const onRoomSong = roomTrack(live.current.playingId ?? 0) !== undefined
-    if (!room.playing) {
-      if (onRoomSong && live.current.playing) commands.toggle()
-      return
+    const plan = followPlan(room, now.offset, Date.now(), live.current.playingId)
+    switch (plan.kind) {
+      case 'stop':
+        if (onRoomSong && live.current.playing) commands.toggle()
+        return
+      case 'wait': {
+        if (!plan.away) return
+        if (onRoomSong && live.current.playing) commands.toggle()
+        const waiting = `${room.code} ${room.playing?.entryId ?? ''}`
+        if (saidWaiting.current !== waiting) {
+          saidWaiting.current = waiting
+          showToast({ say: plan.away, under: 'The room goes on when they’re back.' })
+        }
+        return
+      }
+      case 'load':
+        commands.playFrom(plan.ids, 0, { position: plan.position, autoplay: plan.autoplay })
+        return
+      case 'keep':
+        commands.setUpcoming(plan.upcoming)
+        if (plan.playing !== live.current.playing) commands.toggle()
+        if (shouldResync(commands.getPosition(), plan.position)) commands.seekTo(plan.position)
+        return
     }
-    const id = roomTrackId(room.playing.entryId)
-    const upcoming = room.order.map(roomTrackId)
-    const expected = positionNow(room, now.offset, Date.now())
-    const shouldPlay = room.playing.pausedAt === null
-    if (live.current.playingId !== id) {
-      commands.playFrom([id, ...upcoming], 0, { position: expected, autoplay: shouldPlay })
-      return
-    }
-    commands.setUpcoming(upcoming)
-    if (shouldPlay !== live.current.playing) commands.toggle()
-    if (shouldResync(commands.getPosition(), expected)) commands.seekTo(expected)
   }, [commands])
 
   useEffect(() => {
     follow()
-  }, [state, follow])
+  }, [state, plays, follow])
 
   // The steady checks: a follower's drift, and a host's seek the room has not heard of.
   const inRoom = state !== null
   useEffect(() => {
-    if (!inRoom) return
+    if (!inRoom || !plays) return
     const timer = setInterval(() => (host ? report() : follow()), CHECK_MS)
     return () => clearInterval(timer)
-  }, [inRoom, host, report, follow])
+  }, [inRoom, plays, host, report, follow])
 
   return children
 }

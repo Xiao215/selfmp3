@@ -90,6 +90,12 @@ vi.stubGlobal('WebSocket', FakeSocket)
 
 const store = await import('./room.store')
 
+/** Out of the room, the doorman hearing it. */
+async function leave(): Promise<void> {
+  mocks.answers.push(Promise.resolve(null))
+  await store.leaveRoom()
+}
+
 /** Into the room, with its socket open. */
 async function inRoom(): Promise<FakeSocket> {
   await store.joinRoom(PASS.code, 'Xiao')
@@ -110,7 +116,7 @@ describe('the room’s line', () => {
     mocks.refuseJoin = null
   })
   afterEach(async () => {
-    await store.leaveRoom()
+    if (store.currentRoom().pass) await leave()
     vi.useRealTimers()
   })
 
@@ -147,7 +153,7 @@ describe('the room’s line', () => {
     await inRoom()
     await vi.runOnlyPendingTimersAsync()
     expect(mocks.toasts).toEqual([])
-    await store.leaveRoom()
+    await leave()
 
     mocks.kind = 'cellular'
     await inRoom()
@@ -173,7 +179,7 @@ describe('the room’s line', () => {
   it('does not finish the room joined after the one that said it was gone', async () => {
     const socket = await inRoom()
     socket.gone()
-    await store.leaveRoom()
+    await leave()
     await inRoom()
     vi.advanceTimersByTime(300)
     expect(store.currentRoom().pass).not.toBeNull()
@@ -203,5 +209,59 @@ describe('the room’s line', () => {
     expect(mocks.acts).toEqual([{ code: PASS.code, type: 'leave' }])
     expect(ended).toEqual([PASS.code])
     expect(store.currentRoom().pass?.code).toBe('ZZ9999')
+  })
+
+  it('stays in the room when its leave does not reach the doorman', async () => {
+    await inRoom()
+    const ended: string[] = []
+    const stop = store.onRoomEnded(state => ended.push(state.code))
+    // Offline: the request never gets there.
+    mocks.answers.push(Promise.reject(new TypeError('Failed to fetch')))
+    await expect(store.leaveRoom()).rejects.toThrow('Failed to fetch')
+    expect(store.currentRoom().pass?.code).toBe(PASS.code)
+    expect(mocks.prefs.get('room.pass')).toContain(PASS.code)
+    expect(ended).toEqual([])
+
+    // Back online: pressed again, it is heard, and the room is over here.
+    await leave()
+    stop()
+    expect(store.currentRoom().pass).toBeNull()
+    expect(ended).toEqual([PASS.code])
+  })
+
+  it('takes a room that is already over as left', async () => {
+    await inRoom()
+    const ended: string[] = []
+    const stop = store.onRoomEnded((state, how) => ended.push(`${state.code} ${how}`))
+    mocks.answers.push(
+      Promise.reject(new DoormanError(410, DOORMAN_ERROR.roomEnded, 'this room has ended')),
+    )
+    await store.leaveRoom()
+    stop()
+    expect(store.currentRoom().pass).toBeNull()
+    expect(ended).toEqual([`${PASS.code} left`])
+  })
+
+  it('plays the room in one tab of a browser, and in the next once that one closes', async () => {
+    const lock = `selfmp3-room ${PASS.code}`
+    // Alone, this tab plays it.
+    await inRoom()
+    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
+    await leave()
+    // Let go with the room: another tab may take it.
+    await navigator.locks.request(lock, { ifAvailable: true }, held => expect(held).not.toBeNull())
+
+    // Another tab of this browser plays the room already.
+    const otherCloses = Promise.withResolvers<void>()
+    const otherHolds = Promise.withResolvers<void>()
+    void navigator.locks.request(lock, () => {
+      otherHolds.resolve()
+      return otherCloses.promise
+    })
+    await otherHolds.promise
+    await inRoom()
+    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('elsewhere'))
+    otherCloses.resolve()
+    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
   })
 })

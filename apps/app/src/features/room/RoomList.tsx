@@ -38,12 +38,14 @@ import {
   roomTitle,
   upcomingRows,
   youMay,
+  hostAway,
   type RoomRow,
 } from './room.model'
 import { openRoomSheet } from './roomSheets.store'
 import { sayRoomFailure } from './roomFailure'
 import { currentRoom, roomAct, useRoom } from './room.store'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
+import { showToast } from '../../ui/toast'
 
 /** Rows of what is next drawn at once; a room's list is rarely longer. */
 const SHOWN_NEXT = 40
@@ -52,6 +54,13 @@ const SHOWN_PLAYED = 5
 
 function act(action: RoomAction): void {
   void roomAct(action).catch(sayRoomFailure)
+}
+
+/** A skip, pause or play asked of the host's player, or why it would do nothing now. */
+function ask(state: RoomState, action: RoomAction): void {
+  const away = hostAway(state)
+  if (away) showToast(away, 'info')
+  else act(action)
 }
 
 /**
@@ -184,12 +193,19 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
           size={44}
           glyph={iconSize.nav}
           playing={playing}
-          onPress={() => (host ? commands.toggle() : act({ type: playing ? 'pause' : 'play' }))}
+          onPress={() =>
+            host ? commands.toggle() : ask(state, { type: playing ? 'pause' : 'play' })
+          }
           testID="room-toggle"
         />
       ) : null}
       {maySkip ? (
-        <IconButton onPress={() => act({ type: 'skip' })} label="Skip" filled testID="room-skip">
+        <IconButton
+          onPress={() => ask(state, { type: 'skip' })}
+          label="Skip"
+          filled
+          testID="room-skip"
+        >
           <Next size={iconSize.medium} color={theme.colors.textPrimary} />
         </IconButton>
       ) : null}

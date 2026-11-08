@@ -63,25 +63,32 @@ export function followerPress(
   onRoomSong: boolean,
 ): { readonly act: 'skip' | 'pause' | 'play' } | { readonly say: string } | null {
   if (isHost(state) || state.mode !== 'everyone' || !onRoomSong) return null
-  const hostMember = hostOf(state)
-  const host = hostMember?.name ?? 'the host'
+  const host = hostOf(state)?.name ?? 'the host'
   if (step === 'previous') return { say: 'A room only goes forward' }
   const act =
     step === 'next' ? 'skip' : state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
   if (!youMay(state, act)) {
     return { say: act === 'skip' ? `Only ${host} can skip` : `Only ${host} can ${act} the room` }
   }
-  // Only the host's player does what is asked: with it away, nothing would
-  // happen now, and what was asked is dropped rather than done when it is back.
-  if (hostMember && !hostMember.online) return { say: awayLine(host) }
-  return { act }
+  const away = hostAway(state)
+  return away ? { say: away } : { act }
 }
 
 function hostOf(state: RoomState): RoomMember | undefined {
   return state.members.find(member => member.kind === 'host')
 }
 
-const awayLine = (host: string): string => `${host}’s player is away`
+/**
+ * What to say instead of asking the host's player for a skip, a pause or a
+ * play while it is away (its socket closed): only it does what is asked, so
+ * nothing would happen now, and what was asked is dropped rather than done
+ * when it is back (`freshWant`). Null for the host, or with their player here.
+ */
+export function hostAway(state: RoomState): string | null {
+  const host = hostOf(state)
+  if (!host || isHost(state) || host.online) return null
+  return `${host.name}’s player is away`
+}
 
 /** The people still in the room, the host first. */
 export function peopleHere(state: RoomState): RoomMember[] {

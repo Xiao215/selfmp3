@@ -29,6 +29,7 @@ import {
   libraryPicks,
   followerPress,
   followPlan,
+  hostAway,
   keptTitle,
   endedLine,
   upgradePastRooms,
@@ -310,6 +311,9 @@ describe('a friend’s own transport, on everyone’s phones', () => {
     const doc = online({ ...playingRoom(), rights: { ...DEFAULT_ROOM_RIGHTS, pause: true } }, M)
     expect(followerPress(as(doc, M), 'next', true)).toEqual({ say: 'Xiao’s player is away' })
     expect(followerPress(as(doc, M), 'toggle', true)).toEqual({ say: 'Xiao’s player is away' })
+    // The room card's own Skip and Play say the same.
+    expect(hostAway(as(doc, M))).toBe('Xiao’s player is away')
+    expect(hostAway(as(playingRoom(), M))).toBeNull()
   })
 
   it('leaves the press to the player for the host, one speaker, or a song of your own', () => {

@@ -71,6 +71,13 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   const accent = useUnistyles().theme.colors.accent
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   useFieldPointer(pointerRef, setHover)
+  // A song the keys choose is newer than a pointer resting on the field, over
+  // which the map slides to follow it: the pointer names a star again once it moves.
+  const [chosenWas, setChosenWas] = useState(props.chosen)
+  if (props.chosen !== chosenWas) {
+    setChosenWas(props.chosen)
+    if (props.chosen != null) setHover(null)
+  }
   const byId = useMemo(() => new Map(props.points.map(point => [point.id, point])), [props.points])
   const grid = useMemo(() => skyGrid(props.points), [props.points])
 

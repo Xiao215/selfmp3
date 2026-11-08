@@ -63,7 +63,12 @@ async function field() {
     fireEvent(map, 'accessibilityAction', { nativeEvent: { actionName } })
   /** The tray lighting a song: shown from its list, or under the pointer there. */
   const light = (lit: number | null) => view.rerender(drawn(lit))
-  return { map, action, light, onPress, onPathStart, onPathMove, onPathEnd, onPathCancel }
+  /** The tray's Show, which lights its song and flies to it. */
+  const show = async (id: number) => {
+    await light(id)
+    await act(() => control.flyToSong(places.find(place => place.id === id)!))
+  }
+  return { map, action, light, show, onPress, onPathStart, onPathMove, onPathEnd, onPathCancel }
 }
 
 describe('SoundField with a screen reader', () => {
@@ -167,5 +172,14 @@ describe('SoundField with a screen reader', () => {
     await light(2)
     expect(onPathCancel).not.toHaveBeenCalled()
     expect(map.props['accessibilityValue']).toEqual({ text: 'Middle, Artist 1' })
+  })
+
+  it('lets go of the song at each Show, even of the song the tray already lit', async () => {
+    const { map, action, show } = await field()
+    await show(3)
+    await action('increment')
+    expect(map.props['accessibilityValue']).toEqual({ text: 'Middle, Artist 1' })
+    await show(3)
+    expect(map.props['accessibilityValue']).toBeUndefined()
   })
 })

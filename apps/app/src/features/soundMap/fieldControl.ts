@@ -35,6 +35,8 @@ interface FieldEvents {
   readonly pathStart: (spot: MapPlace) => void
   readonly pathMove: (spot: MapPlace, reach: number) => void
   readonly pathEnd: () => void
+  /** The page flew to a song (a tray row's Show, Find the song playing): newer than the keys' choice. */
+  readonly toSong: () => void
 }
 
 /**
@@ -159,6 +161,7 @@ export class FieldControl {
       return
     }
     const target = centredOn(view, field, place, Math.max(view.scale, SONG_SCALE), this.#insets)
+    this.#events?.toSong()
     this.#touched = true
     if (instant) this.#set(target, true)
     else this.#fly(target)

@@ -260,6 +260,10 @@ export function SoundField({
         },
         pathMove: (spot, reach) => handlers.current.onPathMove(spot, reach),
         pathEnd: () => handlers.current.onPathEnd(),
+        // Each Show is its own, even of the song the tray already lit.
+        toSong: () => {
+          if (keysRef.current.line === null) letGo.current()
+        },
       }),
     [control, live],
   )

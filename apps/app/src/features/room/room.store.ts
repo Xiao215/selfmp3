@@ -352,9 +352,13 @@ export function connectRoom(): void {
         // The final state follows the word, when the room ended; wait a beat
         // for it so the room is remembered as it finished.
         const how = message.data.reason
-        // Over now, though: another tab of this browser must not take it up.
-        letGoOfRoom()
-        set({ lead: NO_LEAD })
+        // Over now, though: a tab waiting to play it stops waiting. One that
+        // plays it keeps it until it has finished, so no tab that has yet to
+        // hear the end takes it up meanwhile.
+        if (view.lead === 'elsewhere') {
+          letGoOfRoom()
+          set({ lead: NO_LEAD })
+        }
         setTimeout(() => finishIfStill(pass, how), 300)
         return
       }

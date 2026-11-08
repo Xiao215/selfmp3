@@ -330,6 +330,24 @@ describe('the room’s line', () => {
     await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
   })
 
+  it('keeps playing a room that ended until it has finished it, for a tab yet to hear the end', async () => {
+    const lock = `selfmp3-room ${PASS.code}`
+    const socket = await inRoom()
+    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
+    socket.gone()
+    // Another tab asking for it now waits on: this one still has it.
+    const meanwhile = navigator.locks.request(
+      lock,
+      { signal: AbortSignal.timeout(200) },
+      () => true,
+    )
+    await expect(meanwhile).rejects.toThrow()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(store.currentRoom().pass).toBeNull()
+    const ours = navigator.locks.request(lock, { signal: AbortSignal.timeout(2000) }, () => true)
+    await expect(ours).resolves.toBe(true)
+  })
+
   it('does not take up a room that ended while another tab played it', async () => {
     const lock = `selfmp3-room ${PASS.code}`
     const otherCloses = Promise.withResolvers<void>()

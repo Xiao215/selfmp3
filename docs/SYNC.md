@@ -668,9 +668,10 @@ the smart features (Ask, tidying tags) are its, and so is searching the words of
 whose index only it builds. A device's copy of the library answers each of these routes with
 a `needs_server` refusal (`SERVER_ONLY_ROUTES` in `packages/replica/src/routes.ts`).
 
-A device signed in to the cloud reaches it directly. Every snapshot carries the addresses
-the server listens on — the ones on its own network, and `SELFMP3_PUBLIC_URL` last, the
-Tailscale Funnel address that answers from anywhere — and the token (`CloudServerSchema`,
+A device signed in to the cloud reaches it directly. Every snapshot carries where the server
+answers — `SELFMP3_PUBLIC_URL` alone when it has one, the Tailscale Funnel address that
+answers from anywhere; the addresses on its own network only when it has none, since those
+stop answering the moment it moves — and the token (`CloudServerSchema`,
 `apps/server/src/services/addresses.ts`); a screen that needs the server
 probes them all at once and talks to the first that answers, and looks again every twenty
 seconds so a server switched on is found without a tap. Nothing is typed, and there is no

@@ -281,7 +281,7 @@ nothing else to install. To update, `docker compose pull && docker compose up -d
 on a timer: the image is rebuilt on every push to `main`, and weekly for a fresh yt-dlp.
 
 It runs on the host's own network, so it sees and publishes the computer's home and
-Tailscale addresses. To reach it away from home, put Tailscale Funnel in front of it
+Tailscale addresses. To reach it away from home, or after it moves, put Tailscale Funnel in front of it
 (`tailscale funnel --bg 4600`) and set `SELFMP3_PUBLIC_URL` to that `https://` address in a
 `.env` beside `docker-compose.yml` (copy `.env.example`). Then sign in with Google in
 the [web app](https://xiao215.github.io/selfmp3), the desktop app or the phone app, and
@@ -312,7 +312,7 @@ They are read in `apps/server/src/config.ts`.
 |---|---|---|
 | `SELFMP3_PORT` | `4600` | Port to listen on |
 | `SELFMP3_HOST` | `0.0.0.0` | Bind address. The addresses the server finds on its network interfaces are how a device at home reaches it; `127.0.0.1` keeps it to this machine |
-| `SELFMP3_PUBLIC_URL` | none | One more address to publish: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
+| `SELFMP3_PUBLIC_URL` | none | The one address to publish, in place of the ones on the network interfaces: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
 | `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: with a public address its origin may call the server |
 | `SELFMP3_ADMIN_PORT` | `4610` | The owner's admin page, on `127.0.0.1` only whatever `SELFMP3_HOST` says; `0` turns it off |
 | `SELFMP3_ADMIN_URL` | none | The address `tailscale serve` gives the admin page, such as `https://pi.tail3d8516.ts.net:4443`: the page answers only to it and to this machine |

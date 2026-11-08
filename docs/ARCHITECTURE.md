@@ -274,9 +274,9 @@ What only the server can do, a device asks it for directly: Import (yt-dlp runs
 there), Stats and the Report (worked out from `play_events`), metadata lookup
 (the server asks iTunes and MusicBrainz), Ask and the other smart features, and
 presence for handoff. The device finds the server by the addresses in its
-bucket's snapshot — its LAN addresses and its public `https://` one
-(`SELFMP3_PUBLIC_URL`, a Tailscale Funnel on Xiao's Pi) are raced, and the first
-to answer as the server the snapshot names wins (`connection/useServerDirect.ts`;
+bucket's snapshot — its public `https://` one alone when it has one
+(`SELFMP3_PUBLIC_URL`, a Tailscale Funnel on Xiao's Pi), else its LAN addresses,
+raced — and the first to answer as the server the snapshot names wins (`connection/useServerDirect.ts`;
 docs/SYNC.md, "An answer has to be from the right server"). When none answers, the screen
 is still drawn and says why (`connection/ServerAway.tsx`); an import is left in
 the bucket for the server to take later. The bucket answers everything else, so

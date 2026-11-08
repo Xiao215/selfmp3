@@ -357,8 +357,9 @@ export type CloudUids = z.infer<typeof CloudUidsSchema>
 /**
  * Where the server that writes the snapshots can be reached directly, for what
  * only it can do: reading a link, and playing a song before it is imported.
- * The addresses are the ones it listens on; a device tries them and talks to
- * the first that answers. Only whoever can read the bucket sees this, and the
+ * The addresses are its public one alone when it has one, else the ones it
+ * listens on (`apps/server/src/services/addresses.ts`); a device tries them and
+ * talks to the first that answers. Only whoever can read the bucket sees this, and the
  * token is the one every device of theirs already carries to that server.
  */
 export const CloudServerSchema = z.object({

@@ -142,9 +142,9 @@ SELFMP3_PUBLIC_URL=https://pi.tail1a2b.ts.net
 
 Then run `docker compose up -d` again. A changed `.env` makes Compose recreate the container.
 The log now says `published as reachable at https://… (SELFMP3_PUBLIC_URL)`, and warns if
-the address is not `https://`. From then on the address goes into every snapshot beside the
-local ones, and each device races the lot: at home the local address answers first, and
-anywhere else the public one does. Setting it also lets the Pages app's origin call the
+the address is not `https://`. From then on it is the only address in every snapshot: the
+Wi-Fi and Tailscale addresses are where the server happens to be, and they stop answering
+once it moves, while the public one follows it. Setting it also lets the Pages app's origin call the
 server. Without it, the Pages tab cannot reach the server at all.
 
 Check it from a computer that is not on your tailnet (a phone on mobile data will do):

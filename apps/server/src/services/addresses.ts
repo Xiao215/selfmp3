@@ -50,8 +50,8 @@ export function isTranslatorAddress(ip: string): boolean {
 const PUBLISHED_LIMIT = 16
 
 /**
- * Every address to publish into the bucket: the ones found on this computer,
- * and the one in front of it.
+ * The addresses to publish into the bucket: the one in front of this server
+ * when it has one, and only then the ones found on this computer.
  *
  * `listenAddresses` can only report what this machine can see, and everything
  * it sees is a local `http://` address. Two things that leaves out, and
@@ -60,34 +60,21 @@ const PUBLISHED_LIMIT = 16
  * is served over HTTPS and so is not allowed to call an `http://` address at
  * all — not even one on the same Wi-Fi.
  *
- * The public address goes last, and the local ones stay: a device is racing all
- * of these at once (`packages/client/src/connection/reach.ts`), so at home the
- * Wi-Fi address still answers first and the tunnel is only paid for when
- * nothing else replies.
+ * With a public address, it is the only one. The local ones are where the
+ * server happened to be when the snapshot was written, and a server that moves
+ * — the Pi carried from home to another Wi-Fi — leaves them in every device's
+ * list, each one tried (`packages/client/src/connection/reach.ts`) and none
+ * ever answering again. The public address follows it wherever it goes.
  */
 export function publishedAddresses(
   host: string,
   port: number,
   publicUrl: string | null,
 ): ListenAddress[] {
-  return withPublicAddress(listenAddresses(host, port), publicUrl)
-}
-
-/** The list above, with the public address added — separate so it can be tested. */
-export function withPublicAddress(
-  found: readonly ListenAddress[],
-  publicUrl: string | null,
-): ListenAddress[] {
-  const addresses = [...found]
-  if (publicUrl && !addresses.some(address => address.url === publicUrl)) {
-    // A snapshot carries at most sixteen (`CloudServerSchema`), and a host with
-    // a great many interfaces — a Docker box with a `veth` per container — can
-    // find that many on its own. The public address is the one that cannot be
-    // rediscovered by looking, so it is the one that stays.
-    while (addresses.length >= PUBLISHED_LIMIT) addresses.pop()
-    addresses.push({ url: publicUrl, tailscale: false })
-  }
-  return addresses.slice(0, PUBLISHED_LIMIT)
+  if (publicUrl) return [{ url: publicUrl, tailscale: false }]
+  // A host with a great many interfaces — a Docker box with a `veth` per
+  // container — can find more than a snapshot carries on its own.
+  return listenAddresses(host, port).slice(0, PUBLISHED_LIMIT)
 }
 
 /**

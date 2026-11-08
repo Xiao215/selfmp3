@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import type { View, ViewProps, ViewStyle } from 'react-native'
+import { AccessibilityInfo, type View, type ViewProps, type ViewStyle } from 'react-native'
 import { plural } from '@selfmp3/shared'
 import type { FieldKey } from './fieldKeys.model'
 
@@ -69,12 +69,17 @@ export function useFieldFocus(
 /** A phone's screen reader says the song chosen itself, as the field's value. */
 export const SPEAKS_CHOICE = false
 
+/** What the keys did, aloud: a line begun, stopped or taken. A browser says it from the field's live region. */
+export function announce(words: string): void {
+  if (words) AccessibilityInfo.announceForAccessibility(words)
+}
+
 /**
  * The field to VoiceOver and TalkBack: one element that is adjusted, as a
  * slider is. A swipe up or down goes from song to song (`readingOrder`), and
  * the song is said as its value; a double tap plays it; an action of its own
- * starts a line there and another ends it, and a scrub stops drawing
- * (`actionKey`).
+ * starts a line there and another ends it, and a scrub stops drawing or
+ * lets go of the song (`actionKey`).
  */
 export function fieldAccess({ songs, chosen, drawing }: FieldAccess): ViewProps {
   return {
@@ -88,7 +93,7 @@ export function fieldAccess({ songs, chosen, drawing }: FieldAccess): ViewProps 
       { name: 'decrement' },
       { name: 'activate' },
       { name: 'draw', label: drawing ? 'End the line here' : 'Start a line here' },
-      ...(drawing ? [{ name: 'escape' }] : []),
+      ...(drawing || chosen !== null ? [{ name: 'escape' }] : []),
     ],
   }
 }

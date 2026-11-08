@@ -228,10 +228,12 @@ export function SoundMapScreen(): ReactNode {
     strokeRef.current = [spot]
     setStroke([spot])
   }, [])
-  const onPathMove = useCallback((spot: MapPlace, within: number) => {
+  // A finger's points closer than a step are one; a song the keys went to is
+  // always its own, however near the one before.
+  const onPathMove = useCallback((spot: MapPlace, within: number, exact = false) => {
     reach.current = within
     const last = strokeRef.current[strokeRef.current.length - 1]
-    if (last && Math.hypot(spot.x - last.x, spot.y - last.y) < PATH_STEP) return
+    if (!exact && last && Math.hypot(spot.x - last.x, spot.y - last.y) < PATH_STEP) return
     strokeRef.current = [...strokeRef.current, spot]
     setStroke(strokeRef.current)
   }, [])
@@ -240,11 +242,12 @@ export function SoundMapScreen(): ReactNode {
     setStroke([])
   }, [])
   const { done: hintDone } = hint
-  const onPathEnd = useCallback(() => {
+  // How many songs the stroke took, for the keys to say.
+  const onPathEnd = useCallback((): number => {
     const drawn = strokeRef.current
     strokeRef.current = []
     setStroke([])
-    if (drawn.length < 2) return
+    if (drawn.length < 2) return 0
     setPen(false)
     hintDone()
     const loop = isLoop(drawn, reach.current * LOOP_CLOSE)
@@ -252,7 +255,7 @@ export function SoundMapScreen(): ReactNode {
       ? songsInside(places, drawn, songs)
       : songsAlongPath(places, drawn, reach.current, songs)
     // Nothing taken: the stroke simply goes, as it came, with no word about it.
-    if (ids.length === 0) return
+    if (ids.length === 0) return 0
     const take: Omit<MapTake, 'id' | 'tone'> = {
       kind: loop ? 'loop' : 'line',
       name: loop ? loopName(places, ids, songs, tags) : pathName(places, drawn, songs, tags),
@@ -262,6 +265,7 @@ export function SoundMapScreen(): ReactNode {
     }
     const id = nextTake.current++
     setTakes(before => [...before, { ...take, id, tone: takeTone(before) }])
+    return ids.length
   }, [places, songs, tags, hintDone])
 
   const playTray = (): void => {

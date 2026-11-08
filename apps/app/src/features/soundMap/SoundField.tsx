@@ -4,12 +4,13 @@ import { Animated, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { StyleSheet } from 'react-native-unistyles'
-import type { MapPlace, Song } from '@selfmp3/shared'
+import { plural, type MapPlace, type Song } from '@selfmp3/shared'
 import { usePlayingSongId } from '../../player/PlayerProvider'
 import { lightTap } from '../../ports/haptics'
 import { nativeDriver } from '../../ports/nativeDriver'
 import type { FieldControl } from './fieldControl'
 import {
+  announce,
   fieldAccess,
   fieldCursor,
   SPEAKS_CHOICE,
@@ -93,8 +94,10 @@ export function SoundField({
   /** A tap, and a finger's reach there: true when it played something, which the pulse marks. */
   onPress: (spot: MapPlace, reach: number) => boolean
   onPathStart: (spot: MapPlace) => void
-  onPathMove: (spot: MapPlace, reach: number) => void
-  onPathEnd: () => void
+  /** `exact`: a song the keys went to, kept however near the point before. */
+  onPathMove: (spot: MapPlace, reach: number, exact?: boolean) => void
+  /** How many songs the stroke took. */
+  onPathEnd: () => number
   /** A line drawn with the keys, let go of before it ended. */
   onPathCancel: () => void
 }): ReactNode {
@@ -131,6 +134,12 @@ export function SoundField({
   const [keys, setKeys] = useState(NO_FIELD_KEYS)
   const keysRef = useRef(keys)
   const [said, setSaid] = useState('')
+  // What the keys did, said: from the live region in a browser, and on a
+  // phone (where the song chosen is the field's value) aloud.
+  const say = (words: string): void => {
+    setSaid(words)
+    announce(words)
+  }
   const byId = useMemo(() => new Map(points.map(point => [point.id, point])), [points])
   const order = useMemo(() => readingOrder(points), [points])
   const nameOf = (id: number): string => {
@@ -154,17 +163,23 @@ export function SoundField({
       case 'lineFrom':
         if (!place) return
         handlers.current.onPathStart(place)
-        setSaid(`Drawing from ${songs.get(place.id)?.title ?? 'here'}`)
+        say(`Drawing from ${songs.get(place.id)?.title ?? 'here'}`)
         return
       case 'lineTo':
-        if (place) handlers.current.onPathMove(place, reach)
+        if (place) handlers.current.onPathMove(place, reach, true)
         return
-      case 'lineEnd':
-        handlers.current.onPathEnd()
+      case 'lineEnd': {
+        const taken = handlers.current.onPathEnd()
+        say(
+          taken === 0
+            ? 'The line took no songs'
+            : `Added ${plural(taken, 'song', 'songs')} to the tray`,
+        )
         return
+      }
       case 'lineCancel':
         handlers.current.onPathCancel()
-        setSaid('Stopped drawing')
+        say('Stopped drawing')
         return
       case 'letGo':
         setSaid('')
@@ -210,6 +225,12 @@ export function SoundField({
   useLayoutEffect(() => {
     letGo.current = letGoKeys
   })
+  // A song lit from the tray (shown, or under the pointer in its list) is
+  // newer than the one the keys chose, which is let go of; a line the keys
+  // are drawing is kept.
+  useEffect(() => {
+    if (lit !== null && keysRef.current.line === null) letGo.current()
+  }, [lit])
   useFieldFocus(fieldRef, {
     key: press,
     focus: keyboard => {

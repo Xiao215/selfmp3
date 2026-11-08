@@ -209,6 +209,9 @@ export function useFieldFocus(
 /** A browser speaks the song chosen from a live region of the field's own (`SoundField`). */
 export const SPEAKS_CHOICE = true
 
+/** What the keys did is said from the field's live region (`SPEAKS_CHOICE`), not aloud here. */
+export function announce(_words: string): void {}
+
 /**
  * The field to a browser: one Tab stop that runs its own keys, as an
  * application does, named with what is on it and what the keys do (the

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
+import { AccessibilityInfo } from 'react-native'
 import type { MapPlace, Song } from '@selfmp3/shared'
 
 import { FieldControl } from './fieldControl'
@@ -33,9 +34,9 @@ async function field() {
   const onPress = jest.fn((_spot: MapPlace, _reach: number) => true)
   const onPathStart = jest.fn()
   const onPathMove = jest.fn()
-  const onPathEnd = jest.fn()
+  const onPathEnd = jest.fn(() => 3)
   const onPathCancel = jest.fn()
-  await render(
+  const drawn = (lit: number | null) => (
     <SoundField
       control={control}
       armed={false}
@@ -45,21 +46,24 @@ async function field() {
       lens={null}
       takes={[]}
       stroke={[]}
-      lit={null}
+      lit={lit}
       panel={0}
       onPress={onPress}
       onPathStart={onPathStart}
       onPathMove={onPathMove}
       onPathEnd={onPathEnd}
       onPathCancel={onPathCancel}
-    />,
+    />
   )
+  const view = await render(drawn(null))
   // Laid out without drawing the sky: the songs are where the control says.
   await act(() => control.resize({ width: 400, height: 800 }))
   const map = screen.getByTestId('sound-map-field')
   const action = (actionName: string) =>
     fireEvent(map, 'accessibilityAction', { nativeEvent: { actionName } })
-  return { map, action, onPress, onPathStart, onPathMove, onPathEnd, onPathCancel }
+  /** The tray lighting a song: shown from its list, or under the pointer there. */
+  const light = (lit: number | null) => view.rerender(drawn(lit))
+  return { map, action, light, onPress, onPathStart, onPathMove, onPathEnd, onPathCancel }
 }
 
 describe('SoundField with a screen reader', () => {
@@ -115,6 +119,53 @@ describe('SoundField with a screen reader', () => {
     await action('escape')
     expect(onPathCancel).toHaveBeenCalledTimes(1)
     expect(onPathEnd).not.toHaveBeenCalled()
+    expect(map.props['accessibilityValue']).toEqual({ text: 'Middle, Artist 1' })
+  })
+
+  it('says what a line took', async () => {
+    const said = jest.spyOn(AccessibilityInfo, 'announceForAccessibility')
+    const { action, onPathMove, onPathEnd } = await field()
+    await action('draw')
+    expect(said).toHaveBeenLastCalledWith('Drawing from Middle')
+    await action('increment')
+    await action('draw')
+    // The song the line went to is kept however near the one before.
+    expect(onPathMove).toHaveBeenCalledWith(expect.anything(), expect.any(Number), true)
+    expect(onPathEnd).toHaveBeenCalledTimes(1)
+    expect(said).toHaveBeenLastCalledWith('Added 3 songs to the tray')
+    onPathEnd.mockReturnValueOnce(0)
+    await action('draw')
+    await action('draw')
+    expect(said).toHaveBeenLastCalledWith('The line took no songs')
+    said.mockRestore()
+  })
+
+  it('lets go of the song with a scrub', async () => {
+    const { map, action } = await field()
+    expect(map.props['accessibilityActions']).not.toContainEqual({ name: 'escape' })
+    await action('increment')
+    expect(map.props['accessibilityActions']).toContainEqual({ name: 'escape' })
+    await action('escape')
+    expect(map.props['accessibilityValue']).toBeUndefined()
+    expect(map.props['accessibilityActions']).not.toContainEqual({ name: 'escape' })
+  })
+
+  it('lets go of the song when the tray lights another, the newer of the two', async () => {
+    const { map, action, light } = await field()
+    await action('increment')
+    expect(map.props['accessibilityValue']).toEqual({ text: 'Middle, Artist 1' })
+    await light(3)
+    expect(map.props['accessibilityValue']).toBeUndefined()
+    // Choosing again afterwards is newer than the tray's song.
+    await action('increment')
+    expect(map.props['accessibilityValue']).toEqual({ text: 'Middle, Artist 1' })
+  })
+
+  it('keeps a line being drawn when the tray lights a song', async () => {
+    const { map, action, light, onPathCancel } = await field()
+    await action('draw')
+    await light(2)
+    expect(onPathCancel).not.toHaveBeenCalled()
     expect(map.props['accessibilityValue']).toEqual({ text: 'Middle, Artist 1' })
   })
 })

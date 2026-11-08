@@ -185,15 +185,19 @@ over the sky (`FOCUS_OVER`). With a song chosen the arrow keys step to the neare
 way (`songToward`, `fieldKeys.model.ts`), the map sliding just far enough to keep it in view,
 and Enter or Space plays it as a tap there does. Armed (the pen, or Shift+Enter), Enter
 starts a line at the song instead; the arrows carry it from song to song, back to its start
-makes a loop, Enter ends it and it goes into the tray as a drawn one does, and Escape drops
-it. Escape lets go of the song, and then the arrows move the map again and Enter chooses
+makes a loop, Enter ends it and it goes into the tray as a drawn one does (each song the
+keys went to is a point of it, however close, and it says how many songs it took), and
+Escape drops it. Escape lets go of the song, and then the arrows move the map again and Enter chooses
 anew; + and − zoom about the song. A click leaves focus on the field without choosing, so
-a pointer's arrows still move the map. The gesture handler takes Enter and Space on a
+a pointer's arrows still move the map. The pointer over a star names that one, the keys'
+ring staying where it is, and a song lit from the tray (shown, or under the pointer in its
+list) lets go of the keys' one: the newer of the two is lit. The gesture handler takes Enter and Space on a
 focused view for a tap at its middle; the field's own listener answers them first and keeps
 them from it. On a phone, VoiceOver and TalkBack have the field as one adjustable element:
 a swipe up or down steps through the songs in bands, each near the one before
-(`readingOrder`), the song is its value, a double tap plays it, and its "Start a line here"
-and "End the line here" actions draw a straight line between two songs.
+(`readingOrder`), the song is its value, a double tap plays it, its "Start a line here"
+and "End the line here" actions draw a straight line between two songs (said aloud as they
+begin and end), and a scrub lets go of the song.
 
 The first visit acts it out once (`MapHint.tsx`, guide `sound-map-draw`): a finger's circle
 holds and draws a line between two places, then holds and goes round a loop, each with its

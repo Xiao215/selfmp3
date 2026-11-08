@@ -468,13 +468,13 @@ function draw(
       y1: Math.max(a.y, b.y),
     })
   }
-  // The song the keys chose; else the star under the pointer, named before it
-  // is pressed; else the one the pointer is on in the tray's list. Once its
-  // cover is open it is lit and the rest of the sky dims round it (H3).
+  // The star under the pointer, named before it is pressed; else the song the
+  // keys chose; else the one the pointer is on in the tray's list (a song lit
+  // there lets go of the keys' one, so the newer of those two is named).
+  // Once its cover is open it is lit and the rest of the sky dims round it (H3).
   const reachUnder = Math.max(14, tile / 2 + 4)
   const chosen = props.chosen == null ? null : (byId.get(props.chosen) ?? null)
   const under =
-    chosen ??
     (pointer
       ? songUnder(
           near(
@@ -488,6 +488,7 @@ function draw(
           reachUnder,
         )
       : null) ??
+    chosen ??
     (lit === null ? null : (byId.get(lit) ?? null))
   const underOpen = under !== null && starLook(under, view.scale).share > 0.5
   const shade = (point: SkyPoint): number => (underOpen && point !== under ? SPOTLIGHT_DIM : 1)
@@ -705,18 +706,39 @@ function draw(
   // dimmed sky, its name under it (H3); while it is still a star, the star is
   // ringed and named beside it.
   const song = under ? songs.get(under.id) : undefined
-  // The keys' song wears the focus ring, in the accent, as anything the
-  // keyboard is on does.
-  const focus = under !== null && under === chosen
   if (under && song && underOpen) {
-    const look = starLook(under, view.scale)
-    spotlight(ctx, song, under, at(under), look, cover(song), field.width - panel)
-    if (focus) {
-      const side = Math.max(SPOTLIGHT_COVER, look.side * 1.15) + FOCUS_GAP * 2
-      const spot = at(under)
-      ctx.strokeStyle = accent
-      ctx.lineWidth = 2
-      ctx.beginPath()
+    spotlight(
+      ctx,
+      song,
+      under,
+      at(under),
+      starLook(under, view.scale),
+      cover(song),
+      field.width - panel,
+    )
+  } else if (under && song) {
+    const spot = at(under)
+    ctx.strokeStyle = SKY_INK
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(spot.x, spot.y, ringRadius(under, view.scale, 7), 0, Math.PI * 2)
+    ctx.stroke()
+    tooltip(ctx, song, spot, Math.max(14, starLook(under, view.scale).side / 2 + 8), field)
+  }
+
+  // The keys' song wears the focus ring, in the accent, as anything the
+  // keyboard is on does: drawn on its own, so the pointer over another star
+  // names that one and the ring stays where the keys are.
+  if (chosen) {
+    const spot = at(chosen)
+    const look = starLook(chosen, view.scale)
+    ctx.strokeStyle = accent
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    if (look.share > 0.5) {
+      // Just outside its cover, spotlit (and so larger) when it is the one named.
+      const side =
+        (chosen === under ? Math.max(SPOTLIGHT_COVER, look.side * 1.15) : look.side) + FOCUS_GAP * 2
       ctx.roundRect(
         spot.x - side / 2,
         spot.y - side / 2,
@@ -724,16 +746,10 @@ function draw(
         side,
         look.corner * (side / look.side),
       )
-      ctx.stroke()
+    } else {
+      ctx.arc(spot.x, spot.y, ringRadius(chosen, view.scale, 7), 0, Math.PI * 2)
     }
-  } else if (under && song) {
-    const spot = at(under)
-    ctx.strokeStyle = focus ? accent : SKY_INK
-    ctx.lineWidth = focus ? 2 : 1.5
-    ctx.beginPath()
-    ctx.arc(spot.x, spot.y, ringRadius(under, view.scale, 7), 0, Math.PI * 2)
     ctx.stroke()
-    tooltip(ctx, song, spot, Math.max(14, starLook(under, view.scale).side / 2 + 8), field)
   }
 }
 

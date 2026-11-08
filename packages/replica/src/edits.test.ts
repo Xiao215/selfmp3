@@ -170,9 +170,24 @@ describe('editing songs', () => {
       ['tagEmptied', uid('1')],
     ])
     expect(d.apply(changes).library.tags.map(tag => tag.name)).toEqual(['rain'])
+    // No tag goes with song b; the playlist it is now the last song of does.
     expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'b')]).map(c => c.type)).toEqual([
       'songRemoved',
+      'playlistEmptied',
     ])
+  })
+
+  // R6D-1: the playlist stayed at 0 songs on every device, as one emptied on a server did.
+  it('takes a kept playlist out with its last songs, and no playlist they leave songs in', () => {
+    const d = device()
+    expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')]).map(c => c.type)).toEqual([
+      'songRemoved',
+      'tagEmptied',
+    ])
+    const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a'), d.idOf('songs', 'b')])
+    expect(changes.filter(c => c.type === 'playlistEmptied').map(c => c.uid)).toEqual([uid('7')])
+    // The live one stays: its rules may match songs later.
+    expect(d.apply(changes).library.playlists.map(p => p.name)).toEqual(['Loved'])
   })
 
   // R3-M7: the tag went everywhere, and the song tagged with it lost it.
@@ -388,6 +403,42 @@ describe('editing playlists', () => {
     expect(view.playlistSongs[mix]).toEqual(['a', 'c', 'b'].map(c => d.idOf('songs', c)))
   })
 
+  // R7H-1: taking out its last songs deleted it outright, for good.
+  it('lets a playlist go with its last songs, and has it back when a song goes in again', () => {
+    const d = device()
+    const mix = d.idOf('playlists', '7')
+    const [a, b, c] = ['a', 'b', 'c'].map(u => d.idOf('songs', u)) as [number, number, number]
+    expect(edits.removeFromPlaylist(d.ctx(), mix, [a]).map(change => change.type)).toEqual([
+      'playlistSong',
+    ])
+    const out = edits.removeFromPlaylist(d.ctx(), mix, [a, b])
+    expect(out.map(change => change.type)).toEqual([
+      'playlistSong',
+      'playlistSong',
+      'playlistEmptied',
+    ])
+    const gone = d.apply(out)
+    expect(gone.byId.playlists.has(mix)).toBe(false)
+    expect(gone.emptiedPlaylists.get(mix)).toBe(uid('7'))
+    // An Undo, or the next song meant for it: back under the id it had.
+    const back = d.apply(edits.addToPlaylist(d.ctx(), mix, [c], undefined))
+    expect(back.byId.playlists.get(mix)?.name).toBe('Mix')
+    expect(back.playlistSongs[mix]).toEqual([c])
+    expect(back.emptiedPlaylists.size).toBe(0)
+  })
+
+  // Undoing Ask's add to a playlist that had no songs deleted the playlist.
+  it('keeps a playlist the Undo of an add leaves empty', () => {
+    const d = device()
+    const mix = d.idOf('playlists', '7')
+    const [a, b] = ['a', 'b'].map(u => d.idOf('songs', u)) as [number, number]
+    const undo = edits.removeFromPlaylist(d.ctx(), mix, [a, b], true)
+    expect(undo.map(change => change.type)).toEqual(['playlistSong', 'playlistSong'])
+    const view = d.apply(undo)
+    expect(view.byId.playlists.get(mix)?.name).toBe('Mix')
+    expect(view.playlistSongs[mix] ?? []).toEqual([])
+  })
+
   it('lets a playlist that follows tags be put in an order by hand', () => {
     const d = device()
     const live = d.idOf('playlists', '8')
@@ -550,5 +601,26 @@ describe('replaying', () => {
     }
     expect(latestStamp(stamped)).toBe('0000000b2.0000.mac-3f9a1c2e')
     expect(latestStamp(null)).toBeNull()
+  })
+
+  // A device whose clock ran slow stamped a song put back in an emptied
+  // playlist below that song's taking out, so the playlist stayed gone.
+  it('counts the stamps of a playlist kept aside as the latest too', () => {
+    const aside: CloudSnapshot = {
+      ...BASE,
+      songs: [song('a', { stamps: { title: '0000000a1.0000.mac-3f9a1c2e' } })],
+      emptiedPlaylists: [
+        {
+          ...BASE.playlists[0]!,
+          songUids: [],
+          stamps: { emptied: '0000000c3.0000.iphone-aaaa2222' },
+          songStamps: { [uid('a')]: '0000000c2.0000.iphone-aaaa2222' },
+        },
+      ],
+    }
+    expect(latestStamp(aside)).toBe('0000000c3.0000.iphone-aaaa2222')
+    expect(
+      latestStamp({ ...aside, emptiedPlaylists: [{ ...aside.emptiedPlaylists![0]!, stamps: {} }] }),
+    ).toBe('0000000c2.0000.iphone-aaaa2222')
   })
 })

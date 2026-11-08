@@ -431,6 +431,12 @@ export const CloudSnapshotSchema = z.object({
    */
   emptiedTags: z.array(CloudTagSchema).optional(),
   /**
+   * Kept playlists that went with their last songs (`playlistEmptied`), as
+   * they were then, stamps and all. A song put in one, by a change that
+   * arrives late and wins, brings it back.
+   */
+  emptiedPlaylists: z.array(CloudPlaylistSchema).optional(),
+  /**
    * Songs folded into another copy of themselves (`songMerged`): the extra
    * copy's uid, and the song it went into. A late play, tag or playlist place
    * that names the extra copy lands on the song kept.

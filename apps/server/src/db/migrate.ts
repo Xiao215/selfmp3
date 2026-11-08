@@ -1310,6 +1310,30 @@ const MIGRATIONS: readonly Migration[] = [
              );
     `,
   },
+  {
+    // 59. A kept playlist that went with its last songs (`playlistEmptied`,
+    // docs/SYNC.md), as it was then, stamps and all: a device that puts a
+    // song in it, not having heard, brings it back — under the id it had,
+    // which AUTOINCREMENT never hands out again, so an Undo that puts the
+    // songs back finds it. Deleting it outright lost that song on every
+    // device (bug bash R7H-1). `id` is null for one a snapshot kept aside.
+    name: 'kept playlists emptied by a removal are kept aside',
+    sql: `
+      CREATE TABLE IF NOT EXISTS emptied_playlists (
+        uid            TEXT    PRIMARY KEY,
+        id             INTEGER,
+        name           TEXT    NOT NULL,
+        description    TEXT    NOT NULL DEFAULT '',
+        pinned         INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT    NOT NULL,
+        updated_at     TEXT    NOT NULL,
+        last_played_at TEXT,
+        stamps         TEXT    NOT NULL DEFAULT '{}',
+        song_stamps    TEXT    NOT NULL DEFAULT '{}'
+      ) WITHOUT ROWID;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_emptied_playlists_id ON emptied_playlists(id);
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

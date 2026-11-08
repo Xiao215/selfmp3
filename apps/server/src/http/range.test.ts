@@ -1,7 +1,7 @@
 import { once } from 'node:events'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Readable } from 'node:stream'
+import { addAbortSignal, Readable } from 'node:stream'
 import express from 'express'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
@@ -24,7 +24,7 @@ interface Opened {
   readonly stream: Readable
 }
 
-function source(behaviour: { fail?: Error; slow?: boolean } = {}): {
+function source(behaviour: { fail?: Error; slow?: boolean; late?: boolean } = {}): {
   source: RangeSource
   opened: Opened[]
 } {
@@ -38,6 +38,14 @@ function source(behaviour: { fail?: Error; slow?: boolean } = {}): {
       lastModified: new Date(0),
       open: async (start, end, signal) => {
         if (behaviour.fail) throw behaviour.fail
+        if (behaviour.late) {
+          // Opened only once the client has already gone, and tied to the same
+          // signal the way `fs.createReadStream` is: it errors itself next tick.
+          if (!signal.aborted) await once(signal, 'abort')
+          const stream = addAbortSignal(signal, new Readable({ read() {} }))
+          opened.push({ start, end, signal, stream })
+          return stream
+        }
         let sent = false
         const stream = behaviour.slow
           ? // One byte, then nothing until destroyed: a bucket that has stalled.
@@ -111,5 +119,28 @@ describe('sendRange', () => {
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(first.stream.destroyed).toBe(true)
     expect(first.signal.aborted).toBe(true)
+  })
+
+  it('lets go of a stream that opens after the client has gone, without crashing', async () => {
+    const { source: ranged, opened } = source({ late: true })
+    const url = await serve(ranged)
+    // `pipeline` refuses a response that has already closed and never touches
+    // the upstream: its AbortError then had nobody listening and took the
+    // whole server down (R6A-3).
+    const crashes: unknown[] = []
+    const crash = (error: unknown): void => void crashes.push(error)
+    process.prependListener('uncaughtException', crash)
+    try {
+      const gone = new AbortController()
+      const request = fetch(url, { headers: { Range: 'bytes=0-9' }, signal: gone.signal })
+      await new Promise(resolve => setTimeout(resolve, 20))
+      gone.abort()
+      await expect(request).rejects.toThrow()
+      await new Promise(resolve => setTimeout(resolve, 50))
+    } finally {
+      process.off('uncaughtException', crash)
+    }
+    expect(crashes).toEqual([])
+    expect(opened[0]?.stream.destroyed).toBe(true)
   })
 })

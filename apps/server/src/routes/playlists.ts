@@ -134,6 +134,12 @@ export function playlistRoutes(container: Container): Router {
   router.post(
     '/playlists/:id/songs',
     route({ params: ParamsWithId, body: AddToPlaylistSchema }, ({ params, body }) => {
+      // One that went with its last songs comes back for a song put in it:
+      // an Undo putting them back, or the next song meant for it.
+      const emptied = container.playlists.emptiedById(params.id)
+      if (emptied && container.songs.existingIds(body.songIds).size > 0) {
+        container.playlists.bringBack(emptied.uid)
+      }
       const live = playlistSongsProblem(requirePlaylist(params.id).kind)
       if (live) throw HttpError.refused(live)
 
@@ -160,6 +166,10 @@ export function playlistRoutes(container: Container): Router {
    * A POST rather than a DELETE with a body: request bodies on DELETE are
    * legal but unevenly supported, and this is the path the multi-select bar
    * uses on a phone. Removing from a playlist never touches the songs.
+   *
+   * Taking out the last of a kept playlist's songs lets it go too
+   * (`PlaylistRepository.takeOut`): kept aside, so a song put in it again —
+   * an Undo, another device that had not heard — brings it back.
    */
   router.post(
     '/playlists/:id/songs/remove',
@@ -168,8 +178,13 @@ export function playlistRoutes(container: Container): Router {
       ({ params, body }): RemovedFromPlaylist => {
         const live = playlistSongsProblem(requirePlaylist(params.id).kind)
         if (live) throw HttpError.refused(live)
-        const removed = container.playlists.removeMany(params.id, body.songIds)
-        container.edits.playlistSongs(params.id, body.songIds)
+        const removed = container.db.transaction(() => {
+          container.edits.playlistSongs(params.id, body.songIds)
+          return container.playlists.takeOut(params.id, body.songIds, {
+            keep: body.keep ?? false,
+            emptiedAt: container.clock.tick(),
+          })
+        })()
         if (removed > 0) container.bumpLibraryVersion()
         return { removed, playlist: container.playlists.byId(params.id) }
       },

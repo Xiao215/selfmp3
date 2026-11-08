@@ -313,7 +313,9 @@ opens a tag by filtering Library.
   (`PlaylistDetailScreen.tsx:427`), the sidebar's pin handling and drop target for pins. An
   empty playlist is never listed; creating one goes straight into adding songs and the
   playlist exists once it has one. Taking its last song out deletes it too, inside the same
-  Undo; one left empty anyway (emptied elsewhere, a live playlist matching nothing) is listed
+  Undo, and so does deleting its last song from the library (bug bash R6D-1); the removal does
+  it where it lands, and only if the playlist is still empty there (`playlistEmptied`, bug
+  bash R7H-1); one left empty anyway (emptied elsewhere, a live playlist matching nothing) is listed
   in the sidebar alone, under the rest (bug bash R2-m12, Xiao 2026-10-25). Kept ones emptied
   before that were deleted by server migration 58 (2026-10-26). Remove the download button and its two testIDs; keeping
   songs on the device is Settings › On this phone.

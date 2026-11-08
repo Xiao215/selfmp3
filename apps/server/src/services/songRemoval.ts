@@ -2,6 +2,7 @@ import { messageOf, tagsEmptiedBy, type BulkDeleteFailure, type Song } from '@se
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { CloudRepository } from '../repositories/cloud.js'
+import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { TagRepository } from '../repositories/tags.js'
 import type { LyricsService } from './lyrics.js'
@@ -69,6 +70,7 @@ export class SongRemovalService {
   readonly #storage: StorageDriver
   readonly #songs: SongRepository
   readonly #tags: Pick<TagRepository, 'all' | 'delete'>
+  readonly #playlists: Pick<PlaylistRepository, 'keptHolding' | 'letGoEmptied'>
   readonly #cloud: Pick<CloudRepository, 'trashSong'>
   readonly #lyrics: Pick<LyricsService, 'deleteSidecar'>
   readonly #covers: Pick<CoverService, 'delete'>
@@ -82,6 +84,7 @@ export class SongRemovalService {
     storage: StorageDriver
     songs: SongRepository
     tags: Pick<TagRepository, 'all' | 'delete'>
+    playlists: Pick<PlaylistRepository, 'keptHolding' | 'letGoEmptied'>
     /** Where a removed song's bucket files wait to be deleted. */
     cloud: Pick<CloudRepository, 'trashSong'>
     lyrics: Pick<LyricsService, 'deleteSidecar'>
@@ -96,6 +99,7 @@ export class SongRemovalService {
     this.#storage = deps.storage
     this.#songs = deps.songs
     this.#tags = deps.tags
+    this.#playlists = deps.playlists
     this.#cloud = deps.cloud
     this.#lyrics = deps.lyrics
     this.#covers = deps.covers
@@ -141,8 +145,10 @@ export class SongRemovalService {
     const found = new Set(songs.map(song => song.id))
     const alreadyGone = requested.filter(id => !found.has(id))
 
-    // Each tag's count before the rows go, to tell which ones they empty.
+    // Each tag's count before the rows go, to tell which ones they empty, and
+    // the kept playlists they are on.
     const tags = this.#tags.all()
+    const playlists = this.#playlists.keptHolding(songs.map(song => song.id))
     // The bucket's files first, from the bookkeeping the row's deletion takes
     // with it; then the rows.
     for (const song of songs) this.#cloud.trashSong(song.id)
@@ -152,6 +158,11 @@ export class SongRemovalService {
     // removing them takes them (shared `tagsEmptiedBy`): an empty tag made a
     // moment ago is nobody's leftover.
     for (const tagId of tagsEmptiedBy(tags, removed)) this.#tags.delete(tagId)
+    // So does a kept playlist they were the last songs of, as one goes with
+    // the last song taken out of it: left, it stayed at 0 for good (bug bash
+    // R6D-1). Again only those: an empty one made a moment ago is yours to
+    // fill. Kept aside, as one another device empties is (`playlistEmptied`).
+    this.#playlists.letGoEmptied(playlists)
     return { songs: removed, alreadyGone }
   }
 

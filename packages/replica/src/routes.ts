@@ -548,15 +548,16 @@ export function createCloudRoutes(
       'POST',
       '/api/playlists/:id/songs/remove',
       ({ session, params, body }) => {
-        const { songIds } = parseInput(RemoveFromPlaylistSchema, body)
+        const { songIds, keep } = parseInput(RemoveFromPlaylistSchema, body)
         return recordChanges(session, ctx => {
           const inIt = new Set(ctx.view.playlistSongs[id(params)] ?? [])
           const removed = [...new Set(songIds)].filter(songId => inIt.has(songId)).length
           return {
-            changes: edits.removeFromPlaylist(ctx, id(params), songIds),
+            changes: edits.removeFromPlaylist(ctx, id(params), songIds, keep),
             answer: (view): RemovedFromPlaylist => ({
               removed,
-              playlist: playlistOf(view, view.uids.playlists.get(id(params))),
+              // Null once its last songs took it with them.
+              playlist: view.byId.playlists.get(id(params)) ?? null,
             }),
           }
         })

@@ -170,6 +170,26 @@ export class CloudAdopt {
         }
       }
       const playlists = this.#adoptPlaylists(newPlaylists)
+      // And the kept playlists their last songs took with them, to come back as they would.
+      for (const list of snapshot.emptiedPlaylists ?? []) {
+        if (this.#sync.playlist(list.uid) || this.#cloud.wasPlaylistRemoved(list.uid)) continue
+        this.#playlists.addEmptied({
+          uid: list.uid,
+          name: list.name,
+          description: list.description,
+          pinned: list.pinned,
+          createdAt: list.createdAt,
+          updatedAt: list.updatedAt,
+          stamps: list.stamps ?? {},
+          songStamps: list.songStamps ?? {},
+        })
+        for (const hlc of [
+          ...Object.values(list.stamps ?? {}),
+          ...Object.values(list.songStamps ?? {}),
+        ]) {
+          this.#clock.observe(hlc)
+        }
+      }
       return {
         songs: prepared.length,
         tags,

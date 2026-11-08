@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { plural, type Library, type PlaylistSongs } from '@selfmp3/shared'
-import { queryKeys, useDeletePlaylist, useRemoveManyFromPlaylist } from '@selfmp3/client'
+import { queryKeys, useRemoveManyFromPlaylist } from '@selfmp3/client'
 import { sendPendingIn, showPendingToast } from '../../ui/toast'
 
 /**
@@ -13,21 +13,14 @@ function removedFrom(playlistId: number): string {
   return `playlist-removed-${playlistId}`
 }
 
-/** Playlists being added to while a removal from them waits: kept, though it emptied them. */
-const refilling = new Set<number>()
-
 /**
  * Sends a playlist's removals that wait on their Undo before songs are added
- * to it (`beforeAddingTo`), as removals and nothing more: a playlist emptied
- * and then given songs again inside the Undo's time is being filled, and is
- * not deleted with its last song.
+ * to it (`beforeAddingTo`), so the songs added go in after them and stay. A
+ * playlist the removals emptied went with them, kept aside, and the songs
+ * added bring it back as it was (`playlistEmptied`, docs/SYNC.md).
  */
 export function beforeRefilling(playlistId: number): Promise<void> {
-  refilling.add(playlistId)
-  // The removals' sends begin in this same turn, so each reads the mark.
-  const sent = sendPendingIn(removedFrom(playlistId))
-  refilling.delete(playlistId)
-  return sent
+  return sendPendingIn(removedFrom(playlistId))
 }
 
 /**
@@ -42,14 +35,13 @@ export function beforeRefilling(playlistId: number): Promise<void> {
  * would replay for a change of mind. Removed again within the five seconds,
  * the songs fold into the same message.
  *
- * Taking out the last of its songs deletes the playlist too, once the Undo's
- * time is up, and the message says so: a playlist exists once it has a song
- * (docs/UI-MIGRATION.md, Phase 5). Emptied and left, it was listed nowhere and
- * stayed for good (bug bash R2-m12). Nothing is sent before then, so Undo
- * puts back the songs with the playlist just as it was: name, cover, place.
- * The songs go first, as their own edit, so a tab closing in between keeps
- * them out (`keepEditsAsLeaving`) and leaves at worst an empty playlist in
- * the sidebar (`emptyPlaylists`).
+ * Taking out the last of its songs takes the playlist too, and the message
+ * says so: a playlist exists once it has a song (docs/UI-MIGRATION.md, Phase
+ * 5). The removal itself does that, on the server or in this device's cloud
+ * library (`playlistEmptied`), and only when it is still empty as the removal
+ * lands: deleted outright from here, a song another device had just put in it
+ * was lost everywhere (bug bash R7H-1). Nothing is sent before the Undo's time
+ * is up, so Undo puts back the songs with the playlist just as it was.
  */
 export function usePlaylistRemoval(): (
   playlist: { readonly id: number; readonly name: string },
@@ -57,7 +49,6 @@ export function usePlaylistRemoval(): (
 ) => void {
   const client = useQueryClient()
   const { mutateAsync: removeMany } = useRemoveManyFromPlaylist()
-  const { mutateAsync: deletePlaylist } = useDeletePlaylist()
 
   return useCallback(
     (playlist, songs) => {
@@ -86,19 +77,13 @@ export function usePlaylistRemoval(): (
           ...(emptied ? { under: 'The playlist goes with its last song' } : {}),
         },
         async () => {
-          const refilled = refilling.has(playlist.id)
           try {
             await removeMany({ playlistId: playlist.id, songIds })
           } catch {
             // The removal that failed has said so (its `meta.failure`); asking
             // for the playlist again brings its rows back.
             void client.invalidateQueries({ queryKey: key })
-            return
           }
-          // Only once its songs are out, and not while songs are going back in.
-          // Removed again within the time, each removal is sent in turn and
-          // only the one that emptied it deletes it.
-          if (emptied && !refilled) await deletePlaylist(playlist.id).catch(() => undefined)
         },
         {
           songs: library?.songs.filter(song => gone.has(song.id)) ?? [],
@@ -109,6 +94,6 @@ export function usePlaylistRemoval(): (
         },
       )
     },
-    [client, removeMany, deletePlaylist],
+    [client, removeMany],
   )
 }

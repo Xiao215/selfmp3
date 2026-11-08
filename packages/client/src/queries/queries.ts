@@ -198,8 +198,16 @@ const editFns = {
     await beforeAddingTo(playlistId)
     return clientApi().addToPlaylist(playlistId, { songIds })
   },
-  removeFromPlaylist: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
-    clientApi().removeManyFromPlaylist(playlistId, songIds),
+  removeFromPlaylist: ({
+    playlistId,
+    songIds,
+    keep,
+  }: {
+    playlistId: number
+    songIds: number[]
+    /** Undoing an add: the playlist stays even with none left. */
+    keep?: boolean
+  }) => clientApi().removeManyFromPlaylist(playlistId, songIds, keep),
   reorderPlaylist: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
     clientApi().reorderPlaylist(playlistId, songIds),
 } satisfies Record<keyof typeof editKeys, (variables: never) => Promise<unknown>>

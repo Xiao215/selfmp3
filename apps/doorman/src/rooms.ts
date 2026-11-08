@@ -97,7 +97,15 @@ export async function rooms(ctx: Context): Promise<Response> {
       const lent = await ask(withToken('/file', { entry: body.entryId, part: 'audio' }))
       if (lent.ok) {
         const refused = await notLent(ctx, LentFileSchema.parse(await lent.json()))
-        if (refused) return refused
+        if (refused) {
+          // Not the playlist's 404, which a device takes as the room being over.
+          await refused.body?.cancel()
+          throw new DoormanError(
+            403,
+            DOORMAN_ERROR.roomForbidden,
+            'that song is no longer lent to this room',
+          )
+        }
       } else {
         await lent.body?.cancel()
       }

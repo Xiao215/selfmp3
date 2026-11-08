@@ -259,8 +259,16 @@ describe('songs a friend brings', () => {
     expect((await act(s, mia, { type: 'leave' })).status).toBe(200)
 
     const again = await act(s, s.room, { type: 'again', entryId: played })
-    expect(again.status).toBe(404)
+    // Refused as not allowed: a device takes 404 as the room being over.
+    expect(again.status).toBe(403)
     expect(await again.text()).toContain('has left the room')
+    const back = await act(s, s.room, {
+      type: 'report',
+      entryId: played,
+      position: 0,
+      playing: true,
+    })
+    expect(back.status).toBe(403)
     expect((await file(s, ana, played ?? '')).status).toBe(404)
     expect(await (await file(s, ana, waiting ?? '')).text()).toBe('abcdefghij')
   })

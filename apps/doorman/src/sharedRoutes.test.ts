@@ -351,14 +351,15 @@ describe('a room and a shared playlist', () => {
     )
     expect(await read.text()).toBe('two')
 
-    // Mia takes it out of the playlist: it is not put in again to fail later.
+    // Mia takes it out of the playlist: it is not put in again to fail later,
+    // and is refused as not allowed, never as a room that is gone (404).
     const two = kept.entries.find(item => item.song.title === 'Song 2')?.id ?? ''
     await s.h.call(`/v1/shared/${made.id}/act`, {
       token: s.mia,
       json: { type: 'remove', entryId: two },
     })
     const refused = await act(ana.token, { type: 'again', entryId: twos })
-    expect(refused.status).toBe(404)
+    expect(refused.status).toBe(403)
     expect(await refused.text()).toContain('no longer lent')
   })
 

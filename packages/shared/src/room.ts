@@ -283,8 +283,10 @@ export function applyRoomAction(
     case 'again': {
       const entry = entryById(action.entryId)
       if (!entry) return refuse('missing', 'that song is not in the room')
+      // Refused as not allowed, not as missing: a device takes a missing
+      // song's answer (404) as the room being over.
       if (!canPlayAgain(doc, entry)) {
-        return refuse('missing', 'whoever that song is from has left the room')
+        return refuse('forbidden', 'whoever that song is from has left the room')
       }
       // The same song from the same place: a shared playlist's keeps whose it
       // is, and the doorman lends the copy as it lent the first (room.ts #act).
@@ -343,7 +345,7 @@ export function applyRoomAction(
       if (action.entryId !== null && !next) return refuse('missing', 'that song is not in the room')
       // The host's player gone back to a played song: only one that may go in again.
       if (next && next.playedAt !== null && !canPlayAgain(doc, next)) {
-        return refuse('missing', 'whoever that song is from has left the room')
+        return refuse('forbidden', 'whoever that song is from has left the room')
       }
       const entries = doc.entries.map(entry => {
         if (entry.id === doc.playing?.entryId) return { ...entry, playedAt: now }

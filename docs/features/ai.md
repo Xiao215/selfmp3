@@ -323,7 +323,10 @@ a list, the list's chip, "↳ these 19 songs" (Follow-ups, below): what "these" 
 nothing more. While a turn is worked on its send is the one
 Stop, which takes that turn off the page and puts its words back in the field. ‹ goes back
 to Search, and the conversation is not kept after it (so there is no "new chat" button);
-the page drawn again any other way finds its turns as they were (`askThread.store.ts`). A
+the page drawn again any other way finds its turns as they were (`askThread.store.ts`).
+Each visit is its own conversation, named in the address (`&thread=…`): the same words
+asked again from Search start afresh, and a reload, which loses the turns, opens with the
+question waiting in the field rather than asked (and done) again. A
 list played next, or asked for a room, keeps its card, whose button says what it does; the
 card opens the answer's page. A
 question over 500 characters is not sent: the field stops there, and one from Search says

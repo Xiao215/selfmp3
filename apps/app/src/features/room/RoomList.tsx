@@ -3,7 +3,14 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
-import { artistOr, formatDuration, plural, type RoomAction, type RoomState } from '@selfmp3/shared'
+import {
+  artistOr,
+  canPlayAgain,
+  formatDuration,
+  plural,
+  type RoomAction,
+  type RoomState,
+} from '@selfmp3/shared'
 import {
   radius,
   roomTrackId,
@@ -331,7 +338,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
               row={row}
               dim
               action={
-                youMay(state, 'again') ? (
+                youMay(state, 'again') && canPlayAgain(state, row.entry) ? (
                   <IconButton
                     label={`Play ${row.entry.song.title} again later`}
                     caption="Again"

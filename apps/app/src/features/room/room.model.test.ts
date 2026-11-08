@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   addRoomMember,
   applyRoomAction,
+  DOORMAN_ERROR,
+  DoormanError,
   isRoomRefusal,
   newRoomDoc,
   roomStateFor,
@@ -35,6 +37,7 @@ import {
   startingSongs,
   roomLine,
   roomTracks,
+  sendKeepGoing,
   upcomingRows,
   youMay,
 } from './room.model'
@@ -162,6 +165,23 @@ describe('the host’s player', () => {
     })
     expect(entryOfTrack(as(doc, X), roomTrackId(first))).toBe(first)
     expect(entryOfTrack(as(doc, X), 42)).toBeNull()
+  })
+
+  it('takes the room’s song back up when it went back to a song of someone who left', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    doc = act(doc, X, { type: 'add', song: song(2) })
+    const [mias, next] = doc.entries.map(entry => entry.id ?? '')
+    doc = act(doc, X, { type: 'report', entryId: mias ?? '', position: 0, playing: true })
+    doc = act(doc, X, { type: 'report', entryId: next ?? '', position: 1, playing: true })
+    const back = { currentId: roomTrackId(mias ?? ''), playing: true, ranOut: false }
+    const report = { entryId: mias ?? '', playing: true, position: 0 }
+    // While Mia is here, Previous goes back to her song and the room hears it.
+    expect(hostPlan(as(doc, X), back).kind).toBe('follow')
+    expect(needsReport(as(doc, X), 0, 5000, report)).toBe(true)
+
+    doc = act(doc, M, { type: 'leave' })
+    expect(hostPlan(as(doc, X), back)).toEqual({ kind: 'resume', ids: [roomTrackId(next ?? '')] })
+    expect(needsReport(as(doc, X), 0, 5000, report)).toBe(false)
   })
 
   it('tells the room only what it does not already know', () => {
@@ -332,6 +352,56 @@ describe('keep it going', () => {
     expect(
       keepGoingPicks(as(doc, X), 4, { random: () => 0 }).some(pick => pick.type === 'again'),
     ).toBe(false)
+  })
+})
+
+describe('keep it going, once a friend left', () => {
+  it('brings none of their songs back', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    for (let n = 1; n <= 13; n++) {
+      if (n > 1) doc = act(doc, X, { type: 'add', song: song(n) })
+      const entry = doc.entries.at(-1)?.id ?? ''
+      doc = act(doc, X, { type: 'report', entryId: entry, position: 0, playing: true }, 2000 + n)
+    }
+    doc = act(doc, X, { type: 'report', entryId: null, position: 0, playing: false }, 3000)
+    // Song 1 played long enough ago to come back, while Mia is here.
+    const mias = doc.entries[0]?.id
+    const again = (state: RoomState) =>
+      keepGoingPicks(state, 4, { random: () => 0 }).filter(
+        pick => pick.type === 'again' && pick.entryId === mias,
+      )
+    expect(again(as(doc, X))).toHaveLength(1)
+    expect(again(as(act(doc, M, { type: 'leave' }), X))).toEqual([])
+    // Nor one the room already refused to play again.
+    const refused = new Set([mias ?? ''])
+    expect(
+      keepGoingPicks(as(doc, X), 4, { random: () => 0, refused }).some(
+        pick => pick.type === 'again' && pick.entryId === mias,
+      ),
+    ).toBe(false)
+  })
+
+  it('counts only the songs the room took, and remembers one it will not play again', async () => {
+    const forbidden = new DoormanError(403, DOORMAN_ERROR.roomForbidden, 'no longer lent')
+    const answers = new Map<string, unknown>([
+      ['e1', forbidden],
+      ['e3', new DoormanError(0, DOORMAN_ERROR.unreachable, 'offline')],
+    ])
+    const picks: RoomAction[] = [
+      { type: 'again', entryId: 'e1' },
+      { type: 'again', entryId: 'e2' },
+      { type: 'again', entryId: 'e3' },
+      { type: 'fromShelf', member: M, index: 0 },
+    ]
+    const refused = new Set<string>()
+    const act = async (action: RoomAction) => {
+      const answer = action.type === 'again' ? answers.get(action.entryId) : undefined
+      if (answer) throw answer
+    }
+    // Two of four taken: the host's library fills the other two.
+    await expect(sendKeepGoing(picks, act, refused)).resolves.toBe(2)
+    // Offline is no answer about the song: it may be asked for next time.
+    expect([...refused]).toEqual(['e1'])
   })
 })
 

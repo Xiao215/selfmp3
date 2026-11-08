@@ -187,6 +187,25 @@ describe('the room’s line', () => {
     expect(mocks.toasts).toEqual([])
   })
 
+  it('stays in the room when a song of someone who left is refused', async () => {
+    await inRoom()
+    const ended: string[] = []
+    const stop = store.onRoomEnded(state => ended.push(state.code))
+    const refused = (message: string) =>
+      Promise.reject(new DoormanError(403, DOORMAN_ERROR.roomForbidden, message))
+    mocks.answers.push(
+      refused('whoever that song is from has left the room'),
+      refused('that song is no longer lent to this room'),
+    )
+    await expect(store.roomAct({ type: 'again', entryId: 'e1' })).rejects.toThrow('has left')
+    await expect(
+      store.roomAct({ type: 'report', entryId: 'e1', position: 0, playing: true }),
+    ).rejects.toThrow('no longer lent')
+    expect(store.currentRoom().pass?.code).toBe(PASS.code)
+    expect(ended).toEqual([])
+    stop()
+  })
+
   it('keeps the room you are in when the one you try to join has ended', async () => {
     await inRoom()
     mocks.refuseJoin = new DoormanError(410, DOORMAN_ERROR.roomEnded, 'this room has ended')

@@ -1,5 +1,8 @@
 import {
   canAct,
+  canPlayAgain,
+  DOORMAN_ERROR,
+  DoormanError,
   playedEntries,
   plural,
   ROOM_MAX_WAITING,
@@ -244,7 +247,9 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
  *   been added since: go on to it.
  * - `resume`: the player has nothing loaded — the app was opened again, a
  *   page reloaded — while the room is on a song: take it up where the room
- *   says it is, rather than telling the room nothing plays.
+ *   says it is, rather than telling the room nothing plays. Also when the
+ *   player went back to a played song of someone who left, which the room
+ *   will not play again (`canPlayAgain`).
  * - `none`: the player is busy with something of your own, or there is
  *   nothing to play.
  */
@@ -270,6 +275,9 @@ export function hostPlan(
   const onRoomSong =
     player.currentId !== null &&
     state.entries.some(entry => roomTrackId(entry.id) === player.currentId)
+  if (onRoomSong && state.playing && !mayReport(state, entryOfTrack(state, player.currentId))) {
+    return { kind: 'resume', ids: [roomTrackId(state.playing.entryId), ...upcoming] }
+  }
   if (onRoomSong) {
     return player.ranOut && upcoming.length > 0
       ? { kind: 'advance', upcoming }
@@ -311,12 +319,22 @@ export function needsReport(
   player: { readonly entryId: string | null; readonly playing: boolean; readonly position: number },
 ): boolean {
   const playing = state.playing
+  if (!mayReport(state, player.entryId)) return false
   if ((playing?.entryId ?? null) !== player.entryId) return true
   if (!playing) return false
   if ((playing.pausedAt === null) !== player.playing) return true
   return (
     Math.abs(roomPosition(playing, now + offset) - player.position) > HOST_DRIFT_SECONDS[state.mode]
   )
+}
+
+/**
+ * Whether the room would take this entry as what the host's player is on: not
+ * a played song of someone who left (`canPlayAgain`), which it refuses.
+ */
+function mayReport(state: RoomState, entryId: string | null): boolean {
+  const entry = entryId === null ? undefined : state.entries.find(other => other.id === entryId)
+  return !entry || entry.playedAt === null || canPlayAgain(state, entry)
 }
 
 /** A request from a member the host's player has not acted on yet. */
@@ -329,11 +347,15 @@ export function freshWant(state: RoomState, lastSeq: number): RoomState['want'] 
 /**
  * Songs to add when the list runs low, taking turns between the people whose
  * songs are in the room: from shelves, and songs that played, leaving out the
- * last few to play so nothing comes straight back. As actions the host sends.
+ * last few to play so nothing comes straight back, and the songs of anyone
+ * who left. As actions the host sends.
  *
  * With `closeness` — how near a song sounds to what just played
  * (`soundTarget`) — each person's turn is the nearest of theirs; a song with
  * no vector comes after those that have one, in no particular order.
+ *
+ * `refused` names played entries the room would not take again
+ * (`sendKeepGoing`): a shared playlist's song it no longer lends.
  */
 export function keepGoingPicks(
   state: RoomState,
@@ -341,6 +363,7 @@ export function keepGoingPicks(
   options: {
     readonly random?: () => number
     readonly closeness?: (song: RoomSong) => number | null
+    readonly refused?: ReadonlySet<string>
   } = {},
 ): RoomAction[] {
   const random = options.random ?? Math.random
@@ -368,6 +391,8 @@ export function keepGoingPicks(
   }
   const seen = new Set<string>()
   for (const entry of playedEntries(state)) {
+    // Someone who left lends nothing new, nor a playlist that let it go.
+    if (!canPlayAgain(state, entry) || options.refused?.has(entry.id)) continue
     const key = keyOf(entry.song)
     if (seen.has(key)) continue
     seen.add(key)
@@ -392,6 +417,35 @@ export function keepGoingPicks(
     if (!any) break
   }
   return picks
+}
+
+/**
+ * Autoplay's picks, sent one at a time: how many the room took. A song it
+ * refuses to play again (403, `room_forbidden`: its owner left, or its
+ * playlist no longer lends it) goes in `refused`, so it is not asked for
+ * again; anything else refused may do next time.
+ */
+export async function sendKeepGoing(
+  picks: readonly RoomAction[],
+  act: (action: RoomAction) => Promise<unknown>,
+  refused: Set<string>,
+): Promise<number> {
+  let taken = 0
+  for (const action of picks) {
+    try {
+      await act(action)
+      taken++
+    } catch (error) {
+      if (
+        action.type === 'again' &&
+        error instanceof DoormanError &&
+        error.code === DOORMAN_ERROR.roomForbidden
+      ) {
+        refused.add(action.entryId)
+      }
+    }
+  }
+  return taken
 }
 
 /**

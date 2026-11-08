@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   acts: [] as { code: string; type: string }[],
   /** Whether the next join comes in as the room's host. */
   host: false,
+  /** Whether the next join's room has a song you brought, which it lends from your bucket. */
+  lends: false,
   /** What the next join answers instead of a way in, when set. */
   refuseJoin: null as Error | null,
 }))
@@ -49,6 +51,7 @@ vi.mock('@selfmp3/client', async importActual => ({
           you: PASS.member,
           mode: mocks.mode,
           members: mocks.host ? [{ id: PASS.member, kind: 'host' }] : [],
+          entries: mocks.lends ? [{ id: 'e1', owner: PASS.member }] : [],
         },
       }
     },
@@ -122,6 +125,7 @@ describe('the room’s line', () => {
     mocks.acts.length = 0
     mocks.refuseJoin = null
     mocks.host = false
+    mocks.lends = false
   })
   afterEach(async () => {
     if (store.currentRoom().pass) await leave()
@@ -247,6 +251,20 @@ describe('the room’s line', () => {
     await expect(store.leaveRoom()).resolves.toBe(false)
     expect(store.currentRoom().pass).toBeNull()
     expect(mocks.prefs.get('room.pass')).toBe('null')
+  })
+
+  it('keeps a friend in whose songs the room lends, when their leave does not reach the doorman', async () => {
+    // Heard, the leave stops the room lending what they brought; unheard, it would go on.
+    mocks.lends = true
+    await inRoom()
+    mocks.answers.push(Promise.reject(new TypeError('Failed to fetch')))
+    await expect(store.leaveRoom()).rejects.toThrow('Failed to fetch')
+    expect(store.currentRoom().pass?.code).toBe(PASS.code)
+
+    // Off to another room: not without leaving this one first.
+    mocks.answers.push(Promise.reject(new TypeError('Failed to fetch')))
+    await expect(store.joinRoom('ZZ9999', 'Mia')).rejects.toThrow('Failed to fetch')
+    expect(store.currentRoom().pass?.code).toBe(PASS.code)
   })
 
   it('lets a host go whose pass the doorman refuses outright', async () => {

@@ -564,6 +564,18 @@ describe('a player that follows the room', () => {
     })
   })
 
+  it('lets be a player that finished the song a moment before the room’s clock did', () => {
+    const { doc, first, second } = started()
+    // On to the next by itself at 199.8 of 200, or out on the room's last song there.
+    const wentOn = { currentId: second, leftAt: 199.8, playsHere: true }
+    expect(followPlan(as(doc, M), 0, at(199.8), wentOn)).toEqual({ kind: 'wait', away: null })
+    const ranOut = { currentId: first, leftAt: 199.8, playsHere: true }
+    expect(followPlan(as(doc, M), 0, at(199.8), ranOut)).toEqual({ kind: 'wait', away: null })
+    // Not one that left it long before the end: that is the room's song to take up.
+    const skipped = { currentId: second, leftAt: 150, playsHere: true }
+    expect(followPlan(as(doc, M), 0, at(150), skipped).kind).toBe('load')
+  })
+
   it('does not take the song up again past its end, which the host has yet to move on', () => {
     // A moment past the end, the host there: its player moves the room on any second.
     const { doc, second } = started()

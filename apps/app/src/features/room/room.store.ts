@@ -502,13 +502,16 @@ async function sessionToken(): Promise<string | null> {
 /**
  * One room at a time: the room this device was in hears it leave, once the
  * next one has let it in. A code that turns out dead (an ended room, an old
- * invite) is refused before anything is given up.
+ * invite) is refused before anything is given up. A leave that must be heard
+ * (`leaveMustBeHeard`) and is not keeps this device in the room it was in.
  */
 async function leaveFor(code: string): Promise<void> {
   const pass = view.pass
   const ending = view.state
   if (!pass || pass.code === code) return
-  await roomApi.act(pass, { type: 'leave' }, null).catch(() => undefined)
+  await roomApi.act(pass, { type: 'leave' }, null).catch((error: unknown) => {
+    if (leaveMustBeHeard(ending) && !leftAnyway(error)) throw error
+  })
   if (view.pass !== pass) return
   closeSocket()
   if (ending) for (const listener of endedListeners) listener(ending, 'left')
@@ -552,26 +555,41 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
 }
 
 /**
- * Leave: the host's leaving ends the room for everyone, so a host's leave
- * counts only once the doorman has heard it: one it never got would end
- * nothing, and the room would play on, lending the host's songs, with nobody
- * left who could end it. A host that cannot reach it stays in the room and is
- * told why (the error, as `sayRoomFailure` words it). Anyone else leaves here
- * whatever the doorman heard: their socket is gone, so they read as away, and
- * their songs stay in the list either way. So does a host whose pass the
- * doorman refuses outright, which no retry would change. A room already over
- * is as good as left. Says whether the doorman heard it.
+ * Whether leaving counts only once the doorman has heard it. The host's leave
+ * ends the room for everyone: one it never got would end nothing, and the
+ * room would play on, lending the host's songs, with nobody left who could
+ * end it. A friend's stops the songs they brought being lent: one it never
+ * got would leave them lent. Anyone else's socket is gone either way, so
+ * they read as away.
+ */
+function leaveMustBeHeard(state: RoomState | null): boolean {
+  if (state === null || isHost(state)) return true
+  return state.entries.some(entry => entry.owner === state.you)
+}
+
+/**
+ * A leave that failed but is as good as heard: the room is already over, or
+ * the doorman refuses the pass outright, which no retry would change.
+ */
+function leftAnyway(error: unknown): boolean {
+  if (!(error instanceof DoormanError)) return false
+  return error.gone || error.code === DOORMAN_ERROR.roomUnauthorized
+}
+
+/**
+ * Leave. One that must be heard (`leaveMustBeHeard`) and cannot reach the
+ * doorman keeps you in the room, told why (the error, as `sayRoomFailure`
+ * words it); anyone else leaves here whatever the doorman heard. Says
+ * whether the doorman heard it.
  */
 export async function leaveRoom(): Promise<boolean> {
   const pass = view.pass
   if (!pass) return true
-  const mustBeHeard = view.state === null || isHost(view.state)
   try {
     await roomApi.act(pass, { type: 'leave' }, null)
   } catch (error) {
     if (!(error instanceof DoormanError && error.gone)) {
-      const refused = error instanceof DoormanError && error.code === DOORMAN_ERROR.roomUnauthorized
-      if (mustBeHeard && !refused) throw error
+      if (leaveMustBeHeard(view.state) && !leftAnyway(error)) throw error
       finishIfStill(pass, 'left')
       return false
     }

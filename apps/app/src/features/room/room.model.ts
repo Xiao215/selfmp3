@@ -247,7 +247,9 @@ const LEFT_SLACK_SECONDS = 2
  * has next — when the link could play here at all, since one that cannot is
  * passed over at once — and the room's clock went on from there since (not
  * back: the host played it again). How late the host is then counts from
- * `outSince`, when this device first saw it (local clock).
+ * `outSince`, when this device first saw it (local clock). A song whose
+ * length is known ends by the room's clock, or for this player when it left
+ * the song a moment before the clock got there.
  */
 function playedOut(
   state: RoomState,
@@ -259,20 +261,23 @@ function playedOut(
   const playing = state.playing
   if (!playing || playing.pausedAt !== null) return null
   const duration = state.entries.find(entry => entry.id === playing.entryId)?.song.duration ?? 0
+  const position = positionNow(state, offset, now)
+  // This player left the song — on it (ran out), or on what comes next — and
+  // the room's clock is still where it left it or past.
+  const next = state.order[0]
+  const onIt = player.currentId === roomTrackId(playing.entryId)
+  const wentOn = player.playsHere && next !== undefined && player.currentId === roomTrackId(next)
+  const left =
+    (onIt || wentOn) && player.leftAt !== null && position >= player.leftAt - LEFT_SLACK_SECONDS
   let late: boolean
   if (duration > 0) {
-    const over = positionNow(state, offset, now) - duration
-    if (over < 0) return null
+    const over = position - duration
+    // A player a hair ahead of the room's clock finishes first: it is let be,
+    // not pulled back for the song's last moment.
+    if (over < 0 && !(left && over >= -LEFT_SLACK_SECONDS)) return null
     late = over >= HOST_LATE_SECONDS
   } else {
-    // Left it, and still where it left it or past: on it (ran out), or on what comes next.
-    const next = state.order[0]
-    const onIt = player.currentId === roomTrackId(playing.entryId)
-    const wentOn = player.playsHere && next !== undefined && player.currentId === roomTrackId(next)
-    const left =
-      player.leftAt !== null &&
-      positionNow(state, offset, now) >= player.leftAt - LEFT_SLACK_SECONDS
-    if (!left || !(onIt || wentOn)) return null
+    if (!left) return null
     late = outSince !== null && now - outSince >= HOST_LATE_SECONDS * 1000
   }
   return hostOf(state)?.online === false || late ? 'away' : 'ending'

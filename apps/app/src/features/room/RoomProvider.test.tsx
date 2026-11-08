@@ -133,8 +133,11 @@ function ok(value: RoomDoc | RoomRefusal): RoomDoc {
 const step = (doc: RoomDoc, who: string, action: RoomAction, now: number): RoomDoc =>
   ok(applyRoomAction(doc, who, action, now, newId))
 
-/** Xiao's room on everyone's phones, playing a link from START; `then` is what waits after it. */
-function linkRoom(then: RoomSong[]): { doc: RoomDoc; link: string; next: number | null } {
+/** Xiao's room on everyone's phones, playing `opening` from START; `then` is what waits after it. */
+function roomPlaying(
+  opening: RoomSong,
+  then: RoomSong[],
+): { doc: RoomDoc; first: string; next: number | null } {
   let doc = newRoomDoc({
     code: 'KQ7482',
     host: { id: X, name: 'Xiao', picture: null },
@@ -147,16 +150,18 @@ function linkRoom(then: RoomSong[]): { doc: RoomDoc; link: string; next: number 
   doc = step(
     doc,
     X,
-    { type: 'addLink', song: song(9, { uid: null, audio: null, duration: 0, link: LINK }) },
+    opening.link ? { type: 'addLink', song: opening } : { type: 'add', song: opening },
     START,
   )
   for (const each of then) doc = step(doc, X, { type: 'add', song: each }, START)
-  const [link, next] = doc.entries.map(entry => entry.id)
-  if (!link) throw new Error('no link')
-  doc = step(doc, X, { type: 'report', entryId: link, position: 0, playing: true }, START)
+  const [first, next] = doc.entries.map(entry => entry.id)
+  if (!first) throw new Error('nothing playing')
+  doc = step(doc, X, { type: 'report', entryId: first, position: 0, playing: true }, START)
   doc = { ...doc, members: doc.members.map(member => ({ ...member, online: true })) }
-  return { doc, link, next: next ? roomTrackId(next) : null }
+  return { doc, first, next: next ? roomTrackId(next) : null }
 }
+const linkRoom = (then: RoomSong[]): ReturnType<typeof roomPlaying> =>
+  roomPlaying(song(9, { uid: null, audio: null, duration: 0, link: LINK }), then)
 
 function tell(): void {
   for (const listener of [...mockListeners]) listener()
@@ -199,7 +204,7 @@ afterEach(() => {
 describe('a follower on a link', () => {
   it('follows the host back on it, though it heard them go back before its next check', async () => {
     // The link is the room's last song: this player runs out on it.
-    const { doc, link } = linkRoom([])
+    const { doc, first: link } = linkRoom([])
     const linkId = roomTrackId(link)
     jest.setSystemTime(START + 300_000)
     mockPlayer = { playingId: linkId, playing: true, ranOut: false }
@@ -220,7 +225,7 @@ describe('a follower on a link', () => {
   it('goes back to the link when its own copy is there but cannot play here now', async () => {
     // No relay: the link plays on Xiao's device, and on Mia's from her own
     // copy, which is not kept and cannot stream now (mobile data, say).
-    const { doc, link, next } = linkRoom([song(2)])
+    const { doc, first: link, next } = linkRoom([song(2)])
     mockIndex = libraryIndex([{ id: 77, path: 'x', sourceUrl: LINK } as Song])
     mockMayPlay = false
     jest.setSystemTime(START + 30_000)
@@ -234,5 +239,34 @@ describe('a follower on a link', () => {
 
     expect(mockCommands.mayPlay).toHaveBeenCalledWith(roomTrackId(link))
     expect(mockCommands.playFrom).toHaveBeenCalled()
+  })
+})
+
+describe('a follower on a song of known length', () => {
+  it('is let be when it finishes the song a moment before the room’s clock does', async () => {
+    const { doc, first, next } = roomPlaying(song(1), [song(2)])
+    jest.setSystemTime(START + 199_000)
+    mockPlayer = { playingId: roomTrackId(first), playing: true, ranOut: false }
+    mockPosition = 199
+    await renderProvider(doc)
+
+    // Its copy ends at 199.5 of 200, and it goes on to the next by itself.
+    jest.setSystemTime(START + 199_500)
+    await player({ playingId: next, playing: true, ranOut: false }, 0)
+    jest.setSystemTime(START + 199_800)
+    await hear({ ...doc })
+
+    expect(mockCommands.playFrom).not.toHaveBeenCalled()
+  })
+
+  it('is not planned again while the room’s song it was given loads', async () => {
+    const { doc, first } = roomPlaying(song(1), [song(2)])
+    jest.setSystemTime(START + 30_000)
+    await renderProvider(doc)
+    expect(mockCommands.playFrom).toHaveBeenCalledTimes(1)
+
+    // The queue has it; the engine has yet to play it.
+    await player({ playingId: roomTrackId(first), playing: false, ranOut: false }, 30)
+    expect(mockCommands.toggle).not.toHaveBeenCalled()
   })
 })

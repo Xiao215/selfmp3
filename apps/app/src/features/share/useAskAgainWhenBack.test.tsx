@@ -1,17 +1,18 @@
 import { act, renderHook } from '@testing-library/react-native'
 import { AppState, type AppStateStatus } from 'react-native'
 import type { NetworkStateEvent } from 'expo-network'
-import { useAskAgainWhenBack } from './useAskAgainWhenBack'
+import { networkBackWatch, useAskAgainWhenBack } from './useAskAgainWhenBack'
 
 /**
  * expo-network's listeners: a phone's network changes, or a browser's online
- * and offline. A phone sends its state as soon as it is listened to, and
+ * and offline. A phone sends its state when it is first listened to, and
  * Android again on every change to the network's capabilities, connected or
- * not — so a listener hears "connected" many times over.
+ * not — so a listener hears "connected" many times over. Every watch made in
+ * this file stays listening, as the app's own does.
  */
 const mockNetwork: ((event: NetworkStateEvent) => void)[] = []
 const mockWatch = { added: 0, removed: 0 }
-/** What the network is as it is first asked; a phone also sends it to a new listener. */
+/** What the network is as it is first asked. */
 const mockNow = { isConnected: true, isInternetReachable: true }
 jest.mock('expo-network', () => ({
   getNetworkStateAsync: () => Promise.resolve({ ...mockNow }),
@@ -36,9 +37,6 @@ const moveTo = (state: AppStateStatus) => {
 }
 
 beforeEach(() => {
-  mockNetwork.length = 0
-  mockWatch.added = 0
-  mockWatch.removed = 0
   mockNow.isConnected = true
   mockNow.isInternetReachable = true
   watching = []
@@ -57,47 +55,73 @@ afterEach(() => {
   jest.restoreAllMocks()
 })
 
-describe('a link that could not be reached', () => {
-  it('is not asked for again on the state a phone sends as it is listened to', async () => {
-    const ask = jest.fn()
-    await renderHook(() => useAskAgainWhenBack(true, ask))
+describe('the network coming back', () => {
+  it('is not the state a phone sends as it is first listened to', () => {
+    const back = jest.fn()
+    networkBackWatch()(back)
     network(true)
-    expect(ask).not.toHaveBeenCalled()
+    expect(back).not.toHaveBeenCalled()
   })
 
-  it('is not asked for again while the network stays connected', async () => {
-    const ask = jest.fn()
-    await renderHook(() => useAskAgainWhenBack(true, ask))
+  it('is not the network staying connected', () => {
+    const back = jest.fn()
+    networkBackWatch()(back)
     network(true)
     network(true)
     network(true, undefined)
-    expect(ask).not.toHaveBeenCalled()
+    expect(back).not.toHaveBeenCalled()
   })
 
-  it('is asked for again once when the network comes back', async () => {
-    const ask = jest.fn()
-    await renderHook(() => useAskAgainWhenBack(true, ask))
+  it('is heard once each time the network comes back', () => {
+    const back = jest.fn()
+    networkBackWatch()(back)
     network(false)
-    expect(ask).not.toHaveBeenCalled()
+    expect(back).not.toHaveBeenCalled()
     network(true)
     network(true)
-    expect(ask).toHaveBeenCalledTimes(1)
+    expect(back).toHaveBeenCalledTimes(1)
     // A phone that cannot yet say whether the internet is there is connected.
     network(false)
     network(true, undefined)
-    expect(ask).toHaveBeenCalledTimes(2)
+    expect(back).toHaveBeenCalledTimes(2)
     // On a network that reaches nothing, asking would only fail again.
     network(false)
     network(true, false)
-    expect(ask).toHaveBeenCalledTimes(2)
+    expect(back).toHaveBeenCalledTimes(2)
   })
 
-  it('is asked for again when a browser opened offline says it is back', async () => {
+  it('is heard by a browser opened offline, which says nothing until it is back', async () => {
     mockNow.isConnected = false
     mockNow.isInternetReachable = false
+    const back = jest.fn()
+    networkBackWatch()(back)
+    await act(() => Promise.resolve())
+    network(true)
+    expect(back).toHaveBeenCalledTimes(1)
+  })
+
+  it('is watched once, never let go, and heard by whoever listens now', () => {
+    const before = { ...mockWatch }
+    const hear = networkBackWatch()
+    const first = jest.fn()
+    const next = jest.fn()
+    const stopFirst = hear(first)
+    network(false)
+    stopFirst()
+    hear(next)
+    network(true)
+    expect(first).not.toHaveBeenCalled()
+    expect(next).toHaveBeenCalledTimes(1)
+    // On iOS a watch let go of never starts again.
+    expect(mockWatch).toEqual({ added: before.added + 1, removed: before.removed })
+  })
+})
+
+describe('a link that could not be reached', () => {
+  it('is asked for again when the network comes back', async () => {
     const ask = jest.fn()
     await renderHook(() => useAskAgainWhenBack(true, ask))
-    await act(() => Promise.resolve())
+    network(false)
     network(true)
     expect(ask).toHaveBeenCalledTimes(1)
   })
@@ -111,31 +135,38 @@ describe('a link that could not be reached', () => {
     expect(ask).toHaveBeenCalledTimes(1)
   })
 
-  it('is not asked for again once it is shown, nor its watch made again around each ask', async () => {
+  it('is asked for again once its ask fails, when the network came back during it', async () => {
     const ask = jest.fn()
     const page = await renderHook(
       ({ waiting }: { waiting: boolean }) => useAskAgainWhenBack(waiting, ask),
       { initialProps: { waiting: true } },
     )
     network(false)
-    // Asking again: not waiting while it is asked, waiting again when it fails.
+    // Asked for: not waiting while it is asked, waiting again when it fails.
     await page.rerender({ waiting: false })
     network(true)
     moveTo('active')
     expect(ask).not.toHaveBeenCalled()
     await page.rerender({ waiting: true })
-    expect(mockWatch).toEqual({ added: 1, removed: 0 })
+    expect(ask).toHaveBeenCalledTimes(1)
+    await page.rerender({ waiting: false })
+    await page.rerender({ waiting: true })
+    expect(ask).toHaveBeenCalledTimes(1)
   })
 
-  it('stops listening once the page has gone', async () => {
-    const ask = jest.fn()
-    const page = await renderHook(() => useAskAgainWhenBack(true, ask))
+  it('is heard on the next page once the first has gone, which hears nothing more', async () => {
+    const removed = mockWatch.removed
+    const first = jest.fn()
+    const firstPage = await renderHook(() => useAskAgainWhenBack(true, first))
     network(false)
-    await page.unmount()
-    expect(mockWatch).toEqual({ added: 1, removed: 1 })
+    await firstPage.unmount()
     expect(watching).toHaveLength(0)
+
+    const next = jest.fn()
+    await renderHook(() => useAskAgainWhenBack(true, next))
     network(true)
-    moveTo('active')
-    expect(ask).not.toHaveBeenCalled()
+    expect(first).not.toHaveBeenCalled()
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(mockWatch.removed).toBe(removed)
   })
 })

@@ -15,6 +15,7 @@ import {
   packVector,
   soundCloseness,
   unpackVector,
+  type RoomSong,
   type RoomState,
 } from '@selfmp3/shared'
 import type { RoomPass } from '@selfmp3/client'
@@ -51,6 +52,7 @@ import {
   pastRoomOf,
   positionNow,
   roomTracks,
+  sendKeepGoing,
   soundTarget,
 } from './room.model'
 import {
@@ -310,24 +312,31 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
 
   // Autoplay (`keepGoing`): a couple of songs always waiting, while something plays.
   const keptFor = useRef<string | null>(null)
+  const refusedAgain = useRef<{ code: string; ids: Set<string> }>({ code: '', ids: new Set() })
   useEffect(() => {
     if (!state || !host || !state.keepGoing || !state.playing) return
     if (state.order.length >= KEEP_WAITING || keptFor.current === state.playing.entryId) return
     keptFor.current = state.playing.entryId
+    if (refusedAgain.current.code !== state.code) {
+      refusedAgain.current = { code: state.code, ids: new Set() }
+    }
+    const refused = refusedAgain.current.ids
     const wanted = KEEP_WAITING - state.order.length
     void (async () => {
       // By sound where the room knows how its songs sound; by turns alone otherwise.
       const closeness = await closenessTo(state, pass).catch(() => undefined)
-      const picks = keepGoingPicks(
-        state,
-        wanted,
-        closeness ? { closeness: song => (song.audio ? closeness(song.audio.key) : null) } : {},
-      )
-      for (const action of picks) await roomAct(action).catch(() => undefined)
-      // A young room has nothing of its own to bring back yet: the host's
-      // library keeps it going rather than letting it run dry.
-      if (picks.length >= wanted) return
-      const yours = libraryPicks(state, index.byAudio, wanted - picks.length, {
+      const picks = keepGoingPicks(state, wanted, {
+        refused,
+        ...(closeness
+          ? { closeness: (song: RoomSong) => (song.audio ? closeness(song.audio.key) : null) }
+          : {}),
+      })
+      const taken = await sendKeepGoing(picks, roomAct, refused)
+      // A young room has nothing of its own to bring back yet, or what it
+      // had was refused: the host's library keeps it going rather than
+      // letting it run dry.
+      if (taken >= wanted) return
+      const yours = libraryPicks(state, index.byAudio, wanted - taken, {
         ...(closeness ? { closeness } : {}),
       })
       for (const id of yours) {

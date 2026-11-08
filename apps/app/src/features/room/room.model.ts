@@ -1,6 +1,8 @@
 import {
   canAct,
   canPlayAgain,
+  DOORMAN_ERROR,
+  DoormanError,
   playedEntries,
   plural,
   ROOM_MAX_WAITING,
@@ -351,6 +353,9 @@ export function freshWant(state: RoomState, lastSeq: number): RoomState['want'] 
  * With `closeness` — how near a song sounds to what just played
  * (`soundTarget`) — each person's turn is the nearest of theirs; a song with
  * no vector comes after those that have one, in no particular order.
+ *
+ * `refused` names played entries the room would not take again
+ * (`sendKeepGoing`): a shared playlist's song it no longer lends.
  */
 export function keepGoingPicks(
   state: RoomState,
@@ -358,6 +363,7 @@ export function keepGoingPicks(
   options: {
     readonly random?: () => number
     readonly closeness?: (song: RoomSong) => number | null
+    readonly refused?: ReadonlySet<string>
   } = {},
 ): RoomAction[] {
   const random = options.random ?? Math.random
@@ -385,8 +391,8 @@ export function keepGoingPicks(
   }
   const seen = new Set<string>()
   for (const entry of playedEntries(state)) {
-    // Someone who left lends nothing new.
-    if (!canPlayAgain(state, entry)) continue
+    // Someone who left lends nothing new, nor a playlist that let it go.
+    if (!canPlayAgain(state, entry) || options.refused?.has(entry.id)) continue
     const key = keyOf(entry.song)
     if (seen.has(key)) continue
     seen.add(key)
@@ -411,6 +417,35 @@ export function keepGoingPicks(
     if (!any) break
   }
   return picks
+}
+
+/**
+ * Autoplay's picks, sent one at a time: how many the room took. A song it
+ * refuses to play again (403, `room_forbidden`: its owner left, or its
+ * playlist no longer lends it) goes in `refused`, so it is not asked for
+ * again; anything else refused may do next time.
+ */
+export async function sendKeepGoing(
+  picks: readonly RoomAction[],
+  act: (action: RoomAction) => Promise<unknown>,
+  refused: Set<string>,
+): Promise<number> {
+  let taken = 0
+  for (const action of picks) {
+    try {
+      await act(action)
+      taken++
+    } catch (error) {
+      if (
+        action.type === 'again' &&
+        error instanceof DoormanError &&
+        error.code === DOORMAN_ERROR.roomForbidden
+      ) {
+        refused.add(action.entryId)
+      }
+    }
+  }
+  return taken
 }
 
 /**

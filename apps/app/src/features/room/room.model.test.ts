@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   addRoomMember,
   applyRoomAction,
+  DOORMAN_ERROR,
+  DoormanError,
   isRoomRefusal,
   newRoomDoc,
   roomStateFor,
@@ -35,6 +37,7 @@ import {
   startingSongs,
   roomLine,
   roomTracks,
+  sendKeepGoing,
   upcomingRows,
   youMay,
 } from './room.model'
@@ -369,6 +372,36 @@ describe('keep it going, once a friend left', () => {
       )
     expect(again(as(doc, X))).toHaveLength(1)
     expect(again(as(act(doc, M, { type: 'leave' }), X))).toEqual([])
+    // Nor one the room already refused to play again.
+    const refused = new Set([mias ?? ''])
+    expect(
+      keepGoingPicks(as(doc, X), 4, { random: () => 0, refused }).some(
+        pick => pick.type === 'again' && pick.entryId === mias,
+      ),
+    ).toBe(false)
+  })
+
+  it('counts only the songs the room took, and remembers one it will not play again', async () => {
+    const forbidden = new DoormanError(403, DOORMAN_ERROR.roomForbidden, 'no longer lent')
+    const answers = new Map<string, unknown>([
+      ['e1', forbidden],
+      ['e3', new DoormanError(0, DOORMAN_ERROR.unreachable, 'offline')],
+    ])
+    const picks: RoomAction[] = [
+      { type: 'again', entryId: 'e1' },
+      { type: 'again', entryId: 'e2' },
+      { type: 'again', entryId: 'e3' },
+      { type: 'fromShelf', member: M, index: 0 },
+    ]
+    const refused = new Set<string>()
+    const act = async (action: RoomAction) => {
+      const answer = action.type === 'again' ? answers.get(action.entryId) : undefined
+      if (answer) throw answer
+    }
+    // Two of four taken: the host's library fills the other two.
+    await expect(sendKeepGoing(picks, act, refused)).resolves.toBe(2)
+    // Offline is no answer about the song: it may be asked for next time.
+    expect([...refused]).toEqual(['e1'])
   })
 })
 

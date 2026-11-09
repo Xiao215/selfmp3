@@ -102,10 +102,10 @@ function day(dayText, long = false) {
   })
 }
 
-function niceMax(v) {
+function niceMax(v, steps = [1, 2, 2.5, 5, 10]) {
   if (v <= 0) return 1
   const magnitude = 10 ** Math.floor(Math.log10(v))
-  for (const step of [1, 2, 2.5, 5, 10]) if (v <= step * magnitude) return step * magnitude
+  for (const step of steps) if (v <= step * magnitude) return step * magnitude
   return 10 * magnitude
 }
 
@@ -295,12 +295,35 @@ function columns({
     const svg = svgFor(plot, width, height)
     const left = 40
     const bottom = height - 22
-    const top = markers.length ? 22 : 6
-    const totals = labels.map((_, i) => sum(series.map(s => s.values[i] ?? 0)))
-    // Counts: at least 0, 2, 4 on the axis, so a quiet week is not drawn as 0, 0.5, 1.
-    const max = niceMax(Math.max(...totals, 4))
-    const y = v => top + (bottom - top) * (1 - v / max)
     const band = (width - left) / labels.length
+    // A marker's label sits right of its line, or left when that would run off
+    // the edge or into the next label; one that still touches another drops a row.
+    const rowEnds = []
+    const placed = [...markers]
+      .sort((a, b) => a.at - b.at)
+      .map(marker => {
+        const x = left + band * marker.at
+        const text = el('text', { class: 'marker-label' }, svg)
+        text.textContent = marker.label
+        return { x, text, w: text.getComputedTextLength() || marker.label.length * 7 }
+      })
+    placed.forEach((p, i) => {
+      const next = placed[i + 1]
+      const onLeft = p.x + 4 + p.w > width || (next && p.x + 4 + p.w + 8 > next.x)
+      const from = onLeft ? p.x - 4 - p.w : p.x + 4
+      const free = rowEnds.findIndex(end => from >= end + 8)
+      const row = free === -1 ? rowEnds.length : free
+      rowEnds[row] = from + p.w
+      p.text.setAttribute('x', onLeft ? p.x - 4 : p.x + 4)
+      p.text.setAttribute('y', 14 + 14 * row)
+      if (onLeft) p.text.setAttribute('text-anchor', 'end')
+    })
+    const top = markers.length ? 8 + 14 * rowEnds.length : 6
+    const totals = labels.map((_, i) => sum(series.map(s => s.values[i] ?? 0)))
+    // Counts: at least 0, 2, 4 on the axis, so a quiet week is not drawn as 0, 0.5, 1,
+    // and an even top so the half-way tick is a whole number too.
+    const max = niceMax(Math.max(...totals, 4), [1, 2, 4, 6, 8, 10])
+    const y = v => top + (bottom - top) * (1 - v / max)
     const barW = Math.min(24, Math.max(2, band * 0.7))
     const xOf = i => left + band * i + band / 2
     yAxis(svg, { left, right: width, y, max })
@@ -359,14 +382,20 @@ function columns({
     })
     if (labelsAre === 'days') dayLabels(svg, labels, xOf, height - 4)
     else {
-      labels.forEach((label, i) => {
-        el('text', { x: xOf(i), y: height - 4, 'text-anchor': 'middle' }, svg).textContent = label
+      const texts = labels.map((label, i) => {
+        const text = el('text', { x: xOf(i), y: height - 4, 'text-anchor': 'middle' }, svg)
+        text.textContent = label
+        return text
       })
+      // As many band names as fit without touching, always the first.
+      const widest = Math.max(...texts.map(text => text.getComputedTextLength() || 48))
+      const every = Math.max(1, Math.ceil((widest + 8) / band))
+      texts.forEach((text, i) => i % every && text.remove())
     }
-    for (const marker of markers) {
-      const x = left + band * marker.at
-      el('line', { class: 'marker', x1: x, x2: x, y1: 4, y2: bottom }, svg)
-      el('text', { class: 'marker-label', x: x + 4, y: 14 }, svg).textContent = marker.label
+    // Lines under their labels, which a halo keeps readable where a line crosses.
+    for (const p of placed) {
+      el('line', { class: 'marker', x1: p.x, x2: p.x, y1: 4, y2: bottom }, svg)
+      svg.append(p.text)
     }
   }
 }
@@ -800,6 +829,8 @@ function dataView() {
       values: medians,
       color: 'var(--accent)',
       name: 'median',
+      // At least a minute, so a quiet week reads 0, 30s, 1m rather than 0s, 1s, 1s.
+      max: Math.max(60, niceMax(Math.max(...medians.filter(v => v !== null), 0))),
       format: {
         axis: v => (v >= 60 ? `${Math.round(v / 60)}m` : `${Math.round(v)}s`),
         value: v => duration(v * 1000),
@@ -811,14 +842,13 @@ function dataView() {
     },
   })
 
-  const markers = [
-    ...(imports.medianMs === null
-      ? []
-      : [{ at: bandPosition(imports.medianMs), label: `median ${duration(imports.medianMs)}` }]),
-    ...(imports.p90Ms === null
-      ? []
-      : [{ at: bandPosition(imports.p90Ms), label: `90% ${duration(imports.p90Ms)}` }]),
-  ]
+  const mark = (ms, name) =>
+    ms === null ? [] : [{ at: bandPosition(ms), label: `${name} ${duration(ms)}` }]
+  // One marker when the median and the 90% read the same, as with a single import.
+  const markers =
+    duration(imports.medianMs) === duration(imports.p90Ms)
+      ? mark(imports.medianMs, 'median and 90%')
+      : [...mark(imports.medianMs, 'median'), ...mark(imports.p90Ms, '90%')]
   const histogram = chartCard({
     id: 'bands',
     title: 'How long imports take',

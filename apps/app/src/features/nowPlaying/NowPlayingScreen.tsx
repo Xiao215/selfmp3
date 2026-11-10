@@ -573,8 +573,8 @@ function CoverView({
         {/* Both sides as wide, so whatever is in the middle sits in the middle. */}
         <View style={[styles.headSide, styles.headSideEnd]}>
           {inRoom && !middleTaken ? null : <TogetherButton filled />}
-          <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
-            <UpNext size={iconSize.nav} color={theme.colors.textPrimary} />
+          <IconButton onPress={onMore} label="More" filled testID="now-playing-more">
+            <More size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
       </View>
@@ -601,8 +601,8 @@ function CoverView({
         </View>
         <View style={styles.titleButtons}>
           <LikeButton song={song} filled />
-          <IconButton onPress={onMore} label="More" filled testID="now-playing-more">
-            <More size={iconSize.nav} color={theme.colors.textPrimary} />
+          <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
+            <UpNext size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
       </View>

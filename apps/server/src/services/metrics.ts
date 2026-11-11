@@ -141,10 +141,10 @@ export class ServerMetrics {
     }
     const stepTimes = new Map<TimedStep, number[]>()
     for (const row of worked) {
-      for (const [step, ms] of Object.entries(parseSteps(row.steps))) {
-        const list = stepTimes.get(step as TimedStep) ?? []
+      for (const [step, ms] of parseSteps(row.steps)) {
+        const list = stepTimes.get(step) ?? []
         list.push(ms)
-        stepTimes.set(step as TimedStep, list)
+        stepTimes.set(step, list)
       }
     }
 
@@ -331,16 +331,17 @@ function quantile(sorted: readonly number[], q: number): number | null {
   return Math.round(sorted[at] ?? 0)
 }
 
-function parseSteps(text: string): Partial<Record<TimedStep, number>> {
+/** A row's step times, in `TIMED_IMPORT_STEPS` order; a step it never reached is left out. */
+function parseSteps(text: string): [TimedStep, number][] {
   try {
     const parsed = JSON.parse(text) as Record<string, unknown>
-    const steps: Partial<Record<TimedStep, number>> = {}
+    const steps: [TimedStep, number][] = []
     for (const step of TIMED_IMPORT_STEPS) {
       const ms = parsed[step]
-      if (typeof ms === 'number' && Number.isFinite(ms)) steps[step] = ms
+      if (typeof ms === 'number' && Number.isFinite(ms)) steps.push([step, ms])
     }
     return steps
   } catch {
-    return {}
+    return []
   }
 }

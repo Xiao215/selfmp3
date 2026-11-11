@@ -665,6 +665,36 @@ export class PlaylistRepository {
     this.#touch.run(playlistId)
   }
 
+  /**
+   * Every place one song has in a playlist, given to another (`SongMerge`):
+   * taken where the other is not there already, and let go where it is. The
+   * uids of the playlists whose place it took.
+   */
+  givePlaces(fromId: number, intoId: number): string[] {
+    const places = this.#db
+      .prepare<[number], { playlist_id: number; uid: string }>(
+        `SELECT i.playlist_id, p.uid FROM playlist_items i JOIN playlists p ON p.id = i.playlist_id
+          WHERE i.song_id = ?`,
+      )
+      .all(fromId)
+    const has = this.#db.prepare<[number, number], { n: number }>(
+      'SELECT 1 AS n FROM playlist_items WHERE playlist_id = ? AND song_id = ?',
+    )
+    const take = this.#db.prepare(
+      'UPDATE playlist_items SET song_id = ? WHERE playlist_id = ? AND song_id = ?',
+    )
+    const taken: string[] = []
+    for (const place of places) {
+      if (has.get(place.playlist_id, intoId)) {
+        this.#removeItem.run(place.playlist_id, fromId)
+        continue
+      }
+      take.run(intoId, place.playlist_id, fromId)
+      taken.push(place.uid)
+    }
+    return taken
+  }
+
   remove(playlistId: number, songId: number): void {
     this.#removeItem.run(playlistId, songId)
     this.#touch.run(playlistId)

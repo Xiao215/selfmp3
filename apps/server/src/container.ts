@@ -277,7 +277,11 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   // A song held twice, folded into the copy kept: when this server is asked
   // (`POST /api/songs/merge`), and when another device's log says so.
   const songMerge = new SongMerge({
-    db,
+    songs,
+    tags,
+    playlists,
+    stats,
+    cloud: cloudRepo,
     sync: syncRepo,
     copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
   })

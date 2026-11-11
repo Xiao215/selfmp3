@@ -159,6 +159,11 @@ export class StatsRepository {
     return this.#latestPlay.get()?.id ?? 0
   }
 
+  /** Every play of one song given to another: a copy folded into the song kept (`SongMerge`). */
+  movePlays(fromId: number, intoId: number): void {
+    this.#db.prepare('UPDATE play_events SET song_id = ? WHERE song_id = ?').run(intoId, fromId)
+  }
+
   /**
    * Whether this song has another play recorded across the same stretch of
    * time: one person cannot hear a song twice at once, so it is a copy of

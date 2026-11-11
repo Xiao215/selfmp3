@@ -405,8 +405,8 @@ export function createCloudSession(
         if ((await endAtDoorman(token)) === 'unreachable') still.push(token)
       }
       // Read again: a sign-out while these were being sent may have added one.
-      const now = await readLeft()
-      const next = [...still, ...now.filter(token => !left.includes(token))]
+      const current = await readLeft()
+      const next = [...still, ...current.filter(token => !left.includes(token))]
       if (next.length > 0) await store.write(LEFT_KEY, next).catch(() => undefined)
       else await store.remove(LEFT_KEY).catch(() => undefined)
     },

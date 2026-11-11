@@ -206,7 +206,7 @@ describe('/api/cloud/uids', () => {
 
     const session = createCloudSession(platform)
     const library = createCloudLibrary(platform, session)
-    return { session, fetched, ...createCloudRoutes(platform, session, library) }
+    return { session, fetched, files, ...createCloudRoutes(platform, session, library) }
   }
 
   /**
@@ -415,6 +415,28 @@ describe('/api/cloud/uids', () => {
     expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
     expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
     expect(made.fetched.filter(path => path.endsWith('.map'))).toHaveLength(1)
+  })
+
+  it('looks at the bucket again when the map its copy names has been replaced', async () => {
+    const oldMap = `lyrics/${'e'.repeat(64)}.map`
+    const newMap = `lyrics/${'f'.repeat(64)}.map`
+    const made = device(undefined, undefined, { ...SNAPSHOT, soundMap: { key: oldMap, size: 60 } })
+    await made.session.saveSession(SESSION)
+    const library = (await made.cloudRequest('GET', '/api/library', undefined)) as {
+      songs: { id: number; title: string }[]
+    }
+    // The server folds a new map, publishes a snapshot naming it, and deletes
+    // the old one, all before this device looks again.
+    made.files.set('snapshots/20260911T110000000Z-mac-3f9a1c2e.json', {
+      ...SNAPSHOT,
+      soundMap: { key: newMap, size: 60 },
+    })
+    made.files.set(newMap, { places: [[`audio/${'a'.repeat(64)}.m4a`, 5000, 5000]] })
+
+    const a = library.songs.find(row => row.title === 'Song a')?.id
+    expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual({
+      places: [{ id: a, x: 0.5, y: 0.5 }],
+    })
   })
 
   it('says a song with no words is instrumental the way the server does', async () => {

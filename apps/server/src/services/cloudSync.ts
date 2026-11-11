@@ -15,7 +15,7 @@ import {
   audioKey,
   coverKey,
   coverPackKey,
-  isCoverPackKey,
+  isReplacedWholeKey,
   foldedLogKeys,
   detectLyricsLanguage,
   isSynced,
@@ -2439,24 +2439,28 @@ export class CloudSyncService {
    * finding it present and pointing every device at a file about to vanish.
    * One that fails stays in the trash for the next pass.
    *
-   * A pack of covers replaced waits longer: until no snapshot in the bucket
-   * names it. A device reads the snapshot it listed, which may be one of the
-   * older ones still kept, and a pack deleted under it left that device
-   * fetching every cover one by one — what the packs are there to save. Other
-   * files go as they did: an older snapshot naming a removed song's audio
-   * names a song the logs since have taken away.
+   * A file replaced whole — a pack of covers, the sound vectors, the sound
+   * map — waits longer: until no snapshot in the bucket names it. A device
+   * reads the snapshot it listed, or the one it kept from its last look,
+   * which may be one of the older ones still kept. A pack deleted under it
+   * left that device fetching every cover one by one — what the packs are
+   * there to save — and a map deleted under it left a phone's Home with no
+   * map at all. Other files go as they did: an older snapshot naming a
+   * removed song's audio names a song the logs since have taken away.
    */
   async #emptyTrash(store: CloudStore): Promise<void> {
     const { cloud } = this.#deps
     let trashed = cloud.trashedKeys()
-    if (trashed.some(isCoverPackKey)) {
+    if (trashed.some(isReplacedWholeKey)) {
       const named = await this.#namedBySnapshots(store).catch((error: unknown) => {
-        this.#logger.warn('could not read every snapshot; replaced cover packs stay for now', {
+        this.#logger.warn('could not read every snapshot; replaced packs and maps stay for now', {
           message: messageOf(error),
         })
         return null
       })
-      trashed = trashed.filter(key => !isCoverPackKey(key) || (named !== null && !named.has(key)))
+      trashed = trashed.filter(
+        key => !isReplacedWholeKey(key) || (named !== null && !named.has(key)),
+      )
     }
     let deleted = 0
     const audio: string[] = []

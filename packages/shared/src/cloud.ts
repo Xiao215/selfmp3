@@ -94,9 +94,17 @@ export function coverPackKey(sha256: string): string {
   return `covers/${sha256}.pack`
 }
 
-/** Whether a key in the bucket is a pack of covers (`coverPackKey`). */
-export function isCoverPackKey(key: string): boolean {
-  return key.startsWith('covers/') && key.endsWith('.pack')
+/**
+ * Whether a key in the bucket is one of the library's own files that a newer
+ * one replaces whole — a pack of covers (`coverPackKey`), the sound vectors
+ * (`soundVectorsKey`) or the sound map (`soundMapKey`) — rather than one
+ * song's, which goes only with the song.
+ */
+export function isReplacedWholeKey(key: string): boolean {
+  return (
+    (key.startsWith('covers/') && key.endsWith('.pack')) ||
+    (key.startsWith('lyrics/') && (key.endsWith('.vec') || key.endsWith('.map')))
+  )
 }
 
 /** Where each picture of a pack is in its file: its key, where it starts, and how long it is. */
@@ -280,11 +288,12 @@ export function othersSnapshotsToPrune(
 
 /**
  * The files a snapshot names: each song's audio, cover, words and motion
- * curve, each artist's pictures, the sound vectors, the months of plays and
- * the packs of covers. What the server must not delete while that snapshot
- * may be read — its sweep of unnamed files (`#trashOrphans` in apps/server's
- * cloudSync.ts), and a pack it replaced (`#emptyTrash`): a device that listed
- * the snapshots just before a newer one went up reads the one it listed.
+ * curve, each artist's pictures, the sound vectors and map, the months of
+ * plays and the packs of covers. What the server must not delete while that
+ * snapshot may be read — its sweep of unnamed files (`#trashOrphans` in
+ * apps/server's cloudSync.ts), and a file it replaced whole (`#emptyTrash`): a
+ * device that listed the snapshots just before a newer one went up, or kept
+ * an older one from its last look, reads the one it has.
  */
 export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
   const keys = new Set<string>()
@@ -302,6 +311,7 @@ export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
     add(artist.portrait.key)
   }
   add(snapshot.sound?.key)
+  add(snapshot.soundMap?.key)
   for (const month of snapshot.plays ?? []) add(month.key)
   for (const pack of snapshot.coverPacks) add(pack.key)
   return keys

@@ -1360,17 +1360,17 @@ export function createCloudLibrary(
   let soundMapRead: { key: string; places: ReadonlyMap<string, MapPlace> } | null = null
 
   async function cloudSoundMap(session: CloudSession): Promise<SoundMap> {
-    const view = await loadCloudLibrary(session)
-    const pointer = replica?.base.snapshot?.soundMap
-    let places: ReadonlyMap<string, MapPlace> | null = null
-    if (pointer && soundMapRead?.key === pointer.key) places = soundMapRead.places
-    else if (pointer) {
-      const text = await cloudText(session, pointer.key)
-      places = text === null ? null : parseSoundMap(text)
-      if (places) soundMapRead = { key: pointer.key, places }
+    let view = await loadCloudLibrary(session)
+    let places = await soundMapPlaces(session)
+    if (places === 'gone') {
+      // The copy kept from the last look names a map the server has since
+      // replaced and deleted: a newer snapshot names the one in its place.
+      markCloudLibraryStale()
+      view = await loadCloudLibrary(session)
+      places = await soundMapPlaces(session)
     }
     const out: SoundMap['places'] = []
-    if (places) {
+    if (places && places !== 'gone') {
       for (const song of view.library.songs) {
         const audio = view.files[song.id]?.audio
         const place = audio === undefined ? undefined : places.get(audio)
@@ -1378,6 +1378,20 @@ export function createCloudLibrary(
       }
     }
     return { places: out }
+  }
+
+  /** The places in the map the copy names; null with none named or one this build cannot read. */
+  async function soundMapPlaces(
+    session: CloudSession,
+  ): Promise<ReadonlyMap<string, MapPlace> | 'gone' | null> {
+    const pointer = replica?.base.snapshot?.soundMap
+    if (!pointer) return null
+    if (soundMapRead?.key === pointer.key) return soundMapRead.places
+    const text = await cloudText(session, pointer.key)
+    if (text === null) return 'gone'
+    const places = parseSoundMap(text)
+    if (places) soundMapRead = { key: pointer.key, places }
+    return places
   }
 
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {

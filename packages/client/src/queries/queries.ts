@@ -252,6 +252,8 @@ function useCloudLibraryChanges(client: QueryClient): void {
         void client.invalidateQueries({ queryKey: queryKeys.playlists })
         void client.invalidateQueries({ queryKey: queryKeys.manifest })
         void client.invalidateQueries({ queryKey: queryKeys.cloudImports })
+        // A newer snapshot may name a newer map, and the one before is deleted.
+        void client.invalidateQueries({ queryKey: queryKeys.soundMap })
       })
       entry = { holders: 0, stop }
       cloudListeners.set(client, entry)

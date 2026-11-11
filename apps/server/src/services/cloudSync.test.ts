@@ -1165,6 +1165,9 @@ describe('CloudSyncService', () => {
       await vi.waitFor(() => expect(latest().sound!.key).not.toBe(before))
       const after = latest().sound!.key
       expect(packOf(latest())!.entries).toHaveLength(2)
+      // Kept while an older snapshot in the bucket still names it.
+      expect(packKeys().sort()).toEqual([before, after].sort())
+      await publishPastKept()
       await vi.waitFor(() => expect(packKeys()).toEqual([after]))
 
       // The last song heard: no more waiting.
@@ -1303,6 +1306,28 @@ describe('CloudSyncService', () => {
       await pass()
       await soundMap.refresh()
       expect(mapPuts()).toHaveLength(1)
+    })
+
+    it('keeps a replaced map while a snapshot in the bucket still names it', async () => {
+      const ids = ['a', 'b', 'c', 'd'].map(name => addSong(`Artist - ${name}`, name))
+      ids.forEach((id, index) => vectors.upsert(id, MODEL, along(index)))
+      sync = makeSync({ sound, soundMap })
+      await connect()
+      await soundMap.refresh()
+      await vi.waitFor(() => expect(latest().soundMap).toBeDefined())
+      const before = latest().soundMap!.key
+
+      // A song heard: a new map, and the old one is still what a phone that
+      // kept the last snapshot asks for.
+      vectors.upsert(addSong('Nova - Dusk', 'dusk'), MODEL, along(4))
+      await soundMap.refresh()
+      await pass()
+      await vi.waitFor(() => expect(latest().soundMap!.key).not.toBe(before))
+      const mapKeys = (): string[] => bucket.keys('lyrics/').filter(key => key.endsWith('.map'))
+      expect(mapKeys().sort()).toEqual([before, latest().soundMap!.key].sort())
+
+      await publishPastKept()
+      await vi.waitFor(() => expect(mapKeys()).toEqual([latest().soundMap!.key]))
     })
 
     it('starts from the bucket’s map when it has none of its own', async () => {

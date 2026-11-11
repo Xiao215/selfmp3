@@ -233,7 +233,8 @@ audio-intelligence.md), all of them in one file (`apps/server/src/sound/pack.ts`
 song's audio key. One file rather than one a song: a server starting again from the bucket
 reads them back in one download rather than fifteen hundred. The server sends a new one
 when they change — at most once an hour while songs are still being heard — and the
-snapshot's `sound` names it; the one it replaces goes in the trash. Before it sends any, a
+snapshot's `sound` names it; the one it replaces goes in the trash, and from there once no
+snapshot in the bucket names it, as a replaced pack of covers does. Before it sends any, a
 server reads back the file the bucket's snapshot names, so a new server hears only the songs
 nobody has heard, and a file it could not read is never replaced by one without its vectors.
 
@@ -242,9 +243,14 @@ numbers (docs/features/sound-map.md), one small JSON file (about 120 KB for 1,50
 the vectors, keyed by each song's audio key like them. The server folds it again only when
 the vectors change, at most once an hour while songs are still being heard, starting from the
 last map so it holds still; the snapshot's `soundMap` names it, the one it replaces goes in the
-trash, and a device reads it once a change and keeps it by its hash, as it keeps a song's
-words. A server starting from the bucket with no map of its own reads it back once and starts
-from it.
+trash and is deleted once no snapshot in the bucket names it, and a device reads it once a
+change and keeps it by its hash, as it keeps a song's words. A phone answers from the
+snapshot it kept at its last look and looks again afterwards, so the map that snapshot names
+must still be there: deleted with the next snapshot, it left Home with no map until the app
+was sent away and back. A device that still finds its map gone (offline past every kept
+snapshot) looks at the bucket and reads the newer one, and every look that finds something
+asks for the map again. A server starting from the bucket with no map of its own reads it
+back once and starts from it.
 
 **Plays** are a file a month (`apps/server/src/services/playsArchive.ts`): each play as its
 song's uid, when it happened, how long it was heard, whether it ran to the end, and an id

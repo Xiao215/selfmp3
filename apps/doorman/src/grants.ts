@@ -10,15 +10,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
-import {
-  forbidden,
-  isLoopbackHost,
-  isPrivateHost,
-  json,
-  methodNotAllowed,
-  notFound,
-  readJson,
-} from './http.js'
+import { forbidden, json, mayReach, methodNotAllowed, notFound, readJson } from './http.js'
 import { secureHex } from './encoding.js'
 import { getRecord, putRecord } from './kv.js'
 import type { Session } from './sessions.js'
@@ -160,12 +152,8 @@ function tellServer(ctx: Context, grant: StoredGrant): void {
     return
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return
-  // Anyone signed in can give any address, and the doorman would knock on it:
-  // never one off the public internet, which no real server's address is to a
-  // doorman there. `wrangler dev --env dev` (DEV) tells servers on this computer.
-  if (isPrivateHost(url.hostname) && !(ctx.env.DEV === 'true' && isLoopbackHost(url.hostname))) {
-    return
-  }
+  // No real server's address is off the public internet to a doorman there.
+  if (!mayReach(url.hostname, ctx.env.DEV === 'true')) return
   const told = ctx
     .fetch(url.href, {
       method: 'POST',

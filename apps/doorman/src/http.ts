@@ -161,7 +161,7 @@ export function isLoopbackHost(hostname: string): boolean {
  * The URL parser has already turned `2130706433` and `0x7f.1` into
  * `127.0.0.1`, and wraps IPv6 in brackets.
  */
-export function isPrivateHost(hostname: string): boolean {
+function isPrivateHost(hostname: string): boolean {
   const name = hostname.toLowerCase().replace(/\.$/, '')
   if (name.startsWith('[')) return isPrivateIPv6(name.slice(1, -1))
   const v4 = ipv4(name)
@@ -172,6 +172,17 @@ export function isPrivateHost(hostname: string): boolean {
     name === 'localhost' ||
     /\.(localhost|local|internal|lan|home\.arpa)$/.test(name)
   )
+}
+
+/**
+ * Whether the doorman may send a request to a host someone else chose: a
+ * grant's server, a bucket's endpoint, a room host's server. Anywhere on the
+ * public internet, and this computer too under `wrangler dev --env dev` (DEV);
+ * never an address off it, which anyone signed in could otherwise make the
+ * doorman knock on.
+ */
+export function mayReach(hostname: string, dev: boolean): boolean {
+  return !isPrivateHost(hostname) || (dev && isLoopbackHost(hostname))
 }
 
 /** A dotted IPv4 address's first two bytes, which are all its private ranges need. */

@@ -371,6 +371,38 @@ describe('a link a guest pastes', () => {
     expect(refused.status).toBe(403)
   })
 
+  it('is fetched only from a public address, never by following a redirect', async () => {
+    const s = await setup()
+    const ana = await join(s, 'Ana')
+    const entry = (await state(await act(s, ana, { type: 'addLink', song: LINK }))).entries[0]?.id
+    const asked: string[] = []
+    for (const host of ['192.168.1.20', 'pi.example.ts.net']) {
+      s.h.elsewhere.set(host, request => {
+        asked.push(request.url)
+        return new Response('<script>1</script>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      })
+    }
+    const linkServer = (base: string) =>
+      s.h.call(`/v1/rooms/${s.room.code}/link-server?t=${s.room.token}`, {
+        method: 'PUT',
+        json: { base, token: null },
+      })
+
+    await linkServer('https://192.168.1.20')
+    expect((await file(s, ana, entry ?? '')).status).toBe(502)
+    expect(asked).toEqual([])
+
+    await linkServer('https://pi.example.ts.net')
+    const played = await file(s, ana, entry ?? '')
+    expect(played.status).toBe(200)
+    expect(s.h.outside.at(-1)?.init.redirect).toBe('manual')
+    // Whatever the host's server answers is never a page on the doorman's address.
+    expect(played.headers.get('content-security-policy')).toBe('sandbox')
+  })
+
   it('takes only an https address with nothing after the host', async () => {
     const s = await setup()
     for (const base of ['http://pi.example', 'https://pi.example/api', 'not a url']) {

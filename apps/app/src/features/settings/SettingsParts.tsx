@@ -5,19 +5,13 @@ import { Circle, Svg } from 'react-native-svg'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { radius, type, space, iconSize, textStyle } from '@selfmp3/client'
 import { ChevronRight, Copy, Minus, Plus } from '../../ui/components/Icons'
-import { card, label, hint, pageFrame } from '../../ui/surfaces'
+import { card, label, hint } from '../../ui/surfaces'
 import { clamp01 } from '@selfmp3/shared'
 import { OPACITY } from '../../ui/motion.model'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { useLargeText } from '../../ui/textScale'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { PageHeader } from '../../ui/components/PageHeader'
-import type { BackProps } from '../../ui/components/BackButton'
-import { ScrollView } from '../../ui/components/Scroll'
-import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useLayoutFlags } from '../../shell/useLayout'
 import { copyText } from '../../ports/clipboard'
 import { showToast } from '../../ui/toast'
 
@@ -34,48 +28,7 @@ import { showToast } from '../../ui/toast'
  */
 
 const Stacked = createContext(false)
-const StackedRows = Stacked.Provider
-
-/** How wide Settings' column grows on a computer: a phone's page, with room to breathe. */
-const SETTINGS_WIDTH = 640
-
-/**
- * A page of Settings: Settings itself and each page reached from it, the same
- * column of the same cards under the page's header.
- */
-export function SettingsPage({
-  title,
-  back,
-  subtitle,
-  subtitleTestID,
-  children,
-}: {
-  title: string
-  back: BackProps
-  subtitle?: ReactNode
-  subtitleTestID?: string
-  children: ReactNode
-}): ReactNode {
-  const { wide } = useLayoutFlags()
-  return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.content, pageFrame(wide)]}>
-        <StackedRows value={!wide}>
-          <View style={styles.column}>
-            <PageHeader
-              title={title}
-              back={back}
-              subtitle={subtitle}
-              subtitleTestID={subtitleTestID}
-            />
-            {children}
-          </View>
-        </StackedRows>
-        <ChromeSpacer />
-      </ScrollView>
-    </SafeAreaView>
-  )
-}
+export const StackedRows = Stacked.Provider
 
 /**
  * A group of rows: a card, with its name over it when it has one. The page is
@@ -441,9 +394,6 @@ export const partStyles = StyleSheet.create(theme => ({
 }))
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40 },
-  column: { width: '100%', maxWidth: SETTINGS_WIDTH, gap: space.xl },
   group: { gap: space.sm },
   groupHead: {
     flexDirection: 'row',

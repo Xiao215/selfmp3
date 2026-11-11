@@ -21,7 +21,8 @@ import { Confirmations } from './Confirmations'
 import { AccountRow } from './ConnectionPanel'
 import { DevicesPanel } from './DevicesPanel'
 import { DownloadTiles, OfflinePanel, RemoveAllFromDevice } from './OfflinePanel'
-import { Card, DangerButton, LinkRow, Row, SettingsPage, TileGrid } from './SettingsParts'
+import { Card, DangerButton, LinkRow, Row, TileGrid } from './SettingsParts'
+import { SettingsPage } from './SettingsPage'
 import { SmartTile, useAskNotesCount } from './SmartPanel'
 import {
   ADVANCED_ROUTE,

@@ -12,7 +12,9 @@ Two iOS widgets (docs/ui-mock `P28`), both medium:
 - **Now playing** — the song, and "Paused · 1:52 left" or a countdown the system keeps by
   itself while it plays. Tapping it opens Now Playing (`selfmp3://now-playing`).
 
-Android and the web have none (iOS first, as the plan says).
+**Where:** the iPhone only; Android, the web and the desktop app have none (iOS first). The
+code is in the table under "How it works": `apps/app/src/features/widget/`, the port
+`apps/app/src/ports/widget.ios.ts` and the SwiftUI target `apps/app/targets/widget/`.
 
 ## How it works
 
@@ -26,6 +28,7 @@ snapshot — plain JSON, colours as hex, times as seconds — through the App Gr
 | Keeping it in step with the library and the player | `apps/app/src/features/widget/WidgetSync.tsx`, mounted once in `app/_layout.tsx` |
 | Writing it to the App Group | `apps/app/src/ports/widget.ios.ts` (`@bacons/apple-targets`' `ExtensionStorage`); `widget.ts` does nothing elsewhere |
 | The widgets | `apps/app/targets/widget/SelfMp3Widget.swift`, target settings in `expo-target.config.js` |
+| Its colours, the app's own (tested) | `expo-target.config.js` writes them from `@selfmp3/shared` at prebuild; `apps/app/src/ports/widgetColors.test.ts` |
 | Playing a tag from a link | `apps/app/src/features/tag/TagScreen.tsx` (`?play=1`, once) |
 
 A new snapshot is sent only when it has news — another song, play or pause, a seek, other

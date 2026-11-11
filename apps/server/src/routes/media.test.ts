@@ -65,3 +65,48 @@ describe('GET /api/art/:id', () => {
     expect(response.headers.get('cache-control') ?? '').not.toContain('max-age')
   })
 })
+
+/**
+ * A song's audio goes out byte for byte: gzipped, a range's offsets would no
+ * longer be the file's, and an m4a is compressed already.
+ */
+describe('GET /api/stream/:id', () => {
+  let library: TestLibrary
+  const audio = Buffer.alloc(64 * 1024, 'a')
+
+  beforeAll(async () => {
+    library = await startLibrary()
+    const { container } = library
+    container.songs.insert(newSong({ title: 'Sunrise', sizeBytes: audio.length }))
+    fs.mkdirSync(container.config.libraryDir, { recursive: true })
+    fs.writeFileSync(path.join(container.config.libraryDir, 'Sunrise.m4a'), audio)
+  })
+
+  afterAll(() => library.close())
+
+  it('sends the copy here whole, uncompressed, to a client that takes gzip', async () => {
+    const response = await fetch(`${library.origin}/api/stream/1`, {
+      headers: {
+        Authorization: `Bearer ${library.container.config.authToken}`,
+        'Accept-Encoding': 'gzip',
+      },
+    })
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-encoding')).toBeNull()
+    expect(Buffer.from(await response.arrayBuffer()).equals(audio)).toBe(true)
+  })
+
+  it('sends a range as those bytes of the file', async () => {
+    const response = await fetch(`${library.origin}/api/stream/1`, {
+      headers: {
+        Authorization: `Bearer ${library.container.config.authToken}`,
+        'Accept-Encoding': 'gzip',
+        Range: 'bytes=1000-1999',
+      },
+    })
+    expect(response.status).toBe(206)
+    expect(response.headers.get('content-encoding')).toBeNull()
+    expect(response.headers.get('content-range')).toBe(`bytes 1000-1999/${audio.length}`)
+    expect((await response.arrayBuffer()).byteLength).toBe(1000)
+  })
+})

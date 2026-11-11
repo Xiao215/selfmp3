@@ -73,16 +73,9 @@ export function frame(
 
   // Compress JSON, never audio: an m4a is already compressed, and gzipping it
   // would burn CPU while breaking the byte offsets that range requests need.
-  app.use(
-    compression({
-      filter: (req, res) => {
-        if (req.path.startsWith('/api/stream/') || req.path.startsWith('/api/art/')) return false
-        // An event stream must reach the client unbuffered, or nothing is live.
-        if (req.path === '/api/events') return false
-        return compression.filter(req, res)
-      },
-    }),
-  )
+  // Compression's own filter leaves audio and image types alone, and the event
+  // stream, which must reach the client unbuffered, says `no-transform`.
+  app.use(compression())
 
   app.use(express.json({ limit: '1mb' }))
   app.use('/api', sameOriginWrites(config))

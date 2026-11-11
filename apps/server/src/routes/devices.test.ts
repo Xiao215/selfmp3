@@ -46,6 +46,8 @@ describe('POST /api/devices/:id/command', () => {
       signal: stream.signal,
     })
     expect(events.status).toBe(200)
+    // Gzipped, the stream would be held back in the compressor until it filled.
+    expect(events.headers.get('content-encoding')).toBeNull()
     const reader = events.body!.getReader()
     const decoder = new TextDecoder()
 

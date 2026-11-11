@@ -5,8 +5,8 @@ phone it has what a browser cannot give: dependable background audio on iOS, and
 real downloaded files instead of an evictable cache. The screens are the web's,
 drawn at phone width; the layout is decided by width, not by platform.
 
-**Where:** iOS and Android phones, and the iPad, whose layout follows its width. The code is `apps/app`: the phone-only parts are behind `src/ports/`
-(`bucketMedia.ts`, `songStream.ts`, `recentCopies.ts`, `appUpdate.ts`), the native
+**Where:** iOS and Android phones, and the iPad, whose layout follows its width. The
+code is `apps/app`: the phone-only parts are behind `src/ports/` (`bucketMedia.ts`, `songStream.ts`, `recentCopies.ts`, `appUpdate.ts`), the native
 modules in `modules/` (`song-stream`, `home-screen`, `key-commands`), and the release
 builds in `scripts/ios-release.mjs` and `scripts/android-release.mjs`.
 

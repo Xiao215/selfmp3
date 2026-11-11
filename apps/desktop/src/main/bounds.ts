@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
+import { z } from 'zod'
 
 import { writeFileAtomicSync } from './writeAtomic.js'
 
@@ -21,12 +22,13 @@ import { writeFileAtomicSync } from './writeAtomic.js'
  * there now, and otherwise the window opens where a new one would.
  */
 
-export interface Bounds {
-  readonly x: number
-  readonly y: number
-  readonly width: number
-  readonly height: number
-}
+const BoundsSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite(),
+  height: z.number().finite(),
+})
+export type Bounds = Readonly<z.infer<typeof BoundsSchema>>
 
 /** The size the reference captures were taken at, and the floor below them. */
 const DEFAULT_SIZE = { width: 1280, height: 800 }
@@ -34,14 +36,6 @@ export const MINIMUM_SIZE = { width: 480, height: 480 }
 
 function file(): string {
   return join(app.getPath('userData'), 'window.json')
-}
-
-function sane(value: unknown): value is Bounds {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Record<string, unknown>
-  return (['x', 'y', 'width', 'height'] as const).every(
-    key => typeof candidate[key] === 'number' && Number.isFinite(candidate[key]),
-  )
 }
 
 /**
@@ -63,8 +57,9 @@ export function onSomeDisplay(bounds: Bounds, displays: readonly Electron.Displa
 /** What the window should open at: what was kept, if it is still reachable. */
 export function openingBounds(displays: readonly Electron.Display[]): Partial<Bounds> {
   try {
-    const kept: unknown = JSON.parse(readFileSync(file(), 'utf8'))
-    if (!sane(kept)) return DEFAULT_SIZE
+    const parsed = BoundsSchema.safeParse(JSON.parse(readFileSync(file(), 'utf8')))
+    if (!parsed.success) return DEFAULT_SIZE
+    const kept = parsed.data
     const bounds: Bounds = {
       x: Math.round(kept.x),
       y: Math.round(kept.y),

@@ -453,9 +453,11 @@ class Arriving {
             }
             await new Promise<void>(resolve => this.#wake.push(resolve))
           }
+          const reader = this.#reader
+          if (reader === null) throw new Error('the song stopped arriving')
           const length = Math.min(end, this.received - 1, at + READ_CHUNK - 1) - at + 1
           const buffer = Buffer.alloc(length)
-          const { bytesRead } = await this.#reader!.read(buffer, 0, length, at)
+          const { bytesRead } = await reader.read(buffer, 0, length, at)
           if (bytesRead === 0) throw new Error('the song stopped arriving')
           at += bytesRead
           controller.enqueue(new Uint8Array(buffer.buffer, buffer.byteOffset, bytesRead))

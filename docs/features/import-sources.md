@@ -15,6 +15,11 @@ Each song comes from one of two places: YouTube, or 网易云 itself. Spotify's 
 be downloaded, so a Spotify song is found on YouTube by its name, as is a song from a
 list of names.
 
+**Where:** Import on the phone, the computer, the web and the desktop app
+(`apps/app/src/features/import/`); every look-up, search and download is the server's
+(`apps/server/src/services/`, listed under [Code](#code)). The share sheet and the browser
+extension take fewer kinds of link ([below](#where-it-does-not-work)).
+
 ## 网易云音乐
 
 A song, an album, a playlist (a chart is one) or an artist link (the fifty songs their

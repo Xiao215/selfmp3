@@ -160,6 +160,23 @@ wherever they are pressed (the player bar, the lock screen, a key), are the room
 the room's song and play/pause pauses it, when **Friends can** allows; otherwise they say only
 the host can. A room only goes forward, so Previous says so.
 
+**A host who is away.** Only the host's player moves the room on. While it is away (its socket
+closed), a friend's Next, play/pause and the room card's Skip and Play say *Xiao's player is
+away* instead of asking it, and what was asked is dropped rather than done when it is back
+(`hostAway` in `apps/app/src/features/room/room.model.ts`). On everyone's phones a song that
+has played to its end is not played again from past it: the friend's player waits for the
+host, and once the host is away, or still has not moved on ten seconds after the end, the
+room's sound stops with *Waiting for Xiao* until they are back (`followPlan`).
+
+**One tab plays it.** In a browser with the room open in several tabs, one tab plays it (a Web
+Lock per room, `room.store.ts`); the others say *The room plays in your other tab*, and the
+next takes over when that one closes.
+
+**Leaving has to be heard.** The host's Leave ends the room, and a friend's stops lending the
+songs and shelf they brought, so either counts only once the doorman has answered it. Offline,
+it says the room could not be reached and keeps you in it, still the host, to try again. A
+friend who brought nothing leaves at once.
+
 **One room at a time.** Joining or starting a room while in another leaves the one you were in,
 once the new one has let you in: an invite to a room that has ended changes nothing. When the
 host ends the room, or takes you out of it, you are told so (*Xiao's room ended*, with **See
@@ -311,7 +328,7 @@ share sheet; where there is none (the desktop app), it copies the link.
 | A room: one Durable Object per code, its sockets, its alarm | `apps/doorman/src/room.ts` |
 | The doorman's routes, and lending a song's files from its owner's bucket | `apps/doorman/src/rooms.ts` |
 | A device's side: the doorman's routes, the clock's offset, a room song as a track | `packages/client/src/room/` |
-| One of your songs as a room carries it | `packages/replica/src/roomSong.ts` (`cloudRoomSongNow`) |
+| One of your songs as a room carries it | `packages/replica/src/roomSong.ts` (`roomSongOf`), `library.ts` (`cloudRoomSongNow`) |
 | The room this device is in: its pass, its socket, Join, Leave | `apps/app/src/features/room/room.store.ts` |
 | Rows, tracks, the host's plan, Autoplay, what Recently played keeps | `apps/app/src/features/room/room.model.ts` |
 | The host's player playing the room; everyone's phones following it | `apps/app/src/features/room/RoomProvider.tsx` |

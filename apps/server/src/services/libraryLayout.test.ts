@@ -4,6 +4,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { SongRepository } from '../repositories/songs.js'
 import { LocalStorageDriver } from '../storage/local.js'
@@ -48,23 +49,16 @@ describe('libraryLayout', () => {
       const db = new Database(':memory:')
       migrate(db, createLogger('silent'))
       const songs = new SongRepository(db)
-      songs.insert({
-        path: 'A - Intro/A - Intro.m4a',
-        title: 'Intro',
-        artist: 'A',
-        album: '',
-        albumArtist: '',
-        trackNo: null,
-        year: null,
-        duration: 200,
-        sizeBytes: 1000,
-        mime: 'audio/mp4',
-        mtimeMs: 1,
-        hasArt: false,
-        artExt: null,
-        lyricsKind: 'none',
-        sourceUrl: null,
-      })
+      songs.insert(
+        newSong({
+          path: 'A - Intro/A - Intro.m4a',
+          title: 'Intro',
+          artist: 'A',
+          duration: 200,
+          sizeBytes: 1000,
+          mtimeMs: 1,
+        }),
+      )
 
       const [first, second] = songKeyCandidates('A - Intro', '.mp3')
       // Another extension in the same folder would share the first one's words.

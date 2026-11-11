@@ -5,6 +5,7 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
@@ -88,21 +89,7 @@ describe('SongRemovalService', () => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  const row = {
-    artist: '',
-    album: '',
-    albumArtist: '',
-    trackNo: null,
-    year: null,
-    duration: 180,
-    sizeBytes: 5,
-    mime: 'audio/mp4',
-    mtimeMs: 1_700_000_000_000,
-    hasArt: false,
-    artExt: null,
-    lyricsKind: 'synced' as const,
-    sourceUrl: null,
-  }
+  const row = { duration: 180, sizeBytes: 5, mtimeMs: 1_700_000_000_000, lyricsKind: 'synced' }
 
   /** A song in its own folder, with a sidecar beside it, as an import lays one out. */
   const addSong = (name: string): { id: number; key: string } => {
@@ -111,7 +98,7 @@ describe('SongRemovalService', () => {
     fs.mkdirSync(folder, { recursive: true })
     fs.writeFileSync(path.join(folder, `${name}.m4a`), 'audio')
     fs.writeFileSync(path.join(folder, `${name}.lrc`), '[00:01.00] la')
-    const id = songs.insert({ ...row, path: key, title: name })
+    const id = songs.insert(newSong({ ...row, path: key, title: name }))
     return { id, key }
   }
 
@@ -281,7 +268,7 @@ describe('SongRemovalService', () => {
     it('lets the event loop run between batches of a big removal', async () => {
       // Rows only, already uploaded: what matters here is the database.
       const ids = Array.from({ length: 101 }, (_, i) =>
-        songs.insert({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` }),
+        songs.insert(newSong({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` })),
       )
       // Each batch leaves a callback for the loop's next turn; by the next
       // batch it must have run.
@@ -352,8 +339,7 @@ describe('SongRemovalService', () => {
       const metadata = {
         read: (key: string) =>
           Promise.resolve({
-            ...row,
-            title: key,
+            ...newSong({ ...row, title: key }),
             picture: null,
             embeddedLyrics: null,
           }),
@@ -399,7 +385,7 @@ describe('SongRemovalService', () => {
     it('leaves a file a new song has taken the name of since', async () => {
       const one = addSong('A - One')
       removal.take([one.id])
-      const again = songs.insert({ ...row, path: one.key, title: 'A - One' })
+      const again = songs.insert(newSong({ ...row, path: one.key, title: 'A - One' }))
 
       await restart().removal.finishLeaving()
 

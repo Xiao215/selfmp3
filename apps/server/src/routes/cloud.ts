@@ -20,8 +20,8 @@ import { route } from '../http/route.js'
  * never sent back, and the doorman's session never leaves this server.
  *
  * Only reading is open to a device. Everything that changes the connection —
- * signing in, connecting or dropping a bucket, publishing now — is the
- * server's own page's, opened on the server itself (`isLocalRequest`): a
+ * signing in, connecting or dropping a bucket, publishing now — is taken from
+ * the server's own machine alone (`isLocalRequest`): a
  * library's token is in every one of its account's devices, and none of them
  * should be able to point the library at another bucket or sign it out. A
  * library on a server working for accounts reaches its bucket through a grant

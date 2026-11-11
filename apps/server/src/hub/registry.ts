@@ -31,7 +31,7 @@ const EntrySchema = z.object({
   id: WorkspaceIdSchema,
   /** The doorman's id for the account. */
   account: DoormanAccountSchema,
-  /** For the log and the server's page; the account's own word for itself. */
+  /** For the log and `GET /api/hub`; the account's own word for itself. */
   email: z.string(),
   /** What every device of the account sends: published in its snapshots. */
   token: z.string().min(16),

@@ -1,12 +1,8 @@
-import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import os from 'node:os'
-import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createApp } from '../app.js'
-import { loadConfig, type ServingConfig } from '../config.js'
-import { createContainer, type Container } from '../container.js'
+import type { Container } from '../container.js'
+import { startLibrary, type TestLibrary } from '../fixtures/library.js'
 
 /**
  * Settings › Smart features: turned off, every smart feature is refused before
@@ -14,20 +10,9 @@ import { createContainer, type Container } from '../container.js'
  * what it is asked, so "nothing left the library" is measured, not assumed.
  */
 describe('smart features turned off in Settings', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-    'SELFMP3_AI_BASE_URL',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
-  let config: ServingConfig
+  let library: TestLibrary
   let container: Container
-  let server: http.Server
   let model: http.Server
-  let origin = ''
   let asked = 0
   /** What the model waits on before it answers: nothing, unless a test holds it. */
   let thinking: Promise<void> = Promise.resolve()
@@ -64,42 +49,21 @@ describe('smart features turned off in Settings', () => {
     })
     await new Promise<void>(resolve => model.listen(0, '127.0.0.1', resolve))
 
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-ai-'))
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-    process.env['SELFMP3_AI_BASE_URL'] =
-      `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`
-
-    container = createContainer(loadConfig())
-    config = container.config
-    server = http.createServer(createApp(container))
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    library = await startLibrary({
+      env: () => ({
+        SELFMP3_AI_BASE_URL: `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`,
+      }),
+    })
+    container = library.container
   })
 
   afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()))
+    await library.close()
     await new Promise<void>(resolve => model.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
   })
 
   const call = (method: string, url: string, body?: unknown): Promise<Response> =>
-    fetch(`${origin}${url}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.authToken}`,
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
+    library.send(method, url, body)
 
   it('refuses every feature while smart features are off, and asks the model nothing', async () => {
     container.settings.update({ smartFeatures: false })
@@ -130,15 +94,20 @@ describe('smart features turned off in Settings', () => {
     })
     // The Ask's response on this side, closed once the phone has gone.
     const responseClosed = new Promise<void>(resolve => {
-      server.once('request', (_request: http.IncomingMessage, response: http.ServerResponse) =>
-        response.once('close', () => resolve()),
+      library.server.once(
+        'request',
+        (_request: http.IncomingMessage, response: http.ServerResponse) =>
+          response.once('close', () => resolve()),
       )
     })
     const ticket = 'phone-went-away-1'
     const hangUp = new AbortController()
-    const asking = fetch(`${origin}/api/ai/ask`, {
+    const asking = fetch(`${library.origin}/api/ai/ask`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.authToken}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${container.config.authToken}`,
+      },
       body: JSON.stringify({ text: 'check my album names', ticket }),
       signal: hangUp.signal,
     })

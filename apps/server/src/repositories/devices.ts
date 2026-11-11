@@ -6,6 +6,7 @@ import {
   type DeviceKind,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
+import { readStored } from '../db/rows.js'
 
 /**
  * All SQL that touches `devices` lives here.
@@ -92,14 +93,8 @@ export class DeviceRepository {
 }
 
 function toDevice(row: DeviceRow, now: number): Device | null {
-  let raw: unknown
-  try {
-    raw = JSON.parse(row.state)
-  } catch {
-    return null
-  }
-  const state = PlaybackStateSchema.safeParse(raw)
-  if (!state.success) return null
+  const state = readStored(PlaybackStateSchema, row.state)
+  if (!state) return null
 
   const kind: DeviceKind =
     row.kind === 'phone' || row.kind === 'desktop' || row.kind === 'other' ? row.kind : 'other'
@@ -108,7 +103,7 @@ function toDevice(row: DeviceRow, now: number): Device | null {
     id: row.id,
     name: row.name,
     kind,
-    state: state.data,
+    state,
     lastSeenAt: row.last_seen_at,
     online: isDeviceOnline(row.last_seen_at, now),
   }

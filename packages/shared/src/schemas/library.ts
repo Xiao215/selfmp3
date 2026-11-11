@@ -138,7 +138,5 @@ export const HealthSchema = z.object({
   uptimeSeconds: z.number().nonnegative(),
   libraryPath: z.string().optional(),
   songCount: z.number().int().nonnegative().optional(),
-  /** Where this server's owner listens in a browser: its page links there. Not a secret. */
-  appUrl: z.string().optional(),
 })
 export type Health = z.infer<typeof HealthSchema>

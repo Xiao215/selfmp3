@@ -5,8 +5,8 @@ import type { Request } from 'express'
  *
  * The bearer check (`middleware.ts`) exempts such a request, because somebody
  * at the keyboard can read `selfmp3.db` and the library folder anyway — asking
- * them for a key they could pick up buys nothing and would make the server's
- * own page demand a token for no reason.
+ * them for a key they could pick up buys nothing and would make the `selfmp3`
+ * command demand a token for no reason.
  *
  * Requests must arrive over loopback *and* ask for a loopback host. The second
  * check matters because `tailscale serve` also connects from loopback — but a

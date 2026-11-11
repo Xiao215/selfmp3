@@ -5,15 +5,14 @@ import {
   HubCheckSchema,
   plural,
   type CloudServer,
-  type Health,
   type HubStatus,
 } from '@selfmp3/shared'
 import { finish, frame } from '../app.js'
-import { APP_VERSION } from '../config.js'
 import { HttpError } from '../http/errors.js'
 import { isLocalRequest } from '../http/local.js'
 import { tokenOf } from '../http/middleware.js'
 import { route } from '../http/route.js'
+import { healthOf } from '../routes/system.js'
 import type { Hub } from './hub.js'
 
 /**
@@ -36,14 +35,7 @@ export function createHubApp(hub: Hub): Express {
       return
     }
     if (req.path === '/health') {
-      const health: Health = {
-        ok: true,
-        version: APP_VERSION,
-        serverId: hub.shared.serverId,
-        uptimeSeconds: Math.round(process.uptime()),
-        appUrl: hub.config.appUrl,
-      }
-      res.json(health)
+      res.json(healthOf(hub.shared.serverId))
       return
     }
     next(refusal(hub, req))
@@ -53,7 +45,7 @@ export function createHubApp(hub: Hub): Express {
 
 /**
  * Why no library took a request. From this machine it is said plainly: the
- * server's page and the `selfmp3` command show it as it is.
+ * `selfmp3` command shows it as it is.
  */
 function refusal(hub: Hub, req: Request): HttpError {
   if (tokenOf(req) !== null) return HttpError.unauthorized('invalid token')
@@ -108,7 +100,7 @@ function hubRoutes(hub: Hub): Router {
   )
 
   /**
-   * Whom this server works for, for its own page and the `selfmp3` command.
+   * Whom this server works for, for the `selfmp3` command.
    * Only from this machine: the list is everyone's addresses, and nobody
    * else's business.
    */

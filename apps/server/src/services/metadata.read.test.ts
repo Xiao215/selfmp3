@@ -59,13 +59,21 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
 
-function setUp(limitMs: number) {
+/**
+ * A short `limitMs` only where the test is the time running out; the others read
+ * under the real limit, so a busy machine is not a failure.
+ */
+function setUp(limitMs?: number) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-growing-')))
   roots.push(root)
   const data = vbrMp3(400)
   fs.writeFileSync(path.join(root, 'Long - Song.mp3'), data)
   const storage = new LocalStorageDriver(root)
-  const metadata = new MetadataService(storage, createLogger('silent'), { limitMs })
+  const metadata = new MetadataService(
+    storage,
+    createLogger('silent'),
+    limitMs === undefined ? {} : { limitMs },
+  )
   return { root, data, metadata }
 }
 
@@ -82,7 +90,7 @@ describe('reading a file that grew after it was opened', () => {
   })
 
   it('reads the same file whole as it always did', async () => {
-    const { metadata } = setUp(300)
+    const { metadata } = setUp()
 
     const read = await metadata.read('Long - Song.mp3')
 
@@ -91,7 +99,7 @@ describe('reading a file that grew after it was opened', () => {
   })
 
   it('reads a file that is not audio as its name, as before', async () => {
-    const { root, metadata } = setUp(300)
+    const { root, metadata } = setUp()
     fs.writeFileSync(path.join(root, 'Not - Audio.mp3'), 'text, not a song\n'.repeat(40))
 
     expect(await metadata.read('Not - Audio.mp3')).toMatchObject({

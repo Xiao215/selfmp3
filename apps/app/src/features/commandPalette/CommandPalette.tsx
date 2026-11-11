@@ -51,8 +51,8 @@ import {
   stepIndex,
   type PaletteCommandId,
   type PaletteResults,
-  type RecentItem,
 } from './commandPalette.model'
+import type { RecentItem } from '../search/search.model'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { PlaceLine } from '../../ui/components/PlaceLine'

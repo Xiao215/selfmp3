@@ -2,8 +2,6 @@ import { plural, fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
 import { isUntagged } from '../tag/tag.model'
 import { recentItems, searchLibrary, type RecentItem } from '../search/search.model'
 
-export type { RecentItem }
-
 /**
  * The command palette's rules, with nothing drawn: which commands there are, what a
  * query finds, and moving through the list. When lyrics are worth searching is

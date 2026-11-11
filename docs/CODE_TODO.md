@@ -91,3 +91,8 @@ device's store, because the only data there is is the owner's.
   deleted meanwhile, which is the safe side.
 - **Settings keeps `Row` + `Toggle`** rather than `ToggleRow`: its rows put every kind of
   control at the end (T-428).
+- **The desktop shell's IPC handlers do not check `event.senderFrame`**
+  (`apps/desktop/src/main/ipc.ts`): the preload runs only in the window's top frame, and
+  `window.ts` keeps that frame on the app's own origin (`will-navigate`, and every new
+  window denied), so a sender check would ask again what the navigation guard has
+  decided. Every argument is still parsed with its schema.

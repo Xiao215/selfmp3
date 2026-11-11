@@ -112,7 +112,9 @@ exposed by the preload with `contextIsolation` on, `nodeIntegration` off and
 `sandbox` on. Every message and every reply is parsed with a zod schema from
 `packages/desktop-bridge` on the receiving side, so an invalid message is an
 error at the boundary rather than a crash in the middle. There is no
-`ipcRenderer` on the page.
+`ipcRenderer` on the page. A file the page names is a kind and one flat name,
+never a path, and what the shell fetches for it is a web address or a song it
+streams itself, never a file elsewhere on the computer.
 
 ## Why Electron, and what was rejected
 

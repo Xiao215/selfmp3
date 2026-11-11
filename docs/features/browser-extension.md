@@ -466,10 +466,12 @@ which the Import page understands from the share target.
 
 ## The watcher (F1)
 
-- Every import the extension starts is a **batch**: the job ids (or request
-  uids) one click created, kept in `chrome.storage.local`. These are not secret.
-- While a batch is open the background polls `importQueue()` (or
-  `cloudImports()`) every 2 seconds while it is awake. A `chrome.alarms` alarm
+- Every import the extension starts on the server is a **batch**: the job ids
+  one click created, kept in the worker's IndexedDB with everything else. A
+  link left in the bucket is not one: there is no job to follow until the
+  server takes it, and the popup's footer counts what is still waiting.
+- While a batch is open the background polls `importQueue()` every 2 seconds
+  while it is awake. A `chrome.alarms` alarm
   every 30 seconds, Chrome's floor, wakes it if it was suspended. The alarm's
   reads slow down while nothing changes — every alarm at first, then a minute,
   two, five, ten, twenty between them — and start over when something does.
@@ -483,7 +485,8 @@ which the Import page understands from the share target.
 - **One notification per batch**, with copy from `jobs.model.ts`: "Idol added",
   or "18 songs added · City pop night drive · 1 couldn't be downloaded". A click
   opens the app's Import page.
-- The **link index** (`videoId → song`) is rebuilt when `GET /api/library/version`
+- The **link index** (`linkIdentity → song`, so every form of a video's link
+  is one song) is rebuilt when `GET /api/library/version`
   (direct) or the cloud library (bucket) changes, and stored in IndexedDB so the
   popup's "already have" answer is instant.
 

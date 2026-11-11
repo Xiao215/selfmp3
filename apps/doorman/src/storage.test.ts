@@ -365,6 +365,28 @@ describe('connecting a bucket', () => {
     )
   })
 
+  it('never sends a request to an address off the public internet', async () => {
+    const { h, token } = await signedIn()
+    const before = h.outside.length
+    for (const endpoint of [
+      'https://10.0.0.2',
+      'https://169.254.169.254',
+      'https://[fd12::1]',
+      'https://metadata.google.internal',
+      'https://minio',
+    ]) {
+      expect(
+        await refusal(await h.connect(token, { endpoint, region: 'us-east-1' })),
+        endpoint,
+      ).toBe('The endpoint has to be an address on the internet.')
+    }
+    h.env.DEV = 'true'
+    expect(
+      await refusal(await h.connect(token, { endpoint: 'https://10.0.0.2', region: 'us-east-1' })),
+    ).toBe('The endpoint has to be an address on the internet.')
+    expect(h.outside.slice(before)).toEqual([])
+  })
+
   it('refuses a body that is not a CloudConnect', async () => {
     const { h, token } = await signedIn()
     const response = await h.connect(token, { bucket: 'x' })

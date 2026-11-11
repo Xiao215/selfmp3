@@ -83,7 +83,8 @@ device's store, because the only data there is is the owner's.
 - **Stored objects are upgraded as they are read, and written back**: a phone's kept
   library (`upgradeKeptBase`, packages/replica), its remembered rooms (`upgradePastRooms`,
   `features/room/room.model.ts`), and the doorman's shared playlists (`upgradeDoc`) and share
-  links (`upgradeSecrets`). Durable Objects and device stores cannot all be walked at once,
+  links (`upgradeSecrets`, and a link kept whole before its songs were kept in parts, in
+  `Share#read`). Durable Objects and device stores cannot all be walked at once,
   so each is migrated the first time it is opened; the schemas themselves keep no defaults.
 - **The unnamed-file sweep skips a round when an old snapshot does not read**
   (`#namedBySnapshots`, `apps/server/src/services/cloudSync.ts`): an old device's snapshot

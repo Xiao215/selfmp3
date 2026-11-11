@@ -33,7 +33,6 @@ export const notSetUp = (message: string): DoormanError =>
   new DoormanError(500, DOORMAN_ERROR.notSetUp, message)
 
 /** JSON, never cached: every answer the API gives is about one person, now. */
-/** What every JSON answer of the doorman's says about itself. */
 export const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
@@ -65,6 +64,19 @@ export function methodNotAllowed(allowed: readonly string[]): Response {
   )
   response.headers.set('allow', allow)
   return response
+}
+
+/**
+ * A `302` to `location`. Built by hand rather than with Response.redirect,
+ * whose headers cannot be added to afterwards (CORS adds some to every
+ * answer). Never cached, and no Referer passed on: the address being left can
+ * carry a sign-in's state.
+ */
+export function redirect(location: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
+  })
 }
 
 export function noContent(): Response {
@@ -161,7 +173,7 @@ export function isLoopbackHost(hostname: string): boolean {
  * The URL parser has already turned `2130706433` and `0x7f.1` into
  * `127.0.0.1`, and wraps IPv6 in brackets.
  */
-export function isPrivateHost(hostname: string): boolean {
+function isPrivateHost(hostname: string): boolean {
   const name = hostname.toLowerCase().replace(/\.$/, '')
   if (name.startsWith('[')) return isPrivateIPv6(name.slice(1, -1))
   const v4 = ipv4(name)
@@ -172,6 +184,17 @@ export function isPrivateHost(hostname: string): boolean {
     name === 'localhost' ||
     /\.(localhost|local|internal|lan|home\.arpa)$/.test(name)
   )
+}
+
+/**
+ * Whether the doorman may send a request to a host someone else chose: a
+ * grant's server, a bucket's endpoint, a room host's server. Anywhere on the
+ * public internet, and this computer too under `wrangler dev --env dev` (DEV);
+ * never an address off it, which anyone signed in could otherwise make the
+ * doorman knock on.
+ */
+export function mayReach(hostname: string, dev: boolean): boolean {
+  return !isPrivateHost(hostname) || (dev && isLoopbackHost(hostname))
 }
 
 /** A dotted IPv4 address's first two bytes, which are all its private ranges need. */

@@ -6,12 +6,18 @@ import type { ZodType, ZodTypeDef } from 'zod'
  * Cloudflare's `KVNamespace` has this shape (and much more), so the binding is
  * passed in as it is; tests hand in a map with expiry. Keys:
  *
- *   attempt:<attempt>    a Google sign-in, waiting for its code      10 minutes
- *   session:<sha256>     a signed-in device                          180 days
- *                        or a server's grant (grants.ts)             for good
- *   bucket:<sub>         a Google account's bucket, sealed           for good
- *   signout:<sub>        when the account last signed out everywhere for good
- *   grants:<sub>         the servers the account let in              for good
+ *   attempt:<attempt>          a Google sign-in, waiting for its code       10 minutes
+ *   session:<sha256>           a signed-in device                           180 days
+ *                              or a server's grant (grants.ts)              for good
+ *   bucket:<sub>               a Google account's bucket, sealed            for good
+ *   signout:<sub>              when the account last signed out everywhere  for good
+ *   grants:<sub>               the servers the account let in               for good
+ *   access                     who may sign in besides the owners           for good
+ *   iphones                    friends' iPhones for the app (device.ts)     for good
+ *   shared:<sub>               the shared playlists the account is in       for good
+ *   share-out:<sub>            the share links the account sent             for good
+ *   share-in:<sub>             the share links the account opened           for good
+ *   share-same:<sub>:<sha256>  the link those songs were last shared as     while it lasts
  *
  * The free plan allows about a thousand writes a day and a hundred thousand
  * reads, so writes are kept to the moments something really changes. Nothing

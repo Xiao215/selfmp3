@@ -528,6 +528,47 @@ function b2Json(body: unknown, status = 200): Response {
 
 // --- Durable Objects --------------------------------------------------------------
 
+/** What a fake Durable Object is reached by: its name, and a fetch to it. */
+type FakeStub = (id: { name: string }) => {
+  fetch(input: string | Request, init?: RequestInit): Promise<Response>
+}
+
+/** A Durable Object namespace that finds each object by the name it was asked for. */
+function fakeNamespace(get: FakeStub): DurableObjectNamespace {
+  // The runtime's namespace has far more than the doorman asks of it.
+  return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+}
+
+/** What a fake Durable Object keeps: its storage, and when its alarm is set for. */
+interface Kept {
+  readonly values: Map<string, unknown>
+  alarm: number | null
+}
+
+/**
+ * A Durable Object's storage in a map, copied in and out as the runtime's is,
+ * and its alarm, which forgetting everything clears.
+ */
+function mapStorage(kept: Kept) {
+  const { values } = kept
+  return {
+    get: <T>(key: string) => Promise.resolve(structuredClone(values.get(key)) as T | undefined),
+    put: <T>(key: string, value: T) => {
+      values.set(key, structuredClone(value))
+      return Promise.resolve()
+    },
+    deleteAll: () => {
+      values.clear()
+      kept.alarm = null
+      return Promise.resolve()
+    },
+    setAlarm: (when: number) => {
+      kept.alarm = when
+      return Promise.resolve()
+    },
+  }
+}
+
 /**
  * A Durable Object namespace holding real `ChangesObject`s, each with storage
  * in a map: the counter's own code runs, and only the runtime is stood in for.
@@ -538,27 +579,17 @@ export class FakeChanges {
   failing = false
 
   namespace(): DurableObjectNamespace {
-    const get = (id: { name: string }) => ({
-      fetch: async (url: string, init?: RequestInit): Promise<Response> => {
+    return fakeNamespace(id => ({
+      fetch: async (input, init) => {
         if (this.failing) throw new Error('Durable Object unreachable')
         let object = this.objects.get(id.name)
         if (!object) {
-          const values = new Map<string, unknown>()
-          object = new ChangesObject({
-            storage: {
-              get: <T>(key: string) => Promise.resolve(values.get(key) as T | undefined),
-              put: <T>(key: string, value: T) => {
-                values.set(key, value)
-                return Promise.resolve()
-              },
-            },
-          })
+          object = new ChangesObject({ storage: mapStorage({ values: new Map(), alarm: null }) })
           this.objects.set(id.name, object)
         }
-        return object.fetch(new Request(url, init))
+        return object.fetch(new Request(input, init))
       },
-    })
-    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+    }))
   }
 }
 
@@ -572,15 +603,11 @@ export class FakeTally {
 
   namespace(): DurableObjectNamespace {
     const values = this.values
-    const get = () => ({
-      fetch: (url: string, init?: RequestInit): Promise<Response> => {
+    return fakeNamespace(() => ({
+      fetch: (input, init) => {
         this.#object ??= new TallyObject({
           storage: {
-            get: <T>(key: string) => Promise.resolve(values.get(key) as T | undefined),
-            put: <T>(key: string, value: T) => {
-              values.set(key, structuredClone(value))
-              return Promise.resolve()
-            },
+            ...mapStorage({ values, alarm: null }),
             delete: (key: string) => Promise.resolve(values.delete(key)),
             list: <T>({ prefix }: { prefix: string }) =>
               Promise.resolve(
@@ -592,10 +619,9 @@ export class FakeTally {
               ),
           },
         })
-        return this.#object.fetch(new Request(url, init))
+        return this.#object.fetch(new Request(input, init))
       },
-    })
-    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+    }))
   }
 
   /** A day's counts, as stored. */
@@ -637,19 +663,14 @@ export class FakeSocket implements RoomSocket {
  * a `FakeSocket` for the member instead.
  */
 export class FakeRooms {
-  readonly rooms = new Map<
-    string,
-    { room: Room; values: Map<string, unknown>; sockets: FakeSocket[]; alarm: number | null }
-  >()
+  readonly rooms = new Map<string, Kept & { room: Room; sockets: FakeSocket[] }>()
 
   constructor(readonly clock: Clock) {}
 
   namespace(): DurableObjectNamespace {
-    const get = (id: { name: string }) => ({
-      fetch: (input: string | Request, init?: RequestInit): Promise<Response> =>
-        this.#room(id.name).room.fetch(new Request(input, init)),
-    })
-    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+    return fakeNamespace(id => ({
+      fetch: (input, init) => this.#room(id.name).room.fetch(new Request(input, init)),
+    }))
   }
 
   /** The sockets open in a room, by member. */
@@ -673,27 +694,11 @@ export class FakeRooms {
   #room(name: string) {
     let held = this.rooms.get(name)
     if (!held) {
-      const values = new Map<string, unknown>()
       const sockets: FakeSocket[] = []
-      const entry = { values, sockets, alarm: null as number | null, room: null as unknown as Room }
+      const kept: Kept = { values: new Map(), alarm: null }
+      const entry = Object.assign(kept, { sockets, room: null as unknown as Room })
       entry.room = new Room({
-        storage: {
-          get: <T>(key: string) =>
-            Promise.resolve(structuredClone(values.get(key)) as T | undefined),
-          put: <T>(key: string, value: T) => {
-            values.set(key, structuredClone(value))
-            return Promise.resolve()
-          },
-          deleteAll: () => {
-            values.clear()
-            entry.alarm = null
-            return Promise.resolve()
-          },
-          setAlarm: when => {
-            entry.alarm = when
-            return Promise.resolve()
-          },
-        },
+        storage: mapStorage(kept),
         accept: (_request, member) => {
           sockets.push(new FakeSocket(member))
           return Response.json({ socket: member })
@@ -715,11 +720,9 @@ export class FakeShared {
   constructor(readonly clock: Clock) {}
 
   namespace(): DurableObjectNamespace {
-    const get = (id: { name: string }) => ({
-      fetch: (input: string | Request, init?: RequestInit): Promise<Response> =>
-        this.#playlist(id.name).shared.fetch(new Request(input, init)),
-    })
-    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+    return fakeNamespace(id => ({
+      fetch: (input, init) => this.#playlist(id.name).shared.fetch(new Request(input, init)),
+    }))
   }
 
   stored(id: string): Map<string, unknown> {
@@ -729,24 +732,10 @@ export class FakeShared {
   #playlist(name: string) {
     let held = this.playlists.get(name)
     if (!held) {
-      const values = new Map<string, unknown>()
+      const kept: Kept = { values: new Map(), alarm: null }
       held = {
-        values,
-        shared: new Shared({
-          storage: {
-            get: <T>(key: string) =>
-              Promise.resolve(structuredClone(values.get(key)) as T | undefined),
-            put: <T>(key: string, value: T) => {
-              values.set(key, structuredClone(value))
-              return Promise.resolve()
-            },
-            deleteAll: () => {
-              values.clear()
-              return Promise.resolve()
-            },
-          },
-          now: () => this.clock.now,
-        }),
+        values: kept.values,
+        shared: new Shared({ storage: mapStorage(kept), now: () => this.clock.now }),
       }
       this.playlists.set(name, held)
     }
@@ -759,19 +748,14 @@ export class FakeShared {
  * and an alarm a test runs when it likes (`runAlarms`).
  */
 export class FakeShares {
-  readonly links = new Map<
-    string,
-    { share: Share; values: Map<string, unknown>; alarm: number | null }
-  >()
+  readonly links = new Map<string, Kept & { share: Share }>()
 
   constructor(readonly clock: Clock) {}
 
   namespace(): DurableObjectNamespace {
-    const get = (id: { name: string }) => ({
-      fetch: (input: string | Request, init?: RequestInit): Promise<Response> =>
-        this.#link(id.name).share.fetch(new Request(input, init)),
-    })
-    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+    return fakeNamespace(id => ({
+      fetch: (input, init) => this.#link(id.name).share.fetch(new Request(input, init)),
+    }))
   }
 
   stored(id: string): Map<string, unknown> {
@@ -800,39 +784,16 @@ export class FakeShares {
   #link(name: string) {
     let held = this.links.get(name)
     if (!held) {
-      const entry: { share: Share; values: Map<string, unknown>; alarm: number | null } = {
-        values: new Map<string, unknown>(),
-        alarm: null,
-        share: null as unknown as Share,
-      }
-      entry.share = this.#share(entry)
+      const kept: Kept = { values: new Map(), alarm: null }
+      const entry = Object.assign(kept, { share: this.#share(kept) })
       held = entry
       this.links.set(name, held)
     }
     return held
   }
 
-  #share(entry: { values: Map<string, unknown>; alarm: number | null }): Share {
-    const { values } = entry
-    return new Share({
-      storage: {
-        get: <T>(key: string) => Promise.resolve(structuredClone(values.get(key)) as T | undefined),
-        put: <T>(key: string, value: T) => {
-          values.set(key, structuredClone(value))
-          return Promise.resolve()
-        },
-        deleteAll: () => {
-          values.clear()
-          entry.alarm = null
-          return Promise.resolve()
-        },
-        setAlarm: when => {
-          entry.alarm = when
-          return Promise.resolve()
-        },
-      },
-      now: () => this.clock.now,
-    })
+  #share(kept: Kept): Share {
+    return new Share({ storage: mapStorage(kept), now: () => this.clock.now })
   }
 }
 

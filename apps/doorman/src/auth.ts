@@ -19,9 +19,17 @@ import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
-import { forgetGrants } from './grants.js'
+import { forgetGrants, unlistGrant } from './grants.js'
 import { page } from './html.js'
-import { forbidden, isLoopbackHost, json, noContent, readJson, unauthorized } from './http.js'
+import {
+  forbidden,
+  isLoopbackHost,
+  json,
+  noContent,
+  readJson,
+  redirect,
+  unauthorized,
+} from './http.js'
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord } from './kv.js'
 import { IdentitySchema, bearerToken, type Identity } from './sessions.js'
@@ -119,23 +127,15 @@ export async function start(ctx: Context): Promise<Response> {
     keys.state,
   )
   const codeChallenge = await pkceChallenge(await pkceVerifier(nonce, keys.pkce))
-
-  // Built by hand rather than with Response.redirect, whose headers cannot be
-  // added to afterwards (CORS adds some to every answer).
-  return new Response(null, {
-    status: 302,
-    headers: {
-      location: authUrl({
-        clientId: google.clientId,
-        redirectUri: redirectUri(ctx),
-        state,
-        nonce,
-        codeChallenge,
-      }),
-      'cache-control': 'no-store',
-      'referrer-policy': 'no-referrer',
-    },
-  })
+  return redirect(
+    authUrl({
+      clientId: google.clientId,
+      redirectUri: redirectUri(ctx),
+      state,
+      nonce,
+      codeChallenge,
+    }),
+  )
 }
 
 /** `GET /v1/auth/callback?code=…&state=…` — Google sends the browser back here. */
@@ -223,14 +223,7 @@ export async function callback(ctx: Context): Promise<Response> {
   if (state.returnTo) {
     // Back to the app, with the code where only that browser can read it:
     // a fragment never leaves the browser, and never names the attempt.
-    return new Response(null, {
-      status: 302,
-      headers: {
-        location: withFragment(state.returnTo, `${SIGN_IN_CODE_FRAGMENT}=${signInCode}`),
-        'cache-control': 'no-store',
-        'referrer-policy': 'no-referrer',
-      },
-    })
+    return redirect(withFragment(state.returnTo, `${SIGN_IN_CODE_FRAGMENT}=${signInCode}`))
   }
   return page({
     status: 200,
@@ -282,12 +275,19 @@ export async function claim(ctx: Context): Promise<Response> {
   return json(result)
 }
 
-/** `POST /v1/auth/signout` — this device's session ends. */
+/**
+ * `POST /v1/auth/signout` — this device's session ends. A server signing out
+ * with its grant is letting the account go, so the grant leaves the account's
+ * list too, as if the server had ended it (grants.ts).
+ */
 export async function signOut(ctx: Context): Promise<Response> {
   const token = bearerToken(ctx.request)
   // Looked up before it is deleted: a delete costs a KV write even when
   // there is nothing to delete, and a made-up token should cost nothing.
-  if (!token || !(await ctx.sessions.end(token))) throw unauthorized()
+  const session = token ? await ctx.sessions.find(token) : null
+  if (!token || !session) throw unauthorized()
+  if (session.grant !== undefined) await unlistGrant(ctx, session.sub, session.grant)
+  await ctx.sessions.end(token)
   return noContent()
 }
 
@@ -421,9 +421,8 @@ function notAllowed(email: string): { status: number; title: string; lines: stri
  * sign in. With somewhere to go back to, the browser goes back there, saying
  * why in the fragment (shared's `signInRefusalFromUrl`): the app says so
  * itself, offers Google again — which asks which account every time — and a
- * device waiting for the sign-in stops waiting. This page, which used to have
- * no way back at all, is for a sign-in with nowhere to return to, and links
- * to the web app. Nothing is written either way: a refusal costs no KV write,
+ * device waiting for the sign-in stops waiting. This page is for a sign-in
+ * with nowhere to return to, and links to the web app. Nothing is written either way: a refusal costs no KV write,
  * however many are sent.
  */
 function refusedPage(
@@ -432,16 +431,7 @@ function refusedPage(
   words: { status: number; title: string; lines: readonly string[] },
 ): Promise<Response> {
   if (returnTo) {
-    return Promise.resolve(
-      new Response(null, {
-        status: 302,
-        headers: {
-          location: withFragment(returnTo, signInRefusalFragment(refusal)),
-          'cache-control': 'no-store',
-          'referrer-policy': 'no-referrer',
-        },
-      }),
-    )
+    return Promise.resolve(redirect(withFragment(returnTo, signInRefusalFragment(refusal))))
   }
   return page({
     ...words,

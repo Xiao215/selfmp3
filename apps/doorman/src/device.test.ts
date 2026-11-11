@@ -157,4 +157,12 @@ describe("a friend's iPhone", () => {
     expect((await h.call('/v1/device/not-an-id')).status).toBe(404)
     expect((await h.call('/v1/device', { method: 'DELETE' })).status).toBe(405)
   })
+
+  it('says an address that does not decode is no iPhone’s, rather than failing', async () => {
+    const h = harness()
+    const { token } = owner(h)
+    expect((await h.call('/v1/device/%E0%A4%A')).status).toBe(404)
+    expect((await h.call('/v1/iphones/%E0%A4%A', { token, method: 'PUT' })).status).toBe(404)
+    expect(h.logs).toEqual([])
+  })
 })

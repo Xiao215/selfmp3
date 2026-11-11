@@ -2,6 +2,7 @@ import {
   DOORMAN_ERROR,
   type DoormanErrorCode,
   MemberPictureSchema,
+  RoomFilePartSchema,
   RoomMemberNameSchema,
   RoomSongSchema,
   SharedActionSchema,
@@ -14,15 +15,15 @@ import {
   isRoomRefusal,
   newSharedDoc,
   sharedSummary,
-  type RoomFilePart,
   type RoomRefusal,
   type SharedDoc,
   type SharedPlaylist,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { answer, refusalAnswer } from './doRelay.js'
-import { secureHex } from './encoding.js'
+import { sameSecret, secureHex } from './encoding.js'
 import { keyOf } from './room.js'
+import { noContent } from './http.js'
 
 /**
  * One shared playlist: a Durable Object per playlist id
@@ -233,7 +234,7 @@ export class Shared {
     const doc = await this.#doc()
     const secrets = await this.#secrets()
     if (!doc || !secrets) return answer(404, DOORMAN_ERROR.sharedMissing, 'no such playlist')
-    if (input.invite !== secrets.invite)
+    if (!(await sameSecret(input.invite, secrets.invite)))
       return answer(403, DOORMAN_ERROR.sharedForbidden, 'that invite is not this playlist’s')
     const already = this.#memberOf(secrets, input.sub)
     if (already) return Response.json(this.#viewOf(doc, secrets, already))
@@ -294,12 +295,12 @@ export class Shared {
     if (input.action.type === 'leave') {
       if (next.members.length === 0) {
         await this.#runtime.storage.deleteAll()
-        return new Response(null, { status: 204 })
+        return noContent()
       }
       const { [found.member]: _sub, ...subs } = found.secrets.subs
       const { [found.member]: _token, ...tokens } = found.secrets.tokens
       await this.#save(next, { ...found.secrets, subs, tokens })
-      return new Response(null, { status: 204 })
+      return noContent()
     }
     await this.#save(next, found.secrets)
     return Response.json(this.#viewOf(next, found.secrets, found.member))
@@ -337,7 +338,7 @@ export class Shared {
     )
     if (!held)
       return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
-    return new Response(null, { status: 204 })
+    return noContent()
   }
 
   /** `GET /file?t=&entry=&part=`: whose bucket, and which key, for one of its people. */
@@ -350,9 +351,9 @@ export class Shared {
     if (!member || !/^[0-9a-f]{32}$/.test(token)) {
       return answer(401, DOORMAN_ERROR.sharedUnauthorized, 'that is not a way into this playlist')
     }
-    const part = url.searchParams.get('part') as RoomFilePart | null
+    const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
     const entry = canReadSharedEntry(doc, member, url.searchParams.get('entry') ?? '')
-    const key = entry && part ? keyOf(entry.song, part) : null
+    const key = entry && part.success ? keyOf(entry.song, part.data) : null
     const sub = entry ? secrets.subs[entry.owner] : undefined
     if (!key || !sub)
       return answer(404, DOORMAN_ERROR.sharedMissing, 'that song is not in the playlist')

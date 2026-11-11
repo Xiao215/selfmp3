@@ -1,21 +1,33 @@
 import {
+  DAY_MS,
   DOORMAN_PATHS,
   IOS_ASSETS,
   IOS_INSTALL_LINK,
   IPHONE_ID,
   IphoneListSchema,
   REPOSITORY,
+  escapeHtml,
   iosAssetUrl,
   iosLatestSchema,
   iphoneKey,
+  messageOf,
   type IphoneAdded,
   type IphoneList,
   type IphoneRequest,
 } from '@selfmp3/shared'
 import { requireOwner } from './access.js'
 import type { Context } from './context.js'
+import { fromUtf8 } from './encoding.js'
 import { page } from './html.js'
-import { badRequest, json, methodNotAllowed, noContent, notFound, readBytes } from './http.js'
+import {
+  badRequest,
+  json,
+  methodNotAllowed,
+  noContent,
+  notFound,
+  readBytes,
+  redact,
+} from './http.js'
 import { getRecord, putRecord } from './kv.js'
 
 /**
@@ -46,15 +58,13 @@ const IPHONES = DOORMAN_PATHS.iphones
 const LIST_KEY = 'iphones'
 
 /** A request nobody added is forgotten after a month. */
-const WAITING_MS = 30 * 24 * 60 * 60 * 1000
+const WAITING_MS = 30 * DAY_MS
 
 /** The longest body worth reading: the signed answer is a few kilobytes. */
 const MAX_ANSWER = 64 * 1024
 
 /** The longest name kept, as typed on the install page. */
 const NAME_MAX = 40
-
-const xml = (text: string) => text.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
 
 /** What a friend typed on the install page, cut to something a list can show. */
 function nameFrom(url: URL): string {
@@ -76,18 +86,28 @@ const same = (a: string, b: string) => a.toUpperCase() === b.toUpperCase()
 
 // ---------------------------------------------------------------- the friend
 
-export function device(ctx: Context): Promise<Response> {
+export async function device(ctx: Context): Promise<Response> {
   const { method } = ctx.request
   const rest = ctx.url.pathname.slice(DEVICE.length)
   if (rest === '') {
-    if (method === 'GET') return Promise.resolve(profile(ctx))
+    if (method === 'GET') return profile(ctx)
     if (method === 'POST') return received(ctx)
-    return Promise.resolve(methodNotAllowed(['GET', 'POST']))
+    return methodNotAllowed(['GET', 'POST'])
   }
-  if (method !== 'GET') return Promise.resolve(methodNotAllowed(['GET']))
-  const id = decodeURIComponent(rest.slice(1))
+  if (method !== 'GET') return methodNotAllowed(['GET'])
+  return shown(ctx, idFrom(rest))
+}
+
+/** The iPhone ID in what follows a route's path (`/<id>`); anything else is not found. */
+function idFrom(rest: string): string {
+  let id: string
+  try {
+    id = decodeURIComponent(rest.slice(1))
+  } catch {
+    throw notFound()
+  }
   if (!rest.startsWith('/') || !IPHONE_ID.test(id)) throw notFound()
-  return shown(ctx, id)
+  return id
 }
 
 function profile(ctx: Context): Response {
@@ -100,7 +120,7 @@ function profile(ctx: Context): Response {
   <key>PayloadContent</key>
   <dict>
     <key>URL</key>
-    <string>${xml(back)}</string>
+    <string>${escapeHtml(back)}</string>
     <key>DeviceAttributes</key>
     <array>
       <string>UDID</string>
@@ -142,7 +162,7 @@ function profile(ctx: Context): Response {
 async function received(ctx: Context): Promise<Response> {
   const bytes = await readBytes(ctx.request.body, MAX_ANSWER)
   // The signature's bytes decode as noise around it; the plist is plain ASCII.
-  const text = new TextDecoder().decode(bytes)
+  const text = fromUtf8(bytes)
   const id = /<key>UDID<\/key>\s*<string>([^<]+)<\/string>/.exec(text)?.[1]?.trim()
   if (!id || !IPHONE_ID.test(id)) throw badRequest('no iPhone ID in that answer')
 
@@ -233,8 +253,7 @@ export async function iphones(ctx: Context): Promise<Response> {
     const list: IphoneList = { iphones: await readList(ctx) }
     return json(list)
   }
-  const id = decodeURIComponent(rest.slice(1))
-  if (!rest.startsWith('/') || !IPHONE_ID.test(id)) throw notFound()
+  const id = idFrom(rest)
   if (method === 'PUT') return added(ctx, id)
   if (method === 'DELETE') {
     const list = await readList(ctx)
@@ -285,7 +304,7 @@ async function startBuild(ctx: Context): Promise<IphoneAdded['build']> {
     return 'failed'
   } catch (error) {
     ctx.log.warn('GitHub could not be reached to start the iPhone build', {
-      message: error instanceof Error ? error.message : String(error),
+      message: redact(messageOf(error)),
     })
     return 'failed'
   }

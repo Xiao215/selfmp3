@@ -153,7 +153,7 @@ in KV). The doorman lists an account's grants (`GET /v1/grants`) and ends one
 (`DELETE /v1/grants/<id>`). Settings › Account lists them under **Computers**, with
 **Remove** on each.
 
-Three rules keep grants safe:
+Four rules keep grants safe:
 
 - **A removed grant is noticed at once.** **Remove** asks the doorman alone, so it works
   while the server is off. Once the grant is ended, the doorman tells the server, after it
@@ -169,10 +169,12 @@ Three rules keep grants safe:
 - **Signing out everywhere ends grants too.**
 - **A grant cannot make grants.** Otherwise a server could hand the account on to another
   without anyone being asked.
+- **A grant ends only itself.** A server lets an account go with its own grant; which other
+  servers are let in is the account's to say, from a device.
 
 ### Telling the server
 
-A grant has always kept the address the server gave when it asked for it (`server`: its
+A grant keeps the address the server gave when it asked for it (`server`: its
 public address, `SELFMP3_PUBLIC_URL`, else the first it listens on). When a grant is ended
 from a device, or when the account signs out everywhere, the doorman sends
 `POST <server>/api/hub/check` with `{ "grant": "<id>" }` (`tellServer` in
@@ -180,9 +182,9 @@ from a device, or when the account signs out everywhere, the doorman sends
 a five-second limit and no redirects followed. A failure is a line in the doorman's log and
 nothing more. A server letting the account go with its own grant is not told. Nor is one whose
 address is off the public internet (this computer, a home network, a tailnet's 100.64/10, a
-link-local or metadata address, a `.local` name: `isPrivateHost` in `apps/doorman/src/http.ts`):
-any signed-in account can give any address, and the doorman must not knock on such a host for
-it. Under `wrangler dev --env dev` (`DEV`) a server on this computer is still told.
+link-local or metadata address, a `.local` name: `mayReach` in `apps/doorman/src/http.ts`, the
+check every address someone else chose goes through): any signed-in account can give any
+address, and the doorman must not knock on such a host for it. Under `wrangler dev --env dev` (`DEV`) a server on this computer is still told.
 
 The notice proves nothing and the server does not take its word (`Hub.check` in
 `apps/server/src/hub/hub.ts`). It carries no token, and the route needs none. All it does is

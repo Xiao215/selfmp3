@@ -126,39 +126,52 @@ interface PageOptions {
   readonly link?: { readonly href: string; readonly label: string }
 }
 
-export async function page(options: PageOptions): Promise<Response> {
-  const paragraphs = (lines: readonly string[] = []) =>
-    lines.map(line => `<p>${escapeHtml(line)}</p>`)
-
-  const html = [
+/**
+ * One page: the head every page has with `head` in it, and the card with the
+ * wordmark, the title and `body`, already escaped, in it.
+ */
+function document(title: string, head: readonly string[], body: readonly string[]): string {
+  return [
     '<!doctype html>',
     '<html lang="en">',
     '<head>',
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     '<meta name="referrer" content="no-referrer">',
-    `<title>${escapeHtml(options.title)} · self.mp3</title>`,
+    ...head,
     `<style>${STYLE}</style>`,
     '</head>',
     '<body>',
     '<main>',
     '<p class="brand">self.mp3</p>',
-    `<h1>${escapeHtml(options.title)}</h1>`,
-    ...paragraphs(options.lines),
-    options.code
-      ? `<p class="code${options.code.length > 12 ? ' long' : ''}">${escapeHtml(options.code)}</p>`
-      : '',
-    ...paragraphs(options.notes),
-    options.link
-      ? `<p><a href="${escapeHtml(options.link.href)}">${escapeHtml(options.link.label)}</a></p>`
-      : '',
+    `<h1>${escapeHtml(title)}</h1>`,
+    ...body,
     '</main>',
     '</body>',
     '</html>',
   ]
     .filter(Boolean)
     .join('\n')
+}
 
+export async function page(options: PageOptions): Promise<Response> {
+  const paragraphs = (lines: readonly string[] = []) =>
+    lines.map(line => `<p>${escapeHtml(line)}</p>`)
+
+  const html = document(
+    options.title,
+    [`<title>${escapeHtml(options.title)} · self.mp3</title>`],
+    [
+      ...paragraphs(options.lines),
+      options.code
+        ? `<p class="code${options.code.length > 12 ? ' long' : ''}">${escapeHtml(options.code)}</p>`
+        : '',
+      ...paragraphs(options.notes),
+      options.link
+        ? `<p><a href="${escapeHtml(options.link.href)}">${escapeHtml(options.link.label)}</a></p>`
+        : '',
+    ],
+  )
   return new Response(html, { status: options.status, headers: await pageHeaders() })
 }
 
@@ -191,41 +204,29 @@ export async function previewPage(options: PreviewOptions): Promise<Response> {
   const meta = (attribute: 'property' | 'name', name: string, content: string) =>
     `<meta ${attribute}="${name}" content="${escapeHtml(content)}">`
 
-  const html = [
-    '<!doctype html>',
-    '<html lang="en">',
-    '<head>',
-    '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<meta name="referrer" content="no-referrer">',
-    '<meta name="robots" content="noindex">',
-    `<title>${escapeHtml(options.title)}</title>`,
-    meta('name', 'description', options.description),
-    meta('name', 'theme-color', options.color),
-    meta('property', 'og:site_name', 'self.mp3'),
-    meta('property', 'og:type', options.kind),
-    meta('property', 'og:title', options.title),
-    meta('property', 'og:description', options.description),
-    meta('property', 'og:url', options.url),
-    meta('property', 'og:image', options.image.url),
-    meta('property', 'og:image:alt', options.image.alt),
-    options.duration ? meta('property', 'music:duration', String(options.duration)) : '',
-    // A square cover reads best as Discord's small picture beside the words.
-    meta('name', 'twitter:card', 'summary'),
-    `<style>${STYLE}</style>`,
-    '</head>',
-    '<body>',
-    '<main>',
-    '<p class="brand">self.mp3</p>',
-    `<h1>${escapeHtml(options.title)}</h1>`,
-    `<p>${escapeHtml(options.description)}</p>`,
-    `<p><a href="${escapeHtml(options.open)}">Open it</a></p>`,
-    '</main>',
-    '</body>',
-    '</html>',
-  ]
-    .filter(Boolean)
-    .join('\n')
+  const html = document(
+    options.title,
+    [
+      '<meta name="robots" content="noindex">',
+      `<title>${escapeHtml(options.title)}</title>`,
+      meta('name', 'description', options.description),
+      meta('name', 'theme-color', options.color),
+      meta('property', 'og:site_name', 'self.mp3'),
+      meta('property', 'og:type', options.kind),
+      meta('property', 'og:title', options.title),
+      meta('property', 'og:description', options.description),
+      meta('property', 'og:url', options.url),
+      meta('property', 'og:image', options.image.url),
+      meta('property', 'og:image:alt', options.image.alt),
+      options.duration ? meta('property', 'music:duration', String(options.duration)) : '',
+      // A square cover reads best as Discord's small picture beside the words.
+      meta('name', 'twitter:card', 'summary'),
+    ],
+    [
+      `<p>${escapeHtml(options.description)}</p>`,
+      `<p><a href="${escapeHtml(options.open)}">Open it</a></p>`,
+    ],
+  )
 
   return new Response(html, {
     status: 200,

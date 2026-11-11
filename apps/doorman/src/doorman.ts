@@ -2,14 +2,15 @@ import {
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanError,
+  type BucketRefusalKind,
   type DoormanErrorCode,
   type DoormanHealth,
 } from '@selfmp3/shared'
 import { version as DOORMAN_VERSION } from '../package.json'
-import { Access, access, stats, type AccessCache } from './access.js'
+import { Access, readAccess, stats, writeAccess, type AccessCache } from './access.js'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
-import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
+import { BucketError, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
@@ -80,7 +81,7 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.signOut]: { POST: auth.signOut },
   [DOORMAN_PATHS.signOutEverywhere]: { POST: auth.signOutEverywhere },
   [DOORMAN_PATHS.me]: { GET: storage.me },
-  [DOORMAN_PATHS.access]: { GET: access, PUT: access },
+  [DOORMAN_PATHS.access]: { GET: readAccess, PUT: writeAccess },
   [DOORMAN_PATHS.stats]: { GET: stats },
   [DOORMAN_PATHS.storage]: { PUT: storage.connect, DELETE: storage.disconnect },
   [DOORMAN_PATHS.backblaze]: { POST: storage.connectBackblaze },
@@ -99,7 +100,7 @@ const {
 } = DOORMAN_PATHS
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
-const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
+const BUCKET_CODES: Readonly<Record<BucketRefusalKind, DoormanErrorCode>> = {
   auth: DOORMAN_ERROR.bucketRefusedKey,
   missing: DOORMAN_ERROR.noSuchBucket,
   network: DOORMAN_ERROR.bucketUnreachable,

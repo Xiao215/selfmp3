@@ -19,7 +19,7 @@ import {
 } from '@selfmp3/shared'
 import { requireSession, type Context } from './context.js'
 import { lentAnswer, optionalSession, post, readLent, relayed } from './doRelay.js'
-import { methodNotAllowed, notFound, readJson } from './http.js'
+import { mayReach, methodNotAllowed, notFound, readJson } from './http.js'
 import {
   KeepableSchema,
   LentFileSchema,
@@ -87,7 +87,7 @@ export async function rooms(ctx: Context): Promise<Response> {
   }
   if (action === 'act' && entry === undefined) {
     if (method !== 'POST') return methodNotAllowed(['POST'])
-    const body = await readJson(ctx.request, ActBodySchema)
+    const body = await readJson(ctx.request, RoomActionSchema)
     // Bringing a song from a library needs whoever brings it signed in: it
     // will be lent from their bucket. Nothing else does.
     const session = body.type === 'add' ? await requireSession(ctx) : null
@@ -193,24 +193,32 @@ const VECTORS_MAX_BYTES = 400 * 1024
  * (apps/server's `/api/import/listen`): ranges passed on, and the answer
  * handed back as it comes. The address carries the server's token, so it is
  * the room's to make and only ever fetched here.
+ *
+ * The host chose the server, so it is held to what any address someone else
+ * chose is (`mayReach`), and a redirect is not followed: the server streams
+ * the song itself, and a redirect could only lead somewhere the check never saw.
  */
 async function listenThrough(
   ctx: Context,
   address: string,
   method: 'GET' | 'HEAD',
 ): Promise<Response> {
+  const unreachable = (): DoormanError =>
+    new DoormanError(502, DOORMAN_ERROR.linkUnreachable, 'the host’s server cannot be reached')
+  if (!mayReach(new URL(address).hostname, ctx.env.DEV === 'true')) throw unreachable()
   const headers = new Headers()
   const range = relayedRange(ctx.request.headers.get('range'))
   if (range !== null) headers.set('range', range)
   let upstream: Response
   try {
-    upstream = await ctx.fetch(address, { method: 'GET', headers, cache: 'no-store' })
+    upstream = await ctx.fetch(address, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+      redirect: 'manual',
+    })
   } catch {
-    throw new DoormanError(
-      502,
-      DOORMAN_ERROR.linkUnreachable,
-      'the host’s server cannot be reached',
-    )
+    throw unreachable()
   }
   if (!upstream.ok) {
     await upstream.body?.cancel()
@@ -220,7 +228,12 @@ async function listenThrough(
       'the host’s server could not play that link',
     )
   }
-  const out = new Headers({ 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
+  // Never a page on the doorman's address, whatever the server says it sent (as files.ts).
+  const out = new Headers({
+    'cache-control': 'no-store',
+    'content-security-policy': 'sandbox',
+    'x-content-type-options': 'nosniff',
+  })
   for (const name of STREAM_RELAYED_HEADERS) {
     const value = upstream.headers.get(name)
     if (value !== null) out.set(name, value)
@@ -231,9 +244,6 @@ async function listenThrough(
   }
   return new Response(upstream.body, { status: upstream.status, headers: out })
 }
-
-/** Room actions arrive as the action itself; the session that brings a song comes from its header. */
-const ActBodySchema = RoomActionSchema
 
 /**
  * Why a shared playlist's song is not lent any more, or null when it still

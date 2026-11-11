@@ -31,8 +31,9 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { answer, refusalAnswer } from './doRelay.js'
-import { secureHex } from './encoding.js'
+import { sameSecret, secureHex } from './encoding.js'
 import { keyOf } from './room.js'
+import { noContent } from './http.js'
 
 /**
  * One share link: a Durable Object per link id
@@ -298,7 +299,7 @@ export class Share {
     const found = await this.#found()
     if (!found) return MISSING()
     const { doc, secrets } = found
-    if (input.key !== secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(input.key, secrets.key))) return WRONG_KEY()
     const sub = input.sub || null
     if (sub === secrets.owner) return opened(this.#viewOf(doc, secrets, sub))
     const { visitors } = secrets
@@ -327,7 +328,7 @@ export class Share {
   async #peek(key: string): Promise<Response> {
     const found = await this.#found()
     if (!found) return MISSING()
-    if (key !== found.secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(key, found.secrets.key))) return WRONG_KEY()
     return Response.json(this.#viewOf(found.doc, found.secrets, null))
   }
 
@@ -354,7 +355,7 @@ export class Share {
     const found = await this.#found()
     if (!found) return MISSING()
     const { doc, secrets } = found
-    if ((url.searchParams.get('k') ?? '') !== secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(url.searchParams.get('k') ?? '', secrets.key))) return WRONG_KEY()
     const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
     const entryId = url.searchParams.get('entry') ?? ''
     const entry = doc.entries.find(candidate => candidate.id === entryId)
@@ -377,11 +378,11 @@ export class Share {
     // A song is fetched in pieces: only a fresh play, or the first piece in a
     // while, is worth writing down.
     if (!input.fromStart && doc.playedAt !== null && now - doc.playedAt < PLAYED_EVERY_MS) {
-      return new Response(null, { status: 204 })
+      return noContent()
     }
     const next = sharePlayed(doc, now, input.fromStart)
     if (next !== doc) await this.#save(next, secrets)
-    return new Response(null, { status: 204 })
+    return noContent()
   }
 
   /** A song's file is not in its sender's bucket any more. */
@@ -390,7 +391,7 @@ export class Share {
     if (!found) return MISSING()
     const next = shareGone(found.doc, input.entry, this.#runtime.now())
     if (next !== found.doc) await this.#save(next, found.secrets)
-    return new Response(null, { status: 204 })
+    return noContent()
   }
 
   /**
@@ -412,14 +413,14 @@ export class Share {
       if (audio !== null && deleted.has(audio)) next = shareGone(next, entry.id, now)
     }
     if (next !== found.doc) await this.#save(next, found.secrets)
-    return new Response(null, { status: 204 })
+    return noContent()
   }
 
   async #ask(input: z.infer<typeof AskSchema>): Promise<Response> {
     const found = await this.#found()
     if (!found) return MISSING()
     const { doc, secrets } = found
-    if (input.key !== secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(input.key, secrets.key))) return WRONG_KEY()
     const sub = input.sub || null
     if (sub === secrets.owner) {
       return answer(400, DOORMAN_ERROR.shareInvalid, 'it is your own link; share it again instead')
@@ -451,14 +452,14 @@ export class Share {
     if (input.action.type === 'forget') {
       if (owner) {
         await this.#forget()
-        return new Response(null, { status: 204 })
+        return noContent()
       }
-      if (!secrets.openers.includes(input.sub)) return new Response(null, { status: 204 })
+      if (!secrets.openers.includes(input.sub)) return noContent()
       await this.#save(doc, {
         ...secrets,
         openers: secrets.openers.filter(other => other !== input.sub),
       })
-      return new Response(null, { status: 204 })
+      return noContent()
     }
     if (!owner) return answer(403, DOORMAN_ERROR.shareForbidden, 'only its sender can do that')
     const next = applyShareAction(doc, input.action, this.#runtime.now())
@@ -492,7 +493,7 @@ export class Share {
       return answer(403, DOORMAN_ERROR.shareForbidden, 'only its sender can do that')
     }
     await this.#save(shareLineAdded(shareSongsAgain(doc, input.songs), input.line), secrets)
-    return new Response(null, { status: 204 })
+    return noContent()
   }
 
   #asked(secrets: Secrets, sub: string | null): boolean {

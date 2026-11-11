@@ -191,7 +191,11 @@ Escape drops it. Escape lets go of the song, and then the arrows move the map ag
 anew; + and − zoom about the song. A click leaves focus on the field without choosing, so
 a pointer's arrows still move the map. The pointer over a star names that one, the keys'
 ring staying where it is, and a song lit from the tray (shown, or under the pointer in its
-list) lets go of the keys' one: the newer of the two is lit. The gesture handler takes Enter and Space on a
+list) lets go of the keys' one: the newer of the two is lit. Every Show and every Find the
+song playing lets go of the keys' song, even one the tray already lit, unless the keys are
+drawing a line (`FieldControl`'s `toSong`). A pointer left resting on the field, which the
+map slides under, is set aside when the keys choose a new song or the page flies to one, and
+names a star again once it moves (`hoverAfter`, `sky.model.ts`). The gesture handler takes Enter and Space on a
 focused view for a tap at its middle; the field's own listener answers them first and keeps
 them from it. On a phone, VoiceOver and TalkBack have the field as one adjustable element:
 a swipe up or down steps through the songs in bands, each near the one before
@@ -359,7 +363,10 @@ any song heard, from each bucket pass, and from a device asking for the map.
 `lyrics/<sha256>.map`, JSON: `{"places": [["audio/<sha256>.m4a", x, y], …]}`, songs named by
 their audio's key as the vectors are, x and y whole numbers 0–10 000, keys sorted so the same
 map is the same file (`encodeSoundMap`, packages/shared `soundMap.ts`). About 120 KB for
-1,500 songs. The snapshot's `soundMap` names it; the one it replaces goes in the trash. A
+1,500 songs. The snapshot's `soundMap` names it; the one it replaces goes in the trash and is
+deleted once no snapshot in the bucket names it, since a phone answers from the snapshot it
+kept at its last look. A device that still finds its map gone reads the bucket's newer one,
+and every look that finds something asks for the map again. A
 changed map is enrichment, held with the motion curves and cover colours rather than
 published at once. In the doorman's `lyrics/` folder, so no doorman needed redeploying. A
 server starting again from the bucket with no map of its own reads the bucket's back once
@@ -385,6 +392,7 @@ changes, never one a visit.
 - `packages/client/src/soundMap/soundMap.ts` — nearest songs, songs along a line and inside a
   loop, tag regions, names (tested)
 - `apps/app/src/features/soundMap/` — the page (`SoundMapScreen`), the field and its gestures
-  (`SoundField`, `fieldControl`, `fieldInput`), the sky (`sky.model`, `SkyLayer` with Skia
-  and `SkyLayer.web` with a canvas), the tray, the hint, Home's card, the view's arithmetic
-  (`soundMapView.model`); the pure parts tested
+  (`SoundField`, `fieldControl`, `fieldInput`), the keys (`fieldKeys.model`), the wheel
+  (`wheel.model`), the sky (`sky.model`, `SkyLayer` with Skia and `SkyLayer.web` with a
+  canvas), the tray (`MapTray`, `tray.model`), the hint (`MapHint`), Home's card (`MapCard`),
+  the view's arithmetic (`soundMapView.model`); the pure parts tested

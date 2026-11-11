@@ -30,7 +30,7 @@ import {
 } from './fieldKeys.model'
 import { SkyLayer } from './SkyLayer'
 import type { TagRegion } from '@selfmp3/client'
-import type { MapTake, SkyPoint } from './sky.model'
+import { SKY_EDGE, type MapTake, type SkyPoint } from './sky.model'
 import { baseOf, liveView, type FieldSize, type MapView } from './soundMapView.model'
 
 /** How long a finger holds still before a drag draws rather than moves the map. */
@@ -411,7 +411,7 @@ function HoldRing({ at }: { at: { x: number; y: number } }): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  field: { flex: 1, overflow: 'hidden', backgroundColor: '#04050b' },
+  field: { flex: 1, overflow: 'hidden', backgroundColor: SKY_EDGE },
   // Read out, never seen: what the keys chose.
   unseen: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
   ring: {

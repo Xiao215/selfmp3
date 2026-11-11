@@ -7,7 +7,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius, space, useLibrary, useSoundMap } from '@selfmp3/client'
 import { Press } from '../../ui/components/Press'
 import { SectionHead } from '../../ui/components/SectionHead'
-import { skyPoints } from './sky.model'
+import { SKY_EDGE, skyPoints } from './sky.model'
 import { SkyLayer } from './SkyLayer'
 import { baseOf, boundsOf, fitView, stillView, type FieldSize } from './soundMapView.model'
 
@@ -110,6 +110,6 @@ const styles = StyleSheet.create(() => ({
     height: CARD_HEIGHT,
     borderRadius: radius.card,
     overflow: 'hidden',
-    backgroundColor: '#04050b',
+    backgroundColor: SKY_EDGE,
   },
 }))

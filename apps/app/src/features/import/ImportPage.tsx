@@ -3,7 +3,8 @@ import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { ApiError, TIMED_OUT, space, type ServerConnection } from '@selfmp3/client'
+import { useMutation, type UseMutationResult } from '@tanstack/react-query'
+import { ApiError, TIMED_OUT, space, type Review, type ServerConnection } from '@selfmp3/client'
 import { useFloatingChrome, useFootInset } from '../../shell/bottomInset'
 import { setPageFoot } from '../../shell/pageFoot'
 import { useLayoutFlags } from '../../shell/useLayout'
@@ -15,7 +16,8 @@ import { TagThem } from './ImportTags'
 import { useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
-import { importErrorText, importLabel } from './review.model'
+import { importErrorText, importLabel, importRequest } from './review.model'
+import { countUse } from '../usage/usage'
 import { TapAway } from '../../ui/components/TapAway'
 
 /** What Import's pages say when the server they were pointed at stops answering. */
@@ -80,6 +82,27 @@ export function useImportPage(
     backTo,
     ...useImportFailure(via, onUnreachable),
   }
+}
+
+/**
+ * Import: the page's ticked songs go into the queue with the draft's tags, the
+ * import is counted, and the queue is read again — Import shows it under
+ * Currently importing — before the page does what it does next (`onQueued`).
+ */
+export function useImportEnqueue(
+  page: ReturnType<typeof useImportPage>,
+  onQueued: () => void,
+): UseMutationResult<unknown, Error, Review> {
+  const { source, draft, failed } = page
+  return useMutation({
+    mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, draft.tagIds)),
+    onSuccess: () => {
+      countUse('import')
+      void source.invalidateQueue()
+      onQueued()
+    },
+    onError: failed,
+  })
 }
 
 /**

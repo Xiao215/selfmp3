@@ -157,8 +157,7 @@ function databaseTrouble(error: unknown): 'full' | 'busy' | null {
 /** The status an error carries, for the middleware that sets one (body-parser does). */
 function statusOf(error: unknown): number | null {
   if (typeof error !== 'object' || error === null) return null
-  const status = (error as { status?: unknown; statusCode?: unknown }).status
-  if (typeof status === 'number') return status
-  const statusCode = (error as { statusCode?: unknown }).statusCode
-  return typeof statusCode === 'number' ? statusCode : null
+  if ('status' in error && typeof error.status === 'number') return error.status
+  if ('statusCode' in error && typeof error.statusCode === 'number') return error.statusCode
+  return null
 }

@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { naturalOrder, plural, type Song } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, useSimilar, withAlpha, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayingSongId } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useLayoutFlags } from '../../shell/useLayout'
@@ -80,7 +80,8 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const { wide } = useLayoutFlags()
   const bottom = useBottomInset()
   const { top } = useSafeAreaInsets()
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const isCurrent = usePlayingSongId() === song.id
   const artFor = useArt()
   const { data: library } = useLibrary()
   const art = artFor(song)
@@ -99,7 +100,6 @@ function SongPage({ song }: { song: Song }): ReactNode {
         .sort((a, b) => naturalOrder(a.name, b.name)),
     [library?.tags, song.tagIds],
   )
-  const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
   const unplayed = useMemo(() => unplayedLine(song, new Date()), [song])
   // The cover goes above a title that would take more than two lines beside it (AM1).

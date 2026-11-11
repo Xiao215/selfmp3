@@ -44,6 +44,7 @@ import {
   roomLine,
   roomTitle,
   upcomingRows,
+  mayBring,
   youMay,
   hostAway,
   type RoomRow,
@@ -235,7 +236,7 @@ function RoomEmpty({ state }: { state: RoomState }): ReactNode {
   const addSongs = useAddSongs()
   const { lead } = useRoom()
   const waiting = state.order.length
-  const mayAdd = youMay(state, 'add') || youMay(state, 'again') || youMay(state, 'addLink')
+  const mayAdd = mayBring(state)
   // Songs waiting and nothing playing: the host's player has not started on
   // them (it was busy, or a song would not play). The host starts it here,
   // in the tab that plays the room.
@@ -298,7 +299,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
   const next = upcomingRows(state)
   const played = playedRows(state).slice(0, SHOWN_PLAYED)
   const host = isHost(state)
-  const mayAdd = youMay(state, 'again') || youMay(state, 'add') || youMay(state, 'addLink')
+  const mayAdd = mayBring(state)
   const addSongs = useAddSongs()
   return (
     <View style={styles.list}>

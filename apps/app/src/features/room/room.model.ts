@@ -56,6 +56,11 @@ export function youMay(state: RoomState, type: RoomAction['type']): boolean {
   return you !== undefined && canAct(state, you, type)
 }
 
+/** May you bring a song at all: one of yours, one played again, or a link. */
+export function mayBring(state: RoomState): boolean {
+  return youMay(state, 'add') || youMay(state, 'again') || youMay(state, 'addLink')
+}
+
 /**
  * What a press of Previous, play/pause or Next on a player that follows the
  * room does (player/roomTransport.ts): the room action it asks for, or what

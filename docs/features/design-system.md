@@ -135,7 +135,7 @@ grey: that read as hovered.
 
 Not on these yet, on purpose: Stats' ranked lines (a rank, a picture of three kinds and a share
 bar, not a song line), the import rows waiting above Library (they stand in for `SongRow`s in
-the list below them), Forgotten gems' cards (a shelf of posters), and the sidebar's search
+the list below them), and the sidebar's search
 row (a row of the rail, which opens the palette). Up next on a phone keeps its own panel
 rather than `Sheet` (`features/queue/QueueSheet.tsx`): it is drawn by the shell under the
 overlay host so a song's menu and the Undo toast for a swiped-away row land above it, and it

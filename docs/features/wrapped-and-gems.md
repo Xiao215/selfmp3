@@ -190,15 +190,10 @@ as Stats does; its own copy of the library answers no such question (`SERVER_ONL
 Songs you clearly liked — **loved, or played five or more times** — that have not come up
 in a long while.
 
-Where you'll see it:
-
-- a **Forgotten gems** row at the top of the Library, with *Play all* and *Add to Up next*.
-  It collapses, and it is left out while the library is narrowed to tags: there it would be
-  about the tags, not about what you have forgotten;
-- a built-in tile among your **Playlists**. It is not a playlist in the library, so there is
-  nothing to delete or rename. Pressing it starts the list — there is no detail page,
-  because the list is different every time it is asked for and a page claiming to show
-  *the* forgotten gems would be lying about being stable.
+Where you'll see it: a built-in tile among your **Playlists**. It is not a playlist in the
+library, so there is nothing to delete or rename. Pressing it starts the list — there is no
+detail page, because the list is different every time it is asked for and a page claiming to
+show *the* forgotten gems would be lying about being stable.
 
 ### What qualifies
 

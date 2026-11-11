@@ -89,7 +89,7 @@ export type ListSource =
       readonly name: string
     }
 
-/** What Up next is called while Forgotten gems play, from Library's row or the playlists grid. */
+/** What Up next is called while Forgotten gems play, from the playlists grid. */
 export const GEMS_SOURCE: ListSource = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' }
 
 /** What Up next is called once songs are added to one song or the whole library. */

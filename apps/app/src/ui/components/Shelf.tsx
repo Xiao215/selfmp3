@@ -51,8 +51,8 @@ export function SideScroll({
 }
 
 /**
- * A row of cards that scrolls sideways: Home's recently played, Forgotten
- * gems, a song's "Sounds like". A song card's right-click opens the song's
+ * A row of cards that scrolls sideways: Home's recently played, a song's
+ * "Sounds like". A song card's right-click opens the song's
  * menu, one menu for the shelf.
  */
 export function Shelf({

@@ -34,7 +34,6 @@ import { SongList } from '../../ui/components/SongList'
 import { useSongRowHeight } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
 import { CantReach } from './CantReach'
-import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ListenTags } from '../../ui/components/ListenTags'
@@ -627,9 +626,6 @@ export function LibraryScreen(): ReactNode {
           summary={model.tagFiltered ? model.subtitle : undefined}
         />
       </View>
-
-      {/* Not over a library that never came: songs to play above "can't reach" read as a library that half works. */}
-      {listed || model.emptyReason === 'unreachable' ? null : <GemsRow />}
 
       <SyncStatus />
 

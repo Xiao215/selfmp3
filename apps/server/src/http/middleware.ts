@@ -27,8 +27,11 @@ export function requestLogger(
     const startedAt = process.hrtime.bigint()
     res.on('finish', () => {
       const ms = Number(process.hrtime.bigint() - startedAt) / 1e6
-      // Range requests on a single track are noisy and uninteresting.
-      const noisy = req.path.startsWith('/api/stream/') || req.path.startsWith('/api/art/')
+      // Range requests on a single track are noisy and uninteresting. The path
+      // is read from `originalUrl`: by the time a response finishes, `req.path`
+      // is what the router under `/api` saw, with the mount taken off.
+      const path = pathOf(req.originalUrl)
+      const noisy = path.startsWith('/api/stream/') || path.startsWith('/api/art/')
       const line = `${req.method} ${loggedUrl(req.originalUrl)} ${res.statusCode}`
       const fields = { ms: ms.toFixed(1) }
       if (res.statusCode >= 500) metrics?.count(METRIC.serverError(routeOf(req, res.statusCode)))
@@ -46,12 +49,16 @@ export function requestLogger(
  * as `:id`, so a hundred songs failing the same way are one line.
  */
 export function routeOf(req: Pick<Request, 'method' | 'originalUrl'>, status: number): string {
-  const bare = req.originalUrl.split('?')[0] ?? ''
-  const path = bare
+  const path = pathOf(req.originalUrl)
     .split('/')
     .map(part => (/^\d+$|^[0-9a-f]{8,}$|^[A-Za-z0-9_-]{20,}$/i.test(part) ? ':id' : part))
     .join('/')
   return `${req.method} ${path} → ${status}`
+}
+
+/** A request's path as it arrived, mount and all, without its query. */
+function pathOf(originalUrl: string): string {
+  return originalUrl.split('?')[0] ?? ''
 }
 
 /** The request's URL with the token, if it carried one, blanked. */

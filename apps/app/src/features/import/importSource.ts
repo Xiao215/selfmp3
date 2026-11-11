@@ -7,6 +7,7 @@ import {
   clientApi,
   queryKeys,
   HISTORY_LIMIT,
+  importQueueInterval,
   useCreateTag,
   useImportHistory,
   useImportQueue,
@@ -22,27 +23,6 @@ import { useSongsLanding } from './useSongsLanding'
 import { useServerLibrary } from './useServerLibrary'
 import { noServer, viaKey } from '../../connection/via'
 
-/**
- * Whom the Import screen talks to: whatever answers this device, or — from a
- * cloud library, with the server within reach — that server directly.
- *
- * The screen's own hooks ask whatever answers this device, which for a cloud
- * library is the bucket, and the bucket cannot read a link. A server reached
- * directly numbers its tags and playlists its own way, so its library is read
- * from it too, rather than from this device's copy, and what is queued names
- * the server's ids.
- *
- * Which is why a tag made while importing is made there too (`createTag`).
- * The picker used to make it on this device whatever the screen was pointed
- * at: the new tag never came back as a chip — the chips are the server's
- * tags, and the server had never heard of it — and the import carried a
- * number that meant another tag there, or nothing (Xiao, 2026-09-22).
- *
- * Either way, a job finishing is the library changing, and the library is
- * asked for again as each one does (`useSongsLanding`): this device's copy,
- * with a look at the bucket in front of the answer where the library is the
- * bucket's, and the server's library too where the screen is pointed at one.
- */
 /**
  * How long a look-up may take: a YouTube mix, several links or a long list
  * keep the server at it for half a minute and more, and a look-up given up
@@ -77,6 +57,27 @@ interface ImportSource {
   readonly invalidateLibrary: () => Promise<void>
 }
 
+/**
+ * Whom the Import screen talks to: whatever answers this device, or — from a
+ * cloud library, with the server within reach — that server directly.
+ *
+ * The screen's own hooks ask whatever answers this device, which for a cloud
+ * library is the bucket, and the bucket cannot read a link. A server reached
+ * directly numbers its tags and playlists its own way, so its library is read
+ * from it too, rather than from this device's copy, and what is queued names
+ * the server's ids.
+ *
+ * Which is why a tag made while importing is made there too (`createTag`).
+ * The picker used to make it on this device whatever the screen was pointed
+ * at: the new tag never came back as a chip — the chips are the server's
+ * tags, and the server had never heard of it — and the import carried a
+ * number that meant another tag there, or nothing (Xiao, 2026-09-22).
+ *
+ * Either way, a job finishing is the library changing, and the library is
+ * asked for again as each one does (`useSongsLanding`): this device's copy,
+ * with a look at the bucket in front of the answer where the library is the
+ * bucket's, and the server's library too where the screen is pointed at one.
+ */
 export function useImportSource(
   via: ServerConnection | undefined,
   { history = false }: { history?: boolean } = {},
@@ -107,12 +108,8 @@ export function useImportSource(
     queryKey: keys.queue,
     queryFn: () => (server ? server.importQueue() : noServer()),
     enabled: server !== null,
-    // The same rhythm as the screen's own queue: every second while busy, then not at all.
-    refetchInterval: query => {
-      const data = query.state.data
-      if (!data) return false
-      return data.active > 0 || data.queued > 0 ? 1_000 : false
-    },
+    // The same rhythm as the screen's own queue.
+    refetchInterval: importQueueInterval,
   })
   const serverHistory = useQuery({
     queryKey: keys.history,
@@ -186,7 +183,7 @@ export function useImportSource(
     queue,
     history: ownHistory.data,
     // The history too: Clear and Remove change it as much as the queue.
-    invalidateQueue: () => queryClient.invalidateQueries({ queryKey: ['import'] as const }),
+    invalidateQueue: () => queryClient.invalidateQueries({ queryKey: queryKeys.importRoot }),
     editQueue,
     invalidateLibrary: () => queryClient.invalidateQueries({ queryKey: queryKeys.library }),
   }

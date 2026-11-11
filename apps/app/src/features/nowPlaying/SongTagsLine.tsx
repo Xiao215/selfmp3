@@ -8,7 +8,7 @@ import type { Song } from '@selfmp3/shared'
 import { hitSlopFor, isRoomTrackId, radius, type, iconSize, space } from '@selfmp3/client'
 import { useSongTagLookup } from '../../ui/songTags'
 import { Chip } from '../../ui/components/Chip'
-import { Plus, TagPlus } from '../../ui/components/Icons'
+import { TagPlus } from '../../ui/components/Icons'
 import { RoomSongLine } from '../room/RoomSongLine'
 import { useOpenTag } from '../tag/useOpenTag'
 import { Press } from '../../ui/components/Press'
@@ -38,7 +38,6 @@ export function SongTagsLine({
   onEdit,
   editing = false,
   editRef,
-  labelled = false,
   style,
 }: {
   song: Song
@@ -50,12 +49,6 @@ export function SongTagsLine({
   editing?: boolean
   /** The add chip, for the tag window to hang from on a computer. */
   editRef?: RefObject<View | null>
-  /**
-   * The add chip says what it does ("Add tag", "Edit tags") beside its mark:
-   * Now Playing on a phone and a computer alike, where a lone + said nothing.
-   * Left out, it is the round dashed +.
-   */
-  labelled?: boolean
   style?: StyleProp<ViewStyle>
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -88,17 +81,12 @@ export function SongTagsLine({
         accessibilityLabel={label}
         accessibilityState={{ expanded: editing }}
         hitSlop={hitSlopFor(ADD)}
-        style={[labelled ? styles.addLabelled : styles.addRound, editing && styles.addOpen]}
+        style={[styles.add, editing && styles.addOpen]}
       >
-        {/* The dashed edge is the mark itself: an add chip (`S2`). */}
-        {labelled ? (
-          <>
-            <TagPlus size={iconSize.field} color={theme.colors.textSecondary} />
-            <Text style={styles.addText}>{label}</Text>
-          </>
-        ) : (
-          <Plus size={iconSize.sub} color={theme.colors.textSecondary} />
-        )}
+        {/* The dashed edge is the mark itself: an add chip (`S2`). It says what it
+            does beside it ("Add tag", "Edit tags"), where a lone + said nothing. */}
+        <TagPlus size={iconSize.field} color={theme.colors.textSecondary} />
+        <Text style={styles.addText}>{label}</Text>
       </Press>
     </View>
   )
@@ -127,22 +115,12 @@ function SnapIn({ fresh, children }: { fresh: boolean; children: ReactNode }): R
   return <Animated.View style={look}>{children}</Animated.View>
 }
 
-/** The add chip's side when it is round; the slop brings either shape to a finger's. */
+/** The add chip's height, short of a finger's: its slop brings it there. */
 const ADD = 28
 
 const styles = StyleSheet.create(theme => ({
   tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
-  addRound: {
-    width: ADD,
-    height: ADD,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-  },
-  addLabelled: {
+  add: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.tight,

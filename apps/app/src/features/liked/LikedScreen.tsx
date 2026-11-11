@@ -102,7 +102,7 @@ export function LikedScreen(): ReactNode {
           name="Liked"
           songIds={ids}
           heroRef={heroRef}
-          onPlay={() => player.playFrom(ids, 0, { source: LIKED_SOURCE })}
+          onPlay={() => player.playFrom(ids, 0, { source: LIKED_SOURCE, whole: true })}
           onShuffle={() => player.playShuffled(ids, LIKED_SOURCE)}
           testPrefix="liked"
         />

@@ -121,9 +121,19 @@ export function addedToPlaylist(
   }
 }
 
-/** The line under the page's title: how many. The order is the dropdown's beside it. */
-export function playlistsSubline(count: number): string {
-  return plural(count, 'playlist', 'playlists')
+/**
+ * The line under the page's title: how many, once the library has answered.
+ * The order is the dropdown's beside it.
+ */
+export function playlistsSubline(state: {
+  loading: boolean
+  unreachable: boolean
+  count: number
+}): string {
+  if (state.loading) return 'Loading…'
+  if (state.unreachable) return 'Not loaded'
+  if (state.count === 0) return 'None of your own yet'
+  return plural(state.count, 'playlist', 'playlists')
 }
 
 /**
@@ -155,8 +165,8 @@ interface PlaylistsModel {
   /** The ones the page lists, in the order it lists them: none of them empty. */
   playlists: readonly Playlist[]
   loading: boolean
-  /** True when the library answered and there is genuinely nothing to show. */
-  empty: boolean
+  /** The line under the page's title (`playlistsSubline`). */
+  subtitle: string
   /**
    * The library did not answer and nothing is kept from before, so "none of
    * your own yet" would be a guess: there may be twenty.
@@ -174,10 +184,11 @@ export function usePlaylistsModel(sort: PlaylistSort = 'recent'): PlaylistsModel
   const playlists = useMemo(() => listedPlaylists(all ?? [], sort), [all, sort])
 
   const unreachable = library.isError && all === undefined
+  const loading = library.isPending
   return {
     playlists,
-    loading: library.isPending,
-    empty: !library.isPending && !unreachable && playlists.length === 0,
+    loading,
+    subtitle: playlistsSubline({ loading, unreachable, count: playlists.length }),
     unreachable,
     failure: library.error,
     retry: () => void library.refetch(),

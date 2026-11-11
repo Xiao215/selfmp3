@@ -1,7 +1,7 @@
 /**
  * Where a tag and an artist live: `/tag/<name>` and `/artist/<name>`
- * (docs/UI-MIGRATION.md, "Routes after"). Every door to one goes through
- * here, so the address is written once.
+ * (docs/UI-MIGRATION.md, "Routes after"), and a playlist, `/playlists/<id>`.
+ * Every door to one goes through here, so the address is written once.
  *
  * By name rather than id: an artist has no id, and a tag's name is what a
  * person would type or share. A tag renamed is a new address; the old one
@@ -45,4 +45,9 @@ export function fromTile(params: object | undefined): boolean {
 
 export function artistLink(name: string) {
   return { pathname: '/artist/[name]', params: { name: placeParam(name) } } as const
+}
+
+/** A playlist's page, and what it opens with (`rename`, `describe`). */
+export function playlistLink(id: number, also: { rename?: string; describe?: string } = {}) {
+  return { pathname: '/playlists/[id]', params: { id: String(id), ...also } } as const
 }

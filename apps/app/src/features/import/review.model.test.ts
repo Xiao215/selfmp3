@@ -17,6 +17,8 @@ import {
   sourceWords,
   stillFinding,
   toggleChosen,
+  youtubeFoundWords,
+  youtubeOptionWords,
 } from './review.model'
 
 const item = (n: number, extra: Partial<ImportPreviewItem> = {}): ImportPreviewItem => ({
@@ -237,5 +239,19 @@ describe('importErrorText', () => {
     expect(importErrorText(new ApiError(404, 'POST /api/import/preview failed (404)'))).toBe(
       'Couldn’t do that. Try again.',
     )
+  })
+})
+
+describe('what an open row says of YouTube’s match', () => {
+  it('names the option by how the match went', () => {
+    expect(youtubeOptionWords('looking')).toBe('Looking…')
+    expect(youtubeOptionWords('unsure')).toBe('Not sure it’s the song')
+    expect(youtubeOptionWords('sure')).toBe('Found')
+    expect(youtubeOptionWords(null)).toBe('Find it there')
+  })
+
+  it('says what to do about a match that is missing or weak', () => {
+    expect(youtubeFoundWords('none')).toBe('Not found on YouTube. Fix its name, then look again.')
+    expect(youtubeFoundWords('sure')).toBe('Found on YouTube.')
   })
 })

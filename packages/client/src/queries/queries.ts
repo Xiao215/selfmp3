@@ -1231,16 +1231,6 @@ export const useApplyMetadata = () =>
     clientApi().applyMetadata(id, input),
   )
 
-/**
- * Nearest neighbours of a song. Cheap on the server, so cached only briefly.
- *
- * The last song's answer is kept while the next one's is being fetched, and
- * says so through `isPlaceholderData`. Not to draw — the phone's shelf shows
- * nothing rather than another song's neighbours — but so that a page laid out
- * around "this song has neighbours" does not spend the moment between two
- * songs laid out around "it has none" and rearrange itself when the answer
- * lands.
- */
 /** Every heard song's place on the sound map (docs/features/sound-map.md). */
 export function useSoundMap(): UseQueryResult<SoundMap, Error> {
   const { ready } = useClientState()
@@ -1253,6 +1243,16 @@ export function useSoundMap(): UseQueryResult<SoundMap, Error> {
   })
 }
 
+/**
+ * Nearest neighbours of a song. Cheap on the server, so cached only briefly.
+ *
+ * The last song's answer is kept while the next one's is being fetched, and
+ * says so through `isPlaceholderData`. Not to draw — the phone's shelf shows
+ * nothing rather than another song's neighbours — but so that a page laid out
+ * around "this song has neighbours" does not spend the moment between two
+ * songs laid out around "it has none" and rearrange itself when the answer
+ * lands.
+ */
 export function useSimilar(
   songId: number | null,
   limit = SIMILAR_LIMIT,

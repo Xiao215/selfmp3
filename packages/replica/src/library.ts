@@ -1178,7 +1178,7 @@ export function createCloudLibrary(
 
   // --- Reading what the library points at ----------------------------------------------
 
-  /** A playlist's songs, in order, from the library as this device has it — offline too. */
+  /** Every playlist's songs, in order, from the library as this device has it — offline too. */
   async function cloudAllPlaylistSongs(): Promise<Readonly<Record<number, readonly number[]>>> {
     // Brought up to date first: plays can move a song into a Live playlist.
     return (
@@ -1317,7 +1317,6 @@ export function createCloudLibrary(
     }
   }
 
-  /** What this device should keep, for automatic downloads: every song, or those in playlists. */
   function cloudRoomSongNow(songId: number): RoomSong | null {
     const view = replica?.view
     const files = view?.files[songId]
@@ -1394,6 +1393,7 @@ export function createCloudLibrary(
     return places
   }
 
+  /** What this device should keep, for automatic downloads: every song, or those in playlists. */
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
     if (!view) return { version: 0, songCount: 0, totalBytes: 0, entries: [] }

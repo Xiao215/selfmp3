@@ -3,6 +3,7 @@ import type { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { answerRange, codeOf } from '@selfmp3/shared'
+import { abortOnClose } from './abortOnClose.js'
 
 /**
  * HTTP range request handling for audio: Express's half of it.
@@ -107,8 +108,7 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
   // A client seeking or skipping closes the response. The fetch behind it is
   // called off with it rather than left to finish for nobody, and the stream
   // it had already started is destroyed by `pipeline`.
-  const gone = new AbortController()
-  res.once('close', () => gone.abort())
+  const gone = abortOnClose(res)
   try {
     const stream = await source.open(answer.start, answer.end, gone.signal)
     if (gone.signal.aborted) {

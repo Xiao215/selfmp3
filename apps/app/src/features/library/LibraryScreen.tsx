@@ -43,7 +43,7 @@ import { deviceWord } from '../../ports/device'
 import { thisPlace } from '../../ports/place'
 import { onThisDevice } from '../settings/settings.model'
 import { useDragScroll } from '../../ports/dragScroll'
-import { useContentWidth } from '../../shell/contentWidth'
+import { useContentWidthValue } from '../../shell/contentWidth'
 import { linkedSort, noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { libraryListSource, playAlone } from '../lists/lists.model'
@@ -87,9 +87,13 @@ export function LibraryScreen(): ReactNode {
   // and shuffle, the search giving up width first. An iPad's column beside the
   // sidebar is 590, so there it stacks as a phone's does. Before the column is
   // measured the row is kept, so a desktop never flashes.
-  const contentWidth = useContentWidth()
-  const headWide = wide && (contentWidth === null || contentWidth >= COLUMN_WIDTH.libraryHeadRow)
-  const shuffleIconOnly = contentWidth !== null && contentWidth < COLUMN_WIDTH.libraryShuffleLabel
+  const headRoom = useContentWidthValue(
+    column => column === null || column >= COLUMN_WIDTH.libraryHeadRow,
+  )
+  const headWide = wide && headRoom
+  const shuffleIconOnly = useContentWidthValue(
+    column => column !== null && column < COLUMN_WIDTH.libraryShuffleLabel,
+  )
   const player = usePlayerCommands()
   const { state: downloads, installed } = useDownloads()
   const openSearch = useOpenSearch()

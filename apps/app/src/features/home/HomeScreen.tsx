@@ -29,8 +29,8 @@ import { useAccount } from '../profile/useAccount'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
-import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
-import { useLayout, useLayoutFlags, useLayoutValue } from '../../shell/useLayout'
+import { useContentWidthValue } from '../../shell/contentWidth'
+import { useLayoutFlags, useLayoutValue } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { Bone, Skeleton } from '../../ui/components/Skeleton'
@@ -567,7 +567,7 @@ function Tiles({
 
 /** The tiles' shapes while the library is on its way: two rows of them, a tile high (AA1). */
 function TilesWaiting({ columns }: { columns: number }): ReactNode {
-  const { wide } = useLayout()
+  const wide = useLayoutValue(layout => layout.wide)
   const cells = useMemo(() => Array.from({ length: columns * 2 }, (_, index) => index), [columns])
   return (
     <Skeleton label="Loading your tags" testID="home-tiles-loading">
@@ -1082,8 +1082,10 @@ const SIDE_COLUMN = 300
 const COLUMN_GAP = 30
 /** Whether the card column sits beside the tiles, or under them. */
 function useCardsBeside(wide: boolean): boolean {
-  const column = useContentWidth()
-  return wide && (column === null || column >= COLUMN_WIDTH.homeCardsBeside)
+  const room = useContentWidthValue(
+    column => column === null || column >= COLUMN_WIDTH.homeCardsBeside,
+  )
+  return wide && room
 }
 
 const styles = StyleSheet.create(theme => ({

@@ -15,8 +15,9 @@ import { writeFileAtomicSync } from './writeAtomic.js'
  *
  * The browser's answer to the same port is `localStorage`, which is protected
  * by the origin and nothing else. This is the difference an installed app is
- * for, and the plan's rule is absolute: tokens go through here and nowhere
- * else, never into the renderer's own storage.
+ * for: a token the page keeps itself goes through here, never into the
+ * renderer's own storage. The doorman session is the one exception, kept by
+ * the replica in IndexedDB as in a tab (docs/features/desktop-app.md).
  */
 
 /**
@@ -101,10 +102,9 @@ function write(secrets: SealedSecrets): void {
  * Whether this machine has a real store behind `safeStorage`.
  *
  * macOS: the login keychain, always. Linux: only where a secret service
- * answers. The plan's risk table already settled what to do when it does not —
- * "plain JSON with a warning in Settings — the browser's promise, no worse" —
- * because the alternative is an installed app that cannot sign in at all, which
- * is worse than the tab it replaced.
+ * answers. Where it does not, values are kept plainly and Settings says so —
+ * the browser's promise, no worse — because the alternative is an installed
+ * app that cannot sign in at all, which is worse than the tab it replaced.
  */
 export function encryptionAvailable(): boolean {
   try {

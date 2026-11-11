@@ -20,8 +20,8 @@ import { createWindow, preloadPath } from './window.js'
  * One instance, one window, `selfmp3://` claimed, and the page served from
  * `app://selfmp3/` — or from Metro when `npm run dev:desktop` set
  * `SELFMP3_DESKTOP_DEV_URL`, which is the only difference between a development
- * window and the real one. The renderer is the same build either way: the plan's
- * first ground rule is that there is never a second export.
+ * window and the real one. The renderer is the same build either way: there is
+ * never a second export (docs/features/desktop-app.md, "What it is not").
  */
 
 /** Where the export sits, beside the built main process inside the bundle. */

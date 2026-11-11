@@ -4,8 +4,7 @@
  * `npm run dev` at the root has already put the server on 4600 and Metro on
  * 4601; this builds the shell and points it at the latter, so the page reloads
  * as it is edited while the main process stays the built one. The renderer is
- * the same code either way — the only difference is where it is served from,
- * which is the one switch the plan allows.
+ * the same code either way — the only difference is where it is served from.
  */
 import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'

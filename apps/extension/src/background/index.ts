@@ -3,7 +3,7 @@ import { DEFAULT_APP_URL } from '@selfmp3/shared'
 import type { Handlers } from '../bridge.js'
 import { serve, servePage } from '../bridge.js'
 import { createCloud } from './cloud.js'
-import { createHandlers, explain, forPages, workerRouter } from './handlers.js'
+import { createHandlers, explain, explainToPage, forPages, workerRouter } from './handlers.js'
 import { createPageHandler } from './pill.js'
 import { installMenus, openPopupWindow } from './menus.js'
 import { idbStore } from './store.js'
@@ -80,7 +80,7 @@ serve(forPages(handlers, watcher), explain)
 // looking at the badge.
 servePage(
   createPageHandler(handlers, async () => (await router.route()).mode),
-  explain,
+  explainToPage,
 )
 
 /**

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { externalUrlSchema, fileNameSchema, fileTextSchema } from './schemas.js'
+import {
+  downloadRequestSchema,
+  externalUrlSchema,
+  fileNameSchema,
+  fileTextSchema,
+} from './schemas.js'
 
 /*
  * These two rules are why the shell has the shape it does, and each was learned
@@ -46,6 +51,34 @@ describe('externalUrlSchema', () => {
     expect(externalUrlSchema.safeParse('http://10.0.0.2:4600/api/stream/1').success).toBe(true)
     expect(externalUrlSchema.safeParse('blob:app://selfmp3/8f7e-…').success).toBe(false)
     expect(externalUrlSchema.safeParse('file:///etc/passwd').success).toBe(false)
+  })
+})
+
+describe('downloadRequestSchema', () => {
+  const from = (url: string) =>
+    downloadRequestSchema.safeParse({ id: 'one', kind: 'songs', name: 'ab12.m4a', url }).success
+
+  it('takes the web, and a song the shell already streams', () => {
+    for (const url of [
+      'https://doorman.example/v1/file/songs/ab12.m4a',
+      'http://10.0.0.2:4600/api/stream/1',
+      'app://selfmp3/_stream/songs/ab12.m4a',
+    ]) {
+      expect(from(url)).toBe(true)
+    }
+  })
+
+  // The main process fetches it, and the page reads the copy back through `mediaUrl`.
+  it('refuses a file on this computer, and any other scheme', () => {
+    for (const url of [
+      'file:///Users/someone/.ssh/id_ed25519',
+      'app://selfmp3/index.html',
+      'app://selfmp3.example/_stream/songs/ab12.m4a',
+      'data:audio/mp4;base64,AAAA',
+      'selfmp3://signin',
+    ]) {
+      expect(from(url)).toBe(false)
+    }
   })
 })
 

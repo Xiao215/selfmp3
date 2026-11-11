@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask, BridgeError, type Status } from '../bridge.js'
 import { hostOf } from '../popup/popup.model.js'
-import { Logo } from '../ui/parts.js'
+import { ErrorLine, Logo } from '../ui/parts.js'
 import { NOTE_PATH } from '../ui/mark.js'
 import { signInFailure } from './signIn.js'
 
@@ -113,11 +113,7 @@ export function Options(): ReactNode {
       {signIn.isPending ? 'Waiting for Google…' : 'Sign in with Google'}
     </button>
   )
-  const signInError = signIn.error && (
-    <p className="error" role="alert">
-      {signInFailure(signIn.error)}
-    </p>
-  )
+  const signInError = <ErrorLine message={signIn.error && signInFailure(signIn.error)} />
 
   return (
     <main className="options">
@@ -346,11 +342,7 @@ export function Options(): ReactNode {
                 </p>
               </div>
             )}
-            {connect.error && (
-              <p className="error" role="alert">
-                {connect.error.message}
-              </p>
-            )}
+            <ErrorLine message={connect.error?.message ?? null} />
             <div className="form-actions">
               <button
                 type="button"

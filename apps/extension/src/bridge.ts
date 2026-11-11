@@ -11,6 +11,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { siteOf } from './content/anchors.js'
+import { VIDEO_ID } from './content/videoIds.js'
 
 /**
  * The only door between the extension's pages and its background worker.
@@ -23,7 +24,7 @@ import { siteOf } from './content/anchors.js'
  */
 
 /** A page's worth of YouTube video ids: what a song row is known by. */
-const VideoIdsSchema = z.array(z.string().regex(/^[\w-]{11}$/)).max(500)
+const VideoIdsSchema = z.array(z.string().regex(VIDEO_ID)).max(500)
 
 /** The ones of those that are yours, and nothing else about them. */
 export const OwnedSchema = z.object({ videoIds: z.array(z.string()) })

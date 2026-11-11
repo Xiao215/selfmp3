@@ -96,6 +96,9 @@ interface Refusal {
 /** How much of a song one read from the disk hands the player. */
 const READ_CHUNK = 256 * 1024
 
+/** Said when the doorman could not be reached, in the service worker's words (apps/app/sw/sw.ts). */
+const UNREACHABLE = 'This song is not on this device, and your storage cannot be reached.'
+
 export function createStreamProxy({
   fetch,
   onCapped,
@@ -189,12 +192,7 @@ export function createStreamProxy({
         ...(init.signal ? { signal: init.signal } : {}),
       })
     } catch {
-      return {
-        status: 503,
-        body: 'This song is not on this device, and your storage cannot be reached.',
-        contentRange: null,
-        unanswered: true,
-      }
+      return { status: 503, body: UNREACHABLE, contentRange: null, unanswered: true }
     }
     if (upstream.ok) return upstream
 
@@ -405,11 +403,7 @@ class Arriving {
         // far as it got, and the next play fetches it again.
         opened({
           kind: 'refused',
-          refusal: {
-            status: 503,
-            body: 'This song is not on this device, and your storage cannot be reached.',
-            contentRange: null,
-          },
+          refusal: { status: 503, body: UNREACHABLE, contentRange: null },
         })
         this.#failed = true
         this.#notify()
@@ -459,9 +453,11 @@ class Arriving {
             }
             await new Promise<void>(resolve => this.#wake.push(resolve))
           }
+          const reader = this.#reader
+          if (reader === null) throw new Error('the song stopped arriving')
           const length = Math.min(end, this.received - 1, at + READ_CHUNK - 1) - at + 1
           const buffer = Buffer.alloc(length)
-          const { bytesRead } = await this.#reader!.read(buffer, 0, length, at)
+          const { bytesRead } = await reader.read(buffer, 0, length, at)
           if (bytesRead === 0) throw new Error('the song stopped arriving')
           at += bytesRead
           controller.enqueue(new Uint8Array(buffer.buffer, buffer.byteOffset, bytesRead))

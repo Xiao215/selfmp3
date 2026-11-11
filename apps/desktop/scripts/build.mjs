@@ -67,8 +67,8 @@ await build({
 
 /*
  * The renderer, copied in beside the shell rather than built here. It is
- * `apps/app`'s own export, byte for byte the build the server serves and Pages
- * serves — the plan's first ground rule.
+ * `apps/app`'s own export, byte for byte the build Pages serves
+ * (docs/features/desktop-app.md, "What it is not").
  *
  * `--no-web` leaves it out, for `scripts/dev.mjs`: a development window loads
  * the page from Metro (`SELFMP3_DESKTOP_DEV_URL`) and never looks at a copy, so

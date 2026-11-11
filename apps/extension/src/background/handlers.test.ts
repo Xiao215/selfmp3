@@ -3,7 +3,8 @@ import { IDLE_PACING, type CloudServer, type ImportJob } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { fixtureLibrary, HELLO_URL, IDOL_URL, memoryStore } from '../../verify/fixtures.js'
 import { BridgeError } from '../bridge.js'
-import { createHandlers, explain, forPages } from './handlers.js'
+import { createHandlers, explain, explainToPage, forPages } from './handlers.js'
+import { createPageHandler } from './pill.js'
 import type { Cloud } from './cloud.js'
 import { createWatcher } from './watcher.js'
 
@@ -291,6 +292,29 @@ describe('explain', () => {
       status: 428,
     })
     expect(explain('odd')).toEqual({ message: 'Something went wrong.', status: 500 })
+  })
+})
+
+describe('explainToPage', () => {
+  it('never tells a YouTube page the address of a server that is asleep', async () => {
+    const store = memoryStore()
+    await store.write('server', { baseUrl: 'https://asleep.example', token: null })
+    const handlers = createHandlers({ store, fetch: fakeServer(null).fetch })
+    const asked = createPageHandler(handlers, async () => 'away')
+    const refusal: unknown = await asked({ type: 'pillState', url: IDOL_URL }).catch(
+      (error: unknown) => error,
+    )
+
+    // The popup and the options page are the extension's own, and name it.
+    expect(explain(refusal).message).toContain('asleep.example')
+    expect(explainToPage(refusal)).toEqual({ message: 'Your server isn’t answering.', status: 0 })
+  })
+
+  it('passes on what a server said about the link', () => {
+    expect(explainToPage(new ApiError(422, 'This video is private.'))).toEqual({
+      message: 'This video is private.',
+      status: 422,
+    })
   })
 })
 

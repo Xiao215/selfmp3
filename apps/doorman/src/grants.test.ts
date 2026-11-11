@@ -96,6 +96,18 @@ describe('grants', () => {
     expect((await h.call('/v1/me', { token: other.token })).status).toBe(200)
   })
 
+  it('is off the list once its server signs out with it', async () => {
+    const h = harness()
+    const phone = await h.signIn()
+    const made = await grant(h, phone)
+    const other = await grant(h, phone, { server: 'https://other.example.com', name: 'other' })
+
+    const out = await h.call('/v1/auth/signout', { method: 'POST', token: made.token })
+    expect(out.status).toBe(204)
+    expect((await h.call('/v1/me', { token: made.token })).status).toBe(401)
+    expect((await listed(h, phone)).map(g => g.id)).toEqual([other.grant.id])
+  })
+
   it('cannot be passed on: a grant makes no grants', async () => {
     const h = harness()
     const made = await grant(h, await h.signIn())

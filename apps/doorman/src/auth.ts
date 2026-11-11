@@ -19,7 +19,7 @@ import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
-import { forgetGrants } from './grants.js'
+import { forgetGrants, unlistGrant } from './grants.js'
 import { page } from './html.js'
 import {
   forbidden,
@@ -275,12 +275,19 @@ export async function claim(ctx: Context): Promise<Response> {
   return json(result)
 }
 
-/** `POST /v1/auth/signout` — this device's session ends. */
+/**
+ * `POST /v1/auth/signout` — this device's session ends. A server signing out
+ * with its grant is letting the account go, so the grant leaves the account's
+ * list too, as if the server had ended it (grants.ts).
+ */
 export async function signOut(ctx: Context): Promise<Response> {
   const token = bearerToken(ctx.request)
   // Looked up before it is deleted: a delete costs a KV write even when
   // there is nothing to delete, and a made-up token should cost nothing.
-  if (!token || !(await ctx.sessions.end(token))) throw unauthorized()
+  const session = token ? await ctx.sessions.find(token) : null
+  if (!token || !session) throw unauthorized()
+  if (session.grant !== undefined) await unlistGrant(ctx, session.sub, session.grant)
+  await ctx.sessions.end(token)
   return noContent()
 }
 

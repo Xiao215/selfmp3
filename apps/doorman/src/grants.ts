@@ -189,6 +189,17 @@ function tellServer(ctx: Context, grant: StoredGrant): void {
   ctx.waitUntil(told)
 }
 
+/** Take one grant off the account's list, whose session is ending anyway. */
+export async function unlistGrant(ctx: Context, sub: Session['sub'], id: string): Promise<void> {
+  const stored = await read(ctx, sub)
+  if (!stored.some(grant => grant.id === id)) return
+  await write(
+    ctx,
+    sub,
+    stored.filter(grant => grant.id !== id),
+  )
+}
+
 /**
  * Forget every grant the account made, when it signs out everywhere: their
  * sessions are already refused by then (context.ts), and a list of servers

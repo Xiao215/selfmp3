@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -25,8 +24,7 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
   const owner = state && entry ? memberOf(state, entry.owner) : undefined
   const yours = track?.yours !== null && track?.yours !== undefined
   const source = entry?.song.sourceUrl ?? null
-  const { reachable, get } = useGetSongs({ enabled: !yours && source !== null })
-  const [asked, setAsked] = useState(false)
+  const { reachable, getting, get } = useGetSongs({ enabled: !yours && source !== null })
   if (!state || !entry) return null
 
   const whose = owner && owner.id !== state.you ? owner : by
@@ -35,10 +33,8 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
   const from = entry.from ?? (whose && whose.id !== state.you ? whose.name : null)
   const cameWith = from ? { kind: 'room' as const, from } : null
 
-  const getIt = async (): Promise<void> => {
-    setAsked(true)
-    if (!(await get([{ song: entry.song, cameWith }]))) setAsked(false)
-  }
+  // Asked for by its link, so the next friend's song drawn here is not.
+  const asked = source !== null && getting.has(source)
 
   const line =
     link !== 'live'
@@ -62,7 +58,7 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
         <Button
           label={asked ? 'Getting' : 'Get it'}
           disabled={asked}
-          onPress={() => void getIt()}
+          onPress={() => void get([{ song: entry.song, cameWith }])}
           testID="now-playing-get-it"
         />
       ) : null}

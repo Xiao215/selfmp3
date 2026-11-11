@@ -2,6 +2,8 @@ import { z } from 'zod'
 
 import { DEEP_LINK_SCHEME } from '@selfmp3/shared/wire'
 
+import { APP_ORIGIN, STREAM_PREFIX } from './channels.js'
+
 /**
  * Everything that crosses the preload boundary, as a zod schema.
  *
@@ -238,12 +240,29 @@ export const packSlicesSchema = z
   .max(10_000)
 export type PackSlice = z.infer<typeof packSlicesSchema>[number]
 
+/**
+ * Where a download may come from: the web, as `externalUrlSchema` has it, or a
+ * song the shell streams (`STREAM_PREFIX`), which a played copy is read from
+ * (apps/app's `ports/desktop/recentCopies.desktop.ts`). Never `file:`: the
+ * main process fetches it, and would copy any file on the computer into a
+ * folder the page can read back through `mediaUrl`.
+ */
+const downloadUrlSchema = z
+  .string()
+  .url()
+  .refine(
+    value =>
+      externalUrlSchema.safeParse(value).success ||
+      value.startsWith(`${APP_ORIGIN}${STREAM_PREFIX}`),
+    { message: 'a download comes from the web, or from a song the shell streams' },
+  )
+
 /** Where a song's bytes come from: the server, or the bucket through the doorman. */
 export const downloadRequestSchema = z.object({
   id: transferIdSchema,
   kind: fileKindSchema,
   name: fileNameSchema,
-  url: z.string().url(),
+  url: downloadUrlSchema,
   headers: headersSchema.optional(),
 })
 export type DownloadRequest = z.infer<typeof downloadRequestSchema>

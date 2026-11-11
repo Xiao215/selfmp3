@@ -94,6 +94,7 @@ import {
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
 import { sha256 } from '../util/hash.js'
+import { pool } from '../util/pool.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -1053,7 +1054,7 @@ export class CloudSyncService {
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
       const files = cloud.songFiles()
-      const signed = await inBatches(files, SIGNATURES_AT_ONCE, file =>
+      const signed = await pool(files, SIGNATURES_AT_ONCE, file =>
         this.#signatures(file, states.get(file.id) ?? null),
       )
       const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
@@ -1292,7 +1293,7 @@ export class CloudSyncService {
       return { unreadable: 0, keys, complete: true }
     }
 
-    const read = await inBatches(pending, LOG_READS_AT_ONCE, key => this.#readLog(store, key))
+    const read = await pool(pending, LOG_READS_AT_ONCE, key => this.#readLog(store, key))
     if (generation !== this.#generation) return { unreadable: 0, keys: null, complete: false }
 
     const changes: Change[] = []
@@ -2587,19 +2588,6 @@ class CopyChanged extends Error {
     super(`changed since it was read: ${key}`)
     this.name = 'CopyChanged'
   }
-}
-
-/** `work` over every item, `limit` at a time, answers in the items' order. */
-async function inBatches<T, R>(
-  items: readonly T[],
-  limit: number,
-  work: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  for (let start = 0; start < items.length; start += limit) {
-    results.push(...(await Promise.all(items.slice(start, start + limit).map(work))))
-  }
-  return results
 }
 
 function parseJson(data: Buffer): unknown {

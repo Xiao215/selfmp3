@@ -34,7 +34,8 @@ import type { CatalogueSearch, FindListings, FindNames } from './names.js'
 import type { MusicCatalogue } from './getMusic.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { tagReview, TagPlan } from './tagReview.js'
-import { bare, pool, tally } from './text.js'
+import { pool } from '../util/pool.js'
+import { bare, tally } from './text.js'
 import { oneSpelling, tidy } from './tidy.js'
 import {
   applyFilters,
@@ -667,48 +668,40 @@ export function askTools(
       steps.begin(
         `Reading ${albums.length === 1 ? 'the album' : `${albums.length} albums`} on 网易云`,
       )
-      const out: unknown[] = Array.from({ length: albums.length })
-      await pool(
-        albums.map((wanted, index) => ({ wanted, index })),
-        ALBUMS_AT_ONCE,
-        async ({ wanted, index }) => {
-          const words = [wanted.album, wanted.artist ?? ''].join(' ').trim()
-          const listed = (await music.albums(words)).slice(0, ALBUM_CANDIDATES)
-          // The album of that very name first, by that artist when one was said.
-          const score = (album: { title: string; artist: string }): number =>
-            (bare(album.title) === bare(wanted.album) ? 2 : 0) +
-            (wanted.artist && bare(album.artist).includes(bare(wanted.artist)) ? 1 : 0)
-          const best = [...listed].sort((a, b) => score(b) - score(a))[0]
-          if (!best) {
-            out[index] = { asked: wanted.album, found: null }
-            return
-          }
-          const tracks = await music.albumTracks(best.id)
-          const theirs = tracks.map(track => haveTrack(library.songs, track))
-          set.shown(theirs.flatMap(song => (song ? [song.id] : [])))
-          out[index] = {
-            asked: wanted.album,
-            album: best.title,
-            artist: best.artist,
-            tracks: tracks.length || best.tracks,
-            have: theirs.filter(Boolean).length,
-            theirs: tracks
-              .flatMap((track, at) => {
-                const song = theirs[at]
-                return song ? [`${song.id}|${song.title}`] : []
-              })
-              .slice(0, TRACKS_SHOWN),
-            lacking: tracks
-              .filter((_, at) => !theirs[at])
-              .map(track => track.title)
-              .slice(0, TRACKS_SHOWN),
-            others: listed
-              .filter(album => album !== best)
-              .slice(0, 3)
-              .map(album => `${album.title} — ${album.artist} (${album.tracks} tracks)`),
-          }
-        },
-      )
+      const out = await pool(albums, ALBUMS_AT_ONCE, async wanted => {
+        const words = [wanted.album, wanted.artist ?? ''].join(' ').trim()
+        const listed = (await music.albums(words)).slice(0, ALBUM_CANDIDATES)
+        // The album of that very name first, by that artist when one was said.
+        const score = (album: { title: string; artist: string }): number =>
+          (bare(album.title) === bare(wanted.album) ? 2 : 0) +
+          (wanted.artist && bare(album.artist).includes(bare(wanted.artist)) ? 1 : 0)
+        const best = [...listed].sort((a, b) => score(b) - score(a))[0]
+        if (!best) return { asked: wanted.album, found: null }
+        const tracks = await music.albumTracks(best.id)
+        const theirs = tracks.map(track => haveTrack(library.songs, track))
+        set.shown(theirs.flatMap(song => (song ? [song.id] : [])))
+        return {
+          asked: wanted.album,
+          album: best.title,
+          artist: best.artist,
+          tracks: tracks.length || best.tracks,
+          have: theirs.filter(Boolean).length,
+          theirs: tracks
+            .flatMap((track, at) => {
+              const song = theirs[at]
+              return song ? [`${song.id}|${song.title}`] : []
+            })
+            .slice(0, TRACKS_SHOWN),
+          lacking: tracks
+            .filter((_, at) => !theirs[at])
+            .map(track => track.title)
+            .slice(0, TRACKS_SHOWN),
+          others: listed
+            .filter(album => album !== best)
+            .slice(0, 3)
+            .map(album => `${album.title} — ${album.artist} (${album.tracks} tracks)`),
+        }
+      })
       steps.done()
       return out
     },

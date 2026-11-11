@@ -22,7 +22,8 @@ import {
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { nameField, within, type FindNames, type FoundName } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { chunks, foldedBare as bare, pool } from './text.js'
+import { pool } from '../util/pool.js'
+import { chunks, foldedBare as bare } from './text.js'
 
 /**
  * A4 · Tidy up (docs/features/ai.md): the song names in the library that look

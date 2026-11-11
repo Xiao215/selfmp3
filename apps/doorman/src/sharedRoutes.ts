@@ -4,9 +4,9 @@ import {
   SharedCreateSchema,
   SharedIdSchema,
   SharedJoinSchema,
+  SharedSummarySchema,
   RoomFilePartSchema,
   RoomIdSchema,
-  type SharedSummary,
 } from '@selfmp3/shared'
 import { requireSession, type Context } from './context.js'
 import {
@@ -128,7 +128,7 @@ export async function shared(ctx: Context): Promise<Response> {
  * gone: off the list.
  */
 async function list(ctx: Context, session: Session): Promise<Response> {
-  const summaries = await summariesOf<SharedSummary>(sharedIndex(ctx, session.sub), id =>
+  const summaries = await summariesOf(sharedIndex(ctx, session.sub), SharedSummarySchema, id =>
     sharedObject(ctx, id).fetch(`https://shared/summary?sub=${encodeURIComponent(session.sub)}`),
   )
   summaries.sort((a, b) => b.updatedAt - a.updatedAt)

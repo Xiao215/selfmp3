@@ -149,12 +149,13 @@ export function idIndex(ctx: Context, key: string, schema: z.ZodType<string>): I
  */
 export async function summariesOf<T>(
   index: IdIndex,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   summary: (id: string) => Promise<Response>,
 ): Promise<T[]> {
   const answers = await Promise.all(
     (await index.ids()).map(async id => {
       const answer = await summary(id)
-      if (answer.ok) return { id, found: (await answer.json()) as T, gone: false }
+      if (answer.ok) return { id, found: schema.parse(await answer.json()), gone: false }
       await answer.body?.cancel()
       return { id, found: null, gone: answer.status === 403 || answer.status === 404 }
     }),

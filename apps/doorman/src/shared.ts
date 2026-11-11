@@ -2,6 +2,7 @@ import {
   DOORMAN_ERROR,
   type DoormanErrorCode,
   MemberPictureSchema,
+  RoomFilePartSchema,
   RoomMemberNameSchema,
   RoomSongSchema,
   SharedActionSchema,
@@ -14,7 +15,6 @@ import {
   isRoomRefusal,
   newSharedDoc,
   sharedSummary,
-  type RoomFilePart,
   type RoomRefusal,
   type SharedDoc,
   type SharedPlaylist,
@@ -351,9 +351,9 @@ export class Shared {
     if (!member || !/^[0-9a-f]{32}$/.test(token)) {
       return answer(401, DOORMAN_ERROR.sharedUnauthorized, 'that is not a way into this playlist')
     }
-    const part = url.searchParams.get('part') as RoomFilePart | null
+    const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
     const entry = canReadSharedEntry(doc, member, url.searchParams.get('entry') ?? '')
-    const key = entry && part ? keyOf(entry.song, part) : null
+    const key = entry && part.success ? keyOf(entry.song, part.data) : null
     const sub = entry ? secrets.subs[entry.owner] : undefined
     if (!key || !sub)
       return answer(404, DOORMAN_ERROR.sharedMissing, 'that song is not in the playlist')

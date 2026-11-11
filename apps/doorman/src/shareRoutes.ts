@@ -16,7 +16,6 @@ import {
   SHARE_LIMIT_MS,
   type RoomSong,
   type ShareCreate,
-  type ShareSummary,
 } from '@selfmp3/shared'
 import { requireSession, type Context } from './context.js'
 import {
@@ -342,7 +341,7 @@ const CREATE_MAX_BYTES = 8 * 1024 * 1024
  * Forgotten, or taken off: off the list.
  */
 async function list(ctx: Context, session: Session, side: Side): Promise<Response> {
-  const summaries = await summariesOf<ShareSummary>(linkIndex(ctx, side, session.sub), id =>
+  const summaries = await summariesOf(linkIndex(ctx, side, session.sub), ShareSummarySchema, id =>
     shareObject(ctx, id).fetch(`https://share/summary?sub=${encodeURIComponent(session.sub)}`),
   )
   summaries.sort((a, b) => b.createdAt - a.createdAt)

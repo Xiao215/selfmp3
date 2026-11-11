@@ -1,4 +1,6 @@
+import { API_ERROR } from '@selfmp3/shared'
 import type { Api } from './api/api.js'
+import { ApiError } from './api/error.js'
 import type {
   LibrarySnapshotStore,
   LyricsSnapshotStore,
@@ -89,4 +91,14 @@ export function runLater(): RunLater | null {
 /** Sends what the app holds back for a playlist before it is added to (`beforeAddingTo`). */
 export function beforeAddingTo(playlistId: number): Promise<void> {
   return configured?.beforeAddingTo?.(playlistId) ?? Promise.resolve()
+}
+
+/**
+ * What a hook handed the server to ask is given while the server is away: such
+ * a hook is not enabled then, so this answers only a stray refetch or a press
+ * that raced the server leaving.
+ */
+export function serverOf(api: Api | null): Api {
+  if (!api) throw new ApiError(0, 'Your library’s computer isn’t answering.', API_ERROR.offline)
+  return api
 }

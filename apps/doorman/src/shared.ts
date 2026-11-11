@@ -23,6 +23,7 @@ import { z } from 'zod'
 import { answer, refusalAnswer } from './doRelay.js'
 import { sameSecret, secureHex } from './encoding.js'
 import { keyOf } from './room.js'
+import { noContent } from './http.js'
 
 /**
  * One shared playlist: a Durable Object per playlist id
@@ -294,12 +295,12 @@ export class Shared {
     if (input.action.type === 'leave') {
       if (next.members.length === 0) {
         await this.#runtime.storage.deleteAll()
-        return new Response(null, { status: 204 })
+        return noContent()
       }
       const { [found.member]: _sub, ...subs } = found.secrets.subs
       const { [found.member]: _token, ...tokens } = found.secrets.tokens
       await this.#save(next, { ...found.secrets, subs, tokens })
-      return new Response(null, { status: 204 })
+      return noContent()
     }
     await this.#save(next, found.secrets)
     return Response.json(this.#viewOf(next, found.secrets, found.member))
@@ -337,7 +338,7 @@ export class Shared {
     )
     if (!held)
       return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
-    return new Response(null, { status: 204 })
+    return noContent()
   }
 
   /** `GET /file?t=&entry=&part=`: whose bucket, and which key, for one of its people. */

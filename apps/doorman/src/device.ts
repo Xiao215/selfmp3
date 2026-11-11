@@ -1,10 +1,12 @@
 import {
+  DAY_MS,
   DOORMAN_PATHS,
   IOS_ASSETS,
   IOS_INSTALL_LINK,
   IPHONE_ID,
   IphoneListSchema,
   REPOSITORY,
+  escapeHtml,
   iosAssetUrl,
   iosLatestSchema,
   iphoneKey,
@@ -15,6 +17,7 @@ import {
 } from '@selfmp3/shared'
 import { requireOwner } from './access.js'
 import type { Context } from './context.js'
+import { fromUtf8 } from './encoding.js'
 import { page } from './html.js'
 import {
   badRequest,
@@ -55,15 +58,13 @@ const IPHONES = DOORMAN_PATHS.iphones
 const LIST_KEY = 'iphones'
 
 /** A request nobody added is forgotten after a month. */
-const WAITING_MS = 30 * 24 * 60 * 60 * 1000
+const WAITING_MS = 30 * DAY_MS
 
 /** The longest body worth reading: the signed answer is a few kilobytes. */
 const MAX_ANSWER = 64 * 1024
 
 /** The longest name kept, as typed on the install page. */
 const NAME_MAX = 40
-
-const xml = (text: string) => text.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
 
 /** What a friend typed on the install page, cut to something a list can show. */
 function nameFrom(url: URL): string {
@@ -119,7 +120,7 @@ function profile(ctx: Context): Response {
   <key>PayloadContent</key>
   <dict>
     <key>URL</key>
-    <string>${xml(back)}</string>
+    <string>${escapeHtml(back)}</string>
     <key>DeviceAttributes</key>
     <array>
       <string>UDID</string>
@@ -161,7 +162,7 @@ function profile(ctx: Context): Response {
 async function received(ctx: Context): Promise<Response> {
   const bytes = await readBytes(ctx.request.body, MAX_ANSWER)
   // The signature's bytes decode as noise around it; the plist is plain ASCII.
-  const text = new TextDecoder().decode(bytes)
+  const text = fromUtf8(bytes)
   const id = /<key>UDID<\/key>\s*<string>([^<]+)<\/string>/.exec(text)?.[1]?.trim()
   if (!id || !IPHONE_ID.test(id)) throw badRequest('no iPhone ID in that answer')
 

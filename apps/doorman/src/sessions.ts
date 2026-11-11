@@ -1,4 +1,4 @@
-import { MemberPictureSchema } from '@selfmp3/shared'
+import { DAY_MS, MemberPictureSchema } from '@selfmp3/shared'
 import { z } from 'zod'
 import { recall, remember, type BoundedCache } from './boundedCache.js'
 import { TOKEN_PATTERN, randomToken, sha256Hex } from './encoding.js'
@@ -23,7 +23,7 @@ import { getRecord, putRecord, type KvStore } from './kv.js'
  * ones it has seen (boundedCache.ts, which says for how long and why).
  */
 
-const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60
+const SESSION_TTL_SECONDS = (180 * DAY_MS) / 1000
 
 /** Who Google says signed in: what a session and a waiting sign-in both keep. */
 export const IdentitySchema = z.object({

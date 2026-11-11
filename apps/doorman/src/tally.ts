@@ -1,6 +1,7 @@
-import { DoormanStatsSchema, type DoormanStats } from '@selfmp3/shared'
+import { DAY_MS, DoormanStatsSchema, type DoormanStats } from '@selfmp3/shared'
 import { z } from 'zod'
 import type { Context } from './context.js'
+import { noContent } from './http.js'
 
 /**
  * What the doorman counts for its owner's admin page (docs/features/admin.md):
@@ -61,8 +62,6 @@ const NO_TALLY: Tally = {
   days: () => Promise.resolve({ days: [] }),
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 function utcDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
 }
@@ -98,7 +97,7 @@ export class TallyObject {
       const counts = (await this.#storage.get<DayCounts>(key)) ?? {}
       for (const name of names) counts[name] = (counts[name] ?? 0) + 1
       await this.#storage.put(key, counts)
-      return new Response(null, { status: 204 })
+      return noContent()
     }
     if (route === 'GET /days') {
       const from = url.searchParams.get('from') ?? ''

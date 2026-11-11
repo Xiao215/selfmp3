@@ -11,7 +11,16 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
-import { forbidden, json, mayReach, methodNotAllowed, notFound, readJson, redact } from './http.js'
+import {
+  forbidden,
+  json,
+  mayReach,
+  methodNotAllowed,
+  noContent,
+  notFound,
+  readJson,
+  redact,
+} from './http.js'
 import { secureHex } from './encoding.js'
 import { getRecord, putRecord } from './kv.js'
 import type { Session } from './sessions.js'
@@ -132,7 +141,7 @@ async function end(ctx: Context, id: string): Promise<Response> {
   await ctx.sessions.endByHash(grant.hash)
   // A server letting the account go itself needs no telling.
   if (session.grant !== grant.id) tellServer(ctx, grant)
-  return new Response(null, { status: 204 })
+  return noContent()
 }
 
 /** How long the doorman waits on a server it is telling. Nobody waits on it. */

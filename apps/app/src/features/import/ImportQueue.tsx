@@ -283,18 +283,14 @@ export function JobRow({
   const action = jobAction(job)
   const name = jobName(job)
   // A failure's reason is ordinary quiet words: its red is the dot on the picture (AB1).
-  const toneStyle =
-    tone === 'running'
-      ? styles.running
-      : tone === 'error'
-        ? styles.mutedText
-        : tone === 'waiting'
-          ? styles.waiting
-          : tone === 'done'
-            ? styles.good
-            : tone === 'cancelled'
-              ? styles.mutedText
-              : null
+  const toneStyle = {
+    running: styles.running,
+    error: styles.mutedText,
+    waiting: styles.waiting,
+    done: styles.good,
+    cancelled: styles.mutedText,
+    queued: null,
+  }[tone]
   const said =
     tone === 'done' ? arrivedLine(job, tags) : (job.status === 'queued' && next) || jobSubtitle(job)
   // A link nothing was found out about is named by its kind, and its address follows the reason.

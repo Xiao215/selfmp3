@@ -100,6 +100,11 @@ class FakeSocket {
 vi.stubGlobal('WebSocket', FakeSocket)
 
 const store = await import('./room.store')
+/**
+ * Tabs share a room through Web Locks, which the Node 22 that CI runs does not
+ * have; there the store plays every room in this tab, and these have nothing to check.
+ */
+const hasLocks = typeof navigator !== 'undefined' && navigator.locks !== undefined
 
 /** Out of the room, the doorman hearing it. */
 async function leave(): Promise<void> {
@@ -326,66 +331,77 @@ describe('the room’s line', () => {
     expect(ended).toEqual([`${PASS.code} left`])
   })
 
-  it('plays the room in one tab of a browser, and in the next once that one closes', async () => {
-    const lock = `selfmp3-room ${PASS.code}`
-    // Alone, this tab plays it.
-    await inRoom()
-    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
-    await leave()
-    // Let go with the room: another tab may take it.
-    await navigator.locks.request(lock, { ifAvailable: true }, held => expect(held).not.toBeNull())
+  it.skipIf(!hasLocks)(
+    'plays the room in one tab of a browser, and in the next once that one closes',
+    async () => {
+      const lock = `selfmp3-room ${PASS.code}`
+      // Alone, this tab plays it.
+      await inRoom()
+      await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
+      await leave()
+      // Let go with the room: another tab may take it.
+      await navigator.locks.request(lock, { ifAvailable: true }, held =>
+        expect(held).not.toBeNull(),
+      )
 
-    // Another tab of this browser plays the room already.
-    const otherCloses = Promise.withResolvers<void>()
-    const otherHolds = Promise.withResolvers<void>()
-    void navigator.locks.request(lock, () => {
-      otherHolds.resolve()
-      return otherCloses.promise
-    })
-    await otherHolds.promise
-    await inRoom()
-    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('elsewhere'))
-    otherCloses.resolve()
-    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
-  })
+      // Another tab of this browser plays the room already.
+      const otherCloses = Promise.withResolvers<void>()
+      const otherHolds = Promise.withResolvers<void>()
+      void navigator.locks.request(lock, () => {
+        otherHolds.resolve()
+        return otherCloses.promise
+      })
+      await otherHolds.promise
+      await inRoom()
+      await vi.waitFor(() => expect(store.currentRoom().lead).toBe('elsewhere'))
+      otherCloses.resolve()
+      await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
+    },
+  )
 
-  it('keeps playing a room that ended until it has finished it, for a tab yet to hear the end', async () => {
-    const lock = `selfmp3-room ${PASS.code}`
-    const socket = await inRoom()
-    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
-    socket.gone()
-    // Another tab asking for it now waits on: this one still has it.
-    const meanwhile = navigator.locks.request(
-      lock,
-      { signal: AbortSignal.timeout(200) },
-      () => true,
-    )
-    await expect(meanwhile).rejects.toThrow()
-    await vi.advanceTimersByTimeAsync(300)
-    expect(store.currentRoom().pass).toBeNull()
-    const ours = navigator.locks.request(lock, { signal: AbortSignal.timeout(2000) }, () => true)
-    await expect(ours).resolves.toBe(true)
-  })
+  it.skipIf(!hasLocks)(
+    'keeps playing a room that ended until it has finished it, for a tab yet to hear the end',
+    async () => {
+      const lock = `selfmp3-room ${PASS.code}`
+      const socket = await inRoom()
+      await vi.waitFor(() => expect(store.currentRoom().lead).toBe('here'))
+      socket.gone()
+      // Another tab asking for it now waits on: this one still has it.
+      const meanwhile = navigator.locks.request(
+        lock,
+        { signal: AbortSignal.timeout(200) },
+        () => true,
+      )
+      await expect(meanwhile).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(300)
+      expect(store.currentRoom().pass).toBeNull()
+      const ours = navigator.locks.request(lock, { signal: AbortSignal.timeout(2000) }, () => true)
+      await expect(ours).resolves.toBe(true)
+    },
+  )
 
-  it('does not take up a room that ended while another tab played it', async () => {
-    const lock = `selfmp3-room ${PASS.code}`
-    const otherCloses = Promise.withResolvers<void>()
-    const otherHolds = Promise.withResolvers<void>()
-    void navigator.locks.request(lock, () => {
-      otherHolds.resolve()
-      return otherCloses.promise
-    })
-    await otherHolds.promise
-    const socket = await inRoom()
-    await vi.waitFor(() => expect(store.currentRoom().lead).toBe('elsewhere'))
-    // The room ends; the tab that played it lets go before this one has finished it.
-    socket.gone()
-    otherCloses.resolve()
-    // Ours once the other tab is gone: this one, waiting before us, did not take it.
-    const ours = navigator.locks.request(lock, { signal: AbortSignal.timeout(2000) }, () => true)
-    await expect(ours).resolves.toBe(true)
-    expect(store.currentRoom().lead).not.toBe('here')
-    await vi.advanceTimersByTimeAsync(300)
-    expect(store.currentRoom().pass).toBeNull()
-  })
+  it.skipIf(!hasLocks)(
+    'does not take up a room that ended while another tab played it',
+    async () => {
+      const lock = `selfmp3-room ${PASS.code}`
+      const otherCloses = Promise.withResolvers<void>()
+      const otherHolds = Promise.withResolvers<void>()
+      void navigator.locks.request(lock, () => {
+        otherHolds.resolve()
+        return otherCloses.promise
+      })
+      await otherHolds.promise
+      const socket = await inRoom()
+      await vi.waitFor(() => expect(store.currentRoom().lead).toBe('elsewhere'))
+      // The room ends; the tab that played it lets go before this one has finished it.
+      socket.gone()
+      otherCloses.resolve()
+      // Ours once the other tab is gone: this one, waiting before us, did not take it.
+      const ours = navigator.locks.request(lock, { signal: AbortSignal.timeout(2000) }, () => true)
+      await expect(ours).resolves.toBe(true)
+      expect(store.currentRoom().lead).not.toBe('here')
+      await vi.advanceTimersByTimeAsync(300)
+      expect(store.currentRoom().pass).toBeNull()
+    },
+  )
 })

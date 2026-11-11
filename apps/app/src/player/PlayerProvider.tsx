@@ -35,6 +35,7 @@ import {
   busyRetryDelay,
   type EngineState,
   type FrequencyAnalyser,
+  type LoadOptions,
   type ServerConnection,
   listenedDelta,
   peekPlayable,
@@ -683,23 +684,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const track = roomTrack(songId)
         const song = songsRef.current.get(songId) ?? track?.song
         if (!song) return null
-        if (track) {
-          return {
-            title: song.title,
-            artist: song.artist,
-            album: song.album,
-            ...(track.cover ? { artwork: track.cover } : {}),
-            ...(song.duration > 0 ? { duration: song.duration } : {}),
-            contentType: song.mime,
-          }
-        }
-        // The lock screen's cover: the copy on this device, read now rather than
-        // from a render, since this is asked when the player takes the song.
-        // One kept later reaches the card through `refreshNowPlaying`, below.
-        const artwork = nowPlayingArtwork(
-          song,
-          artSources(coverFor(songId), connectionRef.current, fromCloudRef.current),
-        )
+        // The lock screen's cover: a room's own, or the copy on this device,
+        // read now rather than from a render, since this is asked when the
+        // player takes the song. One kept later reaches the card through
+        // `refreshNowPlaying`, below.
+        const artwork = track
+          ? track.cover
+          : nowPlayingArtwork(
+              song,
+              artSources(coverFor(songId), connectionRef.current, fromCloudRef.current),
+            )
         return {
           title: song.title,
           artist: song.artist,
@@ -1130,7 +1124,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
             stores.stalled.set(false)
             return
           }
-          void engine.load(songId, at > 0 ? { autoplay: true, startAt: at } : { autoplay: true })
+          void engine.load(songId, playingFrom(at))
         }, delay)
         return
       }
@@ -1139,7 +1133,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const at = lastPositionRef.current
         recovery.retriedSongId = songId
         recovery.retriedFrom = at
-        void engine.load(songId, at > 0 ? { autoplay: true, startAt: at } : { autoplay: true })
+        void engine.load(songId, playingFrom(at))
         return
       }
       // Given up on, and not for want of a connection or for a busy storage:
@@ -1178,10 +1172,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         if (queueRef.current.items[queueRef.current.index] !== waiting.songId) return
         // Paused while it waited: it waits on for Play.
         if (!wantsSoundRef.current) return
-        void engine.load(
-          waiting.songId,
-          waiting.at > 0 ? { autoplay: true, startAt: waiting.at } : { autoplay: true },
-        )
+        void engine.load(waiting.songId, playingFrom(waiting.at))
       }),
     [engine],
   )
@@ -1560,6 +1551,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       </PlayerContext.Provider>
     </PlayerCommandsContext.Provider>
   )
+}
+
+/** A song asked for again from where it stopped, playing: from its top when it stopped there. */
+function playingFrom(at: number): LoadOptions {
+  return at > 0 ? { autoplay: true, startAt: at } : { autoplay: true }
 }
 
 /** The engine's level, as the volume control draws it. */

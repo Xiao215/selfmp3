@@ -5,10 +5,9 @@ import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
-import type { ShareAskEntry, ShareSummary } from '@selfmp3/shared'
+import type { ShareSummary } from '@selfmp3/shared'
 import { radius, shareLinkUrl, space, type } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { copyText } from '../../ports/clipboard'
 import { linkAddress } from '../../ports/linkAddress'
 import { openInNewTab } from '../../ports/newTab'
@@ -17,7 +16,6 @@ import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayoutValue } from '../../shell/useLayout'
 import { pageFrame } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
-import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { Trash } from '../../ui/components/Icons'
 import { EmptyState } from '../../ui/components/EmptyState'
@@ -35,19 +33,20 @@ import {
   type BarAction,
 } from '../../ui/components/SelectionLane'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
-import { RoomFace } from '../room/RoomFace'
 import { sayRoomFailure } from '../room/roomFailure'
 import { LinkRow } from './LinkRow'
 import {
+  asksOf,
   ENDED_SHOWN,
   removeLinksWords,
   sentCountLine,
   sentSections,
   shareStage,
 } from './share.model'
-import { shareApi, useSentLinks, useShareAct } from './shareLinks'
+import { useSentLinks, useShareAct } from './shareLinks'
 import { useMinute } from './useMinute'
-import { useOwnCover } from './useOwnCover'
+import { useSummaryCover } from './useOwnCover'
+import { AskAgainCard } from './AskAgainCard'
 
 const LINK_NOUN = { one: 'link', many: 'links' } as const
 // Where a row's own edge falls on a computer: its margin and its padding.
@@ -82,7 +81,7 @@ export function LinksScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const act = useShareAct()
   const now = useMinute()
-  const coverOf = useOwnCover(ROW_COVER_SIZE)
+  const coverOf = useSummaryCover()
   const [menu, setMenu] = useState<ShareSummary | null>(null)
   // What a confirmation is asking about: ending one link, ending or removing many.
   const [ending, setEnding] = useState<readonly ShareSummary[] | null>(null)
@@ -102,7 +101,7 @@ export function LinksScreen(): ReactNode {
     () => ordered.filter(link => selection.has(link.id)),
     [ordered, selection],
   )
-  const asks = (links ?? []).flatMap(link => link.asks.map(ask => ({ link, ask })))
+  const asks = asksOf(links)
   const folded = !unfolded && ended.length > ENDED_SHOWN
   const endedShown = folded ? ended.slice(0, ENDED_SHOWN) : ended
 
@@ -176,10 +175,7 @@ export function LinksScreen(): ReactNode {
       <LinkRow
         key={link.id}
         link={link}
-        cover={coverOf(
-          link.coverSong,
-          link.cover ? shareApi.fileUrl(link, link.cover, 'cover') : null,
-        )}
+        cover={coverOf(link)}
         now={now}
         selected={selection.has(link.id)}
         picking={selection.active}
@@ -267,7 +263,7 @@ export function LinksScreen(): ReactNode {
           {asks.length > 0 ? (
             <View style={[styles.asks, wide && styles.asksWide]}>
               {asks.map(({ link, ask }) => (
-                <AskCard
+                <AskAgainCard
                   key={ask.id}
                   ask={ask}
                   link={link}
@@ -479,34 +475,6 @@ function LinkSection({
   )
 }
 
-/** "Ken asked for 晴天 again", with Share again and Not now (F1). */
-export function AskCard({
-  ask,
-  link,
-  onShare,
-  onDismiss,
-}: {
-  ask: ShareAskEntry
-  link: Pick<ShareSummary, 'name'>
-  onShare: () => void
-  onDismiss: () => void
-}): ReactNode {
-  return (
-    <View style={styles.ask} testID={`share-ask-${ask.id}`}>
-      <View style={styles.askHead}>
-        <RoomFace name={ask.name} colour={1} picture={null} size={24} />
-        <Text style={styles.askText} numberOfLines={2}>
-          {ask.name} asked for <Text style={styles.strong}>{link.name}</Text> again
-        </Text>
-      </View>
-      <View style={styles.askButtons}>
-        <Button label="Share again" variant="primary" onPress={onShare} />
-        <Button label="Not now" variant="text" onPress={onDismiss} />
-      </View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   head: pageFrame(false),
@@ -536,14 +504,4 @@ const styles = StyleSheet.create(theme => ({
   foldPhone: { marginHorizontal: space.xs, paddingHorizontal: space.lg },
   foldHovered: { backgroundColor: theme.colors.surface1 },
   foldText: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
-  ask: {
-    gap: space.md,
-    padding: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface2,
-  },
-  askHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  askText: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: type.body },
-  strong: { fontWeight: '600' },
-  askButtons: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
 }))

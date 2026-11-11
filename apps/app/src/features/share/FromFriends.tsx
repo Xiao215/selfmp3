@@ -7,18 +7,17 @@ import { plural, type ShareSummary } from '@selfmp3/shared'
 import { space } from '@selfmp3/client'
 import { lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
-import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { Cover } from '../../ui/components/Cover'
 import { NavRow } from '../../ui/components/NavRow'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, ShelfCard } from '../../ui/components/Shelf'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { sayRoomFailure } from '../room/roomFailure'
-import { AskCard } from './LinksScreen'
-import { receivedLine, shareStage } from './share.model'
-import { shareApi, useReceivedLinks, useSentLinks, useShareAct } from './shareLinks'
+import { AskAgainCard } from './AskAgainCard'
+import { asksOf, receivedLine, shareStage } from './share.model'
+import { useReceivedLinks, useSentLinks, useShareAct } from './shareLinks'
 import { useMinute } from './useMinute'
-import { useOwnCover } from './useOwnCover'
+import { useSummaryCover } from './useOwnCover'
 
 /**
  * Share links on Home (docs/features/share-links.md): the songs friends sent
@@ -34,7 +33,7 @@ export function FromFriends({ wide }: { wide: boolean }): ReactNode {
   const [menu, setMenu] = useState<ShareSummary | null>(null)
   const now = useMinute()
   // A song you have yourself draws your own copy's cover: no read of its sender's bucket.
-  const coverOf = useOwnCover(ROW_COVER_SIZE)
+  const coverOf = useSummaryCover()
   if (!links || links.length === 0) return null
   const size = wide ? 132 : 92
   return (
@@ -56,14 +55,7 @@ export function FromFriends({ wide }: { wide: boolean }): ReactNode {
               label={`Open ${link.name}, from ${link.from.name}`}
               cover={
                 <View style={ended ? styles.faded : undefined}>
-                  <Cover
-                    uri={coverOf(
-                      link.coverSong,
-                      link.cover ? shareApi.fileUrl(link, link.cover, 'cover') : null,
-                    )}
-                    title={link.name}
-                    size={size}
-                  />
+                  <Cover uri={coverOf(link)} title={link.name} size={size} />
                 </View>
               }
               title={link.name}
@@ -105,7 +97,7 @@ export function ShareAsks(): ReactNode {
   const router = useRouter()
   const { data: links } = useSentLinks()
   const act = useShareAct()
-  const asks = (links ?? []).flatMap(link => link.asks.map(ask => ({ link, ask })))
+  const asks = asksOf(links)
   const first = asks[0]
   if (!first) return null
   if (asks.length > 1) {
@@ -121,7 +113,7 @@ export function ShareAsks(): ReactNode {
   }
   return (
     <View style={styles.stack}>
-      <AskCard
+      <AskAgainCard
         ask={first.ask}
         link={first.link}
         onShare={() =>

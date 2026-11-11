@@ -307,15 +307,7 @@ export function LibraryScreen(): ReactNode {
             ))}
           </View>
         ) : null}
-        {model.tagFiltered ? (
-          <Button
-            label="Show all songs"
-            onPress={() => {
-              model.clearTags()
-              if (filter.likedOnly) model.toggleLikedOnly()
-            }}
-          />
-        ) : null}
+        {model.tagFiltered ? <Button label="Show all songs" onPress={model.showAll} /> : null}
       </EmptyState>
     )
 
@@ -492,16 +484,7 @@ export function LibraryScreen(): ReactNode {
           {...stripDrag}
           {...FOCUS_INSIDE}
         >
-          <Chip
-            testID="library-tag-all"
-            label="All"
-            selected={!narrowed}
-            onPress={() => {
-              model.clearTags()
-              if (filter.downloadedOnly) model.toggleDownloadedOnly()
-              if (filter.likedOnly) model.toggleLikedOnly()
-            }}
-          />
+          <Chip testID="library-tag-all" label="All" selected={!narrowed} onPress={model.showAll} />
           {/* Liked, first: it narrows whatever else is on. Not there until a song is. */}
           {model.likedCount > 0 || filter.likedOnly ? (
             <Chip

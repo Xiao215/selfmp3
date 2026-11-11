@@ -83,7 +83,8 @@ interface LibraryModel {
   setDescending: (descending: boolean) => void
   /** Turn a tag on or off. Every chosen tag adds its songs to the list. */
   toggleTag: (tagId: number) => void
-  clearTags: () => void
+  /** Every song: no tags, not only the liked ones, not only those on this device. */
+  showAll: () => void
   toggleDownloadedOnly: () => void
   /** The strip's Liked chip: only the songs you like. */
   toggleLikedOnly: () => void
@@ -183,7 +184,15 @@ export function useLibraryModel(
     (tagId: number) => setFilter(current => toggleTag(current, tagId)),
     [setFilter],
   )
-  const clearTags = useCallback(() => setFilter(clearTagFilter), [setFilter])
+  const showAll = useCallback(
+    () =>
+      setFilter(current => ({
+        ...clearTagFilter(current),
+        downloadedOnly: false,
+        likedOnly: false,
+      })),
+    [setFilter],
+  )
   const toggleDownloadedOnly = useCallback(
     () => setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly })),
     [setFilter],
@@ -230,7 +239,7 @@ export function useLibraryModel(
       setSort,
       setDescending,
       toggleTag: toggleTagId,
-      clearTags,
+      showAll,
       toggleDownloadedOnly,
       toggleLikedOnly,
       likedCount,
@@ -253,7 +262,7 @@ export function useLibraryModel(
       setDescending,
       sortOption,
       toggleTagId,
-      clearTags,
+      showAll,
       toggleDownloadedOnly,
       toggleLikedOnly,
       likedCount,

@@ -5,11 +5,17 @@ phone it has what a browser cannot give: dependable background audio on iOS, and
 real downloaded files instead of an evictable cache. The screens are the web's,
 drawn at phone width; the layout is decided by width, not by platform.
 
+**Where:** iOS and Android phones, and the iPad, whose layout follows its width. The code is `apps/app`: the phone-only parts are behind `src/ports/`
+(`bucketMedia.ts`, `songStream.ts`, `recentCopies.ts`, `appUpdate.ts`), the native
+modules in `modules/` (`song-stream`, `home-screen`, `key-commands`), and the release
+builds in `scripts/ios-release.mjs` and `scripts/android-release.mjs`.
+
 **The full guide is [`docs/MOBILE.md`](../MOBILE.md)**: prerequisites, running
 it on the simulator, a release build on your own iPhone, Android, and Android
 Auto testing with the Desktop Head Unit. [`docs/PREPROD.md`](../PREPROD.md) is
-what to check before calling a build good. iOS runs; no Android binary has ever
-been built.
+what to check before calling a build good. iOS runs on real iPhones. Android has
+run only on an emulator: a signed release APK is built and put on the `android`
+release, but nothing has run on an Android phone yet.
 
 ## Using it
 
@@ -22,7 +28,8 @@ when the page is left. Signing out returns to Welcome. There is no address to ty
 in a normal build; a development build keeps a "Connect to a server by address"
 text action on Welcome, because the simulator flows cannot sign in to a Google
 account. The tabs are **Home · Library · Playlists**; Home's avatar opens
-Profile, which holds Stats, the report and Settings, and its + opens Import.
+Profile, which holds Import, Stats, Links you shared and Settings, and the
+download arrow in Home's header opens Import.
 
 What needs the server itself — importing, Stats, metadata lookup, the smart
 features — talks to it directly, by the addresses the server writes into the
@@ -38,13 +45,15 @@ first on mobile data and over 500 MB, or by hand from a song or playlist. A
 downloaded song plays from disk; anything else streams from the bucket. A song
 removed by hand stays removed.
 
-Streaming from the bucket is the doorman's address with the session's bearer
-sent as a header on the track (`src/ports/bucketMedia.ts`), and it answers to
-the same two settings any stream does: "Play songs that aren't downloaded", and
-the ask before using mobile data. With automatic downloads off — a phone short
-of room — a song that counts as a play is also kept as a file, so the songs
-actually listened to are not fetched from the bucket every day. Those copies are
-a cache and not downloads (`src/ports/recentCopies.ts`): they live in the
+Streaming from the bucket reads the doorman's address with the session's bearer
+(`src/ports/bucketMedia.ts`), but the player is handed the app's own loopback
+server instead (`modules/song-stream`, `src/ports/songStream.ts`), which downloads
+the song once and answers every range from that copy: one read of the bucket per
+first play. It answers to the same two settings any stream does: "Play songs that
+aren't downloaded", and the ask before using mobile data. With automatic downloads
+off — a phone short of room — the song a stream brought is kept as a file, so the
+songs actually listened to are not fetched from the bucket every day. Those copies
+are a cache and not downloads (`src/ports/recentCopies.ts`): they live in the
 system's cache folder, never show as "on this device", take at most a quarter of
 the free space up to 2 GB, and the least recently played go first. Asking for
 one by hand turns the copy into a download without fetching it again. The

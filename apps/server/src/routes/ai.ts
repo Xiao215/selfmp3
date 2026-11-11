@@ -79,7 +79,7 @@ export function aiRoutes(container: Container): Router {
   router.get(
     '/ai/ask/progress',
     route(
-      { query: z.object({ ticket: z.string().max(64), answer: BooleanQuerySchema }) },
+      { query: z.object({ ticket: AskTicketSchema, answer: BooleanQuerySchema }) },
       ({ query }): AskProgress => {
         const { steps, known, outcome } = container.smart.askProgress(query.ticket)
         return {

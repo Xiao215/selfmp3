@@ -185,4 +185,12 @@ describe('smart features turned off in Settings', () => {
       failed: null,
     })
   })
+
+  it('refuses a ticket no device makes, as Stop does', async () => {
+    for (const ticket of ['short', 'has spaces in it', '../../etc/passwd', 'x'.repeat(65)]) {
+      const query = new URLSearchParams({ ticket }).toString()
+      expect((await call('GET', `/api/ai/ask/progress?${query}`)).status, ticket).toBe(400)
+      expect((await call('POST', '/api/ai/ask/stop', { ticket })).status, ticket).toBe(400)
+    }
+  })
 })

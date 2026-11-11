@@ -156,13 +156,14 @@ export function SoundMapScreen(): ReactNode {
   )
   // The song the pointer is on in the tray's list, or the one last pressed there.
   const [lit, setLit] = useState<number | null>(null)
-  const emptyTray = (): void => {
+  // Its setters never change, so this is the same function for as long as the page is open.
+  const emptyTray = useCallback((): void => {
     setTakes([])
     setLeft(new Set())
     setNamed(null)
     setTrayOpen(false)
     setLit(null)
-  }
+  }, [])
   const clearTray = (): void => {
     const was = { takes, left, named }
     emptyTray()
@@ -209,11 +210,7 @@ export function SoundMapScreen(): ReactNode {
         !nearest ||
         Math.hypot(nearest.x - spot.x, nearest.y - spot.y) > reach * EMPTY_TAP
       ) {
-        setTakes([])
-        setLeft(new Set())
-        setNamed(null)
-        setTrayOpen(false)
-        setLit(null)
+        emptyTray()
         return false
       }
       player.playFrom(ids, 0, {
@@ -221,7 +218,7 @@ export function SoundMapScreen(): ReactNode {
       })
       return true
     },
-    [places, songs, player],
+    [places, songs, player, emptyTray],
   )
   const onPathStart = useCallback((spot: MapPlace) => {
     strokeRef.current = [spot]

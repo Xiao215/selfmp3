@@ -118,6 +118,10 @@ function within(at: number, ms: number, now = Date.now()): boolean {
   return at <= now && now - at < ms
 }
 
+/** A log file read and found, rather than gone or not answered. */
+const isRead = (file: LogFile | 'gone' | null | undefined): file is LogFile =>
+  typeof file === 'object' && file !== null
+
 interface Replica {
   base: KeptBase
   /**
@@ -515,6 +519,9 @@ export function createCloudLibrary(
       return settleLook(r, began, r.base, r.logs, held => ({ ...held, checkedAt: Date.now() }))
     }
 
+    // Read across both attempts: a file tidied away between the listing and
+    // its read sends the look round again, and what it did read still holds.
+    const fetched = new Map<string, LogFile | 'gone' | null>()
     for (let attempt = 0; attempt < 2; attempt++) {
       // Listed already for this very counter, by a look that could not read
       // what it found — the bucket refusing reads for the day while it still
@@ -537,14 +544,13 @@ export function createCloudLibrary(
 
       const upTo = base.snapshot?.upTo ?? {}
       const wanted = unfoldedLogKeys(logKeys, upTo)
-      const missing = wanted.filter(key => !r.logs.has(key))
-      const fetched = new Map<string, LogFile | 'gone' | null>()
+      const missing = wanted.filter(key => !r.logs.has(key) && !isRead(fetched.get(key)))
       for (let start = 0; start < missing.length; start += LOG_READS_AT_ONCE) {
         const batch = missing.slice(start, start + LOG_READS_AT_ONCE)
         const files = await Promise.all(batch.map(key => fetchLog(session, key)))
         batch.forEach((key, index) => fetched.set(key, files[index] ?? null))
       }
-      if ([...fetched.values()].includes('gone') && attempt === 0) continue
+      if (attempt === 0 && missing.some(key => fetched.get(key) === 'gone')) continue
 
       const logs = new Map<string, LogFile>()
       for (const key of wanted) {

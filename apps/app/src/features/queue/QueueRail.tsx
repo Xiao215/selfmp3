@@ -170,11 +170,6 @@ function Rail({
   const factsOf = useQueueRowFacts()
   const { player, rows, remove, clearRest } = edits
   const inRoom = useRoom().state !== null
-  /*
-   * Dragging a song out removes it (chosen over a hover ✕, Xiao 2026-09-18),
-   * which nothing on screen says: the first time the rail is open with a song
-   * to come, a guide lights that song and drags it out once.
-   */
   const railRef = useRef<View>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   /*
@@ -183,9 +178,14 @@ function Rail({
    * that keeps its width rather than taking room of its own.
    */
   const over = width < WINDOW_WIDTH.railBeside
-  // Never over a song being carried: it came up mid-drag and acted the drag
-  // out on the row under the one in hand. Lying over the page, the rail is a
-  // layer of its own, which the guide does not wait for.
+  /*
+   * Dragging a song out removes it (chosen over a hover ✕, Xiao 2026-09-18),
+   * which nothing on screen says: the first time the rail is open with a song
+   * to come, a guide lights that song and drags it out once. Never over a song
+   * being carried: it came up mid-drag and acted the drag out on the row under
+   * the one in hand. Lying over the page, the rail is a layer of its own, which
+   * the guide does not wait for.
+   */
   const [firstTarget, hint] = useGuide('up-next-rail', shown && rows.next.length > 0 && !drag, {
     layers: over ? 1 : 0,
   })
@@ -241,15 +241,9 @@ function Rail({
         /*
          * The row with the focus has gone, and the focus with it, to the page:
          * a second Delete did nothing. It goes on to the row that took the
-         * removed one's place, or the one above it at the end. A browser's
-         * rows are elements, found by the index they are drawn with.
+         * removed one's place, or the one above it at the end.
          */
-        requestAnimationFrame(() => {
-          const rail = railRef.current as unknown as HTMLElement | null
-          const row = (at: number): HTMLElement | null | undefined =>
-            rail?.querySelector?.<HTMLElement>(`[data-testid="queue-row-${at}"]`)
-          ;(row(index) ?? row(index - 1))?.focus()
-        })
+        requestAnimationFrame(() => (railRowAt(index) ?? railRowAt(index - 1))?.focus())
       },
       step: (index, by) => {
         const now = latest.current
@@ -665,9 +659,17 @@ const REMOVE_KEYS = new Set(['Delete', 'Backspace'])
  * would otherwise go nowhere. Only a browser has keys to press.
  */
 function focusRowSoon(index: number): void {
-  requestAnimationFrame(() => {
-    document.querySelector<HTMLElement>(`[data-testid="queue-row-${index}"]`)?.focus()
-  })
+  requestAnimationFrame(() => railRowAt(index)?.focus())
+}
+
+/**
+ * The rail's row at `index`, in a browser, whose rows are elements found by
+ * the index they are drawn with.
+ */
+function railRowAt(index: number): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `[data-testid="queue-rail"] [data-testid="queue-row-${index}"]`,
+  )
 }
 
 /**

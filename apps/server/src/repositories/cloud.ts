@@ -8,6 +8,7 @@ import {
   type CloudLyrics,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
+import { readStored } from '../db/rows.js'
 
 /**
  * All SQL for the cloud bucket: the connection, this server's name in the
@@ -490,7 +491,7 @@ export class CloudRepository {
 
   connection(): CloudConnection | null {
     const row = this.#getSecret.get(CONNECTION_SECRET)
-    return row ? readSecret(CloudConnectionSchema, row.value) : null
+    return row ? readStored(CloudConnectionSchema, row.value) : null
   }
 
   /**
@@ -517,7 +518,7 @@ export class CloudRepository {
 
   doormanSession(): DoormanSession | null {
     const row = this.#getSecret.get(DOORMAN_SECRET)
-    return row ? readSecret(DoormanSessionSchema, row.value) : null
+    return row ? readStored(DoormanSessionSchema, row.value) : null
   }
 
   /** Signed in through the doorman. It replaces a direct connection. */
@@ -1024,16 +1025,4 @@ function toState(row: CloudSongRow): CloudSongState {
     motionSig: row.motion_sig,
     uploadedAt: row.uploaded_at,
   }
-}
-
-/** A stored JSON secret through its schema; anything else reads as absent. */
-function readSecret<S extends z.ZodTypeAny>(schema: S, value: string): z.output<S> | null {
-  let json: unknown
-  try {
-    json = JSON.parse(value)
-  } catch {
-    return null
-  }
-  const parsed = schema.safeParse(json)
-  return parsed.success ? (parsed.data as z.output<S>) : null
 }

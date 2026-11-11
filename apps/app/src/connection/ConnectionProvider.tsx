@@ -32,12 +32,11 @@ interface ConnectionContextValue {
   readonly needsStorage: boolean
   readonly connect: (connection: ServerConnection) => Promise<void>
   /** Say the cloud sign-in finished, so the app answers from the bucket. The session says whether it has one. */
-  readonly signedInToCloud: (session?: CloudSession) => void
+  readonly signedInToCloud: (session: CloudSession) => void
   /** The account's bucket was connected on this device. */
   readonly storageConnected: () => void
   /** The account's bucket was forgotten on this device; it is asked for again. */
   readonly storageForgotten: () => void
-  readonly disconnect: () => Promise<void>
   /** Leave the cloud: the session is ended elsewhere first; this forgets the bucket's library and asks again. */
   readonly signedOutOfCloud: () => void
   /**
@@ -161,7 +160,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
 
   /** Called once Google is done, so the app stops asking for a server. */
   const signedInToCloud = useCallback(
-    (session?: CloudSession) => {
+    (session: CloudSession) => {
       answerFromCloud(true)
       // A typed address is let go, so `connection` and `fromCloud` are never both set.
       void clearConnection().catch(() => undefined)
@@ -169,7 +168,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       setConnection(null)
       forgetCachedServer()
       answerFrom(true)
-      sayStorage(storageDue(session ?? null))
+      sayStorage(storageDue(session))
       setSessionEnded(null)
       setStatus('ready')
     },
@@ -214,15 +213,6 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     setStatus('missing')
   }, [forgetCachedServer, answerFrom, sayStorage])
 
-  const disconnect = useCallback(async () => {
-    await clearConnection()
-    setServer(null)
-    forgetCachedServer()
-    forgetImportDraft('own')
-    setConnection(null)
-    setStatus('missing')
-  }, [forgetCachedServer])
-
   const value = useMemo<ConnectionContextValue>(
     () => ({
       connection,
@@ -230,7 +220,6 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       status,
       needsStorage,
       connect,
-      disconnect,
       signedInToCloud,
       storageConnected,
       storageForgotten,
@@ -243,7 +232,6 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       status,
       needsStorage,
       connect,
-      disconnect,
       signedInToCloud,
       storageConnected,
       storageForgotten,

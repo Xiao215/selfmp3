@@ -27,16 +27,16 @@ export interface ProfileRow {
   readonly hint: string
 }
 
+/** The line under Stats: what is behind the row. */
+const STATS_HINT = 'What you play, and when'
+
 /**
- * Import, Stats, Sound map, Links you shared and Settings. Tags are reached from Home's
+ * Import, Stats, Links you shared and Settings. Tags are reached from Home's
  * tiles and "All N tags". Stats is a row as well as the card above, so the page
  * names it where its other pages are; Report is the last line of Stats. Links you shared is
  * there for a signed-in account, the only kind that can send one; `linksHint`
  * says how many play.
  */
-/** The line under Stats: what is behind the row. */
-const STATS_HINT = 'What you play, and when'
-
 export function profileRows({
   linksHint,
 }: {

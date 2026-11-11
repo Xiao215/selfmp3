@@ -116,8 +116,9 @@ other — fails silently on a phone, weeks later.
 
 A route validates input and returns a value. A service holds behaviour. A repository holds
 SQL. **No SQL exists outside `repositories/`**, so a schema change has one blast radius.
-Routes never touch the database directly, so any route can be tested by handing it a
-container built on an in-memory SQLite.
+Routes never write SQL themselves, so any route can be tested by handing it a container
+built on a fresh database in a temporary folder (`SELFMP3_DATA_DIR`, with
+`SELFMP3_CLOUD_DIR=bucket` so the API has a bucket to answer from).
 
 ### The composition root
 

@@ -274,7 +274,7 @@ I1 J2 K1):
   (_1 of them is still playing and stops for everyone_). **More** holds **Share again**, **End**
   and **Copy links**.
 
-You reach it from Profile, under Report. A playing link has a copy button beside its ⋯ that
+You reach it from Profile, in the row after Stats. A playing link has a copy button beside its ⋯ that
 puts the link on the clipboard: with a mouse it waits for the pointer, as the ⋯ does. Each
 link's ⋯ holds:
 

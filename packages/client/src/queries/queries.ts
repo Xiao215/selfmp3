@@ -105,6 +105,8 @@ export const queryKeys = {
    * same cache, and one server's answer would stand in for the next's.
    */
   settings: (baseUrl: string | null) => ['settings', baseUrl] as const,
+  /** Everything about importing, what a change to the queue invalidates in one go. */
+  importRoot: ['import'] as const,
   importQueue: ['import', 'queue'] as const,
   importHistory: ['import', 'history'] as const,
   importTools: ['import', 'tools'] as const,
@@ -560,12 +562,15 @@ export function useImportQueue(enabled: boolean): UseQueryResult<ImportQueue, Er
     queryKey: queryKeys.importQueue,
     queryFn: () => clientApi().importQueue(),
     enabled: ready && enabled,
-    refetchInterval: query => {
-      const data = query.state.data
-      if (!data) return false
-      return data.active > 0 || data.queued > 0 ? 1_000 : false
-    },
+    refetchInterval: importQueueInterval,
   })
+}
+
+/** Every second while the queue is busy, then not at all (`useImportQueue`). */
+export function importQueueInterval(query: { state: { data?: ImportQueue } }): number | false {
+  const data = query.state.data
+  if (!data) return false
+  return data.active > 0 || data.queued > 0 ? 1_000 : false
 }
 
 /** How many finished imports "Show all" reads: the server's most. */

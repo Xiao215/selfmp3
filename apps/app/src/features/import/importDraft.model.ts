@@ -24,7 +24,8 @@ import type { Review, ServerConnection } from '@selfmp3/client'
  * first is the same server with the same tags. Keying the draft by the winner
  * threw a forty-track review away each time a different address won.
  */
-export type DraftSource = 'own' | 'cloud'
+const DraftSourceSchema = z.enum(['own', 'cloud'])
+export type DraftSource = z.infer<typeof DraftSourceSchema>
 
 /** The source a screen's draft belongs to, from how it reached its server. */
 export function draftSourceFor(via: ServerConnection | undefined): DraftSource {
@@ -108,13 +109,13 @@ const StoredReviewSchema = z.object({
   chosen: z.array(z.number().int().nonnegative()),
   playlistTitle: z.string().nullable(),
   from: ImportFromSchema,
-  unread: z.array(UnreadLinkSchema).default([]),
+  unread: z.array(UnreadLinkSchema),
 })
 type StoredReview = z.infer<typeof StoredReviewSchema>
 
 /** The draft as it is written down: sets as arrays, and nothing else changed. */
 const StoredDraftSchema = z.object({
-  source: z.enum(['own', 'cloud']),
+  source: DraftSourceSchema,
   links: z.string(),
   review: StoredReviewSchema.nullable(),
   search: z

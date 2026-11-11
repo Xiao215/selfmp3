@@ -5,6 +5,12 @@ being used, as totals; and **People**, who can sign in. Only the owner can open 
 their own devices on Tailscale. The app has no owner-only screens at all: the owner is a user
 like any other there.
 
+**Where:** a browser on the owner's tailnet, served by the server (`apps/server/admin/` for
+the page, `apps/server/src/admin/` for its routes); the doorman keeps the list of who can sign
+in and its own counts (`apps/doorman/src/access.ts`, `tally.ts`, `device.ts`). Not in the
+phone, computer or desktop app, which have no owner-only screens. More in
+[Where it lives](#where-it-lives).
+
 Decided on 2026-10-23 and reworked on 2026-10-24 (proposal artifact
 `JdZ4o2nCHbXMJmV3mu7i8z`, version 5 and Xiao's notes on it):
 

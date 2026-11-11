@@ -39,7 +39,14 @@ import { MyLibraryPicker } from '../room/RoomPicks'
 import { sayRoomFailure } from '../room/roomFailure'
 import { currentRoom, startRoom, useRoom } from '../room/room.store'
 import { isHost } from '../room/room.model'
-import { nameToJoinWith, sharedLine, sharedRows, sharedTracks } from './shared.model'
+import {
+  nameToJoinWith,
+  pendingJoinOf,
+  pendingJoinPath,
+  sharedLine,
+  sharedRows,
+  sharedTracks,
+} from './shared.model'
 import {
   sharedApi,
   sharedSession,
@@ -393,7 +400,7 @@ export function SharedJoinScreen(): ReactNode {
               onPress={() => {
                 prefs.set(
                   PENDING_JOIN_KEY,
-                  `/shared/${params.id ?? ''}/join/${params.invite ?? ''}`,
+                  pendingJoinPath({ id: params.id ?? '', invite: params.invite ?? '' }),
                 )
                 router.replace('/welcome')
               }}
@@ -411,10 +418,10 @@ export function useResumeSharedJoin(): void {
   const { status } = useConnection()
   useEffect(() => {
     if (status !== 'ready') return
-    const pending = prefs.get(PENDING_JOIN_KEY)
-    if (!pending || !/^\/shared\/[0-9a-f]{16}\/join\/[0-9a-f]{16}$/.test(pending)) return
+    const pending = pendingJoinOf(prefs.get(PENDING_JOIN_KEY))
+    if (!pending) return
     prefs.set(PENDING_JOIN_KEY, '')
-    router.push(pending as never)
+    router.push({ pathname: '/shared/[id]/join/[invite]', params: { ...pending } })
   }, [status, router])
 }
 

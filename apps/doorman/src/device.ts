@@ -85,9 +85,19 @@ export function device(ctx: Context): Promise<Response> {
     return Promise.resolve(methodNotAllowed(['GET', 'POST']))
   }
   if (method !== 'GET') return Promise.resolve(methodNotAllowed(['GET']))
-  const id = decodeURIComponent(rest.slice(1))
+  return shown(ctx, idFrom(rest))
+}
+
+/** The iPhone ID in what follows a route's path (`/<id>`); anything else is not found. */
+function idFrom(rest: string): string {
+  let id: string
+  try {
+    id = decodeURIComponent(rest.slice(1))
+  } catch {
+    throw notFound()
+  }
   if (!rest.startsWith('/') || !IPHONE_ID.test(id)) throw notFound()
-  return shown(ctx, id)
+  return id
 }
 
 function profile(ctx: Context): Response {
@@ -233,8 +243,7 @@ export async function iphones(ctx: Context): Promise<Response> {
     const list: IphoneList = { iphones: await readList(ctx) }
     return json(list)
   }
-  const id = decodeURIComponent(rest.slice(1))
-  if (!rest.startsWith('/') || !IPHONE_ID.test(id)) throw notFound()
+  const id = idFrom(rest)
   if (method === 'PUT') return added(ctx, id)
   if (method === 'DELETE') {
     const list = await readList(ctx)

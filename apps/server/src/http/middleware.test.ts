@@ -235,4 +235,16 @@ describe('requestLogger', () => {
       ]),
     ).toEqual(['debug', 'debug', 'info'])
   })
+
+  it('logs what a device asks on a timer at debug', async () => {
+    expect(
+      await levelsOf([
+        ['POST', '/api/devices/heartbeat'],
+        ['GET', '/api/health'],
+        ['GET', '/api/library/version'],
+        ['GET', '/api/ai/ask/progress?ticket=phone-asks-1'],
+        ['POST', '/api/ai/ask'],
+      ]),
+    ).toEqual(['debug', 'debug', 'debug', 'debug', 'info'])
+  })
 })

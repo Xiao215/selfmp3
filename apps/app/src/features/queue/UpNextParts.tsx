@@ -5,7 +5,12 @@ import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } fr
 import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, formatDuration, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, radius, space, type, iconSize } from '@selfmp3/client'
-import { usePlayer, usePlayerProgress, type PlayerApi } from '../../player/PlayerProvider'
+import {
+  usePlayerPlaying,
+  usePlayerProgress,
+  useSongLoaded,
+  type PlayerApi,
+} from '../../player/PlayerProvider'
 import { useLayoutValue } from '../../shell/useLayout'
 import { label, smallTitle } from '../../ui/surfaces'
 import { useSongTagLookup } from '../../ui/songTags'
@@ -42,7 +47,7 @@ import { Press } from '../../ui/components/Press'
 export function useUpNextShown(wide: boolean): boolean {
   const open = useQueueSheetOpen()
   const layoutWide = useLayoutValue(layout => layout.wide)
-  const loaded = usePlayer().current !== null
+  const loaded = useSongLoaded()
   const inRoom = useRoom().state !== null
   useEffect(() => {
     if (open && !loaded && !inRoom) closeQueueSheet()
@@ -92,7 +97,7 @@ export function PlayingNow({
    */
   quiet?: boolean
 }): ReactNode {
-  const playing = usePlayer().isPlaying
+  const playing = usePlayerPlaying()
   return (
     <PlayingCard
       song={row.song}

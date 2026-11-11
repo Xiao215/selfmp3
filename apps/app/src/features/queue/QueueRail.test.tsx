@@ -78,6 +78,7 @@ jest.mock('../../player/PlayerProvider', () => {
     usePlayer,
     usePlayerCommands: () => commands,
     usePlayerPlaying: () => !mockPlayer.ranOut,
+    useSongLoaded: () => useSyncExternalStore(subscribe, () => mockPlayer.current !== null),
     usePlayingSongId: () => mockPlayer.current?.id ?? null,
     usePlayerStalled: () => false,
     usePlayerProgress: () => ({ position: 30, duration: 240 }),

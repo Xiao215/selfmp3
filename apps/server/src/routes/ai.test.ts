@@ -29,8 +29,10 @@ describe('smart features turned off in Settings', () => {
   let model: http.Server
   let origin = ''
   let asked = 0
-  /** How long the model takes to answer. */
-  let thinkingMs = 0
+  /** What the model waits on before it answers: nothing, unless a test holds it. */
+  let thinking: Promise<void> = Promise.resolve()
+  /** Told each time the model is asked. */
+  let heard = (): void => {}
   /** What the model says about an import's names. */
   let importReply: unknown[] = []
   /** What Ask's agent answers, in words and with no tool called. */
@@ -39,6 +41,7 @@ describe('smart features turned off in Settings', () => {
   beforeAll(async () => {
     model = http.createServer(async (request, response) => {
       asked++
+      heard()
       let body = ''
       for await (const chunk of request) body += String(chunk)
       const sent = JSON.parse(body) as {
@@ -49,7 +52,7 @@ describe('smart features turned off in Settings', () => {
       const task =
         sent.response_format.json_schema?.name ??
         /JSON Schema \("([^"]+)"\)/.exec(sent.messages[0]?.content ?? '')?.[1]
-      await new Promise(resolve => setTimeout(resolve, thinkingMs))
+      await thinking
       response.writeHead(200, { 'Content-Type': 'application/json' })
       if (task === 'import-names') {
         const content = JSON.stringify({ rows: importReply })
@@ -118,7 +121,19 @@ describe('smart features turned off in Settings', () => {
   })
 
   it('goes on with an Ask whose connection closed, and keeps its answer under the ticket', async () => {
-    thinkingMs = 300
+    let answer = (): void => {}
+    thinking = new Promise(resolve => {
+      answer = () => resolve()
+    })
+    const modelAsked = new Promise<void>(resolve => {
+      heard = resolve
+    })
+    // The Ask's response on this side, closed once the phone has gone.
+    const responseClosed = new Promise<void>(resolve => {
+      server.once('request', (_request: http.IncomingMessage, response: http.ServerResponse) =>
+        response.once('close', () => resolve()),
+      )
+    })
     const ticket = 'phone-went-away-1'
     const hangUp = new AbortController()
     const asking = fetch(`${origin}/api/ai/ask`, {
@@ -128,9 +143,11 @@ describe('smart features turned off in Settings', () => {
       signal: hangUp.signal,
     })
     // The app is sent to the background and its connection goes while the model thinks.
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await modelAsked
     hangUp.abort()
     await expect(asking).rejects.toThrow()
+    await responseClosed
+    answer()
 
     let progress: { done: boolean; answer: unknown; failed: unknown } | undefined
     for (let tries = 0; tries < 40 && !progress?.done; tries++) {
@@ -139,7 +156,8 @@ describe('smart features turned off in Settings', () => {
         await call('GET', `/api/ai/ask/progress?ticket=${ticket}&answer=1`)
       ).json()) as typeof progress
     }
-    thinkingMs = 0
+    thinking = Promise.resolve()
+    heard = () => {}
     expect(progress).toMatchObject({
       done: true,
       failed: null,
@@ -184,5 +202,13 @@ describe('smart features turned off in Settings', () => {
       answer: null,
       failed: null,
     })
+  })
+
+  it('refuses a ticket no device makes, as Stop does', async () => {
+    for (const ticket of ['short', 'has spaces in it', '../../etc/passwd', 'x'.repeat(65)]) {
+      const query = new URLSearchParams({ ticket }).toString()
+      expect((await call('GET', `/api/ai/ask/progress?${query}`)).status, ticket).toBe(400)
+      expect((await call('POST', '/api/ai/ask/stop', { ticket })).status, ticket).toBe(400)
+    }
   })
 })

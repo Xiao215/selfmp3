@@ -27,8 +27,9 @@ export function requestLogger(
     const startedAt = process.hrtime.bigint()
     res.on('finish', () => {
       const ms = Number(process.hrtime.bigint() - startedAt) / 1e6
-      // Range requests on a single track are noisy and uninteresting.
-      const noisy = req.path.startsWith('/api/stream/') || req.path.startsWith('/api/art/')
+      // The path is read from `originalUrl`: by the time a response finishes,
+      // `req.path` is what the router under `/api` saw, with the mount taken off.
+      const noisy = isNoisy(pathOf(req.originalUrl))
       const line = `${req.method} ${loggedUrl(req.originalUrl)} ${res.statusCode}`
       const fields = { ms: ms.toFixed(1) }
       if (res.statusCode >= 500) metrics?.count(METRIC.serverError(routeOf(req, res.statusCode)))
@@ -46,12 +47,37 @@ export function requestLogger(
  * as `:id`, so a hundred songs failing the same way are one line.
  */
 export function routeOf(req: Pick<Request, 'method' | 'originalUrl'>, status: number): string {
-  const bare = req.originalUrl.split('?')[0] ?? ''
-  const path = bare
+  const path = pathOf(req.originalUrl)
     .split('/')
     .map(part => (/^\d+$|^[0-9a-f]{8,}$|^[A-Za-z0-9_-]{20,}$/i.test(part) ? ':id' : part))
     .join('/')
   return `${req.method} ${path} → ${status}`
+}
+
+/**
+ * What every device asks on a timer, whatever it is doing: its heartbeat
+ * (`DEVICE_HEARTBEAT_MS`), the look at whether this server is there and still
+ * holds its library (`askAddress` in the client), and an Ask's progress while
+ * it runs. At info, one idle phone wrote a line every few seconds for good.
+ */
+const POLLED_PATHS: ReadonlySet<string> = new Set([
+  '/api/devices/heartbeat',
+  '/api/health',
+  '/api/library/version',
+  '/api/ai/ask/progress',
+])
+
+/**
+ * Whether a request's line goes at debug rather than info: a track's ranges
+ * and its cover, asked many times a play, and the polls above.
+ */
+function isNoisy(path: string): boolean {
+  return path.startsWith('/api/stream/') || path.startsWith('/api/art/') || POLLED_PATHS.has(path)
+}
+
+/** A request's path as it arrived, mount and all, without its query. */
+function pathOf(originalUrl: string): string {
+  return originalUrl.split('?')[0] ?? ''
 }
 
 /** The request's URL with the token, if it carried one, blanked. */

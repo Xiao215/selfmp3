@@ -1,6 +1,6 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { messageOf, isCloudFileKey, isHashNamedCloudKey } from '@selfmp3/shared'
+import { codeOf, messageOf, isCloudFileKey, isHashNamedCloudKey } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 
 /**
@@ -35,7 +35,7 @@ export class KeptCloudFiles {
     try {
       return await fsp.readFile(file)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if (codeOf(error) !== 'ENOENT') {
         this.#logger.warn('could not read a kept file', { key, message: messageOf(error) })
       }
       return null

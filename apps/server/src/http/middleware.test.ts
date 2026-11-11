@@ -1,8 +1,11 @@
-import type { NextFunction, Request, Response } from 'express'
+import { once } from 'node:events'
+import type { AddressInfo } from 'node:net'
+import express, { Router, type NextFunction, type Request, type Response } from 'express'
 import { EXTENSION_ORIGIN } from '@selfmp3/shared'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
-import { cors, loggedUrl, sameOriginWrites } from './middleware.js'
+import { cors, loggedUrl, requestLogger, sameOriginWrites } from './middleware.js'
 
 const APP_URL = 'https://music.example.org/selfmp3'
 const APP_SITE_ORIGIN = new URL(APP_URL).origin
@@ -175,5 +178,73 @@ describe('loggedUrl', () => {
   it('leaves a URL without a token as it came', () => {
     expect(loggedUrl('/api/library')).toBe('/api/library')
     expect(loggedUrl('/api/art/3?size=320')).toBe('/api/art/3?size=320')
+  })
+})
+
+describe('requestLogger', () => {
+  /** A logger that keeps each line with its level. */
+  function keeping() {
+    const lines: { level: string; message: string }[] = []
+    const at =
+      (level: string) =>
+      (message: string): void =>
+        void lines.push({ level, message })
+    const logger: Logger = {
+      debug: at('debug'),
+      info: at('info'),
+      warn: at('warn'),
+      error: at('error'),
+      child: () => logger,
+    }
+    return { logger, lines }
+  }
+
+  /** The level each request's line was at, asked of a router under `/api` as the API is mounted. */
+  async function levelsOf(
+    requests: readonly (readonly [method: string, path: string])[],
+  ): Promise<string[]> {
+    const { logger, lines } = keeping()
+    const app = express()
+    app.use(requestLogger(logger))
+    const api = Router()
+    api.use((_req, res) => void res.json({}))
+    app.use('/api', api)
+    const server = app.listen(0, '127.0.0.1')
+    try {
+      await once(server, 'listening')
+      const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+      for (const [method, path] of requests) {
+        await (await fetch(`${origin}${path}`, { method })).arrayBuffer()
+      }
+      await vi.waitFor(() => expect(lines).toHaveLength(requests.length))
+    } finally {
+      server.close()
+    }
+    return requests.map(
+      ([method, path]) =>
+        lines.find(line => line.message.startsWith(`${method} ${path} `))?.level ?? 'none',
+    )
+  }
+
+  it('logs a track’s ranges and its cover at debug, and the rest at info', async () => {
+    expect(
+      await levelsOf([
+        ['GET', '/api/stream/7'],
+        ['GET', '/api/art/7?size=320'],
+        ['GET', '/api/library'],
+      ]),
+    ).toEqual(['debug', 'debug', 'info'])
+  })
+
+  it('logs what a device asks on a timer at debug', async () => {
+    expect(
+      await levelsOf([
+        ['POST', '/api/devices/heartbeat'],
+        ['GET', '/api/health'],
+        ['GET', '/api/library/version'],
+        ['GET', '/api/ai/ask/progress?ticket=phone-asks-1'],
+        ['POST', '/api/ai/ask'],
+      ]),
+    ).toEqual(['debug', 'debug', 'debug', 'debug', 'info'])
   })
 })

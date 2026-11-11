@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { codeOf } from '@selfmp3/shared'
 
 /**
  * Less room than this on the data folder's disk is a full disk. Not zero: a
@@ -34,7 +35,7 @@ export function fullDiskProblem(
  * Worth trying again once space frees, unlike a file that will not read.
  */
 export function isDiskFull(error: unknown): boolean {
-  const code = (error as { code?: unknown } | null)?.code
+  const code = codeOf(error)
   return code === 'SQLITE_FULL' || code === 'ENOSPC'
 }
 

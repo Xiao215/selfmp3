@@ -26,10 +26,8 @@ status for a client, a sentence for a person, a log line for the owner.
   `HttpError`'s factories. A code a client branches on is a constant in the
   shared package (`API_ERROR` and its siblings), never a literal repeated at
   the throw and the check.
-- **A Node error's `.code`** (`ENOENT`, `EEXIST`) is read by narrowing
-  (`error instanceof Error && 'code' in error`), not by casting to
-  `NodeJS.ErrnoException`. The server casts it in several files today. One
-  helper beside `messageOf` is the fix, not another cast.
+- **A Node error's `.code`** (`ENOENT`, `EEXIST`) is read with `codeOf(error)`,
+  beside `messageOf`, not by casting to `NodeJS.ErrnoException`.
 - **Shared rules return a refusal** (`EditRefusal` in `editRules.ts`) that each
   answerer turns into its own error. Keep that split: a pure rule returns, an
   edge throws.

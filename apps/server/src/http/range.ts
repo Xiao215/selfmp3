@@ -2,7 +2,8 @@ import type { Request, Response } from 'express'
 import type { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-import { answerRange } from '@selfmp3/shared'
+import { answerRange, codeOf } from '@selfmp3/shared'
+import { abortOnClose } from './abortOnClose.js'
 
 /**
  * HTTP range request handling for audio: Express's half of it.
@@ -76,16 +77,16 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
     return
   }
 
+  // A 206 says which bytes it carries, and a 416 how many there are.
+  const contentRange = answer.headers['Content-Range']
+  if (contentRange !== undefined) res.setHeader('Content-Range', contentRange)
+
   if (answer.status === 416) {
-    res.setHeader('Content-Range', answer.headers['Content-Range'] as string)
     res.status(416).end()
     return
   }
 
   res.status(answer.status)
-  if (answer.status === 206) {
-    res.setHeader('Content-Range', answer.headers['Content-Range'] as string)
-  }
   res.setHeader('Content-Length', String(answer.length))
 
   if (req.method === 'HEAD') {
@@ -107,8 +108,7 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
   // A client seeking or skipping closes the response. The fetch behind it is
   // called off with it rather than left to finish for nobody, and the stream
   // it had already started is destroyed by `pipeline`.
-  const gone = new AbortController()
-  res.once('close', () => gone.abort())
+  const gone = abortOnClose(res)
   try {
     const stream = await source.open(answer.start, answer.end, gone.signal)
     if (gone.signal.aborted) {
@@ -124,7 +124,7 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
   } catch (error) {
     // That is normal behaviour, not an error worth surfacing.
     if (gone.signal.aborted) return
-    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    const code = codeOf(error)
     if (code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'EPIPE' || code === 'ECONNRESET') return
     throw error
   }

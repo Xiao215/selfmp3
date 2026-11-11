@@ -93,6 +93,24 @@ describe('sendRange', () => {
     expect(opened[0]).toMatchObject({ start: 10, end: 19 })
   })
 
+  it('says the size on a 416, and no range on a whole file or a 304', async () => {
+    const url = await serve(source().source)
+    const past = await fetch(url, { headers: { Range: 'bytes=999-' } })
+    expect(past.status).toBe(416)
+    expect(past.headers.get('content-range')).toBe(`bytes */${BYTES.length}`)
+
+    const whole = await fetch(url)
+    expect(whole.status).toBe(200)
+    expect(whole.headers.get('content-range')).toBeNull()
+    expect(whole.headers.get('content-length')).toBe(String(BYTES.length))
+    expect(await whole.text()).toBe(BYTES.toString())
+
+    const kept = await fetch(url, { headers: { Range: 'bytes=0-9', 'If-None-Match': '"x"' } })
+    expect(kept.status).toBe(304)
+    expect(kept.headers.get('content-range')).toBeNull()
+    expect(kept.headers.get('etag')).toBe('"x"')
+  })
+
   it('answers a source that fails before its first byte as an error, not a crash', async () => {
     const { source: ranged } = source({ fail: new Error('the bucket has no such file') })
     const url = await serve(ranged)

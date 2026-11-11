@@ -8,6 +8,8 @@ import {
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
+import { libraryChanges } from '../repositories/libraryChanges.js'
+import { keptByKey } from '../util/keptByKey.js'
 
 /**
  * The library answer's `generatedAt`: when this server first answered with
@@ -34,25 +36,6 @@ export function answeredAt(
 }
 
 /**
- * An answer built and written out once for each `key`, and handed out as
- * written until the key moves.
- *
- * The library is the whole of it — 2.5 MB for 5,000 songs — and building it
- * holds the event loop: every tab and device refetches it on each version
- * bump and on focus, and on a busy machine those builds kept /api/health
- * past the app's 3 s "can't reach" (R3-m6). The key is what the answer is
- * made from, so a kept one is not stale.
- */
-function keptAnswer(key: () => string, build: () => unknown): () => string {
-  let kept: { key: string; body: string } | null = null
-  return () => {
-    const current = key()
-    if (kept?.key !== current) kept = { key: current, body: JSON.stringify(build()) }
-    return kept.body
-  }
-}
-
-/**
  * Library-wide endpoints: the full snapshot, rescanning, and the sync manifest
  * the phone uses to work out what it still needs to download.
  */
@@ -60,27 +43,36 @@ export function libraryRoutes(container: Container): Router {
   const router = Router()
   const generatedAt = answeredAt(() => container.libraryVersion())
   /*
-   * Every row the library answer is read from is in this database, and this
-   * connection is its only writer: its count of changed rows moves with any
-   * write, a play or a background pass that bumps no version included. The
-   * minute is in the key too: a live playlist of what was played in the last
-   * week counts against the clock, and moves with no write at all.
+   * The answer, built and written out once for each state of the library.
+   * It is the whole library — 2.5 MB for 5,000 songs — and building it holds
+   * the event loop: every tab and device refetches it on each version bump
+   * and on focus, and on a busy machine those builds kept /api/health past
+   * the app's 3 s "can't reach" (R3-m6).
+   *
+   * Every row it is read from is in this database, so `libraryChanges` moves
+   * with any write to them, a play or a background pass that bumps no version
+   * included, and not with a device's heartbeat. While a live playlist
+   * follows the clock ("played in the last week"), the minute is in the key
+   * too: its songs move with no write at all.
    */
-  const changedRows = container.db.prepare('SELECT total_changes()').pluck()
-  const library = keptAnswer(
-    () =>
-      `${container.libraryVersion()}:${String(changedRows.get())}:${Math.floor(Date.now() / 60_000)}`,
-    (): Library => {
+  const changes = libraryChanges(container.db)
+  const minute = (): string =>
+    container.playlists.followTheClock() ? `:${Math.floor(Date.now() / 60_000)}` : ''
+  const library = keptByKey(
+    () => `${container.libraryVersion()}:${changes()}${minute()}`,
+    () => {
       const songs = container.songs.all()
-      return {
+      const artistNames = container.names.artistNames()
+      const answer: Library = {
         songs,
         tags: container.tags.all(),
         playlists: container.playlists.all(),
-        ...container.names.joinNames(),
-        spellings: container.spellings.current(songs),
+        ...container.names.joinNames(artistNames),
+        spellings: container.spellings.current(songs, artistNames),
         version: container.libraryVersion(),
         generatedAt: generatedAt(),
       }
+      return JSON.stringify(answer)
     },
   )
 

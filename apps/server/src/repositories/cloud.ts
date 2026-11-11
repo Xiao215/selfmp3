@@ -775,6 +775,25 @@ export class CloudRepository {
     })()
   }
 
+  /** Another song's cover in the bucket, named for a song that has none (`SongMerge`). */
+  takeCover(songId: number, key: string, size: number | null, sig: string): void {
+    this.#db
+      .prepare(
+        'UPDATE cloud_songs SET cover_key = ?, cover_size = ?, cover_sig = ? WHERE song_id = ?',
+      )
+      .run(key, size, sig, songId)
+  }
+
+  /** Another song's words in the bucket, named for a song that has none (`SongMerge`). */
+  takeLyrics(songId: number, from: CloudSongState): void {
+    this.#db
+      .prepare(
+        `UPDATE cloud_songs SET lyrics_key = ?, lyrics_size = ?, lyrics_kind = ?,
+                lyrics_sig = ? WHERE song_id = ?`,
+      )
+      .run(from.lyricsKey, from.lyricsSize, from.lyricsKind, from.lyricsSig, songId)
+  }
+
   // --- The trash -------------------------------------------------------------
 
   /**

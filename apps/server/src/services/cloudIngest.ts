@@ -25,7 +25,7 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { StatsRepository } from '../repositories/stats.js'
 import type { SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
-import { heardMs, impossiblePlay, sqliteTime } from '../repositories/stats.js'
+import { recordPlay } from './plays.js'
 import type { SyncClock } from './localEdits.js'
 import type { SongMerge } from './songMerge.js'
 
@@ -214,15 +214,15 @@ export class CloudIngest {
       case 'songPlayed': {
         const id = this.#played(change.uid)?.id ?? null
         if (id === null) return false
-        // Held to the rule the server's own route is (routes/songs.ts).
         const duration = this.#songs.byId(id)?.duration ?? 0
-        if (impossiblePlay(change, duration)) return false
-        const playedAt = sqliteTime(change.playedAt)
-        const heard = heardMs(change.msPlayed, duration)
-        if (this.#stats.overlaps(id, heard, playedAt, change.playId)) return false
-        const counted = this.#stats.record(id, heard, change.completed, playedAt, change.playId)
-        if (counted) this.#songs.recordPlay(id, playedAt)
-        return counted
+        const outcome = recordPlay(
+          { db: this.#db, stats: this.#stats, songs: this.#songs },
+          id,
+          duration,
+          change,
+          change.playId,
+        )
+        return 'counted' in outcome && outcome.counted
       }
 
       case 'tagCreated': {

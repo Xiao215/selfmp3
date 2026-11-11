@@ -124,12 +124,13 @@ describe('CloudSyncService', () => {
     imports = new ImportRepository(db)
     cloud = new CloudRepository(db)
     syncRepo = new SyncRepository(db)
+    const stats = new StatsRepository(db)
     ingest = new CloudIngest({
       db,
       songs,
       tags,
       playlists,
-      stats: new StatsRepository(db),
+      stats,
       sync: syncRepo,
       names: new NamesRepository(db),
       cloud,
@@ -139,7 +140,7 @@ describe('CloudSyncService', () => {
         now: () => clock,
       }),
       logger,
-      merge: new SongMerge({ db, sync: syncRepo }),
+      merge: new SongMerge({ songs, tags, playlists, stats, cloud, sync: syncRepo }),
     })
     const storage = new LocalStorageDriver(root)
     covers = new CoverService({ dataDir } as Config, songs, logger)

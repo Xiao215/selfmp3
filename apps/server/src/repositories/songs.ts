@@ -76,6 +76,50 @@ interface NewSong {
   sourceUrl: string | null
 }
 
+/** A song's columns a merge reads (`SongMerge`), by the names the shared rule uses. */
+interface SongMergeRow {
+  readonly id: number
+  readonly uid: string
+  readonly artist: string
+  readonly album: string
+  readonly albumArtist: string
+  readonly year: number | null
+  readonly trackNo: number | null
+  readonly loved: number
+  readonly hasArt: number
+  readonly artExt: string | null
+  readonly artRev: number
+  readonly coverHue: number | null
+  readonly coverChroma: number | null
+  readonly coverPalette: string | null
+  readonly coverToneRev: number | null
+  readonly sourceUrl: string | null
+  readonly cameWith: string | null
+  readonly playCount: number
+  readonly lastPlayedAt: string | null
+}
+
+/** The columns a merge may set on the song kept. */
+export type MergedColumn =
+  | 'loved'
+  | 'artist'
+  | 'album'
+  | 'album_artist'
+  | 'year'
+  | 'track_no'
+  | 'source_url'
+  | 'came_with'
+  | 'has_art'
+  | 'art_ext'
+  | 'art_rev'
+  | 'cover_hue'
+  | 'cover_chroma'
+  | 'cover_palette'
+  | 'cover_tone_rev'
+  | 'lyrics_kind'
+  | 'play_count'
+  | 'last_played_at'
+
 export class SongRepository {
   readonly #db: Db
 
@@ -92,6 +136,7 @@ export class SongRepository {
   readonly #allCameWith
   readonly #deleteById
   readonly #recordPlay
+  readonly #mergeRow
   readonly #setArt
   readonly #artExt
   readonly #setLyricsKind
@@ -186,6 +231,15 @@ export class SongRepository {
              updated_at     = datetime('now')
        WHERE id = @id
     `)
+
+    this.#mergeRow = db.prepare<[number], SongMergeRow>(
+      `SELECT id, uid, artist, album, album_artist AS albumArtist, year, track_no AS trackNo,
+              loved, has_art AS hasArt, art_ext AS artExt, art_rev AS artRev,
+              cover_hue AS coverHue, cover_chroma AS coverChroma, cover_palette AS coverPalette,
+              cover_tone_rev AS coverToneRev, source_url AS sourceUrl, came_with AS cameWith,
+              play_count AS playCount, last_played_at AS lastPlayedAt
+         FROM songs WHERE id = ?`,
+    )
 
     this.#setArt = db.prepare(
       'UPDATE songs SET has_art = ?, art_ext = ?, art_rev = art_rev + 1 WHERE id = ?',
@@ -459,6 +513,21 @@ export class SongRepository {
   /** `playedAt` in SQLite's UTC format, or null for now (see `sqliteTime`). */
   recordPlay(id: number, playedAt: string | null = null): void {
     this.#recordPlay.run({ id, at: playedAt })
+  }
+
+  mergeRow(id: number): SongMergeRow | null {
+    return this.#mergeRow.get(id) ?? null
+  }
+
+  /** What a merge folded into the song kept, set as it stands (`SongMerge`). */
+  setMerged(id: number, columns: Partial<Record<MergedColumn, unknown>>): void {
+    const names = Object.keys(columns)
+    this.#db
+      .prepare(
+        `UPDATE songs SET ${names.map(column => `${column} = @${column}`).join(', ')},
+                updated_at = datetime('now') WHERE id = @id`,
+      )
+      .run({ ...columns, id })
   }
 
   setArt(id: number, hasArt: boolean, extension: string | null): void {

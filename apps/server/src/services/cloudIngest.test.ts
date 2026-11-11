@@ -84,7 +84,7 @@ describe('CloudIngest', () => {
       names,
       clock,
       logger,
-      merge: new SongMerge({ db, sync }),
+      merge: new SongMerge({ songs, tags, playlists, stats, cloud, sync }),
     })
   })
 

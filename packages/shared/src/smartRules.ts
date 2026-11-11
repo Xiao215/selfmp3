@@ -3,6 +3,7 @@ import { assertNever } from './exhaustive.js'
 import { DAY_MS } from './math.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
 import type { AudioFeatures } from './schemas/audioFeatures.js'
+import type { SmartRule } from './schemas/smart.js'
 import type { SongSortField } from './schemas/common.js'
 import { asciiLower, toSqliteTime } from './sync.js'
 
@@ -89,6 +90,19 @@ export function livePlaylistSongs(
 
   const limited = rules.limit === null ? ordered : ordered.slice(0, rules.limit)
   return limited.map(song => song.uid)
+}
+
+/**
+ * Whether a rule set's songs can change with nothing written: "added in the
+ * last 30 days" lets a song go as the days pass. A kept answer with live
+ * playlists in it is keyed on the clock only when one of them does.
+ */
+export function followsTheClock(rules: {
+  readonly rules: readonly (SmartRule | CloudSmartRule)[]
+}): boolean {
+  return rules.rules.some(
+    rule => (rule.field === 'addedAt' || rule.field === 'lastPlayedAt') && rule.op !== 'never',
+  )
 }
 
 type SortValue = string | number | null

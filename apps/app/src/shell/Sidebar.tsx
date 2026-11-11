@@ -519,10 +519,10 @@ function Tags(): ReactNode {
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const recentIds = useRecentTagIds()
   /*
-   * Four tags, not two hundred.
+   * Eight tags, not two hundred.
    *
    * A rail that lists every tag is a scroll nobody reaches the bottom of, and
-   * the ones that matter are somewhere in the middle of it. These four are the
+   * the ones that matter are somewhere in the middle of it. These eight are the
    * ones this device reached for last — no pinning, nothing to maintain —
    * and the rest are one press away on All tags, which the header opens.
    */

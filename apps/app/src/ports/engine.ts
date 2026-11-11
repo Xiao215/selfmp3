@@ -349,7 +349,7 @@ class NativeEngine implements PlaybackEngine {
         // Held where it is: what plays next is the provider's to say.
         void TrackPlayer.pause()
         void TrackPlayer.removeUpcomingTracks().catch(() => undefined)
-        void this.#explainFailure(failed, message ?? 'playback failed')
+        void this.#explainFailure(failed, message ?? 'playback failed', this.#loadGeneration)
       }),
     )
 
@@ -425,15 +425,16 @@ class NativeEngine implements PlaybackEngine {
    * are passed over for the ones that are. The web engine asks
    * the same way (`#explainSource`).
    */
-  async #explainFailure(songId: number | null, said: string): Promise<void> {
+  async #explainFailure(songId: number | null, said: string, generation: number): Promise<void> {
     const url = songId === null ? null : (this.#hub.wiring.streamUrl?.(songId) ?? null)
     const headers = songId === null ? null : (this.#hub.wiring.streamHeaders?.(songId) ?? null)
     // Only an address on the network: a file here has nothing to ask. A lent
     // song's needs no header — its link's key is in the address.
     const why =
       url && /^https?:/.test(url) ? await askWhyRefused(url, headers ?? {}, LOST_CONNECTION) : null
-    // Another song was loaded while this was asked: its own state stands.
-    if (this.#destroyed || this.#currentSongId !== null) return
+    // Another song was loaded while this was asked — even one not in the
+    // player yet: its own state stands.
+    if (this.#destroyed || generation !== this.#loadGeneration) return
     this.#hub.patch({ error: why ?? said })
   }
 

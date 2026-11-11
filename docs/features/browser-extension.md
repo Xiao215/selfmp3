@@ -5,7 +5,10 @@ popup in the toolbar, and a right-click item anywhere — each of them hands a
 link to your server, which does the fetching. When the server is not answering,
 the link waits in your bucket until it is.
 
-Chrome, Edge, Brave and Arc. Firefox and Safari are not built.
+**Where:** a computer's Chromium browser: Chrome, Edge, Brave and Arc. Firefox and
+Safari are not built (see [What it does not do yet](#what-it-does-not-do-yet)), and a
+phone has the share sheet instead ([share-to-import.md](share-to-import.md)). The code is
+`apps/extension`, laid out in [How it is put together](#how-it-is-put-together).
 
 ---
 

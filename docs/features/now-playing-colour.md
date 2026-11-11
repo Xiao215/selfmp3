@@ -4,7 +4,8 @@ The song that is playing is marked in the colour of its own cover, not the app's
 list row, the player bar, and the phone's mini player. Options were mocked first and chosen:
 the wash on the row comes in from the right, and the progress wash lives on the player bar.
 
-Files:
+**Where:** the phone, the computer, the web and the desktop app; the server picks each cover's
+colour. The files are in the table below.
 
 | What | Where |
 |---|---|

@@ -3,6 +3,10 @@
 Three words, one job each. Agreed with Xiao on 2026-10-03 from the lettered proposal
 (<https://claude.ai/artifact/R6NgAaCUjvEWkhqjLaXWuU>, picks A1 B1 C1 D1 E1 F1 G1 H1).
 
+**Where:** the phone, the computer, the web and the desktop app alike: the rules in
+`apps/app/src/features/lists/`, Up next in `apps/app/src/features/queue/`, and each page in
+the table below.
+
 | Word | What it is | Lasts | You |
 |---|---|---|---|
 | **Tag** | A word you put on songs. Its page is always that one tag. | Forever; fills itself as you tag | Tag songs. "Adding a song" on a tag's page is tagging it |
@@ -228,8 +232,11 @@ after them the same way.
 
 ## Ask's song answer
 
-In Search the answer is one card (C1): **▶** plays it at once, and the card opens it as a
-page. The page is a list of songs like any other: the head a tag's page has (covers, "✦
+Asking from Search opens the Ask page (`/ask`, `AskScreen.tsx`; [ai.md](ai.md)). There a
+reply that is one list is shown as the list itself (`AnswerView`); a list among a reply's
+other cards, or one played next or added to a room, is one card (C1,
+`SongsAnswerCard.tsx`): **▶** plays it at once, and the card opens it as a page (on a
+computer, beside the cards). The page is a list of songs like any other: the head a tag's page has (covers, "✦
 Picked for you" over the list's own name, what it understood as chips), **Play**, **Shuffle**,
 **Different songs** and **⋯** (Select songs, Play next, Add to Up next, Save as playlist), and
 under it the same rows a playlist draws (`ui/components/OrderedSongList.tsx`, shared with the

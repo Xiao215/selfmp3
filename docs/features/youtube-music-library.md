@@ -7,6 +7,11 @@ settings of the library on the server and applies it to **every probe and downlo
 (`apps/server/src/services/ytCookies.ts`, `ytdlp.ts`), so once configured, private links
 just work everywhere — the Import page, the share endpoint and the extension.
 
+**Where:** the server, which runs every yt-dlp call (`apps/server/src/services/`); Import on the
+phone, the computer, the web and the desktop app reads private links and artists through it,
+and the review's preview player is `apps/app/src/features/import/ImportListen.tsx`. No app
+screen sets the cookies yet (below).
+
 ## Settings
 
 | Setting | Values | Meaning |
@@ -109,7 +114,7 @@ Errors from yt-dlp are translated into messages a person can act on
 | "not a bot" / rate limited | YouTube is rate-limiting the network, not a cookie problem; downloads pause and pick up by themselves |
 | `Sign in` / `private` / `does not exist`, no cookies | Needs a signed-in account; make it public or unlisted on YouTube (the app has no cookie setting to point at) |
 | `Sign in` / `private` / `does not exist`, with cookies | The cookies aren't a signed-in session; log the browser in to YouTube Music |
-| `Video unavailable`, an age check | Left as yt-dlp said it; the queue row has its own words for it (`packages/client/src/import/failure.ts`) |
+| `Video unavailable`, an age check | Left as yt-dlp said it; the queue row has its own words for it (`packages/shared/src/importFailure.ts`) |
 | `HTTP Error 403` | yt-dlp is out of date; the update named is `docker compose pull && docker compose up -d` in Docker, `brew upgrade yt-dlp` elsewhere (`ytdlpUpdate.ts`) |
 
 ## A note on terms

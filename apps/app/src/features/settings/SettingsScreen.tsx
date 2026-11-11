@@ -1,24 +1,19 @@
-import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { space, useHealth } from '@selfmp3/client'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { installedApp } from '../../ports/install'
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
 import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { useLayoutFlags } from '../../shell/useLayout'
-import { PageHeader } from '../../ui/components/PageHeader'
 import { Segmented } from '../../ui/components/Segmented'
 import { engineCapabilities } from '../../ports/engine'
 import { setCrossfadeSeconds, useCrossfadeSeconds } from '../../player/crossfadePref'
-import { pageFrame } from '../../ui/surfaces'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { ScrollView } from '../../ui/components/Scroll'
 import { thisPlace } from '../../ports/place'
 import { AboutCard } from './AboutCard'
 import { AccentCard, ThemeTile } from './AppearancePanel'
@@ -26,7 +21,7 @@ import { Confirmations } from './Confirmations'
 import { AccountRow } from './ConnectionPanel'
 import { DevicesPanel } from './DevicesPanel'
 import { DownloadTiles, OfflinePanel, RemoveAllFromDevice } from './OfflinePanel'
-import { Card, DangerButton, LinkRow, Row, StackedRows, TileGrid } from './SettingsParts'
+import { Card, DangerButton, LinkRow, Row, SettingsPage, TileGrid } from './SettingsParts'
 import { SmartTile, useAskNotesCount } from './SmartPanel'
 import {
   ADVANCED_ROUTE,
@@ -38,9 +33,6 @@ import {
   REMEMBERED_ROUTE,
   type Confirming,
 } from './settings.model'
-
-/** How wide Settings' column grows on a computer: a phone's page, with room to breathe. */
-export const SETTINGS_WIDTH = 640
 
 /**
  * Settings (redesign B, 2026-10-26).
@@ -84,83 +76,75 @@ export function SettingsScreen(): ReactNode {
   ].join(', ')
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.content, pageFrame(wide)]}>
-        <StackedRows value={!wide}>
-          <View style={styles.column}>
-            <PageHeader
-              title="Settings"
-              back={{ to: '/profile', testID: 'settings-back' }}
-              subtitle={
-                healthNote === null ? undefined : (
-                  <Text style={capped ? styles.subCapped : undefined}>
-                    {capped ? '● ' : null}
-                    {healthNote}
-                  </Text>
-                )
-              }
-              subtitleTestID="settings-health"
-            />
+    <>
+      <SettingsPage
+        title="Settings"
+        back={{ to: '/profile', testID: 'settings-back' }}
+        subtitle={
+          healthNote === null ? undefined : (
+            <Text style={capped ? styles.subCapped : undefined}>
+              {capped ? '● ' : null}
+              {healthNote}
+            </Text>
+          )
+        }
+        subtitleTestID="settings-health"
+      >
+        <AboutCard />
+        <AccountRow />
 
-            <AboutCard />
-            <AccountRow />
+        <TileGrid wide={wide}>
+          <ThemeTile />
+          <SmartTile />
+          {/* A browser streams and keeps nothing: only an installed app has songs on it. */}
+          {installedApp ? <DownloadTiles /> : null}
+        </TileGrid>
 
-            <TileGrid wide={wide}>
-              <ThemeTile />
-              <SmartTile />
-              {/* A browser streams and keeps nothing: only an installed app has songs on it. */}
-              {installedApp ? <DownloadTiles /> : null}
-            </TileGrid>
+        <AccentCard />
 
-            <AccentCard />
-
-            {/*
+        {/*
               Crossfade, this device's own (`crossfadePref.ts`), where its
               engine can fade one song into the next — a browser and the
               installed app can. A phone plays gapless and cannot fade, and
               steps that do nothing there are worse than none.
             */}
-            {engineCapabilities.crossfade ? <CrossfadeCard /> : null}
+        {engineCapabilities.crossfade ? <CrossfadeCard /> : null}
 
-            {installedApp ? <OfflinePanel title={onThisDevice(place)} /> : null}
+        {installedApp ? <OfflinePanel title={onThisDevice(place)} /> : null}
 
-            <DevicesPanel />
+        <DevicesPanel />
 
-            <Card flush>
-              {notes !== null && notes > 0 ? (
-                <LinkRow
-                  label="What Ask remembers"
-                  value={String(notes)}
-                  onPress={() => router.push(REMEMBERED_ROUTE)}
-                  testID="settings-remembered"
-                />
-              ) : null}
-              <LinkRow
-                label="Advanced"
-                hint={advancedLine}
-                onPress={() => router.push(ADVANCED_ROUTE)}
-                testID="settings-advanced"
-              />
-            </Card>
+        <Card flush>
+          {notes !== null && notes > 0 ? (
+            <LinkRow
+              label="What Ask remembers"
+              value={String(notes)}
+              onPress={() => router.push(REMEMBERED_ROUTE)}
+              testID="settings-remembered"
+            />
+          ) : null}
+          <LinkRow
+            label="Advanced"
+            hint={advancedLine}
+            onPress={() => router.push(ADVANCED_ROUTE)}
+            testID="settings-advanced"
+          />
+        </Card>
 
-            <View style={styles.foot}>
-              {fromCloud ? (
-                <DangerButton
-                  label="Sign out"
-                  outlined
-                  onPress={() => setConfirming('sign-out')}
-                  testID="cloud-sign-out"
-                />
-              ) : null}
-              {installedApp ? <RemoveAllFromDevice onConfirm={setConfirming} /> : null}
-            </View>
-          </View>
-        </StackedRows>
-        <ChromeSpacer />
-      </ScrollView>
-
+        <View style={styles.foot}>
+          {fromCloud ? (
+            <DangerButton
+              label="Sign out"
+              outlined
+              onPress={() => setConfirming('sign-out')}
+              testID="cloud-sign-out"
+            />
+          ) : null}
+          {installedApp ? <RemoveAllFromDevice onConfirm={setConfirming} /> : null}
+        </View>
+      </SettingsPage>
       <Confirmations confirming={confirming} onDone={() => setConfirming(null)} />
-    </SafeAreaView>
+    </>
   )
 }
 
@@ -185,9 +169,6 @@ function CrossfadeCard(): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40 },
-  column: { width: '100%', maxWidth: SETTINGS_WIDTH, gap: space.xl },
   subCapped: { color: theme.colors.danger },
   foot: { gap: space.sm, paddingTop: space.sm },
 }))

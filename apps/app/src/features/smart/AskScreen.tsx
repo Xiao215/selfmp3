@@ -1183,8 +1183,7 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.md,
     gap: space.sm,
   },
-  // On a computer the field keeps to the reading column, in the middle.
-  // At the log's foot, under the conversation it continues.
+  // On a computer: at the log's foot, under the conversation it continues.
   dockWide: { paddingBottom: space.xl },
   field: {
     minHeight: 50,

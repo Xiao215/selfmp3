@@ -35,9 +35,9 @@ const AVATAR = 36
  * directly when it can, and finds it by the addresses in the bucket's own
  * snapshot rather than by anything typed (`packages/client/src/connection/reach.ts`).
  *
- * The address rows are for a development build, where `/onboarding` can
- * still point the app at a server so the simulator flows have a library without
- * a Google account.
+ * The address rows are for a development build, where Welcome's address field
+ * (`ServerAddress`) can still point the app at a server so the simulator flows
+ * have a library without a Google account.
  *
  * Storage is the account's bucket, as the doorman last said: a cloud device
  * has no Settings → Cloud, and this is where the bucket connected on Where it

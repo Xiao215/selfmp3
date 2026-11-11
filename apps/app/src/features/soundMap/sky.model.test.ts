@@ -10,6 +10,8 @@ import {
   deepTwinkle,
   dustSpecks,
   flareReach,
+  skyRgba,
+  spotlightSide,
   hoverAfter,
   glowReach,
   lensTags,
@@ -302,5 +304,16 @@ describe('a pointer resting on the map, once something else lights a song', () =
 
   it('stays when the keys let go of their song, which lights nothing new', () => {
     expect(hoverAfter(was, { chosen: null, shown: 2 }, hover)).toBe(hover)
+  })
+})
+
+describe('what both skies draw alike', () => {
+  it('writes a colour at an opacity as both canvases take it', () => {
+    expect(skyRgba('#04050b', 0.68)).toBe('rgba(4,5,11,0.68)')
+  })
+
+  it('lifts a lit cover a little, and never below 52', () => {
+    expect(spotlightSide(20)).toBe(52)
+    expect(spotlightSide(100)).toBeCloseTo(115)
   })
 })

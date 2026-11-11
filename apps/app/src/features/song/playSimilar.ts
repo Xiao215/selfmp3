@@ -2,7 +2,7 @@ import { clientApi } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import type { PlayerApi } from '../../player/PlayerProvider'
 import { showFailure } from '../../ui/toast'
-import { playSimilarOrder } from './song.model'
+import { playSimilarOrder, similarSource } from './song.model'
 
 /**
  * "Play similar songs": the song's nearest neighbours from the server, with
@@ -23,9 +23,7 @@ export function playSimilar(
           song.id,
         ),
         0,
-        {
-          source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
-        },
+        { source: similarSource(song) },
       ),
     )
     .catch((caught: unknown) => showFailure('Couldn’t find similar songs', caught))

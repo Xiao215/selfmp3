@@ -10,7 +10,7 @@ import { qrDrawing } from './qr.model'
  * The invite as a QR code: black on white in either theme, since that is what
  * every camera reads best (mock R2).
  */
-export function RoomQr({ text, size = 168 }: { text: string; size?: number }): ReactNode {
+export function RoomQr({ text, size }: { text: string; size: number }): ReactNode {
   const drawing = useMemo(() => qrDrawing(text), [text])
   return (
     <View

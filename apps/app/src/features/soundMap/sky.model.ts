@@ -117,6 +117,45 @@ export function flareReach(point: SkyPoint, size: number, scale: number, base: n
   return Math.min(size * 6, Math.max(size * 2.5, point.room * base * scale * 2))
 }
 
+/** The side, in pixels, of the one picture of a glow kept a colour and drawn at each star's size. */
+export const GLOW_SIDE = 64
+
+/** A sky colour (`#rrggbb`) at an opacity, as both the phone's and the browser's canvas take it. */
+export function skyRgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1, 7), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`
+}
+
+/** The deep sky is drawn again this often while it twinkles. */
+export const TWINKLE_FRAME_MS = 40
+
+/**
+ * About this many covers kept, by address, the oldest let go first, but never
+ * one drawn in the picture under way.
+ */
+export const COVERS_KEPT = 240
+
+/** Each song's cover address, worked out once for as long as `art` is the same. */
+const addressBooks = new WeakMap<object, Map<number, string | null | undefined>>()
+export function addressesOf(art: object): Map<number, string | null | undefined> {
+  let book = addressBooks.get(art)
+  if (!book) {
+    book = new Map()
+    addressBooks.set(art, book)
+  }
+  return book
+}
+
+/** How bright the rest of the sky stays while a cover is lit. */
+export const SPOTLIGHT_DIM = 0.3
+/** How far inside a lit cover's edge its glow is cast from. */
+export const SPOTLIGHT_INSET = 2
+
+/** A lit cover's side: a little larger than it is drawn, and never smaller than 52. */
+export function spotlightSide(side: number): number {
+  return Math.max(52, side * 1.15)
+}
+
 /** The ground, from its middle out: the same in either theme, since the sky is the point. */
 export const SKY_TOP = '#0e1328'
 export const SKY_EDGE = '#04050b'

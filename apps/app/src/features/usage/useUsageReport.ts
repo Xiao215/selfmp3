@@ -6,6 +6,14 @@ import { pendingReports, sentReport } from './usage'
 const LOOK_EVERY_MS = 60 * 60 * 1000
 
 /**
+ * The looks, one after another, app-wide: a look that starts while another
+ * is still sending (the server reached anew) reads what is left once that one
+ * is done, rather than sending the same day again — the server adds a day to
+ * its totals each time it is sent.
+ */
+let looks: Promise<void> = Promise.resolve()
+
+/**
  * Sends the days this device counted (usage.ts) to its library's server, once
  * each, the day after: today's counts go tomorrow. Nothing is sent while no
  * server answers; the days wait, a week at most.
@@ -28,8 +36,11 @@ export function useUsageReport(): void {
         }
       }
     }
-    void send()
-    const timer = setInterval(() => void send(), LOOK_EVERY_MS)
+    const look = (): void => {
+      looks = looks.then(send)
+    }
+    look()
+    const timer = setInterval(look, LOOK_EVERY_MS)
     return () => {
       stopped = true
       clearInterval(timer)

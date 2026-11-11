@@ -1,4 +1,4 @@
-import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
+import { DAY_MS, type DeviceKind, type Health, type ScanResult } from '@selfmp3/shared'
 import { bucketCapped, unreachableLabel, untilCapResets } from '../library/library.model'
 
 /**
@@ -89,7 +89,7 @@ export function healthLine(
 }
 
 /** How long a device counts as one you still use: a week. */
-export const RECENT_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+export const RECENT_DEVICE_WINDOW_MS = 7 * DAY_MS
 
 /**
  * Settings' device rows, split: this device, anything online, and anything

@@ -23,7 +23,7 @@ import {
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayingSongId } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { isComposing } from '../../shell/composing'
 import { focusNextStop, useArrowsBetweenStops } from '../../shell/focusNext'
@@ -117,7 +117,7 @@ export function SearchScreen(): ReactNode {
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
   const { wide } = useLayoutFlags()
   const { data: library } = useLibrary()
-  const player = usePlayer()
+  const currentId = usePlayingSongId()
 
   const [query, setQuery] = useState(() => (typeof params.q === 'string' ? params.q : ''))
   // A search counted as it starts: the field going from empty to something.
@@ -172,7 +172,6 @@ export function SearchScreen(): ReactNode {
   const { shown, found, lyricHits, lyricsAway } = search
   const typed = shown.trim() !== ''
 
-  const currentId = player.current?.id ?? null
   const empty = useMemo(() => beforeTyping(library, currentId), [library, currentId])
   const counts = sectionCounts(found, lyricHits.length)
   const matched = matchCount(found, lyricHits.length)

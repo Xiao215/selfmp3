@@ -41,7 +41,6 @@ export function SongsAnswerCard({
   answer,
   text,
   onPlayed,
-  onOpen,
   playNow = false,
   onOpenHere,
   open: isOpen = false,
@@ -50,8 +49,6 @@ export function SongsAnswerCard({
   text: string
   /** After Play or Play next: Search has done its job. */
   onPlayed: () => void
-  /** Before the answer's page opens. */
-  onOpen: () => void
   /** Played as it comes: the first list of a reply asked to play. */
   playNow?: boolean
   /** Opens its list beside the reply's cards, instead of as a page. */
@@ -97,7 +94,6 @@ export function SongsAnswerCard({
   }
   const open = (): void => {
     if (onOpenHere) return onOpenHere(id)
-    onOpen()
     router.push({ pathname: '/answer', params: { id } })
   }
 

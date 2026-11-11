@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { RoomSong, SharedPlaylist, Song } from '@selfmp3/shared'
 import { libraryIndex, roomTrackId } from '@selfmp3/client'
-import { nameToJoinWith, sharedLine, sharedRows, sharedTracks } from './shared.model'
+import {
+  nameToJoinWith,
+  pendingJoinOf,
+  pendingJoinPath,
+  sharedLine,
+  sharedRows,
+  sharedTracks,
+} from './shared.model'
 
 /** A shared playlist on this device: its rows, its tracks, its line. */
 
@@ -85,5 +92,23 @@ describe('a shared playlist here', () => {
   it('joins with the first of your name', () => {
     expect(nameToJoinWith({ name: 'Xiao Zhang', email: 'x@example.com' })).toBe('Xiao')
     expect(nameToJoinWith({ name: null, email: 'mia@example.com' })).toBe('mia')
+  })
+})
+
+describe('an invite opened before signing in', () => {
+  const join = { id: '0123456789abcdef', invite: 'fedcba9876543210' }
+
+  it('is kept as the address it opens, and read back', () => {
+    expect(pendingJoinPath(join)).toBe('/shared/0123456789abcdef/join/fedcba9876543210')
+    expect(pendingJoinOf(pendingJoinPath(join))).toEqual(join)
+  })
+
+  it('is nothing when none is kept, or what is kept is not an invite', () => {
+    expect(pendingJoinOf(null)).toBeNull()
+    expect(pendingJoinOf('')).toBeNull()
+    expect(pendingJoinOf('/shared/0123456789abcdef')).toBeNull()
+    expect(pendingJoinOf('/shared/0123456789abcdef/join/fedcba9876543210/more')).toBeNull()
+    expect(pendingJoinOf('/shared/0123456789ABCDEF/join/fedcba9876543210')).toBeNull()
+    expect(pendingJoinOf('https://x/shared/0123456789abcdef/join/fedcba9876543210')).toBeNull()
   })
 })

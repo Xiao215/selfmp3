@@ -376,7 +376,7 @@ changes, never one a visit.
 - `apps/server/src/sound/map.ts` — the fold (tested: `map.test.ts`)
 - `apps/server/src/sound/soundMap.ts`, `repositories/soundMap.ts`, `routes/soundMap.ts` —
   keeping it, when to fold, `/api/sound-map`
-- `apps/server/src/services/cloudSync.ts` (`#uploadSoundMap`, `#readBucketSoundMap`) — the
+- `apps/server/src/services/cloudLibraryFiles.ts` (`uploadSoundMap`, `#readBucketSoundMap`) — the
   bucket's copy (tested in `cloudSync.test.ts`, "the sound map")
 - `packages/shared/src/soundMap.ts` — the file; `cloud.ts` `soundMapKey`;
   `schemas/cloud.ts` `CloudSoundMapSchema`; `schemas/library.ts` `SoundMapSchema`

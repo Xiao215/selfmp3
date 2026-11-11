@@ -942,7 +942,6 @@ const TurnStage = memo(function TurnStage({
               // A proposal acted on or put aside becomes what came of it; anything
               // else stays to come back to.
               onSettle={settleCard}
-              onOpenPage={() => undefined}
               listHeight={listHeight}
               onKeys={latest && !settled ? onKeys : undefined}
               onAsk={onAsk}

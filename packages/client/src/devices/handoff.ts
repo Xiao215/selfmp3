@@ -69,15 +69,25 @@ export function handoffTarget(
   if (state.songId === null) return null
 
   const position = Math.max(0, extrapolatePosition(state, now, heardAt(device.lastSeenAt, heard)))
-  // The index where it agrees, so a song queued twice resumes at the copy that
-  // was playing rather than the first.
-  const found =
-    state.queueIds[state.queueIndex] === state.songId
-      ? state.queueIndex
-      : state.queueIds.indexOf(state.songId)
+  return { ...queueAt(state.queueIds, state.queueIndex, state.songId), position }
+}
 
-  if (found === -1) return { queueIds: [state.songId], index: 0, position }
-  return { queueIds: state.queueIds, index: found, position }
+/**
+ * Where a queue said to be at `index`, playing `songId`, starts. The song is
+ * the authority, never the index: the index is used only where it points at
+ * that song — so a song queued twice resumes at the copy that was playing
+ * rather than the first — and a song the queue does not hold plays alone
+ * rather than whatever sits at that position. The alternative fails by
+ * playing something.
+ */
+export function queueAt(
+  queueIds: readonly number[],
+  index: number | undefined,
+  songId: number,
+): { readonly queueIds: readonly number[]; readonly index: number } {
+  const found = index !== undefined && queueIds[index] === songId ? index : queueIds.indexOf(songId)
+  if (found === -1) return { queueIds: [songId], index: 0 }
+  return { queueIds, index: found }
 }
 
 /** "iPhone · Safari" → "iPhone". Enough to label a button without wrapping. */

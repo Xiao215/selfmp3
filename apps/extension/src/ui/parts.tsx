@@ -17,6 +17,16 @@ export function Logo({ size = 18 }: { size?: number }): ReactNode {
   )
 }
 
+/** What went wrong, read out as it appears; nothing when nothing did. */
+export function ErrorLine({ message }: { message: string | null }): ReactNode {
+  if (!message) return null
+  return (
+    <p className="error" role="alert">
+      {message}
+    </p>
+  )
+}
+
 /**
  * A tag's dot in both themes, handed to the stylesheet: `tagColors` is where a
  * hue becomes a colour, and the page follows the system's scheme on its own.

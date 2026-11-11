@@ -20,7 +20,7 @@ import {
 } from '@selfmp3/shared'
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { Choices } from '../bridge.js'
-import { AddTag, Logo, TagChip } from '../ui/parts.js'
+import { AddTag, ErrorLine, Logo, TagChip } from '../ui/parts.js'
 import {
   connectionLabel,
   countLabel,
@@ -320,10 +320,10 @@ export interface Tagging {
  * were, and the person's own from the first touch. Tagging is chosen once
  * for a session of songs, not again on each.
  */
-function usePicked(tagging: Tagging): [ReadonlySet<number>, (next: ReadonlySet<number>) => void] {
+function usePicked(tagging: Tagging): [ReadonlySet<number>, (id: number) => void] {
   const [own, setOwn] = useState<ReadonlySet<number> | null>(null)
   const picked = own ?? new Set(tagging.choices?.lastTagIds ?? [])
-  return [picked, setOwn]
+  return [picked, id => setOwn(toggleId(picked, id))]
 }
 
 /**
@@ -381,11 +381,7 @@ function TagPicker({
           <div className="chips">{chips}</div>
         </>
       )}
-      {tagging.error && (
-        <p className="error" role="alert">
-          {tagging.error}
-        </p>
-      )}
+      <ErrorLine message={tagging.error} />
     </div>
   )
 }
@@ -432,7 +428,7 @@ export function SongForm({
 }): ReactNode {
   const [title, setTitle] = useState(item.title)
   const [artist, setArtist] = useState(item.artist)
-  const [picked, setPicked] = usePicked(tagging)
+  const [picked, togglePicked] = usePicked(tagging)
 
   return (
     <>
@@ -444,17 +440,8 @@ export function SongForm({
           <p className="hint">{songNote(cleanedFrom, item.duration)}</p>
         </div>
       </div>
-      <TagPicker
-        heading="Tag it"
-        tagging={tagging}
-        picked={picked}
-        onToggle={id => setPicked(toggleId(picked, id))}
-      />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <TagPicker heading="Tag it" tagging={tagging} picked={picked} onToggle={togglePicked} />
+      <ErrorLine message={error} />
       <button
         type="button"
         className="commit"
@@ -566,9 +553,7 @@ export function Failed({
         </button>
       }
     >
-      <p className="error" role="alert">
-        {message}
-      </p>
+      <ErrorLine message={message} />
     </State>
   )
 }
@@ -710,7 +695,7 @@ export function ListReview({
 }): ReactNode {
   const [review, setReview] = useState<Review>(() => reviewFrom(preview))
   const [editing, setEditing] = useState<number | null>(null)
-  const [picked, setPicked] = usePicked(tagging)
+  const [picked, togglePicked] = usePicked(tagging)
   const count = comingIn(review)
 
   /** A name cleared to nothing goes back to what the link said, rather than importing blank. */
@@ -764,13 +749,9 @@ export function ListReview({
         inline
         tagging={tagging}
         picked={picked}
-        onToggle={id => setPicked(toggleId(picked, id))}
+        onToggle={togglePicked}
       />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <ErrorLine message={error} />
       <button
         type="button"
         className="commit"
@@ -818,7 +799,7 @@ export function RequestForm({
   error: string | null
   onRequest: (input: { tagIds: number[] }) => void
 }): ReactNode {
-  const [picked, setPicked] = usePicked(tagging)
+  const [picked, togglePicked] = usePicked(tagging)
 
   return (
     <>
@@ -849,17 +830,8 @@ export function RequestForm({
           </p>
         </State>
       )}
-      <TagPicker
-        heading="Tag it"
-        tagging={tagging}
-        picked={picked}
-        onToggle={id => setPicked(toggleId(picked, id))}
-      />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <TagPicker heading="Tag it" tagging={tagging} picked={picked} onToggle={togglePicked} />
+      <ErrorLine message={error} />
       <button
         type="button"
         className="commit"

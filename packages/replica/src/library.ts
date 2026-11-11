@@ -1320,10 +1320,9 @@ export function createCloudLibrary(
   function cloudRoomSongNow(songId: number): RoomSong | null {
     const view = replica?.view
     const files = view?.files[songId]
-    const song = view?.library.songs.find(candidate => candidate.id === songId)
+    const song = view?.byId.songs.get(songId)
     if (!view || !files || !song) return null
-    const uid = Object.entries(view.ids.songs).find(([, id]) => id === songId)?.[0] ?? null
-    return roomSongOf(song, files, uid)
+    return roomSongOf(song, files, view.uids.songs.get(songId) ?? null)
   }
 
   let soundRead: {

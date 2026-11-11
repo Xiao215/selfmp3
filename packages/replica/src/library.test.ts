@@ -1390,3 +1390,21 @@ describe('keeping the library on the device', () => {
     expect(after.library.version).toBe(view.library.version + 1)
   })
 })
+
+describe('a song as a room carries it', () => {
+  it('is named by its uid, from the library held, and is null for a song not in it', async () => {
+    const made = build()
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    expect(made.library.cloudRoomSongNow(1)).toBeNull()
+
+    const view = await made.library.loadCloudLibrary(SESSION)
+    const songId = view.library.songs[0]?.id ?? 0
+    expect(made.library.cloudRoomSongNow(songId)).toMatchObject({
+      uid: 'a'.repeat(32),
+      title: 'Song a',
+      audio: { key: `audio/${'a'.repeat(64)}.m4a`, size: 4_000_000 },
+    })
+    expect(made.library.cloudRoomSongNow(songId + 1)).toBeNull()
+  })
+})

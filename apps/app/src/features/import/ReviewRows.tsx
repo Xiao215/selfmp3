@@ -485,11 +485,7 @@ function NameField({
       {...NO_AUTOFILL}
       style={[
         styles.input,
-        label === 'Title'
-          ? styles.inputTitle
-          : label === 'Artist'
-            ? styles.inputArtist
-            : styles.inputAlbum,
+        label === 'Title' ? styles.inputTitle : styles.inputName,
         wide ? styles.fieldWide : styles.inputPhone,
         wide && focused && styles.fieldFocused,
       ]}
@@ -1104,8 +1100,7 @@ const styles = StyleSheet.create(theme => ({
   },
   inputPhone: { flex: 1, minWidth: 0 },
   inputTitle: { fontSize: type.body, fontWeight: '600' },
-  inputArtist: { fontSize: type.body },
-  inputAlbum: { fontSize: type.body },
+  inputName: { fontSize: type.body },
   barBlock: { gap: space.xs },
   times: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   time: { color: theme.colors.textSecondary, fontSize: type.tiny, fontVariant: ['tabular-nums'] },

@@ -15,6 +15,7 @@ import {
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 import type { PlaylistRow } from '../db/rows.js'
+import { libraryChanges } from './libraryChanges.js'
 
 /** A kept playlist that went with its last songs (`playlistEmptied`), kept aside to come back. */
 export interface EmptiedPlaylist {
@@ -143,7 +144,7 @@ export class PlaylistRepository {
   readonly #kinds
   readonly #ruleSongs
   readonly #tagUids
-  readonly #changed
+  readonly #changes: () => string
   #factsCache: { key: string; facts: RuleFacts } | null = null
 
   constructor(db: Db) {
@@ -277,9 +278,7 @@ export class PlaylistRepository {
         LEFT JOIN song_audio_features f ON f.song_id = s.id
     `)
     this.#tagUids = db.prepare<[], { id: number; uid: string }>('SELECT id, uid FROM tags')
-    this.#changed = db.prepare<[], { writes: number; others: number }>(
-      'SELECT total_changes() AS writes, (SELECT data_version FROM pragma_data_version) AS others',
-    )
+    this.#changes = libraryChanges(db)
   }
 
   /**
@@ -331,13 +330,11 @@ export class PlaylistRepository {
 
   /**
    * What every rule reads of every song, read again only when the database
-   * has changed since: a library read asks each live playlist in turn, and a
-   * snapshot each one again. `total_changes()` moves with every write on this
-   * connection, `data_version` with any on another.
+   * has changed since (`libraryChanges`): a library read asks each live
+   * playlist in turn, and a snapshot each one again.
    */
   #facts(): RuleFacts {
-    const changed = this.#changed.get()
-    const key = `${changed?.writes ?? 0}:${changed?.others ?? 0}`
+    const key = this.#changes()
     if (this.#factsCache?.key === key) return this.#factsCache.facts
     const songs: RuleSong[] = []
     const idOf = new Map<string, number>()

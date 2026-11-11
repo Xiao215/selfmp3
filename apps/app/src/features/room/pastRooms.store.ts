@@ -1,8 +1,8 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
-import { DAY_MS, RoomSongSchema } from '@selfmp3/shared'
+import { DAY_MS } from '@selfmp3/shared'
 import { z } from 'zod'
 import { prefs } from '../../ports/prefs'
-import { upgradePastRooms, type PastRoom } from './room.model'
+import { PastRoomSchema, upgradePastRooms, type PastRoom } from './room.model'
 
 /**
  * Rooms this device was in, once they ended: Home's Recently played shows
@@ -13,25 +13,6 @@ import { upgradePastRooms, type PastRoom } from './room.model'
 
 const KEY = 'room.past'
 const KEPT = 8
-
-const PastRoomSchema = z.object({
-  code: z.string(),
-  title: z.string(),
-  endedAt: z.number(),
-  people: z.array(
-    z.object({ name: z.string(), colour: z.number(), picture: z.string().nullable() }),
-  ),
-  shared: z.string().nullable(),
-  songs: z.array(
-    z.object({
-      song: RoomSongSchema,
-      by: z.string(),
-      colour: z.number(),
-      picture: z.string().nullable(),
-      mine: z.boolean(),
-    }),
-  ),
-})
 
 function read(): readonly PastRoom[] {
   try {

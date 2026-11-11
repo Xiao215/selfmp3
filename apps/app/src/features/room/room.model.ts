@@ -8,6 +8,7 @@ import {
   ROOM_MAX_WAITING,
   roomPosition,
   roomTitle,
+  RoomSongSchema,
   shuffleArray,
   nearestFirst,
   soundCentre,
@@ -17,6 +18,7 @@ import {
   type RoomSong,
   type RoomState,
 } from '@selfmp3/shared'
+import { z } from 'zod'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
 import type { RoomStart } from './roomSheets.store'
@@ -651,26 +653,27 @@ function keyOf(song: RoomSong): string {
 // --- after ----------------------------------------------------------------------
 
 /** A room that ended, as Recently played keeps it. */
-export interface PastRoom {
-  readonly code: string
-  readonly title: string
-  readonly endedAt: number
-  readonly people: readonly {
-    readonly name: string
-    readonly colour: number
-    readonly picture: string | null
-  }[]
+export const PastRoomSchema = z.object({
+  code: z.string(),
+  title: z.string(),
+  endedAt: z.number(),
+  people: z.array(
+    z.object({ name: z.string(), colour: z.number(), picture: z.string().nullable() }),
+  ),
   /** The shared playlist it was kept as, when it was (features/shared). */
-  readonly shared: string | null
-  readonly songs: readonly {
-    readonly song: RoomSong
-    readonly by: string
-    readonly colour: number
-    readonly picture: string | null
-    /** Brought by you, from your own library. */
-    readonly mine: boolean
-  }[]
-}
+  shared: z.string().nullable(),
+  songs: z.array(
+    z.object({
+      song: RoomSongSchema,
+      by: z.string(),
+      colour: z.number(),
+      picture: z.string().nullable(),
+      /** Brought by you, from your own library. */
+      mine: z.boolean(),
+    }),
+  ),
+})
+export type PastRoom = z.infer<typeof PastRoomSchema>
 
 /**
  * Rooms remembered before faces had pictures, or before a room said which

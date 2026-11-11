@@ -3,6 +3,14 @@
 Four ways of looking back at your own listening, built from what the library already records:
 every play, and each song's play count, last play and love.
 
+**Where:** the phone, the computer, the web and the desktop app. The Report, a song's story and
+the hour tile are counted by the server (`apps/server/src/repositories/wrapped.ts`,
+`routes/wrapped.ts`, `services/usualHours.ts`, `GET /api/songs/:id/history` in
+`routes/songs.ts`); Forgotten gems is worked out on the device (`packages/shared/src/gems.ts`).
+The app's side is `apps/app/src/features/wrapped/` (the Report and its looks),
+`features/stats/statsSource.ts`, `features/song/song.model.ts`, `features/home/usual.model.ts`
+and the Gems tile in `features/playlists/PlaylistsScreen.tsx`.
+
 **Where the plays come from.** A play is written on the device that heard it, goes up to the
 bucket in that device's log, and is folded into the server's `play_events` table; the server
 keeps the history in the bucket too, a file a month (`lyrics/<sha256>.plays`, docs/SYNC.md,
@@ -166,9 +174,8 @@ morning on a Saturday is still Friday night, a weekday's. The hours are the aski
 from its clock against UTC. The device takes this hour's list, keeps the songs it has, and draws
 about forty minutes of them at random, the most played more likely, with a different artist
 from the song before whenever one is left (`usualPicks` in
-`apps/app/src/features/home/usual.model.ts`). Songs set to rest (N1a, built apart from
-this) are not passed over yet: once both are in, `usualPicks` should leave them out as
-`playShuffled` does.
+`apps/app/src/features/home/usual.model.ts`). Songs set to rest (N1a) are not passed over
+yet: `usualPicks` should leave them out as `playShuffled` does.
 
 **When there is no tile.** An hour's list is empty until its window (the hour and the hour either
 side, on that kind of day, in the last 180 days) holds **20 plays of at least 8 different
@@ -218,9 +225,11 @@ nudge is small enough that a song you played thirty times two years ago still ou
 you played five times last quarter — it shuffles neighbours, it does not invert the order.
 
 Because the ranking is drawn again on every request, the client caches the response with
-`staleTime: Infinity`: a background refetch would silently rearrange the row under your
-finger. It reloads when you open the page again, which is the only moment a different set
-is welcome.
+`staleTime: Infinity` (`useGems` in `packages/client/src/queries/queries.ts`): a background
+refetch would silently swap the songs behind the tile you are about to press. A new draw comes
+only once the Playlists page has been closed long enough for the cached answer to be dropped
+(the app's ten-minute `gcTime`), which is the only moment a different set is welcome. The tile
+asks for 30.
 
 ### API
 

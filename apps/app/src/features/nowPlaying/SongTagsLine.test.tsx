@@ -65,7 +65,7 @@ describe('SongTagsLine', () => {
 
   it('names the add chip by what it does, and opens the tag window', async () => {
     const onEdit = jest.fn()
-    await render(<SongTagsLine song={SONG} onOpen={() => undefined} onEdit={onEdit} labelled />)
+    await render(<SongTagsLine song={SONG} onOpen={() => undefined} onEdit={onEdit} />)
 
     await fireEvent.press(screen.getByRole('button', { name: 'Edit tags' }))
     expect(onEdit).toHaveBeenCalled()
@@ -78,7 +78,6 @@ describe('SongTagsLine', () => {
         song={{ ...SONG, id: -42 }}
         onOpen={() => undefined}
         onEdit={() => undefined}
-        labelled
       />,
     )
 

@@ -603,7 +603,6 @@ function Stage({
             onEdit={tagEditor.toggle}
             editing={tagEditor.shown}
             editRef={tagsButtonRef}
-            labelled
           />
           {tagging.on ? <TaggingLine line={tagging.line} onStop={tagging.stop} /> : null}
         </View>

@@ -614,7 +614,6 @@ function CoverView({
         // under the modal, out of sight.
         onOpen={href => leaveTo(router, href)}
         onEdit={onTags}
-        labelled
         style={styles.tags}
       />
 

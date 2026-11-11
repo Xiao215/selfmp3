@@ -1,4 +1,5 @@
 import {
+  DAY_MS,
   IMPORT_FAILURES,
   IMPORT_ORIGINS,
   IMPORT_TIME_BANDS_MS,
@@ -314,8 +315,7 @@ export function failureOf(message: string): ImportFailure {
   return 'other'
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
+/** The day `ms` falls on in UTC, `2026-10-07`: the day the admin page and Backblaze both count by. */
 export function utcDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
 }

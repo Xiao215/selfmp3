@@ -3,14 +3,18 @@
 While the server is running, any change inside a library's folder — a file added or
 renamed, whether copied over the network or dropped in by hand — triggers a sweep
 automatically. No timer, no Rescan click. The folder is an inbox rather than the library
-(docs/SYNC.md): the bucket is the library. An import writes its download here, a file
+([SYNC.md](../SYNC.md)): the bucket is the library. An import writes its download here, a file
 dropped in by hand is an import too, and either way the sweep makes a song of it, the
 cloud pass uploads it, and once it is wholly in the bucket the copy here is deleted. A
 file that is gone says nothing to the sweep; a song leaves the library only when someone
 removes it.
 
+**Where:** the server (`apps/server/src/services/libraryWatcher.ts`, started from
+`apps/server/src/start.ts`). Its switch and Rescan are in Settings on every device
+(`apps/app/src/features/settings/ImportingPanel.tsx`, `LibraryPanel.tsx`).
+
 Each library a server works for has its own folder and its own watcher. On a shared
-server (docs/features/shared-server.md) that is `library/<id>` under the server's library
+server ([shared-server.md](shared-server.md)) that is `library/<id>` under the server's library
 folder, one per workspace — in Docker, `/app/library/<id>`, which is `./library/<id>`
 beside the compose file. With a folder for a bucket (`SELFMP3_CLOUD_DIR`, the dev profile
 and the verify lanes) there is one library and it uses the library folder itself.

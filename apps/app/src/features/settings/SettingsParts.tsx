@@ -6,6 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { radius, type, space, iconSize, textStyle } from '@selfmp3/client'
 import { ChevronRight, Copy, Minus, Plus } from '../../ui/components/Icons'
 import { card, label, hint } from '../../ui/surfaces'
+import { clamp01 } from '@selfmp3/shared'
 import { OPACITY } from '../../ui/motion.model'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
@@ -36,24 +37,18 @@ export const StackedRows = Stacked.Provider
  */
 export function Card({
   title,
-  mark,
   flush = false,
-  testID,
   children,
 }: {
   title?: string
-  /** Drawn before the title: the sparkle that marks a smart feature. */
-  mark?: ReactNode
   /** No padding of its own: rows that press edge to edge (`LinkRow`). */
   flush?: boolean
-  testID?: string
   children: ReactNode
 }): ReactNode {
   return (
-    <View style={styles.group} testID={testID}>
+    <View style={styles.group}>
       {title ? (
         <View style={styles.groupHead}>
-          {mark ? <View style={styles.groupMark}>{mark}</View> : null}
           <Text style={styles.groupLabel} accessibilityRole="header" aria-level={2}>
             {title}
           </Text>
@@ -69,7 +64,6 @@ export function Row({
   hint,
   last = false,
   stack = false,
-  disabled = false,
   children,
 }: {
   label: string
@@ -77,8 +71,6 @@ export function Row({
   last?: boolean
   /** The control needs the row's width, so on a phone it goes under the words. */
   stack?: boolean
-  /** Greyed: what it sets does nothing while something above it is off. */
-  disabled?: boolean
   children?: ReactNode
 }): ReactNode {
   // At the largest text sizes every control goes under its words, which beside
@@ -87,7 +79,7 @@ export function Row({
   const stacked = (useContext(Stacked) && stack) || large
   return (
     <View style={[styles.row, stacked && styles.rowStacked, last && styles.rowLast]}>
-      <View style={[styles.label, disabled && styles.labelDisabled]}>
+      <View style={styles.label}>
         <Text style={styles.name}>{label}</Text>
         {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
       </View>
@@ -106,18 +98,16 @@ export function Row({
 export function SettingsWaiting({
   failed,
   onRetry,
-  last = true,
 }: {
   failed: boolean
   onRetry: () => void
-  last?: boolean
 }): ReactNode {
   return failed ? (
-    <Row label="Can’t reach your library" last={last}>
+    <Row label="Can’t reach your library" last>
       <Button label="Look again" onPress={onRetry} />
     </Row>
   ) : (
-    <Row label="Loading…" last={last} />
+    <Row label="Loading…" last />
   )
 }
 
@@ -236,19 +226,18 @@ export function TileGrid({ wide, children }: { wide: boolean; children: ReactNod
 /** How far round a share of something is: what is on this device of the library. */
 export function Ring({
   fraction,
-  size = 76,
   label: name,
 }: {
   fraction: number
-  size?: number
   /** What it measures, read out with the share. */
   label: string
 }): ReactNode {
   const { theme } = useUnistyles()
+  const size = 76
   const stroke = 9
   const r = (size - stroke) / 2
   const round = 2 * Math.PI * r
-  const share = Math.max(0, Math.min(1, fraction))
+  const share = clamp01(fraction)
   const percent = Math.round(share * 100)
   return (
     <View
@@ -342,7 +331,7 @@ export function Stepper({
  */
 export function PathRow({ label: name, path }: { label: string; path: string }): ReactNode {
   return (
-    <Row label={name} hint={undefined}>
+    <Row label={name}>
       <Text style={styles.path} numberOfLines={1} ellipsizeMode="middle" selectable>
         {path}
       </Text>
@@ -398,26 +387,10 @@ export function DangerButton({
 export const partStyles = StyleSheet.create(theme => ({
   // A notice in a panel (`NoticeCard`, washed): room above and below it, as a row has.
   notice: { marginVertical: space.sm },
-  // A field beside a row's words: wide enough for an address or a name.
-  field: { minWidth: 220 },
   progress: { marginVertical: space.roomy, gap: space.sm },
   progressText: { color: theme.colors.textSecondary, fontSize: type.sub },
   valueText: { color: theme.colors.textPrimary, fontSize: type.sub },
-  input: {
-    minWidth: 220,
-    paddingVertical: 7,
-    paddingHorizontal: space.roomy,
-    fontSize: type.sub,
-    color: theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface2,
-    borderRadius: radius.pill,
-  },
   hint: hint(theme.colors),
-  code: {
-    fontSize: type.small,
-    color: theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface2,
-  },
 }))
 
 const styles = StyleSheet.create(theme => ({
@@ -428,7 +401,6 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     paddingHorizontal: space.xs,
   },
-  groupMark: { alignSelf: 'center', marginRight: -4 },
   groupLabel: label(theme.colors),
   // The first row brings its own space above it; the last needs the card's below.
   panel: {

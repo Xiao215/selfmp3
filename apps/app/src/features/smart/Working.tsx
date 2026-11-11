@@ -23,8 +23,6 @@ interface WorkingStep {
  * Until the first of them arrives, `steps` stand in: a step's start is when it usually begins, so they are kept
  * to ones that are always true.
  *
- * Under an answer already on screen (a follow-up), without the outline: the
- * answer is the list that is there.
  *
  * `stage` is Ask's (R1, 2026-10-26): under the question set as the page's
  * title, the step running now on its own line, larger, and the ones done
@@ -33,14 +31,11 @@ interface WorkingStep {
 export function Working({
   steps,
   live,
-  outline = true,
   stage = false,
   testID,
 }: {
   steps: readonly WorkingStep[]
   live?: readonly { readonly text: string; readonly done: boolean }[] | null
-  /** The faint rows of a list to come, under the steps. */
-  outline?: boolean
   /** Centred under a question on Ask's stage: the step now, and the rest in one line. */
   stage?: boolean
   testID?: string
@@ -113,19 +108,17 @@ export function Working({
           </View>
         )
       })}
-      {outline ? (
-        <View style={styles.outline}>
-          {OUTLINE.map(({ opacity, name, meta }) => (
-            <View key={opacity} style={[styles.row, { opacity }]}>
-              <View style={styles.ring} />
-              <View style={styles.lines}>
-                <View style={[styles.bar, { width: name }]} />
-                <View style={[styles.bar, styles.thin, { width: meta }]} />
-              </View>
+      <View style={styles.outline}>
+        {OUTLINE.map(({ opacity, name, meta }) => (
+          <View key={opacity} style={[styles.row, { opacity }]}>
+            <View style={styles.ring} />
+            <View style={styles.lines}>
+              <View style={[styles.bar, { width: name }]} />
+              <View style={[styles.bar, styles.thin, { width: meta }]} />
             </View>
-          ))}
-        </View>
-      ) : null}
+          </View>
+        ))}
+      </View>
     </View>
   )
 }

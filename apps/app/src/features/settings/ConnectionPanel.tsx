@@ -9,7 +9,7 @@ import { sharedServerUrl } from '../../ports/sharedServerUrl'
 import { Avatar } from '../../ui/components/Avatar'
 import { Button } from '../../ui/components/Button'
 import { useLayoutFlags } from '../../shell/useLayout'
-import { BACKBLAZE_CAPS_URL } from '@selfmp3/shared'
+import { BACKBLAZE_CAPS_URL, plural } from '@selfmp3/shared'
 import { untilCapResets } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { useAccount } from '../profile/useAccount'
@@ -19,7 +19,6 @@ import { JoinSharedButton } from '../../connection/ServerAway'
 import { Card, DangerButton, LinkRow, partStyles, Row } from './SettingsParts'
 import { computerRow, noComputersHint } from './computers.model'
 import { ACCOUNT_ROUTE, type Confirming } from './settings.model'
-import { plural } from '@selfmp3/shared'
 
 /** The avatar on the account row. */
 const AVATAR = 36

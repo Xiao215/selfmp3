@@ -9,11 +9,11 @@ import { Stop } from '../../ui/components/Icons'
  */
 export function StopButton({
   onPress,
-  size = 28,
+  size,
   testID,
 }: {
   onPress: () => void
-  size?: number
+  size: number
   testID?: string
 }): ReactNode {
   return (

@@ -16,11 +16,11 @@ import {
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { isComposing } from '../../shell/composing'
 import { enterFromSidebar } from '../../shell/sidebarEntry'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Dialog } from '../../ui/components/Dialog'
 import {
@@ -94,14 +94,17 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const accent = useAccent()
   const router = useRouter()
   const pathname = usePathname()
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const playing = usePlayerPlaying()
+  const currentSongId = usePlayingSongId()
   const library = useLibrary()
   const { fromCloud } = useConnection()
   // Offered only to a device that talks to its server, which is then what answers it.
   const scan = useScanLibrary(fromCloud ? null : clientApi())
   const artFor = useArt(ROW_COVER_SIZE)
   // The app's own width for the box; the window's height, which no split lies about.
-  const { finePointer, width } = useLayout()
+  const finePointer = useLayoutValue(layout => layout.finePointer)
+  const width = useLayoutValue(layout => layout.width)
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
   const smartOn = useSmartOn()
@@ -117,7 +120,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const openTag = useOpenTag()
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
-  const currentSongId = player.current?.id ?? null
   // Search's search, with the palette's commands and playlists beside it.
   const search = useLibrarySearch(query, {
     search: useCallback(
@@ -164,7 +166,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const runRecent = (recent: RecentItem): void => {
     if (recent.kind === 'playlist') openPlaylist(recent.playlist.id)
     else if (recent.song.id === currentSongId) {
-      if (!player.isPlaying) player.toggle()
+      if (!playing) player.toggle()
     } else playSong(recent.song.id)
   }
   const recentKey = (recent: RecentItem): string =>

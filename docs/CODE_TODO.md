@@ -91,3 +91,12 @@ device's store, because the only data there is is the owner's.
   deleted meanwhile, which is the safe side.
 - **Settings keeps `Row` + `Toggle`** rather than `ToggleRow`: its rows put every kind of
   control at the end (T-428).
+- **SQL in the eval scripts** (`apps/server/src/ai/eval/`, `apps/server/src/sound/eval.ts`):
+  each builds its own in-memory library and reads it back, and a case's expectation is
+  written as a SQL condition over `songs` on purpose, so an answer is checked against the
+  database rather than against the code under test. They are scripts, not services.
+- **The server's sign-in and its reading of other devices' logs stay in `cloudSync.ts`**:
+  each reads and writes the pass's own state (the session and the bucket in use; the newest
+  snapshot of its own and how far its plays reach), so a module of its own would call back
+  into the sync for most of what it does. The sound vectors, the sound map and the plays
+  (`cloudLibraryFiles.ts`) and the pictures (`cloudPictures.ts`) did not, and moved.

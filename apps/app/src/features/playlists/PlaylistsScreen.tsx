@@ -49,7 +49,6 @@ import {
   isPlaylistSort,
   FOLLOWS_LABEL,
   PLAYLIST_SORTS,
-  playlistsSubline,
   playlistTileLine,
   usePlaylistsModel,
   type PlaylistSort,
@@ -156,15 +155,7 @@ export function PlaylistsScreen(): ReactNode {
       <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]} {...ahead}>
         <PageHeader
           title="Playlists"
-          subtitle={
-            model.loading
-              ? 'Loading…'
-              : model.unreachable
-                ? 'Not loaded'
-                : playlists.length === 0
-                  ? 'None of your own yet'
-                  : playlistsSubline(playlists.length)
-          }
+          subtitle={model.subtitle}
           style={styles.head}
           actions={
             // The order, on a computer. New is the grid's first tile (and the

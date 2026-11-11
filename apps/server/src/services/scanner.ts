@@ -301,7 +301,12 @@ export class ScannerService {
             this.#storage.localPath(sidecar.key),
             this.#storage.localPath(`${stem} (${n})${sidecar.extension}`),
           )
-          .catch(() => undefined)
+          .catch((error: unknown) => {
+            this.#logger.warn('could not move a file’s words aside with it', {
+              key: sidecar.key,
+              message: messageOf(error),
+            })
+          })
       }
       return candidate
     }

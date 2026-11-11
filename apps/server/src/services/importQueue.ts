@@ -562,9 +562,15 @@ export class ImportQueueService {
         if (remote === 'instrumental') {
           instrumental = true
         } else if (remote) {
+          // Words are worth having, not worth the import: the song goes in without.
           await this.#lyrics
             .writeSidecar(libraryKey, remote.text, remote.synced)
-            .catch(() => undefined)
+            .catch((error: unknown) => {
+              this.#logger.warn('could not keep the words found for an import', {
+                key: libraryKey,
+                message: messageOf(error),
+              })
+            })
         }
       }
 

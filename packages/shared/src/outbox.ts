@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { DAY_MS } from './math.js'
 
 /**
@@ -14,16 +15,17 @@ import { DAY_MS } from './math.js'
  * file on the phone) is each client's business.
  */
 
-export interface OutboxEvent {
-  readonly kind: 'play'
+const OutboxEventSchema = z.object({
+  kind: z.literal('play'),
   /** Doubles as the server-side `clientId`, which is what makes a resend safe. */
-  readonly id: string
-  readonly songId: number
-  readonly msPlayed: number
-  readonly completed: boolean
+  id: z.string(),
+  songId: z.number(),
+  msPlayed: z.number(),
+  completed: z.boolean(),
   /** ISO 8601, taken when the play counted rather than when it was sent. */
-  readonly playedAt: string
-}
+  playedAt: z.string(),
+})
+export type OutboxEvent = Readonly<z.infer<typeof OutboxEventSchema>>
 
 /**
  * What to do with an event after one attempt to send it.
@@ -116,16 +118,9 @@ export function trimOutbox(events: readonly OutboxEvent[], now = Date.now()): Ou
  */
 export function parseOutbox(value: unknown): OutboxEvent[] {
   if (!Array.isArray(value)) return []
-  return value.filter((item): item is OutboxEvent => {
-    if (typeof item !== 'object' || item === null) return false
-    const event = item as Record<string, unknown>
-    if (typeof event['id'] !== 'string' || typeof event['songId'] !== 'number') return false
-    return (
-      event['kind'] === 'play' &&
-      typeof event['msPlayed'] === 'number' &&
-      typeof event['completed'] === 'boolean' &&
-      typeof event['playedAt'] === 'string'
-    )
+  return value.flatMap(item => {
+    const parsed = OutboxEventSchema.safeParse(item)
+    return parsed.success ? [parsed.data] : []
   })
 }
 

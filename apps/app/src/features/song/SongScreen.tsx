@@ -263,9 +263,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
 
         <SoundStrip song={song} />
 
-        {similarSongs.length > 0 ? (
-          <SimilarShelf songs={similarSongs} heading="Sounds like" />
-        ) : null}
+        {similarSongs.length > 0 ? <SimilarShelf songs={similarSongs} /> : null}
 
         <SongAbout song={song} plays={false} sound={false} style={styles.facts} />
       </ScrollView>

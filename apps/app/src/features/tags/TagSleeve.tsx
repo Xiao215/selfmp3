@@ -111,7 +111,7 @@ export const TagSleeve = memo(function TagSleeve({
   name,
   width,
   out,
-  spinning = false,
+  spinning,
 }: {
   /** Whose cover the sleeve wears; none for a tag with no songs. */
   song: Song | null
@@ -120,7 +120,7 @@ export const TagSleeve = memo(function TagSleeve({
   width: number
   out: boolean
   /** This tag is what is playing. */
-  spinning?: boolean
+  spinning: boolean
 }): ReactNode {
   const height = Math.round(width / SLEEVE_ASPECT)
   const disc = Math.round(height * 0.92)

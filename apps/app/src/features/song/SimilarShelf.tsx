@@ -17,20 +17,14 @@ import { playSimilarOrder } from './song.model'
  * above (F1, 2026-10-25). The cards are Home's Recently played's size, with
  * two lines for a name, so "雪国 - Snow Country" is not cut to "雪国 - Sno…".
  */
-export function SimilarShelf({
-  songs,
-  heading,
-}: {
-  songs: readonly Song[]
-  heading: string
-}): ReactNode {
+export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
   const player = usePlayerCommands()
   const { wide } = useLayout()
   const ids = songs.map(song => song.id)
 
   return (
-    <View style={styles.shelf} accessibilityLabel={heading} testID="similar-shelf">
-      <SectionHead title={heading} />
+    <View style={styles.shelf} accessibilityLabel="Sounds like" testID="similar-shelf">
+      <SectionHead title="Sounds like" />
       <Shelf gap={10}>
         {songs.map(song => (
           <SongCard

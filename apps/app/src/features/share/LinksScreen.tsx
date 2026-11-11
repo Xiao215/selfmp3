@@ -15,7 +15,7 @@ import { openInNewTab } from '../../ports/newTab'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayoutValue } from '../../shell/useLayout'
-import { lineSub, pageFrame } from '../../ui/surfaces'
+import { pageFrame } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
@@ -518,7 +518,6 @@ const styles = StyleSheet.create(theme => ({
   page: { paddingTop: space.xs, paddingBottom: space.xl },
   // Room under the last row for a phone's selection bar, which floats over the foot.
   pageUnderBar: { paddingBottom: SELECTION_BAR_SPACE },
-  text: lineSub(theme.colors),
   asks: { gap: space.md, paddingHorizontal: space.gutter, paddingBottom: space.sm },
   asksWide: { paddingHorizontal: ROW_EDGE_WIDE },
   sectionWide: {

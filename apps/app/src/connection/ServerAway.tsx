@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { ActivityIndicator, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import {
   awayCopy,
@@ -11,7 +11,7 @@ import {
 } from '@selfmp3/client'
 import { Row } from '../features/settings/SettingsParts'
 import { sharedServerUrl } from '../ports/sharedServerUrl'
-import { useAccent } from '../ui/accent'
+import { Spinner } from '../ui/components/Spinner'
 import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
 import { NoticeCard } from '../ui/components/NoticeCard'
@@ -43,7 +43,6 @@ export function ServerAway({
   reach,
   need,
   row = false,
-  last = true,
   empty = false,
   testID,
 }: {
@@ -52,11 +51,8 @@ export function ServerAway({
   row?: boolean
   /** The library has no songs yet (`awayCopy`). */
   empty?: boolean
-  /** As a row, whether it ends its panel: Importing has its token row under it. */
-  last?: boolean
   testID: string
 }): ReactNode {
-  const accent = useAccent()
   const { theme } = useUnistyles()
   const said = reach.state === 'away' && reach.said
   // Counted once each time it comes to say so, for the server owner's admin page (features/usage).
@@ -84,7 +80,7 @@ export function ServerAway({
       <Row
         label="Your library’s computer"
         hint={reach.state === 'looking' ? 'Looking for it…' : copy.title}
-        last={last}
+        last
       >
         {buttons}
       </Row>
@@ -94,7 +90,7 @@ export function ServerAway({
   if (reach.state === 'looking') {
     return (
       <View style={styles.looking} accessibilityLiveRegion="polite" testID={`${testID}-looking`}>
-        <ActivityIndicator size="small" color={accent.accent} />
+        <Spinner tone="accent" />
         <Text style={styles.lookingText}>Looking for your library’s computer…</Text>
       </View>
     )

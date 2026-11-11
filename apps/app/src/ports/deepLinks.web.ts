@@ -1,5 +1,6 @@
 import { desktop } from './desktop/bridge'
 import { routeFor, type DeepLinkRoute } from './deepLinkRoute.model'
+import { signInLink } from './signInCodes'
 
 export type { DeepLinkRoute }
 
@@ -18,15 +19,15 @@ export type { DeepLinkRoute }
  * `ports/signInReturn` decides which screen each one is for.
  */
 
-const SIGN_IN = /(?:^|[#&])signin-code=/
-
 const signIns: string[] = []
 const signInListeners = new Set<(url: string) => void>()
 const pending: DeepLinkRoute[] = []
 const listeners = new Set<(route: DeepLinkRoute) => void>()
 
 function arrived(url: string): void {
-  if (SIGN_IN.test(url)) {
+  // A code, or a refusal (Cancel, an account not let in): either way Welcome
+  // is waiting for it, and it is no route.
+  if (signInLink(url)) {
     if (signInListeners.size === 0) signIns.push(url)
     else for (const listener of signInListeners) listener(url)
     return

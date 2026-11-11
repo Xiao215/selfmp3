@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native'
+import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { Text } from 'react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useGems, useHealth } from '@selfmp3/client'
@@ -20,6 +20,9 @@ import { ConnectionProvider, useConnection } from './ConnectionProvider'
 
 let mockSessionArrives: (session: CloudSession | null) => void = () => undefined
 let mockEnd: (ended: EndedSession) => void = () => undefined
+/** The doorman's word on the stored session, asked at launch. */
+let mockRefresh: (session: CloudSession) => Promise<CloudSession> = session =>
+  Promise.resolve(session)
 const mockCloudRequest = jest.fn((_method: string, path: string): Promise<unknown> => {
   if (path === '/api/health') {
     return Promise.resolve({ ok: true, version: 'web', uptimeSeconds: 0 })
@@ -38,7 +41,7 @@ jest.mock('../replica', () => ({
       new Promise<CloudSession | null>(resolve => {
         mockSessionArrives = resolve
       }),
-    refreshSession: (session: CloudSession) => Promise.resolve(session),
+    refreshSession: (session: CloudSession) => mockRefresh(session),
     endedSession: () => Promise.resolve(null),
     onSessionEnded: (listener: (ended: EndedSession) => void) => {
       mockEnd = listener
@@ -124,5 +127,36 @@ describe('ConnectionProvider', () => {
 
     mockEnd({ account: '0'.repeat(32), email: 'sim@example.com' })
     expect(await screen.findByText('missing none sim@example.com')).toBeTruthy()
+  })
+
+  it('does not let the launch’s look at the session undo a bucket connected meanwhile', async () => {
+    const noBucket = { ...SESSION, me: { ...SESSION.me, storage: null } } as CloudSession
+    let doormanSays = (_session: CloudSession): void => undefined
+    mockRefresh = () =>
+      new Promise(resolve => {
+        doormanSays = resolve
+      })
+    function Where() {
+      const { needsStorage, storageConnected } = useConnection()
+      return (
+        <Text onPress={storageConnected}>{needsStorage ? 'needs storage' : 'has storage'}</Text>
+      )
+    }
+    await render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ConnectionProvider>
+          <Where />
+        </ConnectionProvider>
+      </QueryClientProvider>,
+    )
+    mockSessionArrives(noBucket)
+    expect(await screen.findByText('needs storage')).toBeTruthy()
+
+    // Where it lives connects one before the doorman's answer, from before it, arrives.
+    await act(() => fireEvent.press(screen.getByText('needs storage')))
+    expect(await screen.findByText('has storage')).toBeTruthy()
+    await act(async () => doormanSays(noBucket))
+    expect(screen.getByText('has storage')).toBeTruthy()
+    mockRefresh = session => Promise.resolve(session)
   })
 })

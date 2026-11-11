@@ -277,7 +277,13 @@ function AnchoredPopover({
   // are — has nothing to close, and started a move on mount for nothing.
   const wasOpen = useRef(false)
   useEffect(() => {
-    if (!open && !wasOpen.current) return
+    // Closed before it was ever placed: no exit to play, and nothing to keep
+    // drawn — left mounted, its panel stayed in the overlay host, unseen and
+    // still a dialog to a screen reader.
+    if (!open && !wasOpen.current) {
+      setMounted(false)
+      return
+    }
     // Opening, it grows once its panel is placed (`ready`). A close still on
     // its way is stopped where it is, unfinished, so it never unmounts the
     // panel that is opening again; the grow goes on from there.

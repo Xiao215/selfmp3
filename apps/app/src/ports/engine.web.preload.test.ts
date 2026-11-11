@@ -144,6 +144,20 @@ describe('a song loaded to sit paused', () => {
     expect(primary.paused).toBe(false)
   })
 
+  it('takes a seek made before it is played as where to start', async () => {
+    const { audioEngine, primary } = await engine()
+    await audioEngine.load(7, { autoplay: false, startAt: 203 })
+    audioEngine.seek(60)
+    expect(audioEngine.state.currentTime).toBe(60)
+    // Past three seconds: Previous starts this song again rather than leaving it.
+    expect(audioEngine.playhead).toBe(60)
+
+    const playing = audioEngine.play()
+    primary.dispatchEvent(new Event('loadedmetadata'))
+    await playing
+    expect(primary.currentTime).toBe(60)
+  })
+
   it('does not carry the position onto the next song', async () => {
     const { audioEngine, primary } = await engine()
     await audioEngine.load(7, { autoplay: false, startAt: 203 })

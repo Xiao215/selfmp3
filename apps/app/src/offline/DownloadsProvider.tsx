@@ -25,7 +25,6 @@ import {
   type DownloadAsk,
   type DownloadQueue,
   type DownloadQueueState,
-  type NetworkKind,
   type PlayBlock,
   type SyncSituation,
   useLibrary,
@@ -96,7 +95,6 @@ interface DownloadsContextValue {
   readonly state: DownloadQueueState
   readonly queue: DownloadQueue
   readonly installed: boolean
-  readonly network: NetworkKind
   readonly prefs: DownloadPrefs
   setPrefs: (patch: Partial<DownloadPrefs>) => void
   /** Songs in the library not on this device, leaving out ones removed by hand. */
@@ -112,8 +110,6 @@ interface DownloadsContextValue {
   readonly situation: SyncSituation
   /** Download these, asking first about mobile data or a large total. */
   requestDownload: (songIds: readonly number[]) => void
-  /** Download these now; a song picked by hand is always allowed. */
-  downloadByHand: (songIds: readonly number[]) => void
   /** Remove these, and keep them removed. */
   removeByHand: (songIds: readonly number[]) => Promise<void>
   /**
@@ -668,7 +664,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       state: shown,
       queue: downloadQueue,
       installed: installedApp,
-      network,
       prefs,
       setPrefs,
       missingIds,
@@ -676,7 +671,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       absentBytes,
       situation,
       requestDownload,
-      downloadByHand,
       removeByHand,
       holdLeaving,
       dropDownloads,
@@ -698,7 +692,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [
       shown,
       holdLeaving,
-      network,
       prefs,
       setPrefs,
       missingIds,
@@ -706,7 +699,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       absentBytes,
       situation,
       requestDownload,
-      downloadByHand,
       removeByHand,
       dropDownloads,
       removeFiles,

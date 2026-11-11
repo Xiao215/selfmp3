@@ -283,14 +283,15 @@ class AudioEngine implements PlaybackEngine {
   }
 
   /**
-   * The playhead read straight from the element.
+   * The playhead read straight from the element, or, for a song not fetched
+   * yet, where it will start.
    *
    * `state.currentTime` moves in `timeupdate` steps, about four a second —
    * fine for a clock, visibly jerky for a lyric filling in as it is sung.
    * Animation reads this on each frame instead.
    */
   get playhead(): number {
-    return this.#primary.currentTime
+    return this.#startWhenPlayed ?? this.#primary.currentTime
   }
 
   /**
@@ -333,6 +334,13 @@ class AudioEngine implements PlaybackEngine {
 
   seek(seconds: number): void {
     this.#abortCrossfade()
+    // Not fetched yet (`#startWhenPlayed`): where it will start is what moves,
+    // or Play would put it back where it was left.
+    if (this.#startWhenPlayed !== null) {
+      this.#startWhenPlayed = Math.max(0, seconds)
+      this.#hub.patch({ currentTime: this.#startWhenPlayed })
+      return
+    }
     const duration = this.#primary.duration
     const target = Number.isFinite(duration) ? Math.min(seconds, duration) : seconds
     this.#primary.currentTime = Math.max(0, target)

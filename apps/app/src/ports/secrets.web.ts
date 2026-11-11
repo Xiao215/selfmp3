@@ -9,8 +9,9 @@ export type { SecretStore }
  * This is one of the four reasons the desktop app exists at all. A token in
  * `localStorage` is protected by the origin and nothing else; one in
  * `safeStorage` is sealed with a key in the login keychain and kept in
- * `userData/secrets.json`. The plan's rule is absolute — tokens go through
- * `desktop.secrets` and nowhere else — so this branch is not a nicety.
+ * `userData/secrets.json`. In the installed app every token the page keeps
+ * goes through `desktop.secrets` and nowhere else (docs/features/desktop-app.md),
+ * so this branch is not a nicety.
  *
  * Where a machine has no keychain behind `safeStorage` (a Linux session with no
  * secret service) the shell keeps them plainly and says so in `info`, which

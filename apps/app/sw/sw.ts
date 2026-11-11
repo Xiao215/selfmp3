@@ -39,6 +39,7 @@ import {
   PLAYED_KEPT,
   REFRESH_HEADER,
   UNANSWERED_HEADER,
+  UNANSWERED_TEXT,
   WAIT_AHEAD_BYTES,
   parseDoormanRefusal,
   parseRange,
@@ -932,7 +933,7 @@ async function fetchFromBucket(file: BucketFile, range?: string | null): Promise
     )
     return new Response(response.body, { status: response.status, headers })
   } catch {
-    return new Response('This song is not on this device, and your storage cannot be reached.', {
+    return new Response(UNANSWERED_TEXT, {
       status: 503,
       statusText: 'Offline',
       headers: { 'Content-Type': 'text/plain', [UNANSWERED_HEADER]: '1' },

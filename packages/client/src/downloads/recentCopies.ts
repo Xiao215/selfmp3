@@ -1,11 +1,11 @@
 /**
  * Songs kept because they were played: the budget, with nothing to store them in.
  *
- * A browser on a cloud library streams from the bucket and keeps nothing by
- * default, which is right for a library of a thousand songs and wrong for the
- * twenty actually played. So a song that counts as a play is kept, up to a
- * budget, and the least recently played copies are let go to make room. Where
- * the copies live is the app's (`ports/recentCopies.web.ts`).
+ * An installed app on a cloud library streams from the bucket and keeps
+ * nothing by default, which is right for a library of a thousand songs and
+ * wrong for the twenty actually played. So a song that counts as a play is
+ * kept, up to a budget, and the least recently played copies are let go to
+ * make room. Where the copies live is the app's (`ports/recentCopyFiles.ts`).
  *
  * These are a cache, not downloads: they stay out of "on this device", because
  * a mark that can disappear on its own is worse than none, and asking for the
@@ -21,14 +21,8 @@
  */
 export const RECENT_BUDGET_BYTES = 2 * 1024 * 1024 * 1024
 
-/** And at most this share of what the browser will give the origin in total. */
+/** And at most this share of the room there is. */
 const RECENT_SHARE = 0.25
-
-/** The budget on a device whose quota the browser states, and on one that will not. */
-export function budgetFor(quota: number | null): number {
-  if (quota === null || !Number.isFinite(quota) || quota <= 0) return RECENT_BUDGET_BYTES
-  return Math.min(RECENT_BUDGET_BYTES, Math.floor(quota * RECENT_SHARE))
-}
 
 /**
  * The budget on a device that keeps files, which states free space, not a quota.
@@ -55,8 +49,8 @@ export interface RecentCopy {
 /**
  * Which copies to let go: least recently played first, until the rest fit.
  *
- * Ties break on the id so two tabs deciding at the same moment decide the same
- * way, and the one playing now is the newest, so it is the last thing taken.
+ * Ties break on the id so the same copies are always let go in the same order,
+ * and the one playing now is the newest, so it is the last thing taken.
  */
 export function toEvict(copies: readonly RecentCopy[], budget: number): number[] {
   let total = copies.reduce((sum, copy) => sum + copy.bytes, 0)
@@ -71,32 +65,10 @@ export function toEvict(copies: readonly RecentCopy[], budget: number): number[]
   return going
 }
 
-/** The kept list as stored: song id to when it was last played. Anything malformed is dropped. */
-export function parseKept(raw: string | null): Map<number, number> {
-  const kept = new Map<number, number>()
-  if (!raw) return kept
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return kept
-    for (const [id, playedAt] of Object.entries(parsed as Record<string, unknown>)) {
-      const songId = Number(id)
-      if (Number.isInteger(songId) && typeof playedAt === 'number') kept.set(songId, playedAt)
-    }
-  } catch {
-    // Half-written or foreign: start again.
-  }
-  return kept
-}
-
-export function serialiseKept(kept: ReadonlyMap<number, number>): string {
-  return JSON.stringify(Object.fromEntries(kept))
-}
-
 /**
  * A copy kept as a file, which has to remember more than when it was played.
  *
- * A browser's copies are found by song id in a cache it can ask the size of. A
- * file is found by its name, and a song's name on disk comes from its path in
+ * A file is found by its name, and a song's name on disk comes from its path in
  * the bucket (`fileNameFor`) — which is only known while the song is still in
  * the library. Written down here, a copy can be sized, played and deleted
  * after its song has gone, rather than being left on the disk with nothing

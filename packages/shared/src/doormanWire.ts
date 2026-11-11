@@ -135,6 +135,9 @@ export const PLAYED_KEPT = 10
  * that was fine.
  */
 export const UNANSWERED_HEADER = 'x-selfmp3-unanswered'
+/** The words of that answer, the same from the service worker and the desktop shell. */
+export const UNANSWERED_TEXT =
+  'This song is not on this device, and your storage cannot be reached.'
 
 /**
  * How far past what has arrived a range may start and still wait for the

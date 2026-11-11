@@ -14,7 +14,8 @@ jest.mock('./DevicesProvider', () => ({
   useDeviceContext: () => mockContext,
 }))
 jest.mock('../../player/PlayerProvider', () => ({
-  usePlayer: () => ({ current: { id: 4, title: 'Nocturne' } }),
+  // A song is loaded here.
+  useSongLoaded: () => true,
 }))
 jest.mock('../../shell/useLayout', () => {
   const layout = { wide: false, finePointer: false }

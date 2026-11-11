@@ -6,7 +6,7 @@ import { deviceLabels, heardAt, space, type, iconSize } from '@selfmp3/client'
 import { formatRelative } from '@selfmp3/shared'
 
 import { ServerAway } from '../../connection/ServerAway'
-import { usePlayer } from '../../player/PlayerProvider'
+import { useSongLoaded } from '../../player/PlayerProvider'
 import { Popover } from '../../ui/components/Popover'
 import { SheetItem } from '../../ui/components/Sheet'
 import { Devices, Remote } from '../../ui/components/Icons'
@@ -50,9 +50,9 @@ export function DevicesSheet({
 }): ReactNode {
   const { theme } = useUnistyles()
   const devices = useDeviceContext()
-  const player = usePlayer()
+  const loaded = useSongLoaded()
   // Something is loaded here, but no other device could be told which song.
-  const unshareable = player.current !== null && !devices.canPlayOn
+  const unshareable = loaded && !devices.canPlayOn
   // This one as the others see it (a tab's number and all), named beside them.
   const self = devices.devices.find(device => device.id === devices.deviceId) ?? {
     id: devices.deviceId,

@@ -76,12 +76,10 @@ interface BucketObject {
  * same kinds, and the same words, as the server's `CloudError`: both read a
  * refusal with packages/shared's `classifyBucketRefusal`.
  */
-export type BucketErrorKind = BucketRefusalKind
-
 export class BucketError extends Error {
-  readonly kind: BucketErrorKind
+  readonly kind: BucketRefusalKind
 
-  constructor(kind: BucketErrorKind, message: string) {
+  constructor(kind: BucketRefusalKind, message: string) {
     super(message)
     this.name = 'BucketError'
     this.kind = kind

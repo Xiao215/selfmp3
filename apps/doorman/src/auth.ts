@@ -421,9 +421,8 @@ function notAllowed(email: string): { status: number; title: string; lines: stri
  * sign in. With somewhere to go back to, the browser goes back there, saying
  * why in the fragment (shared's `signInRefusalFromUrl`): the app says so
  * itself, offers Google again — which asks which account every time — and a
- * device waiting for the sign-in stops waiting. This page, which used to have
- * no way back at all, is for a sign-in with nowhere to return to, and links
- * to the web app. Nothing is written either way: a refusal costs no KV write,
+ * device waiting for the sign-in stops waiting. This page is for a sign-in
+ * with nowhere to return to, and links to the web app. Nothing is written either way: a refusal costs no KV write,
  * however many are sent.
  */
 function refusedPage(

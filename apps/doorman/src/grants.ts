@@ -35,8 +35,7 @@ import type { Session } from './sessions.js'
  *
  * Ending a grant tells its server, at the address it gave (`server`), so it
  * lets the library go at once instead of at its next look at the bucket, up
- * to ten minutes on (`tellServer`). Every grant has kept that address since
- * grants began, so there is nothing to move.
+ * to ten minutes on (`tellServer`).
  */
 
 /** More than anyone has servers. A new grant for a server already listed replaces it. */

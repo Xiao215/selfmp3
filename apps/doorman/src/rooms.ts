@@ -87,7 +87,7 @@ export async function rooms(ctx: Context): Promise<Response> {
   }
   if (action === 'act' && entry === undefined) {
     if (method !== 'POST') return methodNotAllowed(['POST'])
-    const body = await readJson(ctx.request, ActBodySchema)
+    const body = await readJson(ctx.request, RoomActionSchema)
     // Bringing a song from a library needs whoever brings it signed in: it
     // will be lent from their bucket. Nothing else does.
     const session = body.type === 'add' ? await requireSession(ctx) : null
@@ -244,9 +244,6 @@ async function listenThrough(
   }
   return new Response(upstream.body, { status: upstream.status, headers: out })
 }
-
-/** Room actions arrive as the action itself; the session that brings a song comes from its header. */
-const ActBodySchema = RoomActionSchema
 
 /**
  * Why a shared playlist's song is not lent any more, or null when it still

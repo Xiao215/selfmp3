@@ -2,6 +2,7 @@ import {
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanError,
+  type BucketRefusalKind,
   type DoormanErrorCode,
   type DoormanHealth,
 } from '@selfmp3/shared'
@@ -9,7 +10,7 @@ import { version as DOORMAN_VERSION } from '../package.json'
 import { Access, access, stats, type AccessCache } from './access.js'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
-import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
+import { BucketError, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
@@ -99,7 +100,7 @@ const {
 } = DOORMAN_PATHS
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
-const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
+const BUCKET_CODES: Readonly<Record<BucketRefusalKind, DoormanErrorCode>> = {
   auth: DOORMAN_ERROR.bucketRefusedKey,
   missing: DOORMAN_ERROR.noSuchBucket,
   network: DOORMAN_ERROR.bucketUnreachable,

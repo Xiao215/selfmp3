@@ -609,9 +609,9 @@ function CoverView({
 
       <SongTagsLine
         song={song}
-        // A page of the app, so the modal goes down first, as the song's own
-        // page does (`openSong`): pushed from inside it, the tag's page landed
-        // under the modal, out of sight.
+        // A page of the app, so the modal goes down first, as the song menu's
+        // pages do (`SongMenu`'s onOpen): pushed from inside it, the tag's page
+        // landed under the modal, out of sight.
         onOpen={href => leaveTo(router, href)}
         onEdit={onTags}
         style={styles.tags}

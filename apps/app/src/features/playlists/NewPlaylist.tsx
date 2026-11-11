@@ -43,7 +43,7 @@ type Kind = 'pick' | 'follow' | 'describe'
 
 /**
  * Making a playlist, from wherever it is started: the sidebar's ＋, the
- * playlists page's New and its New tile, the phone's ＋.
+ * playlists page's New tile, File › New Playlist (⌘N), the phone's ＋.
  *
  * The kind first, then a name (L2, docs/features/lists.md), so nothing typed
  * goes anywhere it was not sent:

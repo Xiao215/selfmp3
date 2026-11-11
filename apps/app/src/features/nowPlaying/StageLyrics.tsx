@@ -36,7 +36,8 @@ interface LyricsProps {
 }
 
 /**
- * The lyrics on a computer's Now Playing page.
+ * The lyrics as a list that follows the song: a computer's Now Playing page,
+ * the phone's words (`PhoneWords`) and a shared song's page.
  *
  * The line being sung stays at the same height on screen and the list moves
  * under it. Click a line to jump to it; right-click it, or hold it on a

@@ -132,11 +132,6 @@ export function ImportScreen({
   const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayoutFlags()
-  /*
-   * What the paragraph over the box used to say, shown once on the first
-   * visit, pointing at the box (D1, 2026-10-13); the sources row under the
-   * box says the rest every time.
-   */
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
@@ -153,8 +148,11 @@ export function ImportScreen({
   const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
   const { links, review } = draft
-  // Only over an empty box: once something is in it, what the guide would say
-  // has been found out. (A box being typed in, it waits out itself.)
+  // What the paragraph over the box used to say, shown once on the first
+  // visit, pointing at the box (D1, 2026-10-13); the sources row under the
+  // box says the rest every time. Only over an empty box: once something is
+  // in it, what the guide would say has been found out. (A box being typed
+  // in, it waits out itself.)
   const [boxTarget, boxGuide] = useGuide('import-box', links === '')
   // The card offering a kept review counts songs coming in: as the library is now.
   useRefreshReview(api, key, reviewUrls(review))

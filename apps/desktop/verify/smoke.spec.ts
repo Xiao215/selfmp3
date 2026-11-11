@@ -697,7 +697,7 @@ test.describe('files on disk', () => {
  * All of it read from the main process, because that is where it lives. What
  * cannot be checked here is what any of it looks like — the Dock menu is
  * macOS-only and this is Linux — so these test that the wiring carries, and
- * the plan's by-hand list covers the rest.
+ * docs/PREPROD.md's by-hand checks cover the rest.
  */
 test.describe('an application, not a page', () => {
   test('a menu item sends its command to the page', async () => {

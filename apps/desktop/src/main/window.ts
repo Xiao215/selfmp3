@@ -11,18 +11,18 @@ import { openingGround } from './ground.js'
  * The window.
  *
  * `contextIsolation` on, `nodeIntegration` off, `sandbox` on: the preload's
- * `contextBridge` object is the only thing the page can reach, which is the
- * plan's rule that the bridge is the only door. `webSecurity` is left alone —
- * turning it off is how an Electron app stops being a browser.
+ * `contextBridge` object is the only thing the page can reach, so the bridge
+ * is the only door. `webSecurity` is left alone — turning it off is how an
+ * Electron app stops being a browser.
  *
  * It opens where it was left, if that is still somewhere a person can reach,
  * and at the size the reference captures were taken at otherwise.
  *
  * `titleBarStyle: 'hiddenInset'` is the one deliberate visual difference from
- * the browser the plan allows: the traffic lights sit over the sidebar's top
- * rather than in a bar above the app. The page pads the sidebar for them, told
- * how much by `info.titleBarInset`, because only the shell knows whether there
- * is an inset title bar at all.
+ * the browser (docs/features/desktop-app.md): the traffic lights sit over the
+ * sidebar's top rather than in a bar above the app. The page pads the sidebar
+ * for them, told how much by `info.titleBarInset`, because only the shell
+ * knows whether there is an inset title bar at all.
  */
 export function createWindow({
   preload,

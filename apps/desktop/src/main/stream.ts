@@ -9,6 +9,7 @@ import {
   PLAYED_KEPT,
   STREAM_RELAYED_HEADERS,
   UNANSWERED_HEADER,
+  UNANSWERED_TEXT,
   WAIT_AHEAD_BYTES,
   isCloudFileKey,
   isHashNamedCloudKey,
@@ -96,8 +97,6 @@ interface Refusal {
 /** How much of a song one read from the disk hands the player. */
 const READ_CHUNK = 256 * 1024
 
-/** Said when the doorman could not be reached, in the service worker's words (apps/app/sw/sw.ts). */
-const UNREACHABLE = 'This song is not on this device, and your storage cannot be reached.'
 
 export function createStreamProxy({
   fetch,
@@ -192,7 +191,7 @@ export function createStreamProxy({
         ...(init.signal ? { signal: init.signal } : {}),
       })
     } catch {
-      return { status: 503, body: UNREACHABLE, contentRange: null, unanswered: true }
+      return { status: 503, body: UNANSWERED_TEXT, contentRange: null, unanswered: true }
     }
     if (upstream.ok) return upstream
 
@@ -403,7 +402,7 @@ class Arriving {
         // far as it got, and the next play fetches it again.
         opened({
           kind: 'refused',
-          refusal: { status: 503, body: UNREACHABLE, contentRange: null },
+          refusal: { status: 503, body: UNANSWERED_TEXT, contentRange: null },
         })
         this.#failed = true
         this.#notify()

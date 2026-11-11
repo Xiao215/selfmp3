@@ -308,7 +308,7 @@ Joining needs no button. A signed-in device whose bucket names no server joins
 the shared one, whose address the app knows as it knows the doorman's
 (`DEFAULT_SERVER_URL` in `packages/shared/src/cloud.ts`;
 `packages/replica/src/sharedServer.ts`). Who may sign in at all is the doorman's
-to decide: its owners, and a list the owner keeps in Settings.
+to decide: its owners, and a list the owner keeps on the admin page's People tab.
 
 With a folder for a bucket (`SELFMP3_CLOUD_DIR`: the dev profile, the verify
 lanes) there are no accounts, and the hub holds one library in the data folder

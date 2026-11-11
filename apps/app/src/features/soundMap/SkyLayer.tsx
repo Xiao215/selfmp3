@@ -60,6 +60,14 @@ import {
   SKY_INK,
   SKY_TOP,
   skyGrid,
+  skyRgba,
+  SPOTLIGHT_DIM,
+  SPOTLIGHT_INSET,
+  spotlightSide,
+  TWINKLE_FRAME_MS,
+  addressesOf,
+  COVERS_KEPT,
+  GLOW_SIDE,
   starAlpha,
   starLook,
   TWINKLE_LOW,
@@ -415,8 +423,6 @@ function DeepSky({
   )
 }
 
-/** The deep sky is drawn again this often while it twinkles. */
-const TWINKLE_FRAME_MS = 40
 /** How far past the field's edges, as a share of it, the deep sky is recorded. */
 const DEEP_MARGIN = 0.25
 
@@ -503,7 +509,6 @@ function deepPictures(
 
 /** One glow a colour: a small picture of the falloff, drawn at each star's size. */
 const glows = new Map<string, SkImage>()
-const GLOW_SIDE = 64
 const GLOW_SOURCE = Skia.XYWHRect(0, 0, GLOW_SIDE, GLOW_SIDE)
 
 function glowOf(glow: string): SkImage | null {
@@ -517,7 +522,7 @@ function glowOf(glow: string): SkImage | null {
     Skia.Shader.MakeRadialGradient(
       Skia.Point(half, half),
       half,
-      GLOW_STOPS.map(([, opacity]) => Skia.Color(withAlpha(glow, opacity))),
+      GLOW_STOPS.map(([, opacity]) => Skia.Color(skyRgba(glow, opacity))),
       GLOW_STOPS.map(([offset]) => offset),
       TileMode.Clamp,
     ),
@@ -529,17 +534,9 @@ function glowOf(glow: string): SkImage | null {
   return image
 }
 
-function withAlpha(hex: string, alpha: number): string {
-  const n = parseInt(hex.slice(1, 7), 16)
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`
-}
-
-/**
- * The covers asked for, by address, the most recent last: about this many
- * kept, the oldest let go, but never one drawn in the recording under way, so
- * a crowd of covers on screen is never let go and asked for again.
- */
-const COVERS_KEPT = 240
+// The covers asked for, by address, the most recent last (`COVERS_KEPT`): never
+// one drawn in the recording under way, so a crowd of covers on screen is never
+// let go and asked for again.
 /** At most this many covers start loading a recording. */
 const COVER_LOADS_A_RECORD = 24
 const coverCache = new Map<string, { image: SkImage | null; record: number }>()
@@ -570,17 +567,6 @@ function coverImage(uri: string | null | undefined, arrived: () => void): SkImag
     coverCache.delete(oldest)
   }
   return null
-}
-
-/** Each song's cover address, worked out once for as long as `art` is the same. */
-const addressBooks = new WeakMap<object, Map<number, string | null | undefined>>()
-function addressesOf(art: object): Map<number, string | null | undefined> {
-  let book = addressBooks.get(art)
-  if (!book) {
-    book = new Map()
-    addressBooks.set(art, book)
-  }
-  return book
 }
 
 /** Laid-out names, by text, size and width: the same names are recorded again at every move. */
@@ -623,9 +609,6 @@ function nameOf(
   return paragraph
 }
 
-/** How bright the rest of the sky stays while a cover is lit from the tray. */
-const SPOTLIGHT_DIM = 0.3
-
 function paintSky(
   canvas: SkCanvas,
   props: SkyLayerProps,
@@ -656,10 +639,7 @@ function paintSky(
         Skia.Shader.MakeRadialGradient(
           Skia.Point(x, y),
           size,
-          [
-            Skia.Color(withAlpha(color, lens === null ? 0.16 : 0.24)),
-            Skia.Color(withAlpha(color, 0)),
-          ],
+          [Skia.Color(skyRgba(color, lens === null ? 0.16 : 0.24)), Skia.Color(skyRgba(color, 0))],
           null,
           TileMode.Clamp,
         ),
@@ -817,7 +797,7 @@ function paintSky(
       paint.setColor(Skia.Color(take.tone))
       paint.setAlphaf(0.07)
       canvas.drawPath(path, paint)
-      line.setColor(Skia.Color(withAlpha(take.tone, 0.9)))
+      line.setColor(Skia.Color(skyRgba(take.tone, 0.9)))
       line.setStrokeWidth(1.8)
       line.setPathEffect(Skia.PathEffect.MakeDash([6, 5], 0))
       canvas.drawPath(path, line)
@@ -832,7 +812,7 @@ function paintSky(
         else builder.lineTo(spot.x, spot.y)
         first = false
       }
-      line.setColor(Skia.Color(withAlpha(take.tone, 0.85)))
+      line.setColor(Skia.Color(skyRgba(take.tone, 0.85)))
       line.setStrokeWidth(1.4)
       canvas.drawPath(builder.detach(), line)
     }
@@ -843,7 +823,7 @@ function paintSky(
       paint.setColor(Skia.Color(SKY_INK))
       paint.setAlphaf(1)
       canvas.drawCircle(spot.x, spot.y, 2.2, paint)
-      line.setColor(Skia.Color(withAlpha(take.tone, 0.55)))
+      line.setColor(Skia.Color(skyRgba(take.tone, 0.55)))
       line.setStrokeWidth(1)
       canvas.drawCircle(spot.x, spot.y, ringRadius(place, view.scale, 5.5), line)
     }
@@ -912,9 +892,9 @@ function flare(
   stroke.setStrokeWidth(0.8)
   stroke.setAlphaf(alpha)
   const colors = [
-    Skia.Color(withAlpha(color, 0)),
-    Skia.Color(withAlpha(color, 0.9)),
-    Skia.Color(withAlpha(color, 0)),
+    Skia.Color(skyRgba(color, 0)),
+    Skia.Color(skyRgba(color, 0.9)),
+    Skia.Color(skyRgba(color, 0)),
   ]
   for (const [dx, dy] of [
     [reach, 0],
@@ -935,8 +915,6 @@ function flare(
 
 /** How wide the lit song's name may run under it. */
 const SPOT_WORDS = 240
-/** How far inside the lit cover's edge its glow is cast from. */
-const SPOT_INSET = 2
 
 /**
  * What is over the sky and changes while it holds still: the stroke under the
@@ -963,7 +941,7 @@ function paintOver(
   if (lit.place && lit.song) {
     const look = starLook(lit.place, view.scale)
     const spot = toScreen(view, base, lit.place)
-    const side = Math.max(52, look.side * 1.15)
+    const side = spotlightSide(look.side)
     const half = side / 2
     const radius = look.corner * (side / look.side)
     // The glow is cast by a shape a little inside the cover, so none of its
@@ -972,14 +950,14 @@ function paintOver(
     glow.setAntiAlias(true)
     glow.setColor(Skia.Color(lit.place.glow))
     glow.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, 11, true))
-    const inner = Math.max(0, radius - SPOT_INSET)
+    const inner = Math.max(0, radius - SPOTLIGHT_INSET)
     canvas.drawRRect(
       Skia.RRectXY(
         Skia.XYWHRect(
-          spot.x - half + SPOT_INSET,
-          spot.y - half + SPOT_INSET,
-          side - SPOT_INSET * 2,
-          side - SPOT_INSET * 2,
+          spot.x - half + SPOTLIGHT_INSET,
+          spot.y - half + SPOTLIGHT_INSET,
+          side - SPOTLIGHT_INSET * 2,
+          side - SPOTLIGHT_INSET * 2,
         ),
         inner,
         inner,
@@ -1028,12 +1006,12 @@ function paintOver(
     line.setStrokeWidth(3)
     line.setStrokeCap(StrokeCap.Round)
     line.setStrokeJoin(StrokeJoin.Round)
-    line.setColor(Skia.Color(withAlpha(accent, 0.95)))
+    line.setColor(Skia.Color(skyRgba(accent, 0.95)))
     line.setPathEffect(Skia.PathEffect.MakeDash([2, 7], 0))
     canvas.drawPath(path, line)
   }
   if (pulse) {
-    paint.setColor(Skia.Color(withAlpha(accent, 0.35)))
+    paint.setColor(Skia.Color(skyRgba(accent, 0.35)))
     canvas.drawCircle(pulse.x, pulse.y, 16, paint)
   }
 }

@@ -64,6 +64,14 @@ export class DoormanError extends Error {
   get gone(): boolean {
     return this.status === 410 || this.status === 404 || this.code === DOORMAN_ERROR.roomLeft
   }
+
+  /**
+   * No answer at all, or the doorman having a moment (a 5xx): worth asking
+   * again later, where any other refusal is final.
+   */
+  get unanswered(): boolean {
+    return this.status === 0 || this.status >= 500
+  }
 }
 
 export interface DoormanCall<Signal = never> {

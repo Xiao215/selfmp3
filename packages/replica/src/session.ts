@@ -240,9 +240,7 @@ export function createCloudSession(
     } catch (error) {
       // No answer, or the doorman having a moment: try again later. Any
       // other refusal means the session is over already.
-      return error instanceof DoormanError && (error.status === 0 || error.status >= 500)
-        ? 'unreachable'
-        : 'ended'
+      return error instanceof DoormanError && error.unanswered ? 'unreachable' : 'ended'
     }
   }
 

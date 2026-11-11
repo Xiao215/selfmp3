@@ -869,7 +869,7 @@ export function createCloudLibrary(
 
   /** Offline, or the doorman having a moment: this device's copy is the library meanwhile. */
   function passing(error: unknown): boolean {
-    return error instanceof DoormanError && (error.status === 0 || error.status >= 500)
+    return error instanceof DoormanError && error.unanswered
   }
 
   /**

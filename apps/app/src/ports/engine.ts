@@ -111,8 +111,17 @@ class NativeEngine implements PlaybackEngine {
   /** What each song handed to the player was shown as on the card (`cardKey`), so an unchanged one is not sent again. */
   #cardShown = new Map<number, string>()
 
+  /**
+   * The player set up and listened to, once. A set-up that fails — asked
+   * while the app is in the background — is tried again by the next load or
+   * play, and the listeners go on with it: left unwired, the engine never
+   * heard the player again, and no song ended or showed its progress.
+   */
+  #wired: Promise<void> | null = null
+
   constructor() {
-    void this.#wire()
+    // Failing here is the first load's to try again.
+    void this.#wire().catch(() => undefined)
   }
 
   get state(): EngineState {
@@ -152,7 +161,7 @@ class NativeEngine implements PlaybackEngine {
     // Cleared before anything is awaited, so a failure of this load is a
     // change the provider hears even when it says what the last one did.
     this.#hub.patch({ error: null })
-    await ensurePlayer()
+    await this.#wire()
     if (this.#destroyed || overtaken()) return
 
     // Already the song that is sounding. This is the ordinary case right after
@@ -270,7 +279,7 @@ class NativeEngine implements PlaybackEngine {
   }
 
   async play(): Promise<void> {
-    await ensurePlayer()
+    await this.#wire()
     await TrackPlayer.play()
   }
 
@@ -316,7 +325,15 @@ class NativeEngine implements PlaybackEngine {
 
   // --- the player's side -----------------------------------------------------
 
-  async #wire(): Promise<void> {
+  #wire(): Promise<void> {
+    this.#wired ??= this.#listen().catch((error: unknown) => {
+      this.#wired = null
+      throw error
+    })
+    return this.#wired
+  }
+
+  async #listen(): Promise<void> {
     await ensurePlayer()
     if (this.#destroyed) return
 

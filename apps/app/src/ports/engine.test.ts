@@ -38,7 +38,12 @@ vi.mock('react-native-track-player', () => {
   return { default: player, Event: names, State: names }
 })
 
-vi.mock('../player/setup', () => ({ ensurePlayer: () => Promise.resolve() }))
+/** How many of the next set-ups fail, as one asked while the app is in the background does. */
+let setupFails = 0
+vi.mock('../player/setup', () => ({
+  ensurePlayer: () =>
+    setupFails-- > 0 ? Promise.reject(new Error('in the background')) : Promise.resolve(),
+}))
 vi.mock('./bucketRefusal', () => ({ askWhyRefused: () => refusal }))
 // Who this device is reads React Native, which a node test cannot load.
 vi.mock('./device', () => ({ deviceKind: () => 'phone', deviceModel: () => 'iphone' }))
@@ -48,6 +53,7 @@ beforeEach(() => {
   resetWaits = null
   listening.clear()
   refusal = Promise.resolve(null)
+  setupFails = 0
 })
 
 /** The player saying something, to whichever engine is listening. */
@@ -146,5 +152,17 @@ describe('the phone engine', () => {
 
     expect(said).not.toContain('Out of reads for today')
     expect(engine.state.error).toBeNull()
+  })
+
+  it('hears the player once it is set up, when setting it up failed at first', async () => {
+    const { createEngine } = await import('./engine')
+    setupFails = 1
+    const engine = createEngine()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    engine.connect({ nextTrackId: () => null, streamUrl: () => 'file:///one.m4a' })
+    await engine.load(1)
+
+    hear('PlaybackState', { state: 'Playing' })
+    expect(engine.state.playing).toBe(true)
   })
 })

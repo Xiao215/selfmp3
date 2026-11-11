@@ -367,22 +367,7 @@ export function connectRoom(): void {
   // Closed, or a ping that went unanswered: the line is down either way.
   function lost(): void {
     if (socket !== opened) return
-    socket = null
-    opened.onopen = null
-    opened.onmessage = null
-    opened.onclose = null
-    opened.onerror = null
-    try {
-      opened.close()
-    } catch {
-      // Already closed.
-    }
-    if (pinger) clearInterval(pinger)
-    if (pongDue) clearTimeout(pongDue)
-    pinger = null
-    pongDue = null
-    pingNow = null
-    tellLinkWaiters(false)
+    closeSocket()
     if (!view.pass) return
     set({ link: 'offline' })
     retry = setTimeout(() => {

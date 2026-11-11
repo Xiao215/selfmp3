@@ -44,7 +44,7 @@ export function LikedScreen(): ReactNode {
   const selection = useSelection(ids)
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const light = useSongColor(lead, lead ? artFor(lead) : null)
-  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`, I1).
+  // The head grows out of the tile that opened it (`useHeroGrow`, I1).
   const hero = useHeroGrow(wide)
   const heroRef = hero.heroRef
   const router = useRouter()
@@ -65,10 +65,7 @@ export function LikedScreen(): ReactNode {
         <>
           {/* None on a computer for Liked opened from the sidebar; the gap keeps ⋯ right. */}
           {backShown ? (
-            <BackButton
-              to="/playlists"
-              onPress={() => hero.back(() => goBack(router, '/playlists'))}
-            />
+            <BackButton to="/playlists" onPress={() => goBack(router, '/playlists')} />
           ) : (
             <View />
           )}

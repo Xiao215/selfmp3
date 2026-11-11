@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ClientStateProvider, type ServerConnection } from '@selfmp3/client'
@@ -55,6 +55,17 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [fromCloud, setFromCloud] = useState(false)
   const [needsStorage, setNeedsStorage] = useState(false)
+  /*
+   * Whether a bucket was connected, forgotten or let go of since launch. The
+   * doorman's look at the stored session (below) answers for that session as
+   * it was, and landing after any of these it would undo it: Where it lives
+   * again over a bucket just connected.
+   */
+  const storageSaid = useRef(false)
+  const sayStorage = useCallback((due: boolean) => {
+    storageSaid.current = true
+    setNeedsStorage(due)
+  }, [])
   const [sessionEnded, setSessionEnded] = useState<EndedSession | null>(null)
   const queryClient = useQueryClient()
   // Not before the bucket is connected: there is nothing in it to ask about.
@@ -116,7 +127,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
         void cloudSession
           .refreshSession(signedIn)
           .then(next => {
-            if (!cancelled) setNeedsStorage(storageDue(next))
+            if (!cancelled && !storageSaid.current) setNeedsStorage(storageDue(next))
           })
           .catch(() => undefined)
       }
@@ -141,11 +152,11 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
         cloudLibrary.markCloudLibraryStale()
         forgetCachedServer()
         answerFrom(false)
-        setNeedsStorage(false)
+        sayStorage(false)
         setSessionEnded(ended)
         setStatus('missing')
       }),
-    [forgetCachedServer, answerFrom],
+    [forgetCachedServer, answerFrom, sayStorage],
   )
 
   /** Called once Google is done, so the app stops asking for a server. */
@@ -158,23 +169,23 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
       setConnection(null)
       forgetCachedServer()
       answerFrom(true)
-      setNeedsStorage(storageDue(session ?? null))
+      sayStorage(storageDue(session ?? null))
       setSessionEnded(null)
       setStatus('ready')
     },
-    [forgetCachedServer, answerFrom],
+    [forgetCachedServer, answerFrom, sayStorage],
   )
 
   const storageConnected = useCallback(() => {
     // Nothing asked before the bucket was there was an answer worth keeping.
     forgetCachedServer()
-    setNeedsStorage(false)
-  }, [forgetCachedServer])
+    sayStorage(false)
+  }, [forgetCachedServer, sayStorage])
 
   const storageForgotten = useCallback(() => {
     forgetCachedServer()
-    setNeedsStorage(true)
-  }, [forgetCachedServer])
+    sayStorage(true)
+  }, [forgetCachedServer, sayStorage])
 
   const connect = useCallback(
     async (next: ServerConnection) => {
@@ -198,10 +209,10 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
     forgetCachedServer()
     forgetImportDraft('cloud')
     answerFrom(false)
-    setNeedsStorage(false)
+    sayStorage(false)
     setSessionEnded(null)
     setStatus('missing')
-  }, [forgetCachedServer, answerFrom])
+  }, [forgetCachedServer, answerFrom, sayStorage])
 
   const disconnect = useCallback(async () => {
     await clearConnection()

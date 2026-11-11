@@ -31,7 +31,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { answer, refusalAnswer } from './doRelay.js'
-import { secureHex } from './encoding.js'
+import { sameSecret, secureHex } from './encoding.js'
 import { keyOf } from './room.js'
 
 /**
@@ -298,7 +298,7 @@ export class Share {
     const found = await this.#found()
     if (!found) return MISSING()
     const { doc, secrets } = found
-    if (input.key !== secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(input.key, secrets.key))) return WRONG_KEY()
     const sub = input.sub || null
     if (sub === secrets.owner) return opened(this.#viewOf(doc, secrets, sub))
     const { visitors } = secrets
@@ -327,7 +327,7 @@ export class Share {
   async #peek(key: string): Promise<Response> {
     const found = await this.#found()
     if (!found) return MISSING()
-    if (key !== found.secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(key, found.secrets.key))) return WRONG_KEY()
     return Response.json(this.#viewOf(found.doc, found.secrets, null))
   }
 
@@ -354,7 +354,7 @@ export class Share {
     const found = await this.#found()
     if (!found) return MISSING()
     const { doc, secrets } = found
-    if ((url.searchParams.get('k') ?? '') !== secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(url.searchParams.get('k') ?? '', secrets.key))) return WRONG_KEY()
     const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
     const entryId = url.searchParams.get('entry') ?? ''
     const entry = doc.entries.find(candidate => candidate.id === entryId)
@@ -419,7 +419,7 @@ export class Share {
     const found = await this.#found()
     if (!found) return MISSING()
     const { doc, secrets } = found
-    if (input.key !== secrets.key) return WRONG_KEY()
+    if (!(await sameSecret(input.key, secrets.key))) return WRONG_KEY()
     const sub = input.sub || null
     if (sub === secrets.owner) {
       return answer(400, DOORMAN_ERROR.shareInvalid, 'it is your own link; share it again instead')

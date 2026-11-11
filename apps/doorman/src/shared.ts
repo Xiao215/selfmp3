@@ -21,7 +21,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { answer, refusalAnswer } from './doRelay.js'
-import { secureHex } from './encoding.js'
+import { sameSecret, secureHex } from './encoding.js'
 import { keyOf } from './room.js'
 
 /**
@@ -233,7 +233,7 @@ export class Shared {
     const doc = await this.#doc()
     const secrets = await this.#secrets()
     if (!doc || !secrets) return answer(404, DOORMAN_ERROR.sharedMissing, 'no such playlist')
-    if (input.invite !== secrets.invite)
+    if (!(await sameSecret(input.invite, secrets.invite)))
       return answer(403, DOORMAN_ERROR.sharedForbidden, 'that invite is not this playlist’s')
     const already = this.#memberOf(secrets, input.sub)
     if (already) return Response.json(this.#viewOf(doc, secrets, already))

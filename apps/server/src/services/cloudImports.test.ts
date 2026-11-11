@@ -8,6 +8,7 @@ import {
   type ImportPreview,
 } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { ImportRequestRepository } from '../repositories/importRequests.js'
@@ -231,23 +232,14 @@ describe('links other devices ask to import', () => {
     ingest.apply([ask()])
     await service.process()
     const [job] = jobsOf(REQUEST)
-    const songId = songs.insert({
-      path: 'Sunrise.m4a',
-      title: 'Sunrise',
-      artist: 'Aurora',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 200,
-      sizeBytes: 1,
-      mime: 'audio/mp4',
-      mtimeMs: 1,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
+    const songId = songs.insert(
+      newSong({
+        title: 'Sunrise',
+        artist: 'Aurora',
+        duration: 200,
+        mtimeMs: 1,
+      }),
+    )
 
     imports.update(job?.id ?? '', { status: 'running', step: 'downloading' })
     expect(requests.settle()).toBe(0)

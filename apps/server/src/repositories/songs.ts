@@ -58,7 +58,7 @@ interface AdoptedSong {
   cameWith: CameWith | null
 }
 
-interface NewSong {
+export interface NewSong {
   path: string
   title: string
   artist: string

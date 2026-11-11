@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
+import { newSong } from '../fixtures/songs.js'
 import { CloudRepository } from './cloud.js'
 import { SongRepository } from './songs.js'
 import { StatsRepository } from './stats.js'
@@ -31,23 +32,16 @@ describe('uids', () => {
   })
 
   const insert = (title: string, artist = 'Aurora Lane'): number =>
-    songs.insert({
-      path: `${artist} - ${title}/${artist} - ${title}.m4a`,
-      title,
-      artist,
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 200,
-      sizeBytes: 1000,
-      mime: 'audio/mp4',
-      mtimeMs: 1,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
+    songs.insert(
+      newSong({
+        path: `${artist} - ${title}/${artist} - ${title}.m4a`,
+        title,
+        artist,
+        duration: 200,
+        sizeBytes: 1000,
+        mtimeMs: 1,
+      }),
+    )
 
   const uid = (table: string, id: number): unknown =>
     (db.prepare(`SELECT uid FROM ${table} WHERE id = ?`).get(id) as { uid: unknown }).uid

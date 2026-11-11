@@ -1,13 +1,9 @@
 import fs from 'node:fs'
-import http from 'node:http'
-import type { AddressInfo } from 'node:net'
-import os from 'node:os'
 import path from 'node:path'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createApp } from '../app.js'
-import { loadConfig, type ServingConfig } from '../config.js'
-import { createContainer, type Container } from '../container.js'
+import { startLibrary, type TestLibrary } from '../fixtures/library.js'
+import { newSong } from '../fixtures/songs.js'
 
 /**
  * Cover art from a data directory inside a hidden folder.
@@ -17,76 +13,26 @@ import { createContainer, type Container } from '../container.js'
  * Linux is `~/.local/share/selfmp3`, and a test lane's was `~/.selfmp3-lanes/…`.
  */
 describe('GET /api/art/:id', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
-  let config: ServingConfig
-  let container: Container
-  let server: http.Server
-  let origin = ''
+  let library: TestLibrary
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-art-'))
-    // Set in the shell, so they win over whatever a `.env` on this machine says.
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, '.hidden', 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    // The API answers nothing without a bucket; a folder stands in for one.
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-
-    container = createContainer(loadConfig())
-    config = container.config
+    library = await startLibrary({
+      // Under a hidden folder, as the server's own default on Linux is.
+      env: root => ({ SELFMP3_DATA_DIR: path.join(root, '.hidden', 'data') }),
+    })
     const cover = await sharp({
       create: { width: 300, height: 300, channels: 3, background: '#2040c0' },
     })
       .png()
       .toBuffer()
     // A cover is found by the format its song's row recorded, so the song is there first.
-    const id = container.songs.insert({
-      path: 'a.m4a',
-      title: 'A',
-      artist: '',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 1,
-      sizeBytes: 1,
-      mime: 'audio/mp4',
-      mtimeMs: 0,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
-    expect(id).toBe(1)
-    await container.covers.save(1, cover, '.png')
-
-    server = http.createServer(createApp(container))
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    expect(library.container.songs.insert(newSong({ title: 'A' }))).toBe(1)
+    await library.container.covers.save(1, cover, '.png')
   })
 
-  afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
-  })
+  afterAll(() => library.close())
 
-  const get = (url: string): Promise<Response> =>
-    fetch(`${origin}${url}`, {
-      headers: { Authorization: `Bearer ${config.authToken}` },
-    })
+  const get = (url: string): Promise<Response> => library.send('GET', url)
 
   it('serves the cover itself', async () => {
     const response = await get('/api/art/1')
@@ -109,7 +55,9 @@ describe('GET /api/art/:id', () => {
    */
   it('does not let a cover that failed to send be cached', async () => {
     // Found by name, but a directory: the send itself fails.
-    fs.mkdirSync(path.join(config.dataDir, 'covers', '2.png'), { recursive: true })
+    fs.mkdirSync(path.join(library.container.config.dataDir, 'covers', '2.png'), {
+      recursive: true,
+    })
     const response = await get('/api/art/2')
     expect(response.status).not.toBe(200)
     // Without a max-age a browser keeps no failure; Express's own weak ETag on

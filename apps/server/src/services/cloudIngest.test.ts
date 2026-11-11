@@ -13,6 +13,7 @@ import {
   type SmartRules,
 } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
@@ -97,23 +98,19 @@ describe('CloudIngest', () => {
     fields: { artist?: string; year?: number; lyrics?: boolean; art?: boolean } = {},
   ): number {
     const n = next++
-    const id = songs.insert({
-      path: `${title}.m4a`,
-      title,
-      artist: fields.artist ?? 'Artist',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: fields.year ?? null,
-      duration: 100 + n,
-      sizeBytes: 1000,
-      mime: 'audio/mp4',
-      mtimeMs: 1,
-      hasArt: fields.art ?? false,
-      artExt: fields.art ? '.jpg' : null,
-      lyricsKind: fields.lyrics ? 'synced' : 'none',
-      sourceUrl: null,
-    })
+    const id = songs.insert(
+      newSong({
+        title,
+        artist: fields.artist ?? 'Artist',
+        year: fields.year ?? null,
+        duration: 100 + n,
+        sizeBytes: 1000,
+        mtimeMs: 1,
+        hasArt: fields.art ?? false,
+        artExt: fields.art ? '.jpg' : null,
+        lyricsKind: fields.lyrics ? 'synced' : 'none',
+      }),
+    )
     // Distinct times, newest first: the order a server that adopted a bucket
     // gave its ids out in, since a snapshot lists the newest song first. So a
     // sort that fell back on row ids would disagree with a device's.

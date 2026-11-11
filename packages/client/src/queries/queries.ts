@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
   type QueryClient,
+  type QueryKey,
   type UseQueryResult,
 } from '@tanstack/react-query'
 import type {
@@ -417,19 +418,31 @@ export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error
 }
 
 /**
- * Ask the server for a playlist's members, and keep the answer. When it does
- * not answer, the kept copy goes into the cache and the error is still thrown,
- * as `useLibrary` does: the screen draws the copy and knows it is one.
+ * The copy kept on this device, put in the cache beside an answer that failed
+ * unless the cache holds one already. The error is still thrown, as
+ * `useLibrary` does: the screen draws the copy and knows it is one.
  */
+async function keepCopy(
+  client: QueryClient,
+  key: QueryKey,
+  kept: Promise<unknown> | undefined,
+): Promise<void> {
+  const cached = (await kept) ?? null
+  if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
+}
+
+/** Ask the server for a playlist's members, and keep the answer for when it does not answer. */
 async function fetchPlaylistSongs(client: QueryClient, playlistId: number): Promise<PlaylistSongs> {
   try {
     const songs = await clientApi().playlistSongs(playlistId)
     void playlistSnapshot()?.write(songs)
     return songs
   } catch (error) {
-    const key = queryKeys.playlistSongs(playlistId)
-    const cached = (await playlistSnapshot()?.read(playlistId)) ?? null
-    if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
+    await keepCopy(
+      client,
+      queryKeys.playlistSongs(playlistId),
+      playlistSnapshot()?.read(playlistId),
+    )
     throw error
   }
 }
@@ -626,9 +639,7 @@ export function useLyrics(songId: number | null): UseQueryResult<LyricsResponse,
         // Only when the question went unanswered: a 404 means the words are
         // gone, and a kept copy would be a stale answer to a fresh question.
         if (error instanceof ApiError && error.isUnanswered) {
-          const key = queryKeys.lyrics(songId)
-          const cached = (await lyricsSnapshot()?.read(songId)) ?? null
-          if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
+          await keepCopy(client, queryKeys.lyrics(songId), lyricsSnapshot()?.read(songId))
         }
         throw error
       }
@@ -670,9 +681,7 @@ export function useMotion(songId: number | null): MotionCurve | null {
       } catch (error) {
         // As for lyrics: only when the question went unanswered.
         if (error instanceof ApiError && error.isUnanswered) {
-          const key = queryKeys.motion(songId)
-          const cached = (await motionSnapshot()?.read(songId)) ?? null
-          if (cached && !client.getQueryData(key)) client.setQueryData(key, cached)
+          await keepCopy(client, queryKeys.motion(songId), motionSnapshot()?.read(songId))
         }
         throw error
       }

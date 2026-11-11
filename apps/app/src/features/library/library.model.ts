@@ -73,8 +73,6 @@ interface LibraryModel {
   /** The current field's two ways round, named for it: Newest first, Oldest first. */
   sortOrders: readonly SortOrder[]
   loading: boolean
-  /** The server did not answer; what is shown is the kept copy. */
-  unreachable: boolean
   /** Why the library did not answer, for the card that says so; null while it has. */
   failure: unknown
   emptyReason: LibraryEmptyReason
@@ -233,7 +231,6 @@ export function useLibraryModel(
       sortOptions: SORT_OPTIONS,
       sortOrders: sortOption?.orders ?? [],
       loading: isPending,
-      unreachable: isError,
       failure: error,
       emptyReason: emptyReason({ isError, total: songs.length, shown: visible.length }),
       setSort,
@@ -286,11 +283,6 @@ export function orderLabel(
 }
 
 /**
- * Whether the library failed because the bucket's daily allowance is used up.
- * Everything answered then — the doorman, the server — so nothing should say
- * it cannot be reached.
- */
-/**
  * The doorman's trouble (packages/replica/src/reach.ts) as the error the
  * screens already know how to say: nothing answering as offline, an error of
  * its own as a problem, a write refused for the day as the allowance.
@@ -302,6 +294,11 @@ export function troubleAsError(trouble: DoormanTrouble | null): ApiError | null 
   return new ApiError(502, trouble.message)
 }
 
+/**
+ * Whether the library failed because the bucket's daily allowance is used up.
+ * Everything answered then — the doorman, the server — so nothing should say
+ * it cannot be reached.
+ */
 export function bucketCapped(error: unknown): boolean {
   return error instanceof ApiError && error.isBucketCapped
 }

@@ -21,7 +21,7 @@ import {
   type,
   useLibrary,
 } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -84,14 +84,14 @@ const snapshot = (): Offer | null => current
 export function ResumeToast(): ReactNode {
   const { theme } = useUnistyles()
   const { deviceId, devices, heard } = useDeviceContext()
-  const player = usePlayer()
+  const playing = usePlayerPlaying()
+  const playingSongId = usePlayingSongId()
   const library = useLibrary()
   const memory = usePlaybackMemoryState()
   const wide = useLayoutValue(layout => layout.wide)
   const resume = useResumeOffer()
   const offer = useSyncExternalStore(subscribe, snapshot, snapshot)
   // Playing here is an answer.
-  const playing = player.isPlaying
   useLayoutEffect(() => {
     if (playing) setOffer(null)
   }, [playing])
@@ -99,10 +99,10 @@ export function ResumeToast(): ReactNode {
   // A launch-time decision: re-deciding as devices come and go would pop a
   // toast up an hour into a session.
   const decided = useRef(false)
-  const playerRef = useRef(player)
+  const playerRef = useRef({ playing, songId: playingSongId })
   useEffect(() => {
-    playerRef.current = player
-  }, [player])
+    playerRef.current = { playing, songId: playingSongId }
+  }, [playing, playingSongId])
 
   useEffect(() => {
     // After this device's own coming back has settled, never before: see `PlaybackMemory`.
@@ -122,14 +122,14 @@ export function ResumeToast(): ReactNode {
     const timer = setTimeout(() => {
       decided.current = true
       const now = playerRef.current
-      if (now.isPlaying) return
+      if (now.playing) return
       // Ages are `lastSeenAt`, the server's clock, so "now" is too.
       const picked = pickResumeState(devices, {
         thisDeviceId: deviceId,
         now: serverTime(heard, Date.now()),
       })
       if (!picked) return
-      if (picked.state.songId === (now.current?.id ?? null)) return
+      if (picked.state.songId === now.songId) return
       if (!songs.some(song => song.id === picked.state.songId)) return
       setOffer({ device: picked, at: Date.now() })
     }, 0)
@@ -230,7 +230,7 @@ function useResumeOffer(): {
   decline: () => void
 } | null {
   const { heard } = useDeviceContext()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const library = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
   const offer = useSyncExternalStore(subscribe, snapshot, snapshot)

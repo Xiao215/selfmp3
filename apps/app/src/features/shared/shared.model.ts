@@ -87,7 +87,7 @@ export function nameToJoinWith(
 }
 
 /** An invite opened before signing in, kept by the page it opens until there is a library. */
-export interface PendingJoin {
+interface PendingJoin {
   readonly id: string
   readonly invite: string
 }

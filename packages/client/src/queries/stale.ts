@@ -1,7 +1,7 @@
 /**
  * How long an answer counts as fresh, by name rather than as a literal in each
  * hook. Freshness is rarely what keeps a screen right — an edit invalidates
- * what it reaches (queries.ts) — so these are about how often a screen that is
+ * what it reaches (mutations.ts) — so these are about how often a screen that is
  * merely being looked at asks again.
  */
 export const STALE = {

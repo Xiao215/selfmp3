@@ -314,6 +314,6 @@ function sameAddress(a: string, b: string): boolean {
 
 /** The answer's own message, when it has one. */
 async function errorOf(response: { json(): Promise<unknown> }): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: unknown } | null
-  return typeof body?.error === 'string' ? body.error : 'Something went wrong.'
+  const body = z.object({ error: z.string() }).safeParse(await response.json().catch(() => null))
+  return body.success ? body.data.error : 'Something went wrong.'
 }

@@ -108,10 +108,7 @@ export function snapshotToLibrary(
   const librarySongs: Song[] = snapshot.songs.map(song => {
     const id = idFor(songs, song.uid)
     songIdOf.set(song.uid, id)
-    const tagIds = song.tagUids.flatMap(uid => {
-      const tagId = tagIdOf.get(uid)
-      return tagId === undefined ? [] : [tagId]
-    })
+    const tagIds = idsOf(song.tagUids, tagIdOf)
     for (const tagId of tagIds) songCountByTag.set(tagId, (songCountByTag.get(tagId) ?? 0) + 1)
     files[id] = {
       audio: song.audio.key,
@@ -164,10 +161,7 @@ export function snapshotToLibrary(
   const libraryPlaylists: Playlist[] = snapshot.playlists.map(playlist => {
     const id = idFor(playlists, playlist.uid)
     playlistIdOf.set(playlist.uid, id)
-    const songIds = playlist.songUids.flatMap(uid => {
-      const songId = songIdOf.get(uid)
-      return songId === undefined ? [] : [songId]
-    })
+    const songIds = idsOf(playlist.songUids, songIdOf)
     playlistSongs[id] = songIds
     return {
       id,
@@ -220,10 +214,7 @@ export function snapshotToLibrary(
         url: request.url,
         state: request.state,
         title: request.title,
-        songIds: request.songUids.flatMap(uid => {
-          const songId = songIdOf.get(uid)
-          return songId === undefined ? [] : [songId]
-        }),
+        songIds: idsOf(request.songUids, songIdOf),
         error: request.error,
         requestedAt: request.requestedAt,
         requestedBy: request.requestedBy,
@@ -248,6 +239,14 @@ export function snapshotToLibrary(
       playlists: flip(playlistIdOf),
     },
   }
+}
+
+/** The ids here of these uids, in order; one with none here (a song gone, say) is left out. */
+function idsOf(uids: readonly string[], idOf: ReadonlyMap<string, number>): number[] {
+  return uids.flatMap(uid => {
+    const id = idOf.get(uid)
+    return id === undefined ? [] : [id]
+  })
 }
 
 /** The same pairs the other way round: this device's id → the bucket's uid. */

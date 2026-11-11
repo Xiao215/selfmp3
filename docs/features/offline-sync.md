@@ -14,7 +14,7 @@ Files:
 |---|---|
 | The listening outbox, shared rules | `packages/shared/src/outbox.ts`, `packages/client/src/listens/outbox.ts` |
 | …kept on the device (a JSON file, IndexedDB in a browser) | `apps/app/src/offline/listenOutbox.ts` (+ `.web.ts`) |
-| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts`; a browser's held edits, kept through a reload: `apps/app/src/offline/waitingEdits.ts` (+ `.model.ts`), `editKeys` in `packages/client/src/queries/queries.ts` |
+| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts`; a browser's held edits, kept through a reload: `apps/app/src/offline/waitingEdits.ts` (+ `.model.ts`), `editKeys` in `packages/client/src/queries/mutations.ts` |
 | Automatic downloads | `apps/app/src/offline/DownloadsProvider.tsx` |
 | Per-device preferences, connection type | `packages/client/src/downloads/syncPolicy.ts`, `apps/app/src/offline/connectionKind.ts` |
 | Download, prune | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |

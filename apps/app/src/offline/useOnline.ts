@@ -14,20 +14,27 @@ import { onlineManager } from '@tanstack/react-query'
  * for a network it does not need.
  */
 export function useOnline(): boolean {
-  return useSyncExternalStore(
-    listener => {
-      const stopHearing = onlineManager.subscribe(listener)
-      const page = typeof window !== 'undefined' ? window : null
-      page?.addEventListener?.('online', listener)
-      page?.addEventListener?.('offline', listener)
-      return () => {
-        stopHearing()
-        page?.removeEventListener?.('online', listener)
-        page?.removeEventListener?.('offline', listener)
-      }
-    },
-    () => onlineManager.isOnline() && !browserOffline(),
-  )
+  return useSyncExternalStore(subscribe, online)
+}
+
+/**
+ * Made once, not per render: `useSyncExternalStore` subscribes again to every
+ * new function it is handed, and the sidebar, which asks this, renders often.
+ */
+function subscribe(listener: () => void): () => void {
+  const stopHearing = onlineManager.subscribe(listener)
+  const page = typeof window !== 'undefined' ? window : null
+  page?.addEventListener?.('online', listener)
+  page?.addEventListener?.('offline', listener)
+  return () => {
+    stopHearing()
+    page?.removeEventListener?.('online', listener)
+    page?.removeEventListener?.('offline', listener)
+  }
+}
+
+function online(): boolean {
+  return onlineManager.isOnline() && !browserOffline()
 }
 
 /** A browser saying it has no network at all; never true on a phone, which has no `navigator.onLine`. */

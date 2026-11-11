@@ -15,8 +15,8 @@ import { sourceFor } from './songSource'
 /**
  * Songs kept because they were played, as files: the rules, for a phone's
  * cache folder (`recentCopies.ts`) and the desktop shell's `recent` folder
- * (`desktop/recentCopies.desktop.ts`) alike. A browser keeps its copies in the
- * Cache API instead and has rules of its own (`recentCopies.web.ts`).
+ * (`desktop/recentCopies.desktop.ts`) alike. A browser tab keeps none
+ * (`recentCopies.web.ts`).
  *
  * The two used to be two copies of this, and a fix to one missed the other: a
  * desktop refused to hand a download a copy of a song whose audio had since

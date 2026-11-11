@@ -22,7 +22,6 @@ import {
   uncacheSong,
 } from './offline.web'
 import { prefs } from './prefs'
-import { recentIds } from './recentCopies'
 
 /**
  * Where the browser keeps songs: the Cache API, behind the service worker.
@@ -108,17 +107,14 @@ const cacheStorage: DownloadStorage = {
   async readIndex() {
     const saved = savedIndex()
     const present = await cachedSongIds()
-    // Kept because it was played, not asked for: a cache, and not "on this device".
-    const recent = recentIds()
     let index = EMPTY_INDEX
     for (const songId of present) {
-      if (recent.has(songId)) continue
       const known = saved?.entries[String(songId)]
       if (known) {
         index = addEntry(index, known)
         continue
       }
-      // In the cache but not in the note, and not a recent copy: nothing says
+      // In the cache but not in the note: nothing says
       // which revision it is, so nothing can vouch for it, and it is let go.
       // Best effort: before the stream address is configured there is no key
       // to delete it by, and it is simply not listed.

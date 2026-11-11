@@ -5,7 +5,7 @@ import {
 } from '@selfmp3/shared'
 import { recall, remember, type BoundedCache } from './boundedCache.js'
 import type { Context } from './context.js'
-import { forbidden, json, methodNotAllowed, readJson } from './http.js'
+import { forbidden, json, readJson } from './http.js'
 import { sameSecret } from './encoding.js'
 import { getRecord, putRecord, type KvStore } from './kv.js'
 import { requireSession } from './context.js'
@@ -123,14 +123,16 @@ async function isAdminKey(key: string | undefined, token: string): Promise<boole
   return set.length >= 32 && (await sameSecret(token, set))
 }
 
-/** `GET /v1/access` and `PUT /v1/access`: the list, for an owner only. */
-export async function access(ctx: Context): Promise<Response> {
+/** `GET /v1/access`: the list, for an owner only. */
+export async function readAccess(ctx: Context): Promise<Response> {
   await requireOwner(ctx)
-  if (ctx.request.method === 'GET') return json(await ctx.access.read())
-  if (ctx.request.method === 'PUT') {
-    return json(await ctx.access.write(await readJson(ctx.request, DoormanAccessUpdateSchema)))
-  }
-  return methodNotAllowed(['GET', 'PUT'])
+  return json(await ctx.access.read())
+}
+
+/** `PUT /v1/access`: the list replaced, by an owner only. */
+export async function writeAccess(ctx: Context): Promise<Response> {
+  await requireOwner(ctx)
+  return json(await ctx.access.write(await readJson(ctx.request, DoormanAccessUpdateSchema)))
 }
 
 /** `GET /v1/stats?days=N`: what the doorman counted, for an owner only. */

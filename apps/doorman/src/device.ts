@@ -86,15 +86,15 @@ const same = (a: string, b: string) => a.toUpperCase() === b.toUpperCase()
 
 // ---------------------------------------------------------------- the friend
 
-export function device(ctx: Context): Promise<Response> {
+export async function device(ctx: Context): Promise<Response> {
   const { method } = ctx.request
   const rest = ctx.url.pathname.slice(DEVICE.length)
   if (rest === '') {
-    if (method === 'GET') return Promise.resolve(profile(ctx))
+    if (method === 'GET') return profile(ctx)
     if (method === 'POST') return received(ctx)
-    return Promise.resolve(methodNotAllowed(['GET', 'POST']))
+    return methodNotAllowed(['GET', 'POST'])
   }
-  if (method !== 'GET') return Promise.resolve(methodNotAllowed(['GET']))
+  if (method !== 'GET') return methodNotAllowed(['GET'])
   return shown(ctx, idFrom(rest))
 }
 

@@ -293,6 +293,6 @@ A change that touches the doorman, the server and the app goes out in that order
 | One library's background work | `apps/server/src/start.ts` |
 | Grants | `apps/doorman/src/grants.ts`; `DoormanGrant*` in `packages/shared/src/schemas/doorman.ts` |
 | Telling the server | `tellServer` in `apps/doorman/src/grants.ts`; `Hub.check` and `POST /api/hub/check` in `apps/server/src/hub/`; `HubCheckSchema` in `packages/shared/src/schemas/hub.ts` |
-| Plays in the bucket | `apps/server/src/services/playsArchive.ts`, `cloudSync.ts` (`#uploadPlays`, `#readBucketPlays`); `CloudPlays*` in `packages/shared/src/schemas/cloud.ts` |
+| Plays in the bucket | `apps/server/src/services/playsArchive.ts`, `cloudLibraryFiles.ts` (`uploadPlays`, `#readBucketPlays`); `CloudPlays*` in `packages/shared/src/schemas/cloud.ts` |
 | Joining, from a device | `packages/replica/src/sharedServer.ts`; `apps/app/src/connection/ServerAway.tsx`; `apps/app/src/features/settings/ConnectionPanel.tsx` (`Computers`) |
 | Tests | `apps/server/src/hub/hub.test.ts` (the real doorman over HTTP, and the device's side against it), `apps/doorman/src/grants.test.ts`, the `plays` block in `apps/server/src/services/cloudSync.test.ts`, `packages/replica/src/sharedServer.test.ts`, `packages/client/src/connection/reach.test.ts` |

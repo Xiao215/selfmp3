@@ -12,7 +12,8 @@ import {
 import { tagCatalog } from './library.js'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { bare, chunks, pool, tally } from './text.js'
+import { pool } from '../util/pool.js'
+import { bare, chunks, tally } from './text.js'
 
 /**
  * Tags (docs/features/ai.md): your tags put right, as changes to approve —

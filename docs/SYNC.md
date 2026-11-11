@@ -905,9 +905,9 @@ given a grant to, with *Remove* on each.
 | Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` and `s3.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes), `apps/server/src/bucket/kept.ts` (words read from the bucket, kept on disk) |
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
-| Plays and sound vectors in the bucket | `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
+| Plays, sound vectors and the sound map in the bucket | `apps/server/src/services/cloudLibraryFiles.ts` (sending them, and reading them back), `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
 | The sound map in the bucket | `apps/server/src/sound/soundMap.ts`, `packages/shared/src/soundMap.ts` |
-| Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `#uploadCoverPacks` in `apps/server/src/services/cloudSync.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |
+| Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `uploadCoverPacks` in `apps/server/src/services/cloudPictures.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |
 | Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
 | Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |
 | Tidying the log, old snapshots, and audio and words nothing names | `apps/server/src/services/cloudSync.ts` (`#tidyLogs`, `#trashOrphans`), `unnamedFiles` and `unplacedSongSizes` in `apps/server/src/repositories/cloud.ts`, `othersSnapshotsToPrune` and `snapshotFileKeys` in `packages/shared/src/cloud.ts` |

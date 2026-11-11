@@ -47,6 +47,7 @@ export class SyncRepository {
   readonly #playlist
   readonly #cursors
   readonly #setCursor
+  readonly #holdsAnything
 
   constructor(db: Db) {
     this.#db = db
@@ -118,6 +119,11 @@ export class SyncRepository {
       INSERT INTO cloud_log_cursors (device, seq) VALUES (?, ?)
       ON CONFLICT (device) DO UPDATE SET seq = MAX(seq, excluded.seq)
     `)
+    this.#holdsAnything = db.prepare<[], { used: number }>(
+      `SELECT EXISTS (SELECT 1 FROM songs) OR EXISTS (SELECT 1 FROM tags)
+           OR EXISTS (SELECT 1 FROM playlists) OR EXISTS (SELECT 1 FROM cloud_log_cursors)
+           AS used`,
+    )
   }
 
   // --- Stamps --------------------------------------------------------------
@@ -272,5 +278,10 @@ export class SyncRepository {
   /** Only ever moves forward. */
   setCursor(device: string, seq: number): void {
     this.#setCursor.run(device, seq)
+  }
+
+  /** Whether this library holds nothing yet: no song, tag or playlist, and no device's log read. */
+  holdsNothing(): boolean {
+    return this.#holdsAnything.get()?.used === 0
   }
 }

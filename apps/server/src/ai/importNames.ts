@@ -8,7 +8,8 @@ import {
 import { withNotes } from './ask.js'
 import { LlmError, Remembered, type Llm } from './llm.js'
 import { within } from './names.js'
-import { chunks, pool } from './text.js'
+import { pool } from '../util/pool.js'
+import { chunks } from './text.js'
 
 /**
  * A9 · the model's part (docs/features/ai.md): an import review's rows read

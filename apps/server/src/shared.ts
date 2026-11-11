@@ -15,6 +15,7 @@ import {
   type ThrottleStore,
 } from './services/ytThrottle.js'
 import { ServerMetrics } from './services/metrics.js'
+import { MetricsRepository } from './repositories/metrics.js'
 import { SoundModelHost } from './sound/sound.js'
 import { Gate } from './util/gate.js'
 
@@ -67,7 +68,8 @@ export function createShared(
 ): SharedServices {
   const soundModel = new SoundModelHost({ config, logger })
   const keepAwake = createKeepAwake(logger)
-  const metrics = new ServerMetrics(config.dataDir, undefined, error => {
+  const metricsRepo = new MetricsRepository(config.dataDir)
+  const metrics = new ServerMetrics(metricsRepo, undefined, error => {
     logger.warn('could not count for the admin page', { message: messageOf(error) })
   })
   const musicBrainzPace = new RateLimiter(MUSICBRAINZ_PACE_MS)
@@ -84,7 +86,7 @@ export function createShared(
     close: async () => {
       keepAwake.stop()
       await soundModel.close()
-      metrics.close()
+      metricsRepo.close()
     },
   }
 }

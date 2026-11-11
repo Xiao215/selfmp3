@@ -14,7 +14,6 @@ import {
   SNAPSHOTS_FOLDER,
   audioKey,
   coverKey,
-  coverPackKey,
   isReplacedWholeKey,
   foldedLogKeys,
   detectLyricsLanguage,
@@ -31,9 +30,6 @@ import {
   snapshotFileKeys,
   snapshotKey,
   snapshotsToPrune,
-  soundMapKey,
-  soundVectorsKey,
-  playsKey,
   parseCloudWords,
   wordsKey,
   unfoldedLogKeys,
@@ -41,10 +37,6 @@ import {
   type CloudConnect,
   type CloudLyrics,
   type CloudSnapshot,
-  type CloudPlays,
-  type CloudCoverPack,
-  type CloudSound,
-  type CloudSoundMap,
   type CloudWords,
   type CloudStatus,
   type DoormanMe,
@@ -60,7 +52,6 @@ import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
 import type {
-  CloudArtistState,
   CloudConnection,
   CloudRepository,
   CloudSongState,
@@ -80,7 +71,7 @@ import type { ArtistNameLookup } from './artistNames.js'
 import type { SpellingService } from './spellings.js'
 import type { NamesRepository } from '../repositories/names.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
-import { planCoverPacks } from './coverPacks.js'
+import { CloudPictures } from './cloudPictures.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
@@ -88,6 +79,7 @@ import type { MotionStore } from './motionStore.js'
 import type { SoundMapService } from '../sound/soundMap.js'
 import type { SoundService } from '../sound/sound.js'
 import type { PlaysArchive } from './playsArchive.js'
+import { CloudLibraryFiles } from './cloudLibraryFiles.js'
 import {
   buildSnapshot,
   parseSnapshot,
@@ -102,6 +94,7 @@ import {
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
 import { sha256 } from '../util/hash.js'
+import { pool } from '../util/pool.js'
 
 /**
  * Keeping the library and the cloud bucket in step (docs/SYNC.md).
@@ -213,23 +206,6 @@ const LOG_READS_AT_ONCE = 6
 
 /** Songs whose files are looked at together while a pass works out what changed. */
 const SIGNATURES_AT_ONCE = 16
-
-/**
- * While songs are still being heard, the sound vectors go up at most this
- * often: each file is the whole library's, a few megabytes, and a song is
- * heard about once a minute on a Pi.
- */
-const SOUND_UPLOAD_EVERY_MS = 60 * 60_000
-
-/**
- * This month's plays go up at most this often: every play changes the month,
- * and each new file replaces the last. A past month goes as soon as it
- * changes, which is seldom — a phone's play sent days late.
- */
-const PLAYS_UPLOAD_EVERY_MS = 60 * 60_000
-
-/** A month's file in the bucket that would not read: kept as it is, never written over. */
-const UNREADABLE_PLAYS = 'unreadable'
 
 /** How often to ask the doorman whether Google has finished: for as long as a sign-in lasts (`SIGN_IN_TTL_MS`). */
 const SIGN_IN_POLL_MS = 2_000
@@ -468,25 +444,11 @@ export class CloudSyncService {
   #orphansDue = false
   /**
    * How far into each device's log every play this server has read is in the
-   * bucket's months of plays (`#uploadPlays`), or null before that is known.
+   * bucket's months of plays (`CloudLibraryFiles.uploadPlays`), or null before that is known.
    * A log file whose plays are only in this database is not deleted: a
    * database lost before this month's file went up would lose them for good.
    */
   #playsCovered: Readonly<Record<string, number>> | null = null
-  /**
-   * The sound vectors the bucket's newest snapshot named when its library was
-   * taken on, until they have been read back (`#readBucketSound`); undefined
-   * before that snapshot has been looked at.
-   */
-  #bucketSound: CloudSound | null | undefined = undefined
-  /** Likewise the sound map the bucket's snapshot named, until it has been read back. */
-  #bucketSoundMap: CloudSoundMap | null | undefined = undefined
-  /**
-   * Pictures named in the library whose bytes this server does not have, as
-   * the last look for them found: not looked for again every pass. A cover
-   * that changes has a new key, and is looked for under that.
-   */
-  readonly #unpackable = new Set<string>()
   /** How many passes in a row found each broken log file broken (`#givenUpOn`). */
   readonly #brokenLogs = new Map<string, number>()
   /**
@@ -495,16 +457,10 @@ export class CloudSyncService {
    * a listing, not a read of each (`#namedBySnapshots`).
    */
   readonly #snapshotFiles = new Map<string, Set<string>>()
-  /** The pass that sends the vectors once the hour since the last is up. */
-  #soundTimer: NodeJS.Timeout | null = null
-  /**
-   * The months of plays the bucket's newest snapshot named when its library
-   * was taken on, until they have been read back (`#readBucketPlays`);
-   * undefined before that snapshot has been looked at.
-   */
-  #bucketPlays: readonly CloudPlays[] | null | undefined = undefined
-  /** The pass that sends this month's plays once the hour since the last is up. */
-  #playsTimer: NodeJS.Timeout | null = null
+  /** The sound vectors, the sound map and the months of plays in the bucket. */
+  readonly #libraryFiles: CloudLibraryFiles
+  /** Artists' pictures and the packs of covers in the bucket. */
+  readonly #pictures: CloudPictures
   /** The pass for copies here not yet still for long enough to send or let go, and when it is due. */
   #stillTimer: NodeJS.Timeout | null = null
   #stillAt = 0
@@ -615,6 +571,25 @@ export class CloudSyncService {
     this.#retryDelaysMs = deps.retryDelaysMs ?? RETRY_DELAYS_MS
     this.#enrichmentDeferMs = deps.enrichmentDeferMs ?? ENRICHMENT_DEFER_MS
     this.#stillMs = deps.stillMs ?? { send: SEND_WHEN_STILL_MS, letGo: LET_GO_WHEN_STILL_MS }
+    this.#libraryFiles = new CloudLibraryFiles({
+      cloud: deps.cloud,
+      logger: this.#logger,
+      now: this.#now,
+      putOnce: (store, key, data, contentType) => this.#putOnce(store, key, data, contentType),
+      kick: () => this.kick(),
+      stopped: () => this.#stopped,
+      ...(deps.sound ? { sound: deps.sound } : {}),
+      ...(deps.soundMap ? { soundMap: deps.soundMap } : {}),
+      ...(deps.plays ? { plays: deps.plays } : {}),
+    })
+    this.#pictures = new CloudPictures({
+      cloud: deps.cloud,
+      covers: deps.covers,
+      logger: this.#logger,
+      putOnce: (store, key, data, contentType) => this.#putOnce(store, key, data, contentType),
+      stopped: () => this.#stopped,
+      ...(deps.artists ? { artists: deps.artists } : {}),
+    })
     if (deps.cloudDir) this.#useFolder(deps.cloudDir)
   }
 
@@ -668,14 +643,8 @@ export class CloudSyncService {
    * heard, or else when the hour since the last time is up.
    */
   soundChanged(): void {
-    const sound = this.#deps.sound
-    if (!this.#store || this.#stopped || !sound) return
-    const state = this.#deps.cloud.soundState()
-    const wait = state
-      ? Date.parse(state.uploadedAt) + SOUND_UPLOAD_EVERY_MS - this.#now().getTime()
-      : 0
-    if (!sound.hearing || wait <= 0) this.kick()
-    else this.#soundLater(wait)
+    if (!this.#store || this.#stopped) return
+    this.#libraryFiles.soundChanged()
   }
 
   /**
@@ -692,8 +661,7 @@ export class CloudSyncService {
       this.#verified = false
       this.#adopted = false
       this.#coversSwept = false
-      this.#bucketSound = undefined
-      this.#bucketSoundMap = undefined
+      this.#libraryFiles.takeOn(null)
       this.#forgetBucketReads()
     }
     return this.#pass()
@@ -1086,7 +1054,7 @@ export class CloudSyncService {
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
       const files = cloud.songFiles()
-      const signed = await inBatches(files, SIGNATURES_AT_ONCE, file =>
+      const signed = await pool(files, SIGNATURES_AT_ONCE, file =>
         this.#signatures(file, states.get(file.id) ?? null),
       )
       const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
@@ -1187,15 +1155,16 @@ export class CloudSyncService {
       }
 
       if (generation !== this.#generation || this.#stopped) return
-      await this.#uploadArtists(store)
+      await this.#pictures.uploadArtists(store)
       if (generation !== this.#generation || this.#stopped) return
-      await this.#uploadCoverPacks(store)
+      await this.#pictures.uploadCoverPacks(store)
       if (generation !== this.#generation || this.#stopped) return
-      await this.#uploadSound(store)
+      await this.#libraryFiles.uploadSound(store)
       if (generation !== this.#generation || this.#stopped) return
-      await this.#uploadSoundMap(store)
+      await this.#libraryFiles.uploadSoundMap(store)
       if (generation !== this.#generation || this.#stopped) return
-      if (await this.#uploadPlays(store)) this.#playsCovered = this.#deps.sync?.cursors() ?? {}
+      if (await this.#libraryFiles.uploadPlays(store))
+        this.#playsCovered = this.#deps.sync?.cursors() ?? {}
 
       if (generation !== this.#generation) return
       const outcome = await this.#publish(store)
@@ -1324,7 +1293,7 @@ export class CloudSyncService {
       return { unreadable: 0, keys, complete: true }
     }
 
-    const read = await inBatches(pending, LOG_READS_AT_ONCE, key => this.#readLog(store, key))
+    const read = await pool(pending, LOG_READS_AT_ONCE, key => this.#readLog(store, key))
     if (generation !== this.#generation) return { unreadable: 0, keys: null, complete: false }
 
     const changes: Change[] = []
@@ -1625,9 +1594,7 @@ export class CloudSyncService {
 
     const newest = await this.#newestSnapshot(store)
     if (!newest) {
-      this.#bucketSound = null
-      this.#bucketSoundMap = null
-      this.#bucketPlays = null
+      this.#libraryFiles.takeOn(null)
       this.#adopted = true
       return
     }
@@ -1645,10 +1612,12 @@ export class CloudSyncService {
         publishUncheckableMessage(`its newest snapshot would not read: ${messageOf(error)}`),
       )
     }
-    this.#bucketSound = snapshot.sound
-    this.#bucketSoundMap = snapshot.soundMap ?? null
-    this.#bucketPlays = snapshot.plays ?? []
-    this.#takeOnCoverPacks(snapshot.coverPacks)
+    this.#libraryFiles.takeOn({
+      sound: snapshot.sound,
+      soundMap: snapshot.soundMap ?? null,
+      plays: snapshot.plays ?? [],
+    })
+    this.#pictures.takeOnCoverPacks(snapshot.coverPacks)
     if (snapshot.writtenBy === this.#deviceId()) {
       // This server's own, from before it last stopped. Said again word for
       // word, it would be one more download for every device and nothing new
@@ -1741,19 +1710,6 @@ export class CloudSyncService {
       reclaimed++
     }
     return reclaimed
-  }
-
-  /**
-   * The bucket's packs of covers, for a server that has none of its own yet:
-   * it may not have the covers to make them again (a library taken on from
-   * the bucket has none here), and without them every device would be back
-   * to a read per cover. Only those the bucket still has, as its listing said.
-   */
-  #takeOnCoverPacks(packs: readonly CloudCoverPack[]): void {
-    const { cloud } = this.#deps
-    if (cloud.coverPacks().length > 0) return
-    const present = packs.filter(pack => cloud.hasFile(pack.key))
-    if (present.length > 0) cloud.saveCoverPacks(present)
   }
 
   /**
@@ -1901,366 +1857,6 @@ export class CloudSyncService {
     return { key, size: data.length }
   }
 
-  /**
-   * Each artist's picture this server keeps, in the bucket beside the covers;
-   * an artist the library no longer has, or no longer has a picture of, has
-   * theirs put in the trash. A picture already up as it is kept costs a look
-   * at the kept file's time.
-   */
-  async #uploadArtists(store: CloudStore): Promise<void> {
-    const pictures = this.#deps.artists
-    if (!pictures) return
-    const { cloud } = this.#deps
-    const states = cloud.artistStates()
-    const kept = new Set<string>()
-    for (const artist of pictures.artists()) {
-      if (this.#stopped) return
-      const pair = await pictures.keptPair(artist.key)
-      if (!pair) continue
-      kept.add(artist.key)
-      if (states.get(artist.key)?.sig === pair.rev) continue
-      try {
-        const [banner, portrait] = await Promise.all([
-          fsp.readFile(pair.banner),
-          fsp.readFile(pair.portrait),
-        ])
-        const bannerKey = coverKey(sha256(banner), '.jpg')
-        const portraitKey = coverKey(sha256(portrait), '.jpg')
-        await this.#putOnce(store, bannerKey, banner, 'image/jpeg')
-        await this.#putOnce(store, portraitKey, portrait, 'image/jpeg')
-        cloud.saveArtist({
-          artist: artist.key,
-          bannerKey,
-          bannerSize: banner.length,
-          portraitKey,
-          portraitSize: portrait.length,
-          sig: pair.rev,
-        })
-      } catch (error) {
-        if (error instanceof CloudError && error.kind !== 'other') throw error
-        // Deleted between the look and the read, most likely: the next pass sends it.
-        this.#logger.warn('could not upload an artist’s picture', {
-          artist: artist.name,
-          message: messageOf(error),
-        })
-      }
-    }
-    for (const artist of states.keys()) if (!kept.has(artist)) cloud.dropArtist(artist)
-  }
-
-  /**
-   * The covers and artists' pictures, packed a few megabytes to a file
-   * (services/coverPacks.ts), so a device with none of them reads a file per
-   * pack rather than one per picture. A pack replaced goes in the trash with
-   * the pass that replaced it; a library already packed costs a look at the
-   * database.
-   */
-  async #uploadCoverPacks(store: CloudStore): Promise<void> {
-    const { cloud } = this.#deps
-    const live = new Map<string, number>()
-    for (const state of cloud.states().values()) {
-      if (state.coverKey !== null) live.set(state.coverKey, state.coverSize ?? 0)
-    }
-    const artists = cloud.artistStates()
-    for (const artist of artists.values()) {
-      live.set(artist.bannerKey, artist.bannerSize)
-      live.set(artist.portraitKey, artist.portraitSize)
-    }
-    const packs = cloud.coverPacks()
-    // First as if every picture not known to be missing were here: when that
-    // packs nothing, nothing is looked for on the disk.
-    const hoped = planCoverPacks(live, packs, key => !this.#unpackable.has(key))
-    if (hoped.groups.length === 0) {
-      if (hoped.kept.length !== packs.length) cloud.saveCoverPacks(hoped.kept)
-      return
-    }
-
-    const sources = await this.#pictureSources(artists)
-    for (const key of live.keys()) if (!sources.has(key)) this.#unpackable.add(key)
-    const plan = planCoverPacks(live, packs, key => sources.has(key))
-    const made: CloudCoverPack[] = []
-    for (const group of plan.groups) {
-      if (this.#stopped) return
-      const parts: Buffer[] = []
-      const covers: [string, number][] = []
-      for (const { key } of group) {
-        const data = await fsp.readFile(sources.get(key) ?? '').catch(() => null)
-        // Changed since it went up: the cover's next upload names it anew.
-        if (!data || !key.includes(`/${sha256(data)}.`)) {
-          this.#unpackable.add(key)
-          continue
-        }
-        parts.push(data)
-        covers.push([key, data.length])
-      }
-      if (covers.length === 0) continue
-      const bytes = Buffer.concat(parts)
-      const key = coverPackKey(sha256(bytes))
-      await this.#putOnce(store, key, bytes, 'application/octet-stream')
-      made.push({ key, size: bytes.length, covers })
-    }
-    const next = [...plan.kept, ...made]
-    const before = packs.map(pack => pack.key).join()
-    if (next.map(pack => pack.key).join() !== before) {
-      cloud.saveCoverPacks(next)
-      this.#logger.debug('covers packed', {
-        packs: next.length,
-        covers: next.reduce((sum, pack) => sum + pack.covers.length, 0),
-      })
-    }
-  }
-
-  /** Where this server keeps each picture the bucket has of its library, by key. */
-  async #pictureSources(
-    artists: ReadonlyMap<string, CloudArtistState>,
-  ): Promise<Map<string, string>> {
-    const { cloud, covers } = this.#deps
-    const sources = new Map<string, string>()
-    for (const [songId, state] of cloud.states()) {
-      if (state.coverKey === null || sources.has(state.coverKey)) continue
-      if (this.#unpackable.has(state.coverKey)) continue
-      const found = await covers.find(songId)
-      if (found) sources.set(state.coverKey, found.path)
-    }
-    const pictures = this.#deps.artists
-    if (pictures) {
-      for (const [artist, state] of artists) {
-        if (this.#unpackable.has(state.bannerKey) && this.#unpackable.has(state.portraitKey)) {
-          continue
-        }
-        const pair = await pictures.keptPair(artist)
-        if (!pair) continue
-        sources.set(state.bannerKey, pair.banner)
-        sources.set(state.portraitKey, pair.portrait)
-      }
-    }
-    return sources
-  }
-
-  /**
-   * Every song's sound vector, as one file in the bucket (sound/pack.ts), when
-   * they have changed since the last went up: at most once an hour while songs
-   * are still being heard, since each file is the whole library's. Never
-   * before the bucket's own file has been read back, so vectors this server
-   * does not have are never replaced by a file without them.
-   */
-  async #uploadSound(store: CloudStore): Promise<void> {
-    const sound = this.#deps.sound
-    if (!sound) return
-    const { cloud } = this.#deps
-    await this.#readBucketSound(store, sound)
-
-    const state = cloud.soundState()
-    const signature = sound.packSignature()
-    if (state?.model === sound.model && state.sig === signature) return
-    const now = this.#now()
-    if (state && sound.hearing) {
-      const wait = Date.parse(state.uploadedAt) + SOUND_UPLOAD_EVERY_MS - now.getTime()
-      if (wait > 0) {
-        this.#soundLater(wait)
-        return
-      }
-    }
-
-    const pack = sound.pack()
-    if (!pack) {
-      cloud.dropSound()
-      return
-    }
-    const key = soundVectorsKey(sha256(pack))
-    await this.#putOnce(store, key, pack, 'application/octet-stream')
-    cloud.saveSound({
-      model: sound.model,
-      key,
-      size: pack.length,
-      sig: signature,
-      uploadedAt: now.toISOString(),
-    })
-  }
-
-  /**
-   * The vectors the bucket's snapshot named when its library was taken on, for
-   * the songs here not heard yet: a server starting again from the bucket gets
-   * them back rather than hearing every song again. Read once; a bucket that
-   * cannot be read right now fails the pass, which tries again later.
-   */
-  async #readBucketSound(
-    store: CloudStore,
-    sound: NonNullable<CloudSyncDeps['sound']>,
-  ): Promise<void> {
-    const named = this.#bucketSound
-    if (!named) return
-    const { cloud } = this.#deps
-    if (cloud.soundState()?.key !== named.key) {
-      // Another model's vectors are no use here; the next file this server
-      // sends replaces them.
-      if (named.model === sound.model) {
-        const data = await store.get(named.key)
-        const restored = data ? sound.restore(data) : null
-        if (restored === null) {
-          this.#logger.warn('the sound vectors in the bucket could not be read', {
-            key: named.key,
-          })
-        } else if (restored > 0) {
-          this.#logger.info('took the sound vectors back from the bucket', { songs: restored })
-        }
-      }
-      // What is in it is not known here: the next look packs and compares.
-      cloud.saveSound({ ...named, sig: '', uploadedAt: this.#now().toISOString() })
-    }
-    this.#bucketSound = null
-  }
-
-  /**
-   * The sound map's file (sound/soundMap.ts), when it is not the one in the
-   * bucket. The fold itself is started here and not waited for: it can take
-   * a while on a Pi, and a new map asks for a pass of its own when it is made.
-   */
-  async #uploadSoundMap(store: CloudStore): Promise<void> {
-    const soundMap = this.#deps.soundMap
-    if (!soundMap) return
-    const { cloud } = this.#deps
-    await this.#readBucketSoundMap(store, soundMap)
-    void soundMap.refresh()
-    const file = soundMap.file()
-    if (file === null) {
-      if (!cloud.soundState()) cloud.dropSoundMap()
-      return
-    }
-    const data = Buffer.from(file)
-    const key = soundMapKey(sha256(data))
-    if (cloud.soundMapState()?.key === key) return
-    await this.#putOnce(store, key, data, 'application/json')
-    cloud.saveSoundMap({ key, size: data.length })
-  }
-
-  /**
-   * The map the bucket's snapshot named when its library was taken on: a
-   * server with no map of its own starts its next fold from it, so the map
-   * every device has been drawing holds still. Read once.
-   */
-  async #readBucketSoundMap(
-    store: CloudStore,
-    soundMap: NonNullable<CloudSyncDeps['soundMap']>,
-  ): Promise<void> {
-    const named = this.#bucketSoundMap
-    if (!named) return
-    const { cloud } = this.#deps
-    if (cloud.soundMapState()?.key !== named.key) {
-      if (soundMap.file() === null) {
-        const data = await store.get(named.key)
-        if (data && soundMap.adopt(data.toString('utf8'))) {
-          this.#logger.info('took the sound map back from the bucket', { key: named.key })
-        }
-      }
-      cloud.saveSoundMap(named)
-    }
-    this.#bucketSoundMap = null
-  }
-
-  /**
-   * Each month of plays whose plays have changed since its file went up, as a
-   * file of its own: this month at most once an hour, a past one at once.
-   * Never before the bucket's own months have been read back, so plays this
-   * server does not have are never replaced by a file without them.
-   *
-   * Says whether every play here is now in the bucket: false while this
-   * month's file waits for its hour.
-   */
-  async #uploadPlays(store: CloudStore): Promise<boolean> {
-    const plays = this.#deps.plays
-    if (!plays) return true
-    const { cloud } = this.#deps
-    await this.#readBucketPlays(store, plays)
-
-    const states = new Map(cloud.playsStates().map(state => [state.month, state]))
-    const now = this.#now()
-    const thisMonth = now.toISOString().slice(0, 7)
-    let allUp = true
-    for (const { month, sig } of plays.months()) {
-      const state = states.get(month)
-      states.delete(month)
-      if (state?.sig === sig || state?.sig === UNREADABLE_PLAYS) continue
-      if (state && month === thisMonth) {
-        const wait = Date.parse(state.uploadedAt) + PLAYS_UPLOAD_EVERY_MS - now.getTime()
-        if (wait > 0) {
-          this.#playsLater(wait)
-          allUp = false
-          continue
-        }
-      }
-      const file = plays.file(month)
-      const key = playsKey(sha256(file.body))
-      await this.#putOnce(store, key, file.body, 'application/gzip')
-      cloud.savePlays({
-        month,
-        key,
-        size: file.body.length,
-        count: file.count,
-        sig,
-        uploadedAt: now.toISOString(),
-      })
-    }
-    // A month whose plays have all gone, with the songs they were of.
-    for (const [month, state] of states) {
-      if (state.sig !== UNREADABLE_PLAYS) cloud.dropPlays(month)
-    }
-    return allUp
-  }
-
-  /**
-   * The months of plays the bucket's snapshot named when its library was taken
-   * on, read into this library: a server starting again from the bucket has
-   * its Stats back. Read once; a bucket that cannot be read right now fails
-   * the pass, which tries again later.
-   */
-  async #readBucketPlays(store: CloudStore, plays: PlaysArchive): Promise<void> {
-    const named = this.#bucketPlays
-    if (!named) return
-    const { cloud } = this.#deps
-    const known = new Map(cloud.playsStates().map(state => [state.month, state.key]))
-    let restored = 0
-    for (const entry of named) {
-      if (known.get(entry.month) === entry.key) continue
-      const data = await store.get(entry.key)
-      if (!data) {
-        this.#logger.warn('a month of plays the snapshot names is not in the bucket', {
-          month: entry.month,
-        })
-        continue
-      }
-      const read = plays.restore(data)
-      const uploadedAt = this.#now().toISOString()
-      if (!read) {
-        this.#logger.warn('a month of plays in the bucket could not be read; leaving it be', {
-          key: entry.key,
-        })
-        cloud.savePlays({ ...entry, sig: UNREADABLE_PLAYS, uploadedAt })
-        continue
-      }
-      restored += read.restored
-      // Signed as the plays here now are, when they are the file's and no
-      // more; otherwise unknown, so the next look sends what this has.
-      const here = plays.months().find(month => month.month === entry.month)
-      cloud.savePlays({
-        ...entry,
-        sig: here?.count === entry.count ? here.sig : '',
-        uploadedAt,
-      })
-    }
-    if (restored > 0) this.#logger.info('took the plays back from the bucket', { plays: restored })
-    this.#bucketPlays = null
-  }
-
-  #playsLater(wait: number): void {
-    if (this.#playsTimer || this.#stopped) return
-    this.#playsTimer = setTimeout(() => {
-      this.#playsTimer = null
-      this.kick()
-    }, wait)
-    this.#playsTimer.unref()
-  }
-
   /** A pass in `wait` ms, or sooner if one is already due sooner. */
   #passOnceStill(wait: number): void {
     const at = Date.now() + wait
@@ -2275,15 +1871,6 @@ export class CloudSyncService {
       Math.max(0, at - Date.now()),
     )
     this.#stillTimer.unref()
-  }
-
-  #soundLater(wait: number): void {
-    if (this.#soundTimer || this.#stopped) return
-    this.#soundTimer = setTimeout(() => {
-      this.#soundTimer = null
-      this.kick()
-    }, wait)
-    this.#soundTimer.unref()
   }
 
   /**
@@ -2740,12 +2327,7 @@ export class CloudSyncService {
       artistNames,
       spellings: names?.spellings.current(everySong, artistNames) ?? {},
       coverPacks: cloud.coverPacks(),
-      // The bucket's own file until it has been read back: a snapshot without
-      // it would leave the vectors there named by nothing.
-      sound: this.#bucketSound ?? cloud.soundState(),
-      soundMap: this.#bucketSoundMap ?? cloud.soundMapState(),
-      // Likewise the bucket's months of plays, until they have been read back.
-      plays: this.#bucketPlays ?? cloud.playsStates(),
+      ...this.#libraryFiles.forSnapshot(),
       tags: tags.all(),
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),
@@ -2934,9 +2516,7 @@ export class CloudSyncService {
     this.#verified = false
     this.#adopted = false
     this.#coversSwept = false
-    this.#bucketSound = undefined
-    this.#bucketSoundMap = undefined
-    this.#bucketPlays = undefined
+    this.#libraryFiles.takeOn(null)
     this.#adopting = null
     this.#checkedAgainstBucket = false
     this.#forgetBucketReads()
@@ -2981,14 +2561,11 @@ export class CloudSyncService {
     this.#publishLater.cancel()
     if (this.#retry) clearTimeout(this.#retry)
     if (this.#logPoll) clearInterval(this.#logPoll)
-    if (this.#soundTimer) clearTimeout(this.#soundTimer)
-    if (this.#playsTimer) clearTimeout(this.#playsTimer)
+    this.#libraryFiles.clearTimers()
     if (this.#stillTimer) clearTimeout(this.#stillTimer)
     if (this.#enrichmentTimer) clearTimeout(this.#enrichmentTimer)
     this.#retry = null
     this.#logPoll = null
-    this.#soundTimer = null
-    this.#playsTimer = null
     this.#stillTimer = null
     this.#enrichmentTimer = null
   }
@@ -3011,19 +2588,6 @@ class CopyChanged extends Error {
     super(`changed since it was read: ${key}`)
     this.name = 'CopyChanged'
   }
-}
-
-/** `work` over every item, `limit` at a time, answers in the items' order. */
-async function inBatches<T, R>(
-  items: readonly T[],
-  limit: number,
-  work: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  for (let start = 0; start < items.length; start += limit) {
-    results.push(...(await Promise.all(items.slice(start, start + limit).map(work))))
-  }
-  return results
 }
 
 function parseJson(data: Buffer): unknown {

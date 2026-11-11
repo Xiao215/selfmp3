@@ -1,6 +1,7 @@
 import { pinyin } from 'pinyin-pro'
 import { clamp01, cleanTitle, editDistance, type ImportFound } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
+import { pool } from '../util/pool.js'
 import { swapped, type ListedTrack } from './trackLists.js'
 import type { ProbedTrack } from './ytdlp.js'
 import type { YouTubeMusicLists } from './youtubeMusicLists.js'
@@ -301,16 +302,7 @@ export class YouTubeMatcher {
 
   /** Each song found on YouTube Music, in order; null where nothing good enough came back. */
   async find(tracks: readonly ListedTrack[]): Promise<(ImportFound | null)[]> {
-    const found: (ImportFound | null)[] = tracks.map(() => null)
-    let next = 0
-    const worker = async (): Promise<void> => {
-      while (next < tracks.length) {
-        const index = next++
-        found[index] = await this.#one(tracks[index] as ListedTrack)
-      }
-    }
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, tracks.length) }, worker))
-    return found
+    return pool(tracks, CONCURRENCY, track => this.#one(track))
   }
 
   async #one(source: ListedTrack): Promise<ImportFound | null> {

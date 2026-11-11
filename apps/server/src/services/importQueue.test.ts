@@ -10,6 +10,7 @@ import { SettingsRepository } from '../repositories/settings.js'
 import { ThrottleRepository } from '../repositories/throttle.js'
 import { ImportQueueService } from './importQueue.js'
 import { ServerMetrics } from './metrics.js'
+import { MetricsRepository } from '../repositories/metrics.js'
 import { YtDlpService } from './ytdlp.js'
 import { YtThrottleService } from './ytThrottle.js'
 
@@ -120,7 +121,7 @@ exit 1
     db = new Database(':memory:')
     migrate(db, createLogger('silent'))
     imports = new ImportRepository(db)
-    metrics = new ServerMetrics(null)
+    metrics = new ServerMetrics(new MetricsRepository(null))
     const settings = new SettingsRepository(db)
     throttle = new YtThrottleService(
       new ThrottleRepository(db),

@@ -7,6 +7,7 @@ import type { Request, Response } from 'express'
 import { describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
 import { requestLogger, routeOf } from '../http/middleware.js'
+import { MetricsRepository } from '../repositories/metrics.js'
 import { METRIC, ServerMetrics, failureOf, sourceOf, type FinishedImport } from './metrics.js'
 
 /**
@@ -32,7 +33,7 @@ function finished(changes: Partial<FinishedImport> = {}): FinishedImport {
 describe('the import log', () => {
   it('draws worked and failed imports by day, by band, by step, by source and by why', () => {
     let now = NOW
-    const metrics = new ServerMetrics(null, () => now)
+    const metrics = new ServerMetrics(new MetricsRepository(null), () => now)
     metrics.recordImport(finished())
     metrics.recordImport(finished({ steps: { downloading: 200_000 } }))
     metrics.recordImport(
@@ -75,7 +76,7 @@ describe('the import log', () => {
 
 describe('daily totals', () => {
   it('adds Smart requests up by feature, with failures and the average time', () => {
-    const metrics = new ServerMetrics(null, () => NOW)
+    const metrics = new ServerMetrics(new MetricsRepository(null), () => NOW)
     metrics.count(METRIC.smart('ask'))
     metrics.count(METRIC.smart('ask'))
     metrics.count(METRIC.smart('tidy'))
@@ -92,7 +93,7 @@ describe('daily totals', () => {
   })
 
   it('keeps a device’s report only for a day it could really be', () => {
-    const metrics = new ServerMetrics(null, () => NOW)
+    const metrics = new ServerMetrics(new MetricsRepository(null), () => NOW)
     expect(metrics.addReport({ day: '2026-10-22', uses: { search: 2 }, errors: {} })).toBe(true)
     expect(metrics.addReport({ day: '2026-10-24', uses: { search: 9 }, errors: {} })).toBe(false)
     expect(metrics.addReport({ day: '2026-10-01', uses: { search: 9 }, errors: {} })).toBe(false)
@@ -100,7 +101,7 @@ describe('daily totals', () => {
   })
 
   it('groups 500s by route, so a hundred songs failing alike are one line', () => {
-    const metrics = new ServerMetrics(null, () => NOW)
+    const metrics = new ServerMetrics(new MetricsRepository(null), () => NOW)
     for (const id of ['12', '40']) {
       metrics.count(
         METRIC.serverError(routeOf({ method: 'GET', originalUrl: `/api/songs/${id}?x=1` }, 500)),
@@ -112,7 +113,7 @@ describe('daily totals', () => {
   })
 
   it('carries every library’s plays through, day by day', () => {
-    const metrics = new ServerMetrics(null, () => NOW)
+    const metrics = new ServerMetrics(new MetricsRepository(null), () => NOW)
     const plays = metrics.summary(3, new Map([['2026-10-22', 7]])).plays
     expect(plays).toEqual([
       { day: '2026-10-21', count: 0 },
@@ -156,8 +157,9 @@ describe('a count that cannot be written', () => {
   function heldMetrics(): { metrics: ServerMetrics; failures: unknown[]; release: () => void } {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-metrics-'))
     const failures: unknown[] = []
+    const repo = new MetricsRepository(dir)
     const metrics = new ServerMetrics(
-      dir,
+      repo,
       () => NOW,
       error => failures.push(error),
     )
@@ -169,7 +171,7 @@ describe('a count that cannot be written', () => {
       release: () => {
         other.exec('ROLLBACK')
         other.close()
-        metrics.close()
+        repo.close()
         fs.rmSync(dir, { recursive: true, force: true })
       },
     }

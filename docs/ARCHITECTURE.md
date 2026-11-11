@@ -178,7 +178,7 @@ already been thrown away. A counter is lossy the moment you write it.
 
 The events go to the bucket too, so the server is not the only place they are kept: one
 gzipped file a month, `lyrics/<sha256>.plays`, named in the snapshot, this month's at most
-once an hour (`services/playsArchive.ts`, `#uploadPlays` in `services/cloudSync.ts`). A
+once an hour (`services/playsArchive.ts`, `uploadPlays` in `services/cloudLibraryFiles.ts`). A
 workspace taking on a library reads them back before it publishes anything. Stats are still
 worked out on the server, from its `play_events`, which is why a device asks the server for
 them directly.

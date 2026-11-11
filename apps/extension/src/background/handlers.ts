@@ -405,11 +405,14 @@ export function forPages(handlers: Handlers, watcher: JobWatcher | undefined): H
   }
 }
 
+/** The words for no server answering, whichever way it was found out. */
+const NOT_ANSWERING = 'Your server isn’t answering.'
+
 /** Any failure, in words a page can show. */
 export function explain(error: unknown): { message: string; status: number } {
   if (error instanceof BridgeError) return { message: error.message, status: error.status }
   if (error instanceof ApiError) {
-    if (error.isOffline) return { message: 'Your server isn’t answering.', status: 0 }
+    if (error.isOffline) return { message: NOT_ANSWERING, status: 0 }
     if (error.status === 401) {
       return {
         message: 'Your server refused the extension’s token. Set it again in the options.',
@@ -422,4 +425,15 @@ export function explain(error: unknown): { message: string; status: number } {
     message: error instanceof Error ? error.message : 'Something went wrong.',
     status: 500,
   }
+}
+
+/**
+ * Any failure, as the pill is told it (bridge.ts, `servePage`). A content
+ * script is treated as the YouTube page it runs in and never learns the
+ * server's address, so a refusal that names one — a typed-in server that is
+ * asleep — is said the way any server not answering is.
+ */
+export function explainToPage(error: unknown): { message: string; status: number } {
+  const explained = explain(error)
+  return explained.status === 0 ? { message: NOT_ANSWERING, status: 0 } : explained
 }

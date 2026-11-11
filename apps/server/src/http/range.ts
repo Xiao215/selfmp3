@@ -76,16 +76,16 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
     return
   }
 
+  // A 206 says which bytes it carries, and a 416 how many there are.
+  const contentRange = answer.headers['Content-Range']
+  if (contentRange !== undefined) res.setHeader('Content-Range', contentRange)
+
   if (answer.status === 416) {
-    res.setHeader('Content-Range', answer.headers['Content-Range'] as string)
     res.status(416).end()
     return
   }
 
   res.status(answer.status)
-  if (answer.status === 206) {
-    res.setHeader('Content-Range', answer.headers['Content-Range'] as string)
-  }
   res.setHeader('Content-Length', String(answer.length))
 
   if (req.method === 'HEAD') {

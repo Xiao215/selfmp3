@@ -153,7 +153,7 @@ in KV). The doorman lists an account's grants (`GET /v1/grants`) and ends one
 (`DELETE /v1/grants/<id>`). Settings › Account lists them under **Computers**, with
 **Remove** on each.
 
-Three rules keep grants safe:
+Four rules keep grants safe:
 
 - **A removed grant is noticed at once.** **Remove** asks the doorman alone, so it works
   while the server is off. Once the grant is ended, the doorman tells the server, after it
@@ -169,6 +169,8 @@ Three rules keep grants safe:
 - **Signing out everywhere ends grants too.**
 - **A grant cannot make grants.** Otherwise a server could hand the account on to another
   without anyone being asked.
+- **A grant ends only itself.** A server lets an account go with its own grant; which other
+  servers are let in is the account's to say, from a device.
 
 ### Telling the server
 

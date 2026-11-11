@@ -113,10 +113,14 @@ async function list(ctx: Context): Promise<Response> {
 
 /**
  * `DELETE /v1/grants/<id>` — take a grant back. A device does it from
- * Settings; a server does it with its own grant when it lets the account go.
+ * Settings; a server does it with its own grant when it lets the account go,
+ * and may end no other: which servers are let in is the account's to say.
  */
 async function end(ctx: Context, id: string): Promise<Response> {
   const session = await requireSession(ctx)
+  if (session.grant !== undefined && session.grant !== id) {
+    throw forbidden('a server can end only its own grant')
+  }
   const stored = await read(ctx, session.sub)
   const grant = stored.find(candidate => candidate.id === id)
   if (!grant) throw notFound('no such grant')

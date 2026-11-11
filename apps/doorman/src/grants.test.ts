@@ -81,6 +81,21 @@ describe('grants', () => {
     expect(again.status).toBe(404)
   })
 
+  it('ends no other server’s grant', async () => {
+    const h = harness()
+    const phone = await h.signIn()
+    const made = await grant(h, phone)
+    const other = await grant(h, phone, { server: 'https://other.example.com', name: 'other' })
+
+    const refused = await h.call(`/v1/grants/${other.grant.id}`, {
+      method: 'DELETE',
+      token: made.token,
+    })
+    expect(refused.status).toBe(403)
+    expect((await listed(h, phone)).map(g => g.id)).toEqual([made.grant.id, other.grant.id])
+    expect((await h.call('/v1/me', { token: other.token })).status).toBe(200)
+  })
+
   it('cannot be passed on: a grant makes no grants', async () => {
     const h = harness()
     const made = await grant(h, await h.signIn())

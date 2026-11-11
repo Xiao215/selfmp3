@@ -66,6 +66,19 @@ export function methodNotAllowed(allowed: readonly string[]): Response {
   return response
 }
 
+/**
+ * A `302` to `location`. Built by hand rather than with Response.redirect,
+ * whose headers cannot be added to afterwards (CORS adds some to every
+ * answer). Never cached, and no Referer passed on: the address being left can
+ * carry a sign-in's state.
+ */
+export function redirect(location: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
+  })
+}
+
 export function noContent(): Response {
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
 }

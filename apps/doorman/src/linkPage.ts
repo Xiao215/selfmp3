@@ -15,7 +15,7 @@ import {
 import { darkPalette, DEFAULT_ACCENT_HUE, oklchToHex } from '@selfmp3/client/tokens'
 import type { Context } from './context.js'
 import { previewPage, type PreviewOptions } from './html.js'
-import { methodNotAllowed, notFound } from './http.js'
+import { methodNotAllowed, notFound, redirect } from './http.js'
 import { shareObject } from './shareRoutes.js'
 
 /**
@@ -62,7 +62,7 @@ export async function linkPage(ctx: Context): Promise<Response> {
 
   const path = ctx.url.pathname
   // The domain's own address is the app's.
-  if (path === '/') return onTo(app)
+  if (path === '/') return redirect(app)
   const [l, id, key, ...rest] = path.split('/').filter(Boolean)
   if (l !== 'l' || rest.length > 0) throw notFound()
   const ids = ShareIdSchema.safeParse(id)
@@ -80,7 +80,7 @@ export async function linkPage(ctx: Context): Promise<Response> {
     // Cut short when it was copied: a person goes on to the app all the same,
     // whose page for it is the torn sleeve.
     const cut = `${app}/l/${segment(id)}/${segment(key)}`
-    if (!previewer) return onTo(cut)
+    if (!previewer) return redirect(cut)
     return previewPage({ ...gone, url: ctx.url.href, open: cut })
   }
 
@@ -93,7 +93,7 @@ export async function linkPage(ctx: Context): Promise<Response> {
   ].filter(Boolean)
   const at = query.length > 0 ? `?${query.join('&')}` : ''
   const there = `${app}/l/${ids.data}/${keys.data}${at}`
-  if (!previewer) return onTo(there)
+  if (!previewer) return redirect(there)
 
   const peeked = await shareObject(ctx, ids.data).fetch(
     `https://share/peek?k=${encodeURIComponent(keys.data)}`,
@@ -178,11 +178,4 @@ function linkCard(
 /** The app's icon, from beside the app (apps/app/public/icons): for a card with no cover. */
 function appIcon(app: string): PreviewOptions['image'] {
   return { url: `${app}/icons/icon-512.png`, alt: 'self.mp3' }
-}
-
-function onTo(location: string): Response {
-  return new Response(null, {
-    status: 302,
-    headers: { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
-  })
 }

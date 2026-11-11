@@ -21,7 +21,15 @@ import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
 import { forgetGrants } from './grants.js'
 import { page } from './html.js'
-import { forbidden, isLoopbackHost, json, noContent, readJson, unauthorized } from './http.js'
+import {
+  forbidden,
+  isLoopbackHost,
+  json,
+  noContent,
+  readJson,
+  redirect,
+  unauthorized,
+} from './http.js'
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord } from './kv.js'
 import { IdentitySchema, bearerToken, type Identity } from './sessions.js'
@@ -119,23 +127,15 @@ export async function start(ctx: Context): Promise<Response> {
     keys.state,
   )
   const codeChallenge = await pkceChallenge(await pkceVerifier(nonce, keys.pkce))
-
-  // Built by hand rather than with Response.redirect, whose headers cannot be
-  // added to afterwards (CORS adds some to every answer).
-  return new Response(null, {
-    status: 302,
-    headers: {
-      location: authUrl({
-        clientId: google.clientId,
-        redirectUri: redirectUri(ctx),
-        state,
-        nonce,
-        codeChallenge,
-      }),
-      'cache-control': 'no-store',
-      'referrer-policy': 'no-referrer',
-    },
-  })
+  return redirect(
+    authUrl({
+      clientId: google.clientId,
+      redirectUri: redirectUri(ctx),
+      state,
+      nonce,
+      codeChallenge,
+    }),
+  )
 }
 
 /** `GET /v1/auth/callback?code=…&state=…` — Google sends the browser back here. */
@@ -223,14 +223,7 @@ export async function callback(ctx: Context): Promise<Response> {
   if (state.returnTo) {
     // Back to the app, with the code where only that browser can read it:
     // a fragment never leaves the browser, and never names the attempt.
-    return new Response(null, {
-      status: 302,
-      headers: {
-        location: withFragment(state.returnTo, `${SIGN_IN_CODE_FRAGMENT}=${signInCode}`),
-        'cache-control': 'no-store',
-        'referrer-policy': 'no-referrer',
-      },
-    })
+    return redirect(withFragment(state.returnTo, `${SIGN_IN_CODE_FRAGMENT}=${signInCode}`))
   }
   return page({
     status: 200,
@@ -431,16 +424,7 @@ function refusedPage(
   words: { status: number; title: string; lines: readonly string[] },
 ): Promise<Response> {
   if (returnTo) {
-    return Promise.resolve(
-      new Response(null, {
-        status: 302,
-        headers: {
-          location: withFragment(returnTo, signInRefusalFragment(refusal)),
-          'cache-control': 'no-store',
-          'referrer-policy': 'no-referrer',
-        },
-      }),
-    )
+    return Promise.resolve(redirect(withFragment(returnTo, signInRefusalFragment(refusal))))
   }
   return page({
     ...words,

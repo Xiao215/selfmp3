@@ -199,6 +199,33 @@ function putPlaylist(client: QueryClient, playlist: Playlist): void {
 const libraryFetching = (client: QueryClient): boolean =>
   client.isFetching({ queryKey: queryKeys.library }) > 0
 
+/** What an optimistic edit held before its guess, to put back if it fails. */
+interface Guessed {
+  readonly previous: Library | undefined
+  /** The library was being asked for when the guess cancelled it (`libraryFetching`). */
+  readonly refetching: boolean
+}
+
+/**
+ * Show an edit in the library held before it is answered: a fetch under way
+ * is cancelled, so it cannot put the old library back over the guess.
+ */
+async function guessInLibrary(
+  client: QueryClient,
+  guess: (library: Library) => Library,
+): Promise<Guessed> {
+  const refetching = libraryFetching(client)
+  await client.cancelQueries({ queryKey: queryKeys.library })
+  const previous = client.getQueryData<Library>(queryKeys.library)
+  if (previous) client.setQueryData<Library>(queryKeys.library, guess(previous))
+  return { previous, refetching }
+}
+
+/** The library as it was before a guess that failed. */
+function putBackLibrary(client: QueryClient, guessed: Guessed | undefined): void {
+  if (guessed?.previous) client.setQueryData(queryKeys.library, guessed.previous)
+}
+
 /**
  * Ask for every playlist's members again, when a song edit may have moved it
  * into or out of a live one.
@@ -231,25 +258,17 @@ export function useDeleteTag() {
   return useMutation({
     mutationFn: (id: number) => clientApi().deleteTag(id),
     meta: { failure: 'Couldn’t delete the tag' },
-    onMutate: async id => {
-      await client.cancelQueries({ queryKey: queryKeys.library })
-      const previous = client.getQueryData<Library>(queryKeys.library)
-      if (previous) {
-        client.setQueryData<Library>(queryKeys.library, {
-          ...previous,
-          tags: previous.tags.filter(tag => tag.id !== id),
-          songs: previous.songs.map(song =>
-            song.tagIds.includes(id)
-              ? { ...song, tagIds: song.tagIds.filter(tagId => tagId !== id) }
-              : song,
-          ),
-        })
-      }
-      return { previous }
-    },
-    onError: (_error, _id, context) => {
-      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
-    },
+    onMutate: id =>
+      guessInLibrary(client, library => ({
+        ...library,
+        tags: library.tags.filter(tag => tag.id !== id),
+        songs: library.songs.map(song =>
+          song.tagIds.includes(id)
+            ? { ...song, tagIds: song.tagIds.filter(tagId => tagId !== id) }
+            : song,
+        ),
+      })),
+    onError: (_error, _id, guessed) => putBackLibrary(client, guessed),
     onSettled: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
       void client.invalidateQueries({ queryKey: queryKeys.playlists })
@@ -278,28 +297,21 @@ export function useSetTagHue() {
   return useMutation({
     mutationFn: ({ id, hue }: { id: number; hue: number }) => clientApi().setTagHue(id, hue),
     meta: { failure: 'Couldn’t recolour the tag' },
-    onMutate: async ({ id, hue }) => {
-      const refetching = libraryFetching(client)
-      await client.cancelQueries({ queryKey: queryKeys.library })
-      const previous = client.getQueryData<Library>(queryKeys.library)
-      if (previous) {
-        client.setQueryData<Library>(queryKeys.library, {
-          ...previous,
-          tags: previous.tags.map(tag => (tag.id === id ? { ...tag, hue } : tag)),
-        })
-      }
-      return { previous, refetching }
-    },
-    onSuccess: (tag, _variables, context) => {
+    onMutate: ({ id, hue }) =>
+      guessInLibrary(client, library => ({
+        ...library,
+        tags: library.tags.map(tag => (tag.id === id ? { ...tag, hue } : tag)),
+      })),
+    onSuccess: (tag, _variables, guessed) => {
       // A colour reaches nothing else, so the answer is the whole change.
       putInLibrary(
         client,
         library => withTag(library, tag),
-        () => context.refetching,
+        () => guessed.refetching,
       )
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
+    onError: (_error, _variables, guessed) => {
+      putBackLibrary(client, guessed)
       void client.invalidateQueries({ queryKey: queryKeys.library })
     },
   })
@@ -494,40 +506,31 @@ export function useToggleLoved() {
     mutationFn: editFns.loved,
     meta: { failure: 'Couldn’t change the like' },
 
-    onMutate: async ({ id, loved }) => {
-      const refetching = libraryFetching(client)
-      await client.cancelQueries({ queryKey: queryKeys.library })
-      const previous = client.getQueryData<Library>(queryKeys.library)
+    onMutate: ({ id, loved }) =>
+      guessInLibrary(client, library => ({
+        ...library,
+        // Liked lists newest first, so the guess carries the time too.
+        songs: library.songs.map(song =>
+          song.id === id
+            ? { ...song, loved, lovedAt: loved ? toSqliteTime(Date.now()) : null }
+            : song,
+        ),
+      })),
 
-      if (previous) {
-        client.setQueryData<Library>(queryKeys.library, {
-          ...previous,
-          // Liked lists newest first, so the guess carries the time too.
-          songs: previous.songs.map(song =>
-            song.id === id
-              ? { ...song, loved, lovedAt: loved ? toSqliteTime(Date.now()) : null }
-              : song,
-          ),
-        })
-      }
-
-      return { previous, refetching }
-    },
-
-    onSuccess: (song, _variables, context) => {
+    onSuccess: (song, _variables, guessed) => {
       // The server's song, over the guess. A live playlist of loved songs is
       // the one thing it cannot show, and asks for the library — and the
       // members — when there is one.
       putInLibrary(
         client,
         library => withSong(library, song),
-        library => context.refetching || hasLivePlaylists(library),
+        library => guessed.refetching || hasLivePlaylists(library),
       )
       refetchLivePlaylists(client)
     },
 
-    onError: (_error, _variables, context) => {
-      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
+    onError: (_error, _variables, guessed) => {
+      putBackLibrary(client, guessed)
       void client.invalidateQueries({ queryKey: queryKeys.library })
     },
   })
@@ -544,25 +547,18 @@ export function useRestSongs() {
     mutationFn: editFns.rest,
     meta: { failure: 'Couldn’t save the change' },
 
-    onMutate: async ({ songIds, until }) => {
-      await client.cancelQueries({ queryKey: queryKeys.library })
-      const previous = client.getQueryData<Library>(queryKeys.library)
-      if (previous) {
-        const ids = new Set(songIds)
-        client.setQueryData<Library>(queryKeys.library, {
-          ...previous,
-          songs: previous.songs.map(song =>
-            ids.has(song.id) ? { ...song, restUntil: until } : song,
-          ),
-        })
-      }
-      return { previous }
+    onMutate: ({ songIds, until }) => {
+      const ids = new Set(songIds)
+      return guessInLibrary(client, library => ({
+        ...library,
+        songs: library.songs.map(song => (ids.has(song.id) ? { ...song, restUntil: until } : song)),
+      }))
     },
 
     onSuccess: () => void client.invalidateQueries({ queryKey: queryKeys.library }),
 
-    onError: (_error, _variables, context) => {
-      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
+    onError: (_error, _variables, guessed) => {
+      putBackLibrary(client, guessed)
       void client.invalidateQueries({ queryKey: queryKeys.library })
     },
   })

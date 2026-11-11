@@ -1,7 +1,8 @@
 # The admin page
 
-The owner's page for running a self.mp3 server. It has two tabs: **Data**, how the server is
-being used, as totals; and **People**, who can sign in. Only the owner can open it, from
+The owner's page for running a self.mp3 server. It has three tabs: **Data**, how the server is
+being used, as totals; **People**, who can sign in; and **iPhones**, friends waiting for the
+iPhone app ([below](#iphones)). Only the owner can open it, from
 their own devices on Tailscale. The app has no owner-only screens at all: the owner is a user
 like any other there.
 

@@ -4,13 +4,14 @@ import {
   DoormanError,
   DoormanGrantRequestSchema,
   HUB_CHECK_PATH,
+  messageOf,
   type DoormanGrant,
   type DoormanGrantMade,
   type DoormanGrants,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
-import { forbidden, json, mayReach, methodNotAllowed, notFound, readJson } from './http.js'
+import { forbidden, json, mayReach, methodNotAllowed, notFound, readJson, redact } from './http.js'
 import { secureHex } from './encoding.js'
 import { getRecord, putRecord } from './kv.js'
 import type { Session } from './sessions.js'
@@ -172,7 +173,7 @@ function tellServer(ctx: Context, grant: StoredGrant): void {
       (error: unknown) => {
         ctx.log.warn('could not tell a server its grant was taken back', {
           server: url.host,
-          message: error instanceof Error ? error.message : String(error),
+          message: redact(messageOf(error)),
         })
       },
     )

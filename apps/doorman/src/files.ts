@@ -29,6 +29,7 @@ import {
   methodNotAllowed,
   noContent,
   notFound,
+  redact,
 } from './http.js'
 import type { Bucket } from './bucket.js'
 import type { Session } from './sessions.js'
@@ -298,9 +299,7 @@ async function counted(
     const { before, after } = await changesOf(ctx, session).bump()
     response.headers.set(CHANGES_HEADER, `${before} ${after}`)
   } catch (error) {
-    ctx.log.warn('the change counter could not be moved', {
-      message: messageOf(error),
-    })
+    ctx.log.warn('the change counter could not be moved', { message: redact(messageOf(error)) })
   }
   return response
 }

@@ -8,6 +8,7 @@ import {
   iosAssetUrl,
   iosLatestSchema,
   iphoneKey,
+  messageOf,
   type IphoneAdded,
   type IphoneList,
   type IphoneRequest,
@@ -15,7 +16,15 @@ import {
 import { requireOwner } from './access.js'
 import type { Context } from './context.js'
 import { page } from './html.js'
-import { badRequest, json, methodNotAllowed, noContent, notFound, readBytes } from './http.js'
+import {
+  badRequest,
+  json,
+  methodNotAllowed,
+  noContent,
+  notFound,
+  readBytes,
+  redact,
+} from './http.js'
 import { getRecord, putRecord } from './kv.js'
 
 /**
@@ -294,7 +303,7 @@ async function startBuild(ctx: Context): Promise<IphoneAdded['build']> {
     return 'failed'
   } catch (error) {
     ctx.log.warn('GitHub could not be reached to start the iPhone build', {
-      message: error instanceof Error ? error.message : String(error),
+      message: redact(messageOf(error)),
     })
     return 'failed'
   }

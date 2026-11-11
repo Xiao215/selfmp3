@@ -95,7 +95,7 @@ export class Hub {
     this.logger.info(`working for ${plural(this.#workspaces.size, 'library', 'libraries')}`)
   }
 
-  /** The libraries open, for the server's page and the log. */
+  /** The libraries open, for the admin page, the log and `GET /api/hub`. */
   workspaces(): readonly Workspace[] {
     return [...this.#workspaces.values()]
   }
@@ -103,8 +103,8 @@ export class Hub {
   /**
    * The library a request is for: the one whose token it carries. A request
    * from this machine with none goes to the library it names by id
-   * (`HUB_LIBRARY_HEADER`: the server's page and the `selfmp3` command, which
-   * read the ids from `GET /api/hub`), else to the only library, when there is
+   * (`HUB_LIBRARY_HEADER`: the `selfmp3` command, which reads the ids from
+   * `GET /api/hub`), else to the only library, when there is
    * only one — an extension pointed at localhost, on a machine nobody else
    * uses — and to none when there are several, since there is no telling
    * whose it meant. Naming one is no more than the token-less request to the

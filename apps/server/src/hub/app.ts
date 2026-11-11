@@ -45,7 +45,7 @@ export function createHubApp(hub: Hub): Express {
 
 /**
  * Why no library took a request. From this machine it is said plainly: the
- * server's page and the `selfmp3` command show it as it is.
+ * `selfmp3` command shows it as it is.
  */
 function refusal(hub: Hub, req: Request): HttpError {
   if (tokenOf(req) !== null) return HttpError.unauthorized('invalid token')
@@ -100,7 +100,7 @@ function hubRoutes(hub: Hub): Router {
   )
 
   /**
-   * Whom this server works for, for its own page and the `selfmp3` command.
+   * Whom this server works for, for the `selfmp3` command.
    * Only from this machine: the list is everyone's addresses, and nobody
    * else's business.
    */

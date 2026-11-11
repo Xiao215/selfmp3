@@ -81,7 +81,7 @@ export function deviceRoutes(container: Container): Router {
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
       res.setHeader('Connection', 'keep-alive')
-      // Belt and braces with the compression filter: a buffered stream is no stream.
+      // For a proxy in front that buffers what it passes on: a buffered stream is no stream.
       res.setHeader('X-Accel-Buffering', 'no')
       res.flushHeaders()
 

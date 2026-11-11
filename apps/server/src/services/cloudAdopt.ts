@@ -140,7 +140,10 @@ export class CloudAdopt {
    */
   async adopt(snapshot: CloudSnapshot): Promise<AdoptionResult> {
     this.#adoptNames(snapshot)
-    const empty = this.#nothingHere()
+    // Holding nothing yet, adoption takes the snapshot whole and declines
+    // nothing, so the snapshot is everything this server knows — and it can
+    // take the snapshot's word for which log files are in it.
+    const empty = this.#sync.holdsNothing()
     const { prepared, same } = await this.#prepare(snapshot.songs)
     // Deleted here since that snapshot was written: not the bucket's to give back.
     const newPlaylists = snapshot.playlists.filter(
@@ -201,28 +204,11 @@ export class CloudAdopt {
   }
 
   /**
-   * Whether this server holds nothing of any library yet: no song, tag or
-   * playlist, and no device's log read. Then adoption takes the snapshot
-   * whole and declines nothing, so the snapshot is everything this server
-   * knows — and it can take the snapshot's word for which log files are in it.
-   */
-  #nothingHere(): boolean {
-    const row = this.#db
-      .prepare<[], { used: number }>(
-        `SELECT EXISTS (SELECT 1 FROM songs) OR EXISTS (SELECT 1 FROM tags)
-             OR EXISTS (SELECT 1 FROM playlists) OR EXISTS (SELECT 1 FROM cloud_log_cursors)
-             AS used`,
-      )
-      .get()
-    return row?.used === 0
-  }
-
-  /**
    * Read each device's log from where the snapshot left off (docs/SYNC.md,
    * "Tidying up"), as every device new to the library does: the files it
    * folded in are in it already, and replaying them would bring back a link
    * asked for long ago as a new import. Only for a server that had nothing
-   * (`#nothingHere`): a song kept here as it was, against the snapshot's,
+   * (`SyncRepository.holdsNothing`): a song kept here as it was, against the snapshot's,
    * still needs the changes that made the snapshot's what it is.
    */
   #readLogsFrom(snapshot: CloudSnapshot): number {

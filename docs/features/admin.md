@@ -94,7 +94,7 @@ counts live in three places:
 
 | Where | What | Kept |
 | --- | --- | --- |
-| The server's `metrics.db`, beside `hub.json` (`services/metrics.ts`) | `import_log`: one row per finished import (where it came from, worked or why not, seconds per step, retries; no library, no song). `daily_totals`: Smart requests by feature with failures and time, YouTube asking the server to slow down, 500s by route, and what apps report | a year |
+| The server's `metrics.db`, beside `hub.json` (`repositories/metrics.ts`, counted by `services/metrics.ts`) | `import_log`: one row per finished import (where it came from, worked or why not, seconds per step, retries; no library, no song). `daily_totals`: Smart requests by feature with failures and time, YouTube asking the server to slow down, 500s by route, and what apps report | a year |
 | Each library's own database | plays, added up across libraries when the page asks | as the library keeps them |
 | The doorman's `TALLY` Durable Object (`apps/doorman/src/tally.ts`) | reads by bucket folder (`audio`, `covers`, `lyrics`) and by app (web, computer, phone, extension, server, lent), new sessions, refused sign-ins (the count, not the address) | a year |
 

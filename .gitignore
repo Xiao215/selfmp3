@@ -42,7 +42,9 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
-.claude/
+# Claude Code's local state and worktrees stay out; the project's skills are shared.
+.claude/*
+!.claude/skills/
 
 # Playwright
 test-results/

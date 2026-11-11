@@ -6,7 +6,7 @@ export interface UpdateStatus {
 }
 
 /** The one thing to do about it. */
-export interface UpdateAction {
+interface UpdateAction {
   readonly label: string
   readonly onPress: () => void
   readonly primary?: boolean

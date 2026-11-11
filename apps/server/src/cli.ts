@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path'
-import type { ImportShareResult, ScanResult } from '@selfmp3/shared'
-import { messageOf, formatBytes } from '@selfmp3/shared'
+import { ImportShareResultSchema, ScanResultSchema, formatBytes, messageOf } from '@selfmp3/shared'
 import { APP_NAME, APP_VERSION, resolveDirs } from './config.js'
 import {
   ApiError,
@@ -80,7 +79,7 @@ async function run(command: Command, baseUrl: string, choice: LibraryChoice): Pr
       const library = await requireLibrary()
       if (!library) return 1
       out('scanning…')
-      const result = await library.post<ScanResult>('/library/scan')
+      const result = await library.post('/library/scan', ScanResultSchema)
       out(
         `done in ${Math.round(result.durationMs)} ms: ${result.added} added, ${result.updated} updated, ` +
           `${result.total} songs total`,
@@ -94,7 +93,7 @@ async function run(command: Command, baseUrl: string, choice: LibraryChoice): Pr
       let failures = 0
       for (const url of command.urls) {
         try {
-          const result = await library.post<ImportShareResult>('/import/share', { url })
+          const result = await library.post('/import/share', ImportShareResultSchema, { url })
           const what =
             result.kind === 'playlist' ? `playlist "${result.playlistTitle ?? ''}"` : 'track'
           const skipped = result.skipped

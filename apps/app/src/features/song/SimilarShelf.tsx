@@ -7,7 +7,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, SongCard } from '../../ui/components/Shelf'
-import { playSimilarOrder } from './song.model'
+import { playSimilarOrder, similarSource } from './song.model'
 
 /**
  * "Sounds like" on a song's own page (`P15`): the song's nearest neighbours by
@@ -34,7 +34,7 @@ export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
             titleLines={2}
             onPress={() =>
               player.playFrom(playSimilarOrder(ids, song.id), 0, {
-                source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
+                source: similarSource(song),
               })
             }
           />

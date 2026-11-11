@@ -11,6 +11,7 @@ import {
   type SongHistory,
 } from '@selfmp3/shared'
 import { sourceName } from '../share/share.model'
+import type { ListSource } from '../lists/lists.model'
 
 /**
  * The words and numbers on a song's own page (docs/ui-mock `P15`), worked out
@@ -366,4 +367,9 @@ export function bylineRest(song: Pick<Song, 'album' | 'duration'>): string {
 /** A similar song played from "Sounds like" goes first, with the rest after it in their order. */
 export function playSimilarOrder(ids: readonly number[], chosen: number): number[] {
   return [chosen, ...ids.filter(id => id !== chosen)]
+}
+
+/** Up next, named for the song a similar list was played from. */
+export function similarSource(song: Pick<Song, 'title'>): ListSource {
+  return { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` }
 }

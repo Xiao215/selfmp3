@@ -261,7 +261,6 @@ export function combinedPlaces(
   songs: readonly Song[],
   names: ArtistJoinNames,
 ): Place[] {
-  const byId = new Map(tags.map(tag => [tag.id, tag]))
   // By any key an artist goes by: a list kept from before two artists were
   // joined finds the one they are now, once.
   const artists = new Map<string, Artist>()
@@ -270,10 +269,7 @@ export function combinedPlaces(
   }
   const found = new Set<Artist>()
   return [
-    ...source.tagIds.flatMap(id => {
-      const tag = byId.get(id)
-      return tag ? [{ kind: 'tag' as const, tag }] : []
-    }),
+    ...tagsWithIds(source.tagIds, tags).map(tag => ({ kind: 'tag' as const, tag })),
     ...source.artistKeys.flatMap(key => {
       const artist = artists.get(key)
       if (!artist || found.has(artist)) return []

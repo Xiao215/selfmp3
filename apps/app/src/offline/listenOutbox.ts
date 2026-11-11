@@ -39,7 +39,11 @@ function load(): Promise<OutboxEvent[]> {
 const outbox = createListenOutbox({
   read: () => load(),
   update: async change => {
-    const next = change(await load())
+    await load()
+    // The list as it is now, not as `load` answered it: two plays written in
+    // one tick each await, and the second, changing the first's answer, lost
+    // the play the first had just added.
+    const next = change(events ?? [])
     events = next
     try {
       outboxFile().write(JSON.stringify(next))

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -21,6 +22,12 @@ export function Confirmations({
   const { storageForgotten } = useConnection()
   const { removeAll } = useDownloads()
   const place = thisPlace()
+
+  const asked = confirming === null || confirming === 'sign-out' ? null : confirming
+  // The last one asked, kept while the dialog closes, so the words do not
+  // change under the fade.
+  const [shown, setShown] = useState(asked)
+  if (asked !== null && asked !== shown) setShown(asked)
 
   const dialogs: Record<
     Exclude<Confirming, 'sign-out' | null>,
@@ -51,13 +58,13 @@ export function Confirmations({
         })(),
     },
   }
-  const dialog = confirming === null || confirming === 'sign-out' ? null : dialogs[confirming]
+  const dialog = shown === null ? null : dialogs[shown]
 
   return (
     <>
       <SignOutDialog open={confirming === 'sign-out'} onClose={onDone} />
       <ConfirmDialog
-        open={dialog !== null}
+        open={asked !== null}
         title={dialog?.title ?? ''}
         body={dialog?.body ?? ''}
         confirmLabel={dialog?.label ?? ''}

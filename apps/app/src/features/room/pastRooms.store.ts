@@ -1,5 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
-import { RoomSongSchema } from '@selfmp3/shared'
+import { DAY_MS, RoomSongSchema } from '@selfmp3/shared'
 import { z } from 'zod'
 import { prefs } from '../../ports/prefs'
 import { upgradePastRooms, type PastRoom } from './room.model'
@@ -88,7 +88,7 @@ export function lentCoverKey(entry: PastRoom['songs'][number]): string[] {
 }
 
 /** How long a room stays at the front of Home's Recently played after it ends. */
-const RECENT_MS = 3 * 24 * 60 * 60 * 1000
+const RECENT_MS = 3 * DAY_MS
 
 /** The rooms that ended in the last few days, newest first: Home's Recently played. */
 export function useRecentRooms(): readonly PastRoom[] {

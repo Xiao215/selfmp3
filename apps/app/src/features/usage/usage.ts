@@ -1,4 +1,5 @@
 import {
+  DAY_MS,
   USAGE_ERRORS,
   USAGE_FEATURES,
   USAGE_MAX_PER_DAY,
@@ -63,7 +64,7 @@ export function countShownError(code: UsageError): void {
 export function pendingReports(now = Date.now()): UsageReport[] {
   const counts = read()
   const today = usageDay(now)
-  const oldest = usageDay(now - DAYS_KEPT * 24 * 60 * 60 * 1000)
+  const oldest = usageDay(now - DAYS_KEPT * DAY_MS)
   const ready: UsageReport[] = []
   let dropped = false
   for (const [day, report] of Object.entries(counts)) {

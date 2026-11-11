@@ -1,4 +1,5 @@
 import {
+  DAY_MS,
   DoormanError,
   formatShareStart,
   parseShareStart,
@@ -16,8 +17,6 @@ import type { RoomTrack } from '../../player/roomTracks'
  * A share link as this device words and plays it (docs/features/share-links.md):
  * where it is in its life, the line under it, its songs as tracks.
  */
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Playing; on its last day (D1), when it says so and Get it leads; or over (E1). */
 type ShareStage = 'live' | 'lastDay' | 'ended'

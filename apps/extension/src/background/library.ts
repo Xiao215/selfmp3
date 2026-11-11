@@ -32,12 +32,7 @@ const SnapshotSchema = z.object({
   baseUrl: z.string(),
   version: z.number(),
   songCount: z.number(),
-  // Every `linkIdentity` has a colon (`yt:…`, `ne:…`, a whole address); a
-  // snapshot kept from when songs were keyed by bare video id is read again.
-  links: z.record(
-    z.string().refine(key => key.includes(':')),
-    SongHitSchema,
-  ),
+  links: z.record(SongHitSchema),
   tags: z.array(TagSchema),
 })
 type LibrarySnapshot = z.infer<typeof SnapshotSchema>

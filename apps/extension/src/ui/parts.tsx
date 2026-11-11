@@ -6,13 +6,13 @@ import { NOTE_PATH } from './mark.js'
 
 /** The parts the popup and the options page are both drawn from (`S2`). */
 
-export function Logo({ size = 18, children }: { size?: number; children?: ReactNode }): ReactNode {
+export function Logo({ size = 18 }: { size?: number }): ReactNode {
   return (
     <span className="logo">
       <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
         <path d={NOTE_PATH} />
       </svg>
-      {children ?? 'self.mp3'}
+      self.mp3
     </span>
   )
 }

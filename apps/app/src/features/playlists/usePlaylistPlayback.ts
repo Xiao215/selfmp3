@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { Library } from '@selfmp3/shared'
+import type { Library, PlaylistSongs } from '@selfmp3/shared'
 import { clientApi, queryKeys } from '@selfmp3/client'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { showFailure } from '../../ui/toast'
@@ -56,6 +56,8 @@ export function usePlaylistPlayback(): PlaylistPlayback {
             }
           : library,
       )
+      // Only the order "Recently played" sorts by: a play that is not told
+      // keeps its place here until the library is read again, and nothing else.
       void clientApi()
         .markPlaylistPlayed(playlistId)
         .catch(() => undefined)
@@ -93,7 +95,7 @@ export function usePlaylistPlayback(): PlaylistPlayback {
   const playById = useCallback(
     (playlistId: number, how: 'play' | 'shuffle' = 'play'): void => {
       // The list may already be cached from its page or its cover.
-      const cached = client.getQueryData<{ songIds: number[] }>(queryKeys.playlistSongs(playlistId))
+      const cached = client.getQueryData<PlaylistSongs>(queryKeys.playlistSongs(playlistId))
       const run = (songIds: readonly number[]): void =>
         how === 'shuffle' ? shuffle(playlistId, songIds) : play(playlistId, songIds)
       if (cached) {

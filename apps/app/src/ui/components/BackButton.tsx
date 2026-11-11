@@ -10,10 +10,7 @@ import { iconSize } from '@selfmp3/client'
 export interface BackProps {
   /** Where it goes when there is no page behind this one: a link, a reload. */
   to?: Href
-  /**
-   * The page's own way back, in place of going back a page: a tag's page
-   * shrinks into the tile it grew from first.
-   */
+  /** The page's own way back, in place of going back a page: Ask's log, back to the answer. */
   onPress?: () => void
   /**
    * Drawn on a computer too, even for a page the sidebar opened: a song's or

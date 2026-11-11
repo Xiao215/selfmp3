@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Animated } from 'react-native'
 import type { View } from 'react-native'
-import { useNavigation } from 'expo-router'
+import { useNavigation, useRoute } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
+import { stackAnimation } from '../shell/pageStep'
 import { handOffPlace, takePlaceHandoff } from './coverHandoff'
-import { spring } from './motion'
+import { spring, useMotionReduced } from './motion'
 import { MOVE_MS } from './motion.model'
 
 /** The hero's transform: where it is, between the tile it came from and its place. */
@@ -19,10 +20,10 @@ interface HeroGrowStyle {
 }
 
 /**
- * A page's head growing out of the tile that was pressed to open it, and back
- * into it on Back (docs/ui-mock `M2`, 2; Xiao chose D, 2026-10-04): a tag's or
- * an artist's page from its tile on Home or Tags, a playlist's from its tile on
- * Playlists (I1 of the Oct 27 review).
+ * A page's head growing out of the tile that was pressed to open it (docs/ui-mock
+ * `M2`, 2; Xiao chose D, 2026-10-04): a tag's or an artist's page from its tile
+ * on Home or Tags, a playlist's from its tile on Playlists (I1 of the Oct 27
+ * review).
  *
  * Without shared elements the head grows into place from where the tile was:
  * the tile hands its frame over as it is tapped (`ui/coverHandoff.ts`), the
@@ -32,14 +33,18 @@ interface HeroGrowStyle {
  * other way (Back, an address, a row's name), there is no frame and the head
  * is simply there.
  *
- * `heroRef`, `heroStyle` and `onHeroLayout` go on `ListHead`; `back` is the
- * page's Back, given what Back does once the hero has set off.
+ * Going back is not the opening in reverse: once the page has arrived it
+ * leaves as any pushed page does, sliding off with iOS's own pop, Back and the
+ * swipe alike (Xiao chose A, 2026-11-11). The crossfade it came in on, with
+ * the head shrinking into the tile, read as the page being dismissed — the two
+ * pages showed through each other half way.
+ *
+ * `heroRef`, `heroStyle` and `onHeroLayout` go on `ListHead`.
  */
 export function useHeroGrow(wide: boolean): {
   heroRef: RefObject<View | null>
   heroStyle: HeroGrowStyle
   onHeroLayout: () => void
-  back: (goBack: () => void) => void
 } {
   const [handed] = useState(() => takePlaceHandoff())
   const [entrance] = useState(() => new Animated.Value(handed ? 0 : 1))
@@ -48,15 +53,9 @@ export function useHeroGrow(wide: boolean): {
     dy: new Animated.Value(0),
     grow: new Animated.Value(0),
   }))
-  // Going back to the tile, once Back has been pressed.
-  const [home] = useState(() => new Animated.Value(0))
   const [heroStyle] = useState((): HeroGrowStyle => {
-    // How far from its place the hero is, 0 to 1: still growing out of the
-    // tile, or on its way back into it.
-    const left = Animated.add(
-      entrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-      home,
-    ).interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' })
+    // How far from its place the hero is, 0 to 1: still growing out of the tile.
+    const left = entrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
     return {
       opacity: entrance,
       transform: [
@@ -87,6 +86,8 @@ export function useHeroGrow(wide: boolean): {
    * in place and the tile would seem not to grow at all.
    */
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
+  const route = useRoute()
+  const reduced = useMotionReduced()
   const growReady = useRef({ measured: false, fading: false })
   const growWhenReady = (): void => {
     const ready = growReady.current
@@ -101,11 +102,17 @@ export function useHeroGrow(wide: boolean): {
     const off = navigation.addListener('transitionStart', event => {
       if (!event.data.closing) letGo()
     })
+    // Arrived, it takes the move a page pushed any other way has, for its way
+    // out: the stack plays a screen's own move both coming and going.
+    const offEnd = navigation.addListener('transitionEnd', event => {
+      if (!event.data.closing) navigation.setOptions(stackAnimation(route.name, wide, reduced))
+    })
     // A stack with no moves — a browser's — says nothing; nor does one asked
     // for less motion, where the spring lands at once anyway.
     const late = setTimeout(letGo, MOVE_MS.placeHandOff)
     return () => {
       off()
+      offEnd()
       clearTimeout(late)
     }
     // Once, for the page's arrival.
@@ -127,30 +134,7 @@ export function useHeroGrow(wide: boolean): {
     })
   }
 
-  /*
-   * Back, on a phone, from a page that grew out of its tile: the opening in
-   * reverse. The hero is aimed at the tile from where it sits now — the page
-   * may have scrolled — and sets off with the press: the navigator tells a
-   * page that is going nothing about when its fade starts. The swipe back is
-   * left to the navigator: a hand dragging the page can still change its mind.
-   */
-  const back = (goBack: () => void): void => {
-    const node = heroRef.current
-    if (!handed || wide || !node) {
-      goBack()
-      return
-    }
-    node.measureInWindow((x, y, width, height) => {
-      // Scrolled out of sight, it has nothing to carry back.
-      if (width > 0 && y + height > 0) {
-        aimAtTile(handed, x, y, width, height)
-        spring(home, 1)
-      }
-      goBack()
-    })
-  }
-
-  return { heroRef, heroStyle, onHeroLayout, back }
+  return { heroRef, heroStyle, onHeroLayout }
 }
 
 /**

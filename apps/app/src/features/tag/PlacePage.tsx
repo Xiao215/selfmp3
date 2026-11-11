@@ -166,7 +166,7 @@ export function PlacePage({
     const link = combinedLink(together)
     router.push({ pathname: '/combined', params: { ...link.params } })
   }
-  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`).
+  // The head grows out of the tile that opened it (`useHeroGrow`).
   const hero = useHeroGrow(wide)
   const heroRef = hero.heroRef
   const listActions = useListActions(ids, {
@@ -175,15 +175,7 @@ export function PlacePage({
     shareAs: title,
     togetherAs: title,
   })
-  // Back, on a phone, from a place that grew out of its tile: the opening in reverse.
   const backShown = usePageBack('/').shown
-  const back = (): void => {
-    if (!router.canGoBack()) {
-      router.replace('/')
-      return
-    }
-    hero.back(() => router.back())
-  }
 
   const listHead = (
     <ListHead
@@ -196,7 +188,7 @@ export function PlacePage({
       topBar={
         <>
           {/* None on a computer for a place the sidebar opened (J1). */}
-          {backShown ? <BackButton to="/" onPress={back} /> : <View />}
+          {backShown ? <BackButton to="/" /> : <View />}
           <MoreMenu
             name={title}
             items={[...listActions, ...keepItem, ...menuItems]}

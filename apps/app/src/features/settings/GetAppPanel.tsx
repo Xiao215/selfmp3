@@ -30,9 +30,13 @@ export function GetAppPanel(): ReactNode {
 
   useEffect(() => {
     let alive = true
-    void macApp.chip().then(found => {
-      if (alive) setChip(found)
-    })
+    // Not known, as before it answers: both downloads, in their usual order.
+    macApp.chip().then(
+      found => {
+        if (alive) setChip(found)
+      },
+      () => undefined,
+    )
     return () => {
       alive = false
     }

@@ -152,4 +152,44 @@ describe('a database in trouble', () => {
       clock.mockRestore()
     }
   })
+
+  it('keeps the library it built while a device only says it is still there', async () => {
+    const id = insert('Heard')
+    const reads = vi.spyOn(container.songs, 'all')
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-25T12:00:10Z'))
+    const heartbeat = {
+      deviceId: 'phone-00001',
+      name: 'Phone',
+      kind: 'phone',
+      state: {
+        songId: null,
+        position: 0,
+        playing: false,
+        queueIds: [],
+        queueIndex: -1,
+        shuffle: false,
+        repeat: 'off',
+        updatedAt: 0,
+      },
+    }
+    try {
+      const first = await (await send('GET', '/api/library')).text()
+      expect((await send('POST', '/api/devices/heartbeat', heartbeat)).status).toBe(200)
+      expect(await (await send('GET', '/api/library')).text()).toBe(first)
+      expect(reads).toHaveBeenCalledTimes(1)
+
+      // A write from outside the server, which no trigger of its own sees.
+      const other = new Database(path.join(container.config.dataDir, 'selfmp3.db'))
+      other.prepare('UPDATE songs SET title = ? WHERE id = ?').run('From a shell', id)
+      other.close()
+      const after = JSON.parse(await (await send('GET', '/api/library')).text()) as {
+        songs: Array<{ id: number; title: string }>
+      }
+      expect(after.songs.find(song => song.id === id)?.title).toBe('From a shell')
+      expect(reads).toHaveBeenCalledTimes(2)
+    } finally {
+      reads.mockRestore()
+      clock.mockRestore()
+    }
+  })
 })

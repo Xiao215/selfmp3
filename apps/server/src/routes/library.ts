@@ -50,8 +50,8 @@ export function libraryRoutes(container: Container): Router {
    * the app's 3 s "can't reach" (R3-m6).
    *
    * Every row it is read from is in this database, so `libraryChanges` moves
-   * with any write, a play or a background pass that bumps no version
-   * included. The minute is in the key too: a live playlist of what was
+   * with any write to them, a play or a background pass that bumps no version
+   * included, and not with a device's heartbeat. The minute is in the key too: a live playlist of what was
    * played in the last week counts against the clock, and moves with no
    * write at all.
    */

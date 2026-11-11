@@ -32,7 +32,6 @@ export function systemRoutes(container: Container): Router {
         version: APP_VERSION,
         serverId: container.serverId,
         uptimeSeconds: Math.round(process.uptime()),
-        appUrl: container.config.appUrl,
         ...(known
           ? { libraryPath: container.config.libraryDir, songCount: container.songs.count() }
           : {}),

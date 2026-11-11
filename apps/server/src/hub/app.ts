@@ -41,7 +41,6 @@ export function createHubApp(hub: Hub): Express {
         version: APP_VERSION,
         serverId: hub.shared.serverId,
         uptimeSeconds: Math.round(process.uptime()),
-        appUrl: hub.config.appUrl,
       }
       res.json(health)
       return

@@ -1,19 +1,14 @@
-import { z } from 'zod'
 import {
   BUCKET_CAP_CODE,
   CHANGES_HEADER,
   CLOUD_FILES_KEY,
-  CLOUD_FORMAT,
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanError,
-  ChangeSchema,
-  CloudDeviceIdSchema,
   CloudSnapshotSchema,
   DoormanChangesSchema,
   DoormanListSchema,
   HlcClock,
-  HlcSchema,
   LOG_FILE_MAX_CHANGES,
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
@@ -45,7 +40,31 @@ import {
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
 import { bucketHold } from './hold.js'
-import { upgradeKeptBase } from './keptBase.js'
+import {
+  BASE_KEY,
+  IDS_KEY,
+  KEPT_KEYS,
+  LOGS_KEY,
+  LOOK_KEY,
+  NEVER_LOOKED,
+  OUTBOX_KEY,
+  PLAYED_KEY,
+  PLAYLISTS_KEY,
+  STATE_KEY,
+  emptySnapshot,
+  localChanges,
+  outboxSignature,
+  storedBase,
+  storedIds,
+  storedLogs,
+  storedLook,
+  storedOutbox,
+  storedPlayed,
+  storedVersion,
+  type KeptBase,
+  type Look,
+  type Outbox,
+} from './kept.js'
 import { roomSongOf } from './roomSong.js'
 import { latestStamp, replay, replayedSnapshot } from './replay.js'
 import {
@@ -73,15 +92,6 @@ import type { CloudSession, CloudSessionApi } from './session.js'
  * the library and it has not been asked for a little while; in between, what
  * this device has is the library.
  */
-
-const IDS_KEY = 'cloud-ids'
-const PLAYLISTS_KEY = 'cloud-playlist-songs'
-const STATE_KEY = 'cloud-state'
-const BASE_KEY = 'cloud-base'
-const LOGS_KEY = 'cloud-logs'
-const OUTBOX_KEY = 'cloud-outbox'
-const LOOK_KEY = 'cloud-look'
-const PLAYED_KEY = 'cloud-playlists-played'
 
 /**
  * Within this long of the last look at the bucket, the library is answered
@@ -117,38 +127,6 @@ const OTHERS_FLUSH_DELAY_MS = 10_000
 const LOG_READS_AT_ONCE = 6
 
 /**
- * What this device kept, as it is read back. IndexedDB and a file both hand
- * back whatever was put there, or whatever a crash left; a row that does not
- * read as what it should be is read again from the bucket rather than replayed
- * and uploaded as it stands.
- */
-const StoredBaseSchema = z.object({
-  key: z.string().nullable(),
-  snapshot: CloudSnapshotSchema.nullable(),
-})
-
-/** When this device last looked, kept so a new tab or a relaunch does not look again at once. */
-const StoredLookSchema = z.object({
-  checkedAt: z.number(),
-  listedAt: z.number(),
-  changes: z.string().nullable(),
-})
-type Look = z.infer<typeof StoredLookSchema>
-
-const NEVER_LOOKED: Look = { checkedAt: 0, listedAt: 0, changes: null }
-
-/** This device's ids as `show` keeps them; anything else is none handed out yet. */
-const StoredIdsSchema = z.object({
-  songs: z.record(z.number()),
-  tags: z.record(z.number()),
-  playlists: z.record(z.number()),
-  next: z.number(),
-})
-
-/** The library's version as `show` keeps it. */
-const StoredStateSchema = z.object({ version: z.number() })
-
-/**
  * Whether a moment is less than `ms` ago. One after now is not: the clock was
  * put back since (a fast clock corrected, a wrong date fixed), and taking it
  * for recent kept a look from being due again until the clock caught up — a
@@ -158,45 +136,8 @@ function within(at: number, ms: number, now = Date.now()): boolean {
   return at <= now && now - at < ms
 }
 
-/** The outbox's envelope; each change in it is checked on its own (`knownChanges`). */
-const StoredOutboxSchema = z.object({
-  device: CloudDeviceIdSchema,
-  nextSeq: z.number().int().positive(),
-  last: HlcSchema.nullable().catch(null),
-  pending: z.array(z.unknown()).catch([]),
-  inflight: z
-    .object({
-      seq: z.number().int().positive(),
-      changes: z.array(z.unknown()),
-      writtenAt: z.string(),
-    })
-    .nullable()
-    .catch(null),
-})
-
-/** This device's changes on their way up. */
-interface Outbox {
-  /** This device's name in the bucket, and so the folder its log files go in. */
-  readonly device: string
-  /** The latest stamp this device's clock made or saw, to carry it across a restart. */
-  readonly last: string | null
-  readonly nextSeq: number
-  /** Made here, not yet in any file. */
-  readonly pending: readonly Change[]
-  /**
-   * A file on its way up. Its number and contents are fixed the first time it
-   * is sent, so sending it again — after a lost response — writes the same
-   * bytes, and no number is ever used for two different files.
-   */
-  readonly inflight: {
-    readonly seq: number
-    readonly changes: readonly Change[]
-    readonly writtenAt: string
-  } | null
-}
-
 interface Replica {
-  base: { key: string | null; snapshot: CloudSnapshot | null }
+  base: KeptBase
   /**
    * Whether the base is kept on the device yet. A bucket with no snapshot in
    * it has the same base as a device that has never looked, and that first
@@ -422,47 +363,9 @@ export function createCloudLibrary(
 
   // --- Opening ------------------------------------------------------------------------
 
-  /**
-   * The outbox as stored, checked rather than cast, or null when there is
-   * none to read — never a new one.
-   *
-   * The device name and the next file number are the parts that must hold: a
-   * number used twice is the one thing the bucket's format cannot survive, so
-   * a row without them is no outbox at all. Each change is checked too when
-   * `changes` says so — on opening, and on a look at what another tab wrote —
-   * and one that does not parse is set aside rather than sent. A change made
-   * in this session was built here, so the outbox's own updates skip that:
-   * checking a long offline outbox on every play was work for nothing.
-   */
-  function asStoredOutbox(value: unknown, changes: boolean): Outbox | null {
-    const parsed = StoredOutboxSchema.safeParse(value)
-    if (!parsed.success) return null
-    const { device, last, nextSeq, pending, inflight } = parsed.data
-    const read = (raw: readonly unknown[]): Change[] =>
-      changes ? knownChanges(raw) : (raw as Change[])
-    return {
-      device,
-      last,
-      nextSeq,
-      pending: read(pending),
-      inflight: inflight && { ...inflight, changes: read(inflight.changes) },
-    }
-  }
-
-  /** The changes of these that this build can read; the rest are said and set aside. */
-  function knownChanges(raw: readonly unknown[]): Change[] {
-    const known: Change[] = []
-    for (const change of raw) {
-      const parsed = ChangeSchema.safeParse(change)
-      if (parsed.success) known.push(parsed.data)
-      else warn('skipping a change in the outbox this version cannot read')
-    }
-    return known
-  }
-
   function asOutbox(value: unknown, changes: boolean): Outbox {
     return (
-      asStoredOutbox(value, changes) ?? {
+      storedOutbox(value, changes, warn) ?? {
         device: newCloudDeviceId(platform.deviceKind),
         last: null,
         nextSeq: 1,
@@ -482,52 +385,6 @@ export function createCloudLibrary(
     )) as Outbox
     if (replica) replica.outbox = next
     return next
-  }
-
-  function localChanges(outbox: Outbox): Change[] {
-    return [...(outbox.inflight?.changes ?? []), ...outbox.pending]
-  }
-
-  /**
-   * The snapshot this device kept, or null when there is none or it does not
-   * read as one. A copy kept before the snapshot's shape was settled is
-   * brought up to it (`upgradeKeptBase`) and says so, to be written back.
-   */
-  function storedBase(value: unknown): { base: Replica['base']; upgraded: boolean } | null {
-    if (value === null || value === undefined) return null
-    const parsed = StoredBaseSchema.safeParse(value)
-    if (parsed.success) return { base: parsed.data, upgraded: false }
-    const upgraded = StoredBaseSchema.safeParse(upgradeKeptBase(value))
-    if (upgraded.success) return { base: upgraded.data, upgraded: true }
-    warn('this device’s copy of the library could not be read; it is fetched again')
-    return null
-  }
-
-  /** The last look as kept, or one that never happened when it does not read as one. */
-  function storedLook(value: unknown): Look {
-    const parsed = StoredLookSchema.safeParse(value)
-    if (!parsed.success) return NEVER_LOOKED
-    // A clock put back makes a look in the future; it is not fresh, it is wrong.
-    const now = Date.now()
-    return parsed.data.checkedAt > now || parsed.data.listedAt > now ? NEVER_LOOKED : parsed.data
-  }
-
-  /** The log files this device kept, each read the way one from the bucket is. */
-  function storedLogs(value: unknown): Map<string, LogFile> {
-    const logs = new Map<string, LogFile>()
-    if (typeof value !== 'object' || value === null) return logs
-    for (const [key, raw] of Object.entries(value)) {
-      const read = readLogFile(raw)
-      if (read.ok) logs.set(key, read.file)
-      else warn(`skipping a kept log file this version cannot read (${key})`)
-    }
-    return logs
-  }
-
-  /** The playlists' played times as kept, or none when they do not read as such. */
-  function storedPlayed(value: unknown): Record<string, string> {
-    const parsed = z.record(z.string()).safeParse(value)
-    return parsed.success ? parsed.data : {}
   }
 
   async function open(session: CloudSession): Promise<Replica> {
@@ -571,13 +428,13 @@ export function createCloudLibrary(
   async function openKept(began: number): Promise<Replica> {
     if (began !== generation) throw signedOut()
     const outbox = await changeOutbox(current => current, { check: true })
-    const kept = storedBase(await store.read(BASE_KEY))
+    const kept = storedBase(await store.read(BASE_KEY), warn)
     const base = kept?.base ?? null
     if (kept?.upgraded) await store.write(BASE_KEY, kept.base)
     const r: Replica = {
       base: base ?? { key: null, snapshot: null },
       baseStored: base !== null,
-      logs: storedLogs(await store.read(LOGS_KEY)),
+      logs: storedLogs(await store.read(LOGS_KEY), warn),
       outbox,
       clock: new HlcClock(outbox.device, { last: outbox.last }),
       library: replay(null, [], []),
@@ -590,23 +447,6 @@ export function createCloudLibrary(
     }
     await rebuild(r)
     return r
-  }
-
-  function emptySnapshot(): CloudSnapshot {
-    return {
-      format: CLOUD_FORMAT,
-      writtenAt: new Date(0).toISOString(),
-      writtenBy: 'none',
-      upTo: {},
-      songs: [],
-      tags: [],
-      playlists: [],
-      artists: [],
-      artistNames: [],
-      spellings: {},
-      coverPacks: [],
-      sound: null,
-    }
   }
 
   /** Replay everything from the base again, and show the result. */
@@ -649,13 +489,11 @@ export function createCloudLibrary(
 
   /** What the store holds under the keys `show` writes, read once per sign-in. */
   async function readWritten(): Promise<Written> {
-    const ids = StoredIdsSchema.safeParse(await store.read(IDS_KEY))
-    const state = StoredStateSchema.safeParse(await store.read(STATE_KEY))
     return {
-      ids: ids.success ? ids.data : NO_IDS,
+      ids: storedIds(await store.read(IDS_KEY)),
       files: await store.read(CLOUD_FILES_KEY),
       playlistSongs: await store.read(PLAYLISTS_KEY),
-      version: state.success ? state.data.version : 0,
+      version: storedVersion(await store.read(STATE_KEY)),
     }
   }
 
@@ -846,7 +684,7 @@ export function createCloudLibrary(
         logs.size !== r.logs.size || [...logs.keys()].some(key => !r.logs.has(key))
       // Another tab may have added to the outbox since. Read, not updated:
       // an update would write the outbox back on every look.
-      const outbox = asStoredOutbox(await store.read(OUTBOX_KEY), true) ?? r.outbox
+      const outbox = storedOutbox(await store.read(OUTBOX_KEY), true, warn) ?? r.outbox
       const outboxChanged = outboxSignature(outbox) !== outboxSignature(r.outbox)
 
       r.outbox = outbox
@@ -868,13 +706,6 @@ export function createCloudLibrary(
       await rebuild(r)
       return true
     })
-  }
-
-  /** Which changes are waiting, by stamp: every change has its own. */
-  function outboxSignature(outbox: Outbox): string {
-    return localChanges(outbox)
-      .map(change => change.hlc)
-      .join(',')
   }
 
   // --- The library, as the app asks for it ---------------------------------------------
@@ -1054,7 +885,7 @@ export function createCloudLibrary(
   }
 
   async function keptCloudChanges(): Promise<number> {
-    const outbox = asStoredOutbox(await store.read(OUTBOX_KEY).catch(() => null), false)
+    const outbox = storedOutbox(await store.read(OUTBOX_KEY).catch(() => null), false, warn)
     return outbox ? localChanges(outbox).length : 0
   }
 
@@ -1095,7 +926,7 @@ export function createCloudLibrary(
     if (!r) return
     void exclusive(async () => {
       if (replica !== r) return false
-      const outbox = asStoredOutbox(await store.read(OUTBOX_KEY), true)
+      const outbox = storedOutbox(await store.read(OUTBOX_KEY), true, warn)
       if (!outbox || outboxSignature(outbox) === outboxSignature(r.outbox)) return false
       r.outbox = outbox
       await rebuild(r)
@@ -1437,19 +1268,7 @@ export function createCloudLibrary(
     // and nothing it writes outlives the sign-out.
     await exclusive(async () => {
       written = null
-      await Promise.all(
-        [
-          IDS_KEY,
-          CLOUD_FILES_KEY,
-          PLAYLISTS_KEY,
-          STATE_KEY,
-          BASE_KEY,
-          LOGS_KEY,
-          OUTBOX_KEY,
-          LOOK_KEY,
-          PLAYED_KEY,
-        ].map(key => store.remove(key).catch(() => undefined)),
-      )
+      await Promise.all(KEPT_KEYS.map(key => store.remove(key).catch(() => undefined)))
     })
     await platform.textCache?.clear().catch(() => undefined)
   }

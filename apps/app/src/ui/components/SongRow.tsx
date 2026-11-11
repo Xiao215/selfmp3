@@ -260,6 +260,15 @@ export const SongRow = memo(function SongRow({
   // instant it starts (`press.rest`): a row held a moment before the pointer
   // moved would otherwise stay pressed in under the drag.
   const press = usePressScale(PRESS.row)
+  // Held on a phone, it darkens under its words too, on the same spring as it
+  // gives: the press's own value, so holding a row draws nothing again.
+  const [heldVeil] = useState(() => ({
+    opacity: press.style.transform[0]!.scale.interpolate({
+      inputRange: [PRESS.row, 1],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+  }))
   useSongDragSource(rowRef, {
     songIds: () => (dragSongs ? dragSongs(song) : [song.id]),
     title: song.title,
@@ -376,6 +385,9 @@ export const SongRow = memo(function SongRow({
           {...onRightClick}
         >
           {washLayer}
+          {/* Over the row's ground and its wash, under its words: the ink's own
+              veil, as a pressed menu row has, so it reads on a song's colour. */}
+          <Animated.View style={[styles.held, heldVeil]} pointerEvents="none" />
           {picking ? selectBox(true) : null}
 
           {/*
@@ -388,8 +400,6 @@ export const SongRow = memo(function SongRow({
             label instead, as it did when the words were inside it.
           */}
           <View style={styles.body}>
-            {/* No pressed background: the row already gives under the finger, and a
-                filled box over the cover and title flashed white in the light theme. */}
             {target(StyleSheet.absoluteFill)}
             <View style={styles.main} pointerEvents="box-none">
               <View style={styles.art} pointerEvents="none" {...UNREAD}>
@@ -938,6 +948,7 @@ const styles = StyleSheet.create(theme => ({
   // The palette's own selected-row colour, so picking a row is recoloured by
   // the accent picker without re-rendering a list of them.
   selected: { backgroundColor: theme.colors.accentSelected },
+  held: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.colors.veilPressed },
   resting: {
     opacity: OPACITY.resting,
   },

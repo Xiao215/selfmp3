@@ -46,6 +46,7 @@ import { useOpenTag } from '../tag/useOpenTag'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
 import {
   PALETTE_LYRICS,
+  commandHref,
   paletteMatches,
   paletteResults,
   stepIndex,
@@ -130,26 +131,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const lyricHits = search.lyricHits.slice(0, PALETTE_LYRICS)
 
   const runCommand = (id: PaletteCommandId): void => {
-    // Go to Library, Stats…: the sidebar's places, opened as the sidebar opens them (J1).
-    if (id.startsWith('nav-')) enterFromSidebar()
+    const href = commandHref(id)
+    if (href !== null) {
+      // Go to Library, Stats…: the sidebar's places, opened as the sidebar opens them (J1).
+      enterFromSidebar()
+      router.navigate(href)
+      return
+    }
     switch (id) {
-      case 'nav-library':
-        router.navigate('/library')
-        return
-      case 'nav-playlists':
-        router.navigate('/playlists')
-        return
-      case 'nav-import':
-        router.navigate('/import')
-        return
-      case 'nav-stats':
-        router.navigate('/stats')
-        return
       case 'tag-untagged':
         playAndTag.start()
-        return
-      case 'nav-settings':
-        router.navigate('/settings')
         return
       case 'shuffle-all':
         player.playShuffled(songIds, { kind: 'library' })

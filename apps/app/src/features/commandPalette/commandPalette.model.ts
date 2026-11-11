@@ -25,16 +25,28 @@ interface PaletteCommand {
 }
 
 /**
- * The page each "Go to" command goes to, and whether an address is that page.
- * A playlist's own page is not the Playlists page: going to the list of them
- * from inside one is still somewhere to go.
+ * The page each "Go to" command goes to. An address is that page when it is
+ * the page itself or, for Stats, one of its own pages under it; a playlist's
+ * own page is not the Playlists page: going to the list of them from inside
+ * one is still somewhere to go.
  */
-const COMMAND_PAGE: Partial<Record<PaletteCommandId, (pathname: string) => boolean>> = {
-  'nav-library': pathname => pathname === '/library',
-  'nav-playlists': pathname => pathname === '/playlists',
-  'nav-import': pathname => pathname === '/import',
-  'nav-stats': pathname => pathname === '/stats' || pathname.startsWith('/stats/'),
-  'nav-settings': pathname => pathname === '/settings',
+const COMMAND_PAGE: Partial<Record<PaletteCommandId, { href: string; within?: boolean }>> = {
+  'nav-library': { href: '/library' },
+  'nav-playlists': { href: '/playlists' },
+  'nav-import': { href: '/import' },
+  'nav-stats': { href: '/stats', within: true },
+  'nav-settings': { href: '/settings' },
+}
+
+/** Where a "Go to" command goes; null for a command that is not one. */
+export function commandHref(id: PaletteCommandId): string | null {
+  return COMMAND_PAGE[id]?.href ?? null
+}
+
+function isCommandPage(id: PaletteCommandId, pathname: string): boolean {
+  const page = COMMAND_PAGE[id]
+  if (!page) return false
+  return pathname === page.href || (page.within === true && pathname.startsWith(`${page.href}/`))
 }
 
 /**
@@ -73,7 +85,7 @@ export function paletteCommands(
       : [{ id: 'rescan-library' as const, label: 'Look for new songs in the library folder' }]),
   ]
   if (pathname === null) return commands
-  return commands.filter(command => !COMMAND_PAGE[command.id]?.(pathname))
+  return commands.filter(command => !isCommandPage(command.id, pathname))
 }
 
 type Songs = Library['songs']

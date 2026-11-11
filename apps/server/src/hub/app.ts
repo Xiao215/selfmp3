@@ -5,15 +5,14 @@ import {
   HubCheckSchema,
   plural,
   type CloudServer,
-  type Health,
   type HubStatus,
 } from '@selfmp3/shared'
 import { finish, frame } from '../app.js'
-import { APP_VERSION } from '../config.js'
 import { HttpError } from '../http/errors.js'
 import { isLocalRequest } from '../http/local.js'
 import { tokenOf } from '../http/middleware.js'
 import { route } from '../http/route.js'
+import { healthOf } from '../routes/system.js'
 import type { Hub } from './hub.js'
 
 /**
@@ -36,13 +35,7 @@ export function createHubApp(hub: Hub): Express {
       return
     }
     if (req.path === '/health') {
-      const health: Health = {
-        ok: true,
-        version: APP_VERSION,
-        serverId: hub.shared.serverId,
-        uptimeSeconds: Math.round(process.uptime()),
-      }
-      res.json(health)
+      res.json(healthOf(hub.shared.serverId))
       return
     }
     next(refusal(hub, req))

@@ -15,7 +15,7 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { useEscape } from '../../shell/useEscape'
 import { ease, motionMs, spring, timing } from '../../ui/motion'
-import { MOVE_MS, overshootRange, roomShift } from '../../ui/motion.model'
+import { MOVE_MS, OPACITY, overshootRange, roomShift } from '../../ui/motion.model'
 import { label, rowTitle } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
@@ -56,6 +56,10 @@ import { Press } from '../../ui/components/Press'
 
 /** How far below the status bar the sheet's top edge sits (`P25`: the page's title peeks out). */
 const SHEET_TOP = 16
+/** How far in from the sheet's edges its head, its lines, the switches and a room's list sit. */
+const SHEET_GUTTER = 18
+/** How far the swipe guide pulls the first row, and its hand with it. */
+const GUIDE_PULL = 110
 
 /**
  * Up next on a phone (docs/ui-mock `P25`, `P26`): a sheet over the whole
@@ -349,7 +353,7 @@ function SheetPanel({
         // shows from the right as it does under a finger.
         peek={
           movable && entry.index === first && guide.shown && guide.step === 0
-            ? slideWith(guide, 110)
+            ? slideWith(guide, GUIDE_PULL)
             : null
         }
       />
@@ -480,7 +484,7 @@ function SheetPanel({
         inline
         guide={guide}
         steps={[
-          { gesture: 'swipe-left', text: 'Swipe left to remove a song', distance: 110 },
+          { gesture: 'swipe-left', text: 'Swipe left to remove a song', distance: GUIDE_PULL },
           {
             gesture: 'hold',
             text: 'Hold a song to move it',
@@ -774,7 +778,7 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
     boxShadow: `0 -12px 40px ${theme.colors.floatShadow}`,
   },
-  head: { gap: space.md, paddingHorizontal: 18 },
+  head: { gap: space.md, paddingHorizontal: SHEET_GUTTER },
   grabberHit: { alignSelf: 'center', paddingVertical: 2, paddingHorizontal: 20 },
   // On a 320 pt phone the pills take a row of their own rather than breaking
   // the title over two lines.
@@ -795,10 +799,10 @@ const styles = StyleSheet.create(theme => ({
   card: { marginHorizontal: space.md },
   list: { flex: 1 },
   listContent: { paddingBottom: space.lg },
-  roomContent: { paddingHorizontal: 18, paddingBottom: space.lg },
+  roomContent: { paddingHorizontal: SHEET_GUTTER, paddingBottom: space.lg },
   label: { ...label(theme.colors), paddingBottom: space.xs },
-  labelInset: { paddingHorizontal: 18 },
-  played: { opacity: 0.42 },
+  labelInset: { paddingHorizontal: SHEET_GUTTER },
+  played: { opacity: OPACITY.played },
   liftedCell: { zIndex: 2 },
   swipe: { overflow: 'hidden' },
   ground: {
@@ -817,5 +821,5 @@ const styles = StyleSheet.create(theme => ({
   groundText: rowTitle(theme.colors),
   // Opaque, so the ground shows only where the row has been swiped off it.
   swipeRow: { backgroundColor: theme.colors.surface1 },
-  autoMix: { paddingTop: space.lg, paddingHorizontal: 18 },
+  autoMix: { paddingTop: space.lg, paddingHorizontal: SHEET_GUTTER },
 }))

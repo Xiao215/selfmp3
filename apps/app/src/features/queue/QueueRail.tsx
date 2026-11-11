@@ -52,6 +52,8 @@ import { WINDOW_WIDTH, RAIL_WIDTH } from '../../shell/widths'
 const ROW_HEIGHT = 44
 /** How far into the rail's slide the rows begin to fade up: its last third. */
 const ROWS_FADE_FROM = 2 / 3
+/** How far the drag-out guide pulls the first song, and its hand with it. */
+const GUIDE_PULL = 120
 
 /**
  * Up next on a computer (docs/ui-mock `C11`, `C12`): a rail beside the page,
@@ -573,7 +575,7 @@ function Rail({
                 const first = kind === 'next' && row.index === rows.next[0]?.index
                 return (
                   <View ref={first ? firstTarget : undefined} collapsable={false}>
-                    <Animated.View style={first && hint.shown ? slideWith(hint, 120) : null}>
+                    <Animated.View style={first && hint.shown ? slideWith(hint, GUIDE_PULL) : null}>
                       {railRow}
                     </Animated.View>
                   </View>
@@ -618,7 +620,7 @@ function Rail({
             text: 'Drag a song out to remove it',
             // A touch has no right-click to offer.
             sub: finePointer ? 'Right-click it for more' : undefined,
-            distance: 120,
+            distance: GUIDE_PULL,
           },
         ]}
       />
@@ -904,7 +906,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.cover,
     paddingRight: space.tight,
   },
-  greyed: { opacity: 0.42 },
+  greyed: { opacity: OPACITY.played },
   unavailable: { opacity: OPACITY.dim },
   press: { flex: 1, minWidth: 0, alignSelf: 'stretch', borderRadius: radius.cover },
   // In from the row's edge by the list's bleed, so the covers stand under the

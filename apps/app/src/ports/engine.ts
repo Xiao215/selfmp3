@@ -150,12 +150,21 @@ class NativeEngine implements PlaybackEngine {
   }
 
   async load(songId: number, options: LoadOptions = {}): Promise<void> {
-    const { autoplay = true, startAt } = options
     // Loads overlap: the app opening restores a song while a tap starts
     // another. Every step below awaits, and a load allowed to carry on past a
     // newer one resets the player back to its own song, or puts its start
     // position on the song the person just picked.
     const generation = ++this.#loadGeneration
+    // Every caller lets the promise go: a failure is the state's to say.
+    try {
+      await this.#load(songId, options, generation)
+    } catch (error) {
+      if (generation === this.#loadGeneration) this.#hub.patch({ error: failureOf(error) })
+    }
+  }
+
+  async #load(songId: number, options: LoadOptions, generation: number): Promise<void> {
+    const { autoplay = true, startAt } = options
     const overtaken = (): boolean => generation !== this.#loadGeneration
     this.#failed = false
     // Cleared before anything is awaited, so a failure of this load is a
@@ -224,11 +233,7 @@ class NativeEngine implements PlaybackEngine {
       // one's title until the player's first tick.
       this.#hub.patch({ error: null, currentTime: startAt ?? 0, duration: 0 })
     } catch (error) {
-      if (!overtaken()) {
-        this.#hub.patch({
-          error: error instanceof Error ? error.message : 'could not play that song',
-        })
-      }
+      if (!overtaken()) this.#hub.patch({ error: failureOf(error) })
     } finally {
       if (!overtaken()) this.#loading = false
     }
@@ -279,8 +284,12 @@ class NativeEngine implements PlaybackEngine {
   }
 
   async play(): Promise<void> {
-    await this.#wire()
-    await TrackPlayer.play()
+    try {
+      await this.#wire()
+      await TrackPlayer.play()
+    } catch (error) {
+      this.#hub.patch({ error: failureOf(error) })
+    }
   }
 
   pause(): void {
@@ -478,6 +487,11 @@ class NativeEngine implements PlaybackEngine {
       isLiveStream: false,
     }
   }
+}
+
+/** What the player threw, as the state's `error`. */
+function failureOf(error: unknown): string {
+  return error instanceof Error ? error.message : 'could not play that song'
 }
 
 /**

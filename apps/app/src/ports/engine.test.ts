@@ -165,4 +165,17 @@ describe('the phone engine', () => {
     hear('PlaybackState', { state: 'Playing' })
     expect(engine.state.playing).toBe(true)
   })
+
+  it('says a player that cannot be set up as a failure of the song, from a load or a play', async () => {
+    const { createEngine } = await import('./engine')
+    setupFails = 3
+    const engine = createEngine()
+    engine.connect({ nextTrackId: () => null, streamUrl: () => 'file:///one.m4a' })
+    await engine.load(1)
+    expect(engine.state.error).toBe('in the background')
+
+    engine.connect({ nextTrackId: () => null, streamUrl: () => 'file:///one.m4a' })
+    await engine.play()
+    expect(engine.state.error).toBe('in the background')
+  })
 })

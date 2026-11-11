@@ -540,7 +540,11 @@ function Stage({
           coverTravel,
         ]}
       >
-        <Moving move={move} pose={m => coverPose(box, m, geometry.inset)} style={styles.cover}>
+        <Moving
+          move={move}
+          pose={m => coverPose(box, m, { left: HEAD_LEFT, inset: geometry.inset })}
+          style={styles.cover}
+        >
           {uri ? (
             <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
           ) : (

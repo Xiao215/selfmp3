@@ -34,35 +34,44 @@ describe('stageCover', () => {
   })
 })
 
+/** A browser's head: twenty in from the window's edge, no status bar. */
+const HEAD = { left: 20, inset: 0 }
+
 describe('coverPose', () => {
   it('leaves the cover where the stage lays it out', () => {
-    expect(seenCover(coverPose(box, 0))).toEqual({
+    expect(seenCover(coverPose(box, 0, HEAD))).toEqual({
       left: geometry.pad,
       top: COVER_TOP,
       size: geometry.cover,
     })
-    expect(coverPose(box, 0).radius).toBe(22)
+    expect(coverPose(box, 0, HEAD).radius).toBe(22)
   })
 
   it('shrinks it into the header in Focus', () => {
-    const seen = seenCover(coverPose(box, 1))
+    const seen = seenCover(coverPose(box, 1, HEAD))
     expect(seen.left).toBeCloseTo(64)
     expect(seen.top).toBeCloseTo(10)
     expect(seen.size).toBeCloseTo(40)
-    expect(coverPose(box, 1).radius).toBe(10)
+    expect(coverPose(box, 1, HEAD).radius).toBe(10)
   })
 
   it('moves its edges on the same straight line the animated layout did', () => {
     for (const m of [0.25, 0.5, 0.8]) {
-      const seen = seenCover(coverPose(box, m))
+      const seen = seenCover(coverPose(box, m, HEAD))
       expect(seen.left).toBeCloseTo(geometry.pad + (64 - geometry.pad) * m)
       expect(seen.top).toBeCloseTo(COVER_TOP + (10 - COVER_TOP) * m)
       expect(seen.size).toBeCloseTo(geometry.cover + (40 - geometry.cover) * m)
     }
   })
 
+  it('sits beside the chevron however far the head starts', () => {
+    // The installed desktop app starts its head right of the traffic lights.
+    const seen = seenCover(coverPose(box, 1, { left: 84, inset: 0 }))
+    expect(seen.left).toBeCloseTo(84 + 44)
+  })
+
   it('lays out corners that are seen at the right radius once scaled', () => {
-    const pose = coverPose(box, 1)
+    const pose = coverPose(box, 1, HEAD)
     expect((laidOutRadius(pose) ?? 0) * (pose.scale ?? 1)).toBeCloseTo(10)
     expect(laidOutRadius({ opacity: 1 })).toBeUndefined()
   })
@@ -106,10 +115,10 @@ describe('moveKeyframes', () => {
   })
 
   it('samples a radius under a changing scale, since that is not a straight line', () => {
-    const frames = moveKeyframes(m => coverPose(box, m), 0, 1)
+    const frames = moveKeyframes(m => coverPose(box, m, HEAD), 0, 1)
     expect(frames.length).toBeGreaterThan(2)
     for (const frame of frames) {
-      const pose = coverPose(box, frame.offset)
+      const pose = coverPose(box, frame.offset, HEAD)
       expect(frame.borderRadius).toBe(`${laidOutRadius(pose)}px`)
     }
   })
@@ -127,7 +136,7 @@ describe('a stacked page (T05)', () => {
 
   it('moves the cover into the header under the status bar in Focus', () => {
     const cover = stageCover(tall)
-    expect(seenCover(coverPose(cover, 1, 24), cover).top).toBeCloseTo(10 + 24)
+    expect(seenCover(coverPose(cover, 1, { left: 20, inset: 24 }), cover).top).toBeCloseTo(10 + 24)
   })
 })
 

@@ -46,10 +46,17 @@ const tree = (confirming: Confirming): ReactElement => (
 )
 
 it('keeps its words while it fades out', async () => {
-  const view = await render(tree('remove-downloads'))
-  expect(screen.getByText('Remove all songs from this phone?')).toBeTruthy()
+  // The fade's clock is the test's, so a loaded machine cannot run it out
+  // before the second look.
+  jest.useFakeTimers()
+  try {
+    const view = await render(tree('remove-downloads'))
+    expect(screen.getByText('Remove all songs from this phone?')).toBeTruthy()
 
-  await view.rerender(tree(null))
-  expect(screen.getByText('Remove all songs from this phone?')).toBeTruthy()
-  expect(screen.getByText('Remove all from this phone')).toBeTruthy()
+    await view.rerender(tree(null))
+    expect(screen.getByText('Remove all songs from this phone?')).toBeTruthy()
+    expect(screen.getByText('Remove all from this phone')).toBeTruthy()
+  } finally {
+    jest.useRealTimers()
+  }
 })

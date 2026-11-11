@@ -255,7 +255,9 @@ the internet:
 
 - **Which address:** the https one, usually the Tailscale Funnel's `*.ts.net`
   (`publicServerBase`).
-- **How it plays:** the doorman plays the link through that address for every member.
+- **How it plays:** the doorman plays the link through that address for every member. It
+  fetches only an address on the public internet and follows no redirect (`mayReach` in
+  `apps/doorman/src/http.ts`), so a host cannot point it at a private network.
 - **The token:** the server's token stays in the room's private storage, never sent to a
   member, and goes with the room.
 - **A server the internet can't reach:** a link plays on the host's device alone, and

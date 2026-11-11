@@ -97,7 +97,6 @@ interface Refusal {
 /** How much of a song one read from the disk hands the player. */
 const READ_CHUNK = 256 * 1024
 
-
 export function createStreamProxy({
   fetch,
   onCapped,

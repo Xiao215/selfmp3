@@ -1,6 +1,6 @@
 import { namesToSpell, type Song } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import type { NamesRepository } from '../repositories/names.js'
+import type { ArtistNamesRow, NamesRepository } from '../repositories/names.js'
 import type { RomanizationService } from './romanization.js'
 
 /**
@@ -47,13 +47,15 @@ export class SpellingService {
 
   /**
    * The spellings of the names the library has now: what the snapshot and the
-   * library carry. `songs` when the caller has just read them: on a library of
-   * thousands, reading every song is most of what building the answer costs.
+   * library carry. `songs` and `artistNames` when the caller has just read
+   * them: on a library of thousands, reading every song is most of what
+   * building the answer costs.
    */
   current(
     songs: readonly Pick<Song, 'title' | 'artist' | 'album'>[] = this.#songs.all(),
+    artistNames: ReadonlyMap<string, ArtistNamesRow> = this.#names.artistNames(),
   ): Record<string, string[]> {
-    const wanted = this.#wanted(songs)
+    const wanted = this.#wanted(songs, artistNames)
     // Entries, not assignments: a name like "__proto__" is an own key that way.
     return Object.fromEntries(
       [...this.#names.spellings()].filter(
@@ -64,10 +66,9 @@ export class SpellingService {
 
   #wanted(
     songs: readonly Pick<Song, 'title' | 'artist' | 'album'>[] = this.#songs.all(),
+    artistNames: ReadonlyMap<string, ArtistNamesRow> = this.#names.artistNames(),
   ): Set<string> {
-    const others = Object.fromEntries(
-      [...this.#names.artistNames()].map(([artist, row]) => [artist, row.names]),
-    )
+    const others = Object.fromEntries([...artistNames].map(([artist, row]) => [artist, row.names]))
     return namesToSpell(songs, others)
   }
 

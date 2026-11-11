@@ -124,7 +124,7 @@ describe('a database in trouble', () => {
     expect((await send('POST', '/api/tags', { name: 'while held' })).status).toBe(200)
   })
 
-  it('builds the library once while nothing changes, and again for any write or minute', async () => {
+  it('builds the library once while nothing changes, and again for any write, or a minute a live playlist counts', async () => {
     const id = insert('Kept')
     const reads = vi.spyOn(container.songs, 'all')
     let now = Date.parse('2026-10-25T12:00:10Z')
@@ -143,10 +143,31 @@ describe('a database in trouble', () => {
       expect(after.songs.find(song => song.id === id)?.title).toBe('Changed')
       expect(reads).toHaveBeenCalledTimes(2)
 
-      // A live playlist of the last week moves with the clock alone.
+      // A minute is nothing while no live playlist counts days.
       now += 60_000
       await send('GET', '/api/library')
+      expect(reads).toHaveBeenCalledTimes(2)
+
+      // One of what was played in the last week moves with the clock alone.
+      container.playlists.create({
+        name: 'This week',
+        description: '',
+        kind: 'live',
+        rules: {
+          match: 'all',
+          rules: [{ field: 'lastPlayedAt', op: 'inLastDays', days: 7 }],
+          orderBy: 'addedAt',
+          order: 'desc',
+          limit: null,
+        },
+      })
+      await send('GET', '/api/library')
       expect(reads).toHaveBeenCalledTimes(3)
+      await send('GET', '/api/library')
+      expect(reads).toHaveBeenCalledTimes(3)
+      now += 60_000
+      await send('GET', '/api/library')
+      expect(reads).toHaveBeenCalledTimes(4)
     } finally {
       reads.mockRestore()
       clock.mockRestore()

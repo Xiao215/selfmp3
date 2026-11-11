@@ -1,5 +1,6 @@
 import {
   SmartRulesSchema,
+  followsTheClock,
   inKeptOrder,
   insertedAt,
   livePlaylistSongs,
@@ -641,6 +642,14 @@ export class PlaylistRepository {
       for (const id of this.songIds({ id: row.id, ...shape })) ids.add(id)
     }
     return ids
+  }
+
+  /** Whether any live playlist's songs move with the clock alone (shared `followsTheClock`). */
+  followTheClock(): boolean {
+    return this.#kinds.all().some(row => {
+      const rules = row.kind === 'live' ? this.#parseRules(row.rules) : null
+      return rules !== null && followsTheClock(rules)
+    })
   }
 
   /** Append or insert songs, keeping positions dense and ordered. */

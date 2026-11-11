@@ -70,9 +70,9 @@ export class NamesRepository {
   /**
    * Every artist's other names as the library carries them, with the artists
    * whose names are MusicBrainz's as found: what joins artists (shared artistJoins.ts).
+   * `rows` when the caller has just read them (`artistNames`).
    */
-  joinNames(): ArtistJoinNames {
-    const rows = this.artistNames()
+  joinNames(rows: ReadonlyMap<string, ArtistNamesRow> = this.artistNames()): ArtistJoinNames {
     return {
       artistNames: Object.fromEntries([...rows].map(([artist, row]) => [artist, [...row.names]])),
       artistNamesFound: [...rows].flatMap(([artist, row]) => (namesFound(row.hlc) ? [artist] : [])),

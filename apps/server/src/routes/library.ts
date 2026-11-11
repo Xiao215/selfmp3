@@ -51,21 +51,24 @@ export function libraryRoutes(container: Container): Router {
    *
    * Every row it is read from is in this database, so `libraryChanges` moves
    * with any write to them, a play or a background pass that bumps no version
-   * included, and not with a device's heartbeat. The minute is in the key too: a live playlist of what was
-   * played in the last week counts against the clock, and moves with no
-   * write at all.
+   * included, and not with a device's heartbeat. While a live playlist
+   * follows the clock ("played in the last week"), the minute is in the key
+   * too: its songs move with no write at all.
    */
   const changes = libraryChanges(container.db)
+  const minute = (): string =>
+    container.playlists.followTheClock() ? `:${Math.floor(Date.now() / 60_000)}` : ''
   const library = keptByKey(
-    () => `${container.libraryVersion()}:${changes()}:${Math.floor(Date.now() / 60_000)}`,
+    () => `${container.libraryVersion()}:${changes()}${minute()}`,
     () => {
       const songs = container.songs.all()
+      const artistNames = container.names.artistNames()
       const answer: Library = {
         songs,
         tags: container.tags.all(),
         playlists: container.playlists.all(),
-        ...container.names.joinNames(),
-        spellings: container.spellings.current(songs),
+        ...container.names.joinNames(artistNames),
+        spellings: container.spellings.current(songs, artistNames),
         version: container.libraryVersion(),
         generatedAt: generatedAt(),
       }

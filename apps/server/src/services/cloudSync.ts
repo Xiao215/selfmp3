@@ -2722,6 +2722,7 @@ export class CloudSyncService {
     // is the time the snapshot was really written.
     const writtenAt = this.#now()
     const everySong = songs.all()
+    const artistNames = names?.repo.artistNames() ?? new Map()
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
@@ -2736,8 +2737,8 @@ export class CloudSyncService {
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
-      artistNames: names?.repo.artistNames() ?? new Map(),
-      spellings: names?.spellings.current(everySong) ?? {},
+      artistNames,
+      spellings: names?.spellings.current(everySong, artistNames) ?? {},
       coverPacks: cloud.coverPacks(),
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.

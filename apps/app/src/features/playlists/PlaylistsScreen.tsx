@@ -57,6 +57,7 @@ import { usePlaylistPlayback } from './usePlaylistPlayback'
 import { ScrollView } from '../../ui/components/Scroll'
 import { useDrawnAhead } from '../../ui/useDrawnAhead'
 import { Press } from '../../ui/components/Press'
+import { playlistLink } from '../tag/placeLinks'
 
 /** Tiles at least this wide at desktop width, as many as fit; two across on a phone. */
 const TILE_MIN_WIDTH = 176
@@ -115,8 +116,7 @@ export function PlaylistsScreen(): ReactNode {
     [tags],
   )
   const openPlaylist = useCallback(
-    (playlist: Playlist) =>
-      router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } }),
+    (playlist: Playlist) => router.push(playlistLink(playlist.id)),
     [router],
   )
   // A tile's menu, at the tile or where it was right-clicked; and a delete it asked for.
@@ -439,7 +439,7 @@ function PlaylistTileMenu({
   )
   const toPage = (params: { rename?: string; describe?: string }): void => {
     if (!shown) return
-    router.push({ pathname: '/playlists/[id]', params: { id: String(shown.id), ...params } })
+    router.push(playlistLink(shown.id, params))
   }
   const items = usePlaylistMenu(shown, songIds, {
     onRename: () => toPage({ rename: '1' }),

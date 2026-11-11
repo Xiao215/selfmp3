@@ -1,6 +1,6 @@
 import { uniqueName } from '@selfmp3/client'
 import { placeSongs, type Place } from '../tag/tag.model'
-import { artistLink, tagLink } from '../tag/placeLinks'
+import { artistLink, playlistLink, tagLink } from '../tag/placeLinks'
 import {
   DescribeResultSchema,
   fromSqliteTime,
@@ -414,10 +414,7 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
       const playlist = known.playlists.find(each => each.id === source.playlistId)
       if (!playlist) return plain(`${source.name} (deleted)`, null)
       return {
-        ...plain(playlist.name, {
-          pathname: '/playlists/[id]',
-          params: { id: String(playlist.id) },
-        }),
+        ...plain(playlist.name, playlistLink(playlist.id)),
         saved: source.saved === true,
       }
     }

@@ -35,6 +35,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions } from '../smart/AnswerParts'
 import { Press } from '../../ui/components/Press'
 import { smallTitle } from '../../ui/surfaces'
+import { playlistLink } from '../tag/placeLinks'
 
 /** Where the sheet is: the kind first, then what the kind needs, then the name. */
 type Step = 'kind' | 'tags' | 'describe' | 'name'
@@ -129,7 +130,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const finish = (id: number): void => {
     reset()
     onClose()
-    router.push({ pathname: '/playlists/[id]', params: { id: String(id) } })
+    router.push(playlistLink(id))
   }
 
   const cancel = (): void => {

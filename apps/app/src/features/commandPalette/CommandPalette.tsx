@@ -41,7 +41,7 @@ import { useSmartOn } from '../smart/useSmartOn'
 import { playAlone } from '../lists/lists.model'
 import { placesOf } from '../search/search.model'
 import { useLibrarySearch } from '../search/useLibrarySearch'
-import { artistLink } from '../tag/placeLinks'
+import { artistLink, playlistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
 import {
@@ -168,7 +168,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const playSong = (songId: number): void => {
     if (songIds.includes(songId)) playAlone(player, songId)
   }
-  const openPlaylist = (playlistId: number): void => router.navigate(`/playlists/${playlistId}`)
+  const openPlaylist = (playlistId: number): void => router.navigate(playlistLink(playlistId))
   /** The loaded song carries on where it is rather than starting again. */
   const runRecent = (recent: RecentItem): void => {
     if (recent.kind === 'playlist') openPlaylist(recent.playlist.id)

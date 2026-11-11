@@ -137,6 +137,17 @@ type Look = z.infer<typeof StoredLookSchema>
 
 const NEVER_LOOKED: Look = { checkedAt: 0, listedAt: 0, changes: null }
 
+/** This device's ids as `show` keeps them; anything else is none handed out yet. */
+const StoredIdsSchema = z.object({
+  songs: z.record(z.number()),
+  tags: z.record(z.number()),
+  playlists: z.record(z.number()),
+  next: z.number(),
+})
+
+/** The library's version as `show` keeps it. */
+const StoredStateSchema = z.object({ version: z.number() })
+
 /**
  * Whether a moment is less than `ms` ago. One after now is not: the clock was
  * put back since (a fast clock corrected, a wrong date fixed), and taking it
@@ -638,12 +649,13 @@ export function createCloudLibrary(
 
   /** What the store holds under the keys `show` writes, read once per sign-in. */
   async function readWritten(): Promise<Written> {
-    const state = (await store.read(STATE_KEY)) as { version?: unknown } | null
+    const ids = StoredIdsSchema.safeParse(await store.read(IDS_KEY))
+    const state = StoredStateSchema.safeParse(await store.read(STATE_KEY))
     return {
-      ids: asLocalIds(await store.read(IDS_KEY)),
+      ids: ids.success ? ids.data : NO_IDS,
       files: await store.read(CLOUD_FILES_KEY),
       playlistSongs: await store.read(PLAYLISTS_KEY),
-      version: typeof state?.version === 'number' ? state.version : 0,
+      version: state.success ? state.data.version : 0,
     }
   }
 
@@ -1453,20 +1465,6 @@ export function createCloudLibrary(
 
   function signedOut(): DoormanError {
     return new DoormanError(401, DOORMAN_ERROR.unauthorized, 'Signed out.')
-  }
-
-  function asLocalIds(value: unknown): LocalIds {
-    if (typeof value !== 'object' || value === null) return NO_IDS
-    const ids = value as Partial<LocalIds>
-    if (
-      typeof ids.next !== 'number' ||
-      typeof ids.songs !== 'object' ||
-      typeof ids.tags !== 'object' ||
-      typeof ids.playlists !== 'object'
-    ) {
-      return NO_IDS
-    }
-    return ids as LocalIds
   }
 
   return {

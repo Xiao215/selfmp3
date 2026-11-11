@@ -15,6 +15,7 @@ import {
   type DoormanBackblazeConnect,
   type DoormanMe,
 } from '@selfmp3/shared'
+import { z } from 'zod'
 import { bucketHold, holdBucket, keepHolds, releaseBucket } from './hold.js'
 import type { CloudPlatform, CloudResponse } from './platform.js'
 import { forgetDoormanTrouble, noteDoormanAnswer } from './reach.js'
@@ -57,21 +58,24 @@ export interface CloudSession {
   readonly me: DoormanMe
 }
 
+/** A session as kept: anything else under the key is no session. */
+const StoredSessionSchema = z.object({
+  doormanUrl: z.string(),
+  token: z.string(),
+  me: DoormanMeSchema,
+})
+
 /**
  * A session the doorman refused: run out, signed out everywhere, or the
  * account taken off the list. The token is forgotten at once, and this is
  * what is kept instead: whose it was, so the next sign-in can tell whether
  * the library — and the changes made here that never went up — are its own.
  */
-export interface EndedSession {
-  readonly account: string
-  readonly email: string
-}
+const EndedSessionSchema = z.object({ account: z.string(), email: z.string() })
+export type EndedSession = Readonly<z.infer<typeof EndedSessionSchema>>
 
-interface PendingSignIn {
-  readonly attempt: string
-  readonly until: number
-}
+const PendingSignInSchema = z.object({ attempt: z.string(), until: z.number() })
+type PendingSignIn = Readonly<z.infer<typeof PendingSignInSchema>>
 
 type ClaimOutcome =
   | { readonly status: 'pending' }
@@ -159,10 +163,10 @@ export function createCloudSession(
   async function sessionRefused(session: CloudSession): Promise<void> {
     if (endedTokens.has(session.token)) return
     endedTokens.add(session.token)
-    const stored = (await store.read(CLOUD_SESSION_KEY).catch(() => null)) as {
-      token?: unknown
-    } | null
-    if (stored?.token !== session.token) return
+    const stored = StoredSessionSchema.pick({ token: true }).safeParse(
+      await store.read(CLOUD_SESSION_KEY).catch(() => null),
+    )
+    if (!stored.success || stored.data.token !== session.token) return
     const ended: EndedSession = { account: session.me.account, email: session.me.email }
     await store.write(ENDED_KEY, ended).catch(() => undefined)
     await forgetSession()
@@ -296,16 +300,10 @@ export function createCloudSession(
 
     async loadSession(): Promise<CloudSession | null> {
       try {
-        const stored = (await store.read(CLOUD_SESSION_KEY)) as Partial<CloudSession> | null
+        const stored = StoredSessionSchema.safeParse(await store.read(CLOUD_SESSION_KEY))
         // A session is the doorman's, and means nothing to any other — so a
         // build pointed somewhere new starts signed out rather than confused.
-        if (!stored || typeof stored.token !== 'string' || stored.doormanUrl !== doormanUrl) {
-          return null
-        }
-        const me = DoormanMeSchema.safeParse(stored.me)
-        return me.success
-          ? { doormanUrl: stored.doormanUrl, token: stored.token, me: me.data }
-          : null
+        return stored.success && stored.data.doormanUrl === doormanUrl ? stored.data : null
       } catch {
         return null
       }
@@ -313,11 +311,8 @@ export function createCloudSession(
 
     async pendingSignIn(): Promise<PendingSignIn | null> {
       try {
-        const parsed = (await store.read(PENDING_KEY)) as Partial<PendingSignIn> | null
-        if (!parsed || typeof parsed.attempt !== 'string' || typeof parsed.until !== 'number') {
-          return null
-        }
-        return parsed.until > now() ? { attempt: parsed.attempt, until: parsed.until } : null
+        const parsed = PendingSignInSchema.safeParse(await store.read(PENDING_KEY))
+        return parsed.success && parsed.data.until > now() ? parsed.data : null
       } catch {
         return null
       }
@@ -417,10 +412,8 @@ export function createCloudSession(
     },
 
     async endedSession(): Promise<EndedSession | null> {
-      const stored = (await store.read(ENDED_KEY).catch(() => null)) as Partial<EndedSession> | null
-      return typeof stored?.account === 'string' && typeof stored.email === 'string'
-        ? { account: stored.account, email: stored.email }
-        : null
+      const stored = EndedSessionSchema.safeParse(await store.read(ENDED_KEY).catch(() => null))
+      return stored.success ? stored.data : null
     },
 
     async clearEnded(): Promise<void> {

@@ -1,4 +1,5 @@
 import { BUCKET_HOLD_MS, type BucketCall } from '@selfmp3/shared'
+import { z } from 'zod'
 import type { DeviceStore } from './platform.js'
 
 /**
@@ -155,11 +156,12 @@ export function keepHolds(store: DeviceStore, now = Date.now()): void {
   })
   void (async () => {
     try {
-      const saved = (await store.read(HOLDS_KEY)) as Partial<Record<BucketCall, unknown>> | null
+      const saved = KeptHoldsSchema.parse(await store.read(HOLDS_KEY))
       let restored = false
       for (const kind of KINDS) {
-        const held = saved?.[kind]
-        if (holds[kind] !== null || !isHold(held) || held.until <= now) continue
+        const kept = KeptHoldSchema.safeParse(saved[kind])
+        if (holds[kind] !== null || !kept.success || kept.data.until <= now) continue
+        const held = kept.data
         // Never longer than a hold lasts: a clock set back must not hold for days.
         holds[kind] = { ...held, until: Math.min(held.until, now + BUCKET_HOLD_MS) }
         streaks[kind] = held.refusals
@@ -172,14 +174,11 @@ export function keepHolds(store: DeviceStore, now = Date.now()): void {
   })()
 }
 
-function isHold(value: unknown): value is BucketHold {
-  if (typeof value !== 'object' || value === null) return false
-  const hold = value as BucketHold
-  return (
-    typeof hold.message === 'string' &&
-    typeof hold.until === 'number' &&
-    typeof hold.heardAt === 'number' &&
-    Number.isInteger(hold.refusals) &&
-    hold.refusals > 0
-  )
-}
+/** The holds as kept, each read by itself: one that does not read is no hold. */
+const KeptHoldsSchema = z.record(z.unknown()).catch({})
+const KeptHoldSchema = z.object({
+  message: z.string(),
+  until: z.number(),
+  heardAt: z.number(),
+  refusals: z.number().int().positive(),
+}) satisfies z.ZodType<BucketHold>

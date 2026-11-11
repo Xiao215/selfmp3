@@ -1,6 +1,7 @@
 import { NOTE_PATH } from '../ui/mark.js'
 import type { Site } from './anchors.js'
 import { findRows, placeOf, type FoundRow } from './rows.js'
+import { VIDEO_ID } from './videoIds.js'
 
 /**
  * The mark on each song row that is already yours (D1): the app's note on an
@@ -24,7 +25,6 @@ export const CHECK_TAG = 'selfmp3-check'
 const REMEMBER_MS = 5 * 60_000
 /** The most the worker takes in one question (bridge.ts). */
 const BATCH = 500
-const VIDEO_ID = /^[\w-]{11}$/
 
 const OUTER_STYLE = 'display:inline-flex;align-items:center;flex:0 0 auto;margin:0 8px'
 const LABEL = 'In your self.mp3 library'

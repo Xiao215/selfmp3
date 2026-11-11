@@ -25,7 +25,8 @@ const SETTLE_MS = 200
 /** A wrapper's data holds both renderers a few levels down; nothing worth reading is deeper. */
 const MAX_DEPTH = 6
 
-const VIDEO_ID = /^[\w-]{11}$/
+/** A YouTube video id. The content script and the worker check with this too. */
+export const VIDEO_ID = /^[\w-]{11}$/
 
 /** Every `videoId` in a renderer's data, near enough to the top to be the row's own. */
 function collect(value: unknown, into: Set<string>, depth: number): void {

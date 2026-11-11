@@ -62,9 +62,13 @@ const LAST_TAGS_KEY = 'last-tags'
 
 const LastTagsSchema = z.record(z.array(z.number().int()))
 
-async function lastTagsFor(store: KeyValueStore, identity: ServerConnection): Promise<number[]> {
+async function lastTags(store: KeyValueStore): Promise<z.infer<typeof LastTagsSchema>> {
   const parsed = LastTagsSchema.safeParse(await store.read(LAST_TAGS_KEY))
-  return parsed.success ? (parsed.data[identity.baseUrl] ?? []) : []
+  return parsed.success ? parsed.data : {}
+}
+
+async function lastTagsFor(store: KeyValueStore, identity: ServerConnection): Promise<number[]> {
+  return (await lastTags(store))[identity.baseUrl] ?? []
 }
 
 async function rememberTags(
@@ -72,9 +76,7 @@ async function rememberTags(
   identity: ServerConnection,
   tagIds: readonly number[],
 ): Promise<void> {
-  const parsed = LastTagsSchema.safeParse(await store.read(LAST_TAGS_KEY))
-  const kept = parsed.success ? parsed.data : {}
-  await store.write(LAST_TAGS_KEY, { ...kept, [identity.baseUrl]: [...tagIds] })
+  await store.write(LAST_TAGS_KEY, { ...(await lastTags(store)), [identity.baseUrl]: [...tagIds] })
 }
 
 /** The server this extension imports through, if one was typed in. */

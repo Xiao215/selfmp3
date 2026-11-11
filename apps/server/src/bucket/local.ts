@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { FORMAT_KEY, messageOf } from '@selfmp3/shared'
+import { codeOf, FORMAT_KEY, messageOf } from '@selfmp3/shared'
 import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } from './store.js'
 
 /**
@@ -162,7 +162,7 @@ export class LocalCloudStore implements CloudStore {
 }
 
 function isMissing(error: unknown): boolean {
-  return (error as { code?: unknown }).code === 'ENOENT'
+  return codeOf(error) === 'ENOENT'
 }
 
 function explain(error: unknown): CloudError {

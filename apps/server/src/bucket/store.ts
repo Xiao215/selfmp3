@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import type { S3Client } from '@aws-sdk/client-s3'
 import {
   bucketUnreachable,
+  codeOf,
   messageOf,
   classifyBucketRefusal,
   type BucketRefusal,
@@ -291,9 +292,6 @@ export function hostOf(url: string): string {
 
 function errorCode(error: unknown): string {
   if (typeof error !== 'object' || error === null) return ''
-  const code = (error as { code?: unknown }).code
-  if (typeof code === 'string') return code
   // Node's fetch hides the socket error one level down.
-  const cause = (error as { cause?: { code?: unknown } }).cause
-  return typeof cause?.code === 'string' ? cause.code : ''
+  return codeOf(error) ?? ('cause' in error ? codeOf(error.cause) : undefined) ?? ''
 }

@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import type { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-import { answerRange } from '@selfmp3/shared'
+import { answerRange, codeOf } from '@selfmp3/shared'
 
 /**
  * HTTP range request handling for audio: Express's half of it.
@@ -124,7 +124,7 @@ export async function sendRange(req: Request, res: Response, source: RangeSource
   } catch (error) {
     // That is normal behaviour, not an error worth surfacing.
     if (gone.signal.aborted) return
-    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    const code = codeOf(error)
     if (code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'EPIPE' || code === 'ECONNRESET') return
     throw error
   }

@@ -3,6 +3,7 @@ import { scriptedLlm, song } from './fixtures/library.js'
 import { LlmError } from './llm.js'
 import { withoutRepeats, withoutTranslation, withoutUseNote } from '@selfmp3/shared'
 import {
+  askedTidy,
   couldBeOneName,
   inTheirLanguage,
   namesPrompt,
@@ -138,12 +139,15 @@ describe('tidy, asked for something', () => {
         new LlmError('busy', 'slow down'),
       ],
     })
-    const result = await tidy({ llm, songs: () => [] }, undefined, {
-      text,
-      songs: many,
-      unknown: [],
-      lookUp: false,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [] },
+      {
+        text,
+        songs: many,
+        unknown: [],
+        lookUp: false,
+      },
+    )
     expect(llm.asked).toHaveLength(2)
     expect(result.changes).toEqual([
       expect.objectContaining({ field: 'title', from: 'Track 1', to: '第一首', songIds: [1] }),
@@ -155,12 +159,15 @@ describe('tidy, asked for something', () => {
   it('fails as the model failed when no batch could be asked', async () => {
     const llm = scriptedLlm({ 'tidy-asked': [new LlmError('unreachable', 'down')] })
     await expect(
-      tidy({ llm, songs: () => [] }, undefined, {
-        text,
-        songs: many.slice(0, 3),
-        unknown: [],
-        lookUp: false,
-      }),
+      askedTidy(
+        { llm, songs: () => [] },
+        {
+          text,
+          songs: many.slice(0, 3),
+          unknown: [],
+          lookUp: false,
+        },
+      ),
     ).rejects.toBeInstanceOf(LlmError)
   })
 
@@ -171,13 +178,16 @@ describe('tidy, asked for something', () => {
         { edits: [{ n: 2, field: 'title', to: '第三首', why: 'Official Chinese name' }], say: '' },
       ],
     })
-    const result = await tidy({ llm, songs: () => [] }, undefined, {
-      text: 'give the English ones their Chinese names, up to 2',
-      songs: many,
-      unknown: [],
-      lookUp: false,
-      limit: 2,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [] },
+      {
+        text: 'give the English ones their Chinese names, up to 2',
+        songs: many,
+        unknown: [],
+        lookUp: false,
+        limit: 2,
+      },
+    )
     expect(llm.asked.map(each => each.task)).toEqual(['tidy-sort', 'tidy-asked'])
     expect(llm.asked[0]!.tier).toBe('fast')
     const table = llm.asked[1]!.prompt
@@ -198,13 +208,16 @@ describe('tidy, asked for something', () => {
       'tidy-sort': [new LlmError('busy', 'slow down')],
       'tidy-asked': [{ edits: [], say: '' }],
     })
-    const result = await tidy({ llm, songs: () => [] }, undefined, {
-      text,
-      songs: many.slice(0, 3),
-      unknown: [],
-      lookUp: false,
-      limit: 2,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [] },
+      {
+        text,
+        songs: many.slice(0, 3),
+        unknown: [],
+        lookUp: false,
+        limit: 2,
+      },
+    )
     expect(llm.asked[1]!.prompt).toContain('2 | Track 2 |')
     expect(result.note).toMatch(/^Changing the first 2 of the 3 songs/)
   })
@@ -222,12 +235,15 @@ describe('tidy, asked for something', () => {
         },
       ],
     })
-    const result = await tidy({ llm, songs: () => [] }, undefined, {
-      text,
-      songs: many,
-      unknown: [],
-      lookUp: false,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [] },
+      {
+        text,
+        songs: many,
+        unknown: [],
+        lookUp: false,
+      },
+    )
     expect(result).toMatchObject({
       changes: [],
       reply: 'Track 1 looks like the song you mean, but I am not sure of its official name.',
@@ -245,7 +261,7 @@ describe('tidy, asked for something', () => {
       ],
     })
     const asked = { text, songs: many, unknown: [], lookUp: false }
-    expect(await tidy({ llm, songs: () => [] }, undefined, asked)).toMatchObject({
+    expect(await askedTidy({ llm, songs: () => [] }, asked)).toMatchObject({
       reply: 'Renamed one.',
     })
   })
@@ -258,20 +274,23 @@ describe('tidy, asked for something', () => {
       ],
     })
     const asked = { text, songs: many, unknown: [], lookUp: false }
-    const result = await tidy({ llm, songs: () => [] }, undefined, asked)
+    const result = await askedTidy({ llm, songs: () => [] }, asked)
     expect(result.changes).toHaveLength(2)
     expect(result.reply).toBeNull()
   })
 
   it('stops before the model when no song needs it', async () => {
     const llm = scriptedLlm({ 'tidy-sort': [{ n: [] }] })
-    const result = await tidy({ llm, songs: () => [] }, undefined, {
-      text,
-      songs: many,
-      unknown: [],
-      lookUp: false,
-      limit: 10,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [] },
+      {
+        text,
+        songs: many,
+        unknown: [],
+        lookUp: false,
+        limit: 10,
+      },
+    )
     expect(result).toMatchObject({ changes: [], looked: 61, note: null })
     expect(llm.asked.map(each => each.task)).toEqual(['tidy-sort'])
   })
@@ -310,12 +329,15 @@ describe('tidy, with names looked up', () => {
         },
       ],
     })
-    const result = await tidy({ llm, songs: () => [], findNames }, undefined, {
-      text: '加上官方的中文名，album也是',
-      songs: [cliffs, lost],
-      unknown: [],
-      lookUp: true,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [], findNames },
+      {
+        text: '加上官方的中文名，album也是',
+        songs: [cliffs, lost],
+        unknown: [],
+        lookUp: true,
+      },
+    )
     expect(
       result.changes.map(
         c => `${c.field}|${c.from}→${c.to}|${c.songIds.join(',')}|${c.by}|${c.why}`,
@@ -345,12 +367,15 @@ describe('tidy, with names looked up', () => {
         },
       ],
     })
-    const result = await tidy({ llm, songs: () => [], findNames, web: () => true }, undefined, {
-      text: 'official Chinese names',
-      songs: [lost],
-      unknown: [],
-      lookUp: true,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [], findNames, web: () => true },
+      {
+        text: 'official Chinese names',
+        songs: [lost],
+        unknown: [],
+        lookUp: true,
+      },
+    )
     expect(result.changes).toEqual([
       expect.objectContaining({
         field: 'title',
@@ -375,7 +400,7 @@ describe('tidy, with names looked up', () => {
     )
     const looked: number[] = []
     const llm = scriptedLlm({ 'tidy-sort': [{ n: [2] }] })
-    const result = await tidy(
+    const result = await askedTidy(
       {
         llm,
         songs: () => [],
@@ -384,7 +409,6 @@ describe('tidy, with names looked up', () => {
           return []
         },
       },
-      undefined,
       { text: '英文的换成官方中文名', songs: many, unknown: [], lookUp: true },
     )
     expect(looked).toEqual([2])
@@ -393,12 +417,15 @@ describe('tidy, with names looked up', () => {
 
   it('asks the model nothing when no song was found', async () => {
     const llm = scriptedLlm({})
-    const result = await tidy({ llm, songs: () => [], findNames }, undefined, {
-      text: 'official names',
-      songs: [lost],
-      unknown: [],
-      lookUp: true,
-    })
+    const result = await askedTidy(
+      { llm, songs: () => [], findNames },
+      {
+        text: 'official names',
+        songs: [lost],
+        unknown: [],
+        lookUp: true,
+      },
+    )
     expect(result.changes).toEqual([])
     expect(llm.asked).toHaveLength(0)
   })
@@ -494,7 +521,7 @@ describe('tidy, a checkup of some songs', () => {
     const llm = scriptedLlm({ 'tidy-names': [{ spellings: [], credits: [], albums: [] }] })
     const mine = song(1, { title: 'Idol (Official Video)', artist: 'YOASOBI' })
     const other = song(2, { title: 'Lemon (Official Video)', artist: '米津玄師' })
-    const result = await tidy({ llm, songs: () => [mine, other] }, undefined, null, [mine])
+    const result = await tidy({ llm, songs: () => [mine, other] }, undefined, [mine])
     expect(result.changes.map(each => each.songIds)).toEqual([[1]])
     expect(result.looked).toBe(1)
     expect(llm.asked[0]!.prompt).not.toContain('米津玄師')

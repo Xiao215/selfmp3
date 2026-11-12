@@ -232,12 +232,10 @@ interface TidyAsked {
 export async function tidy(
   deps: TidyDeps,
   steps: Steps = NO_STEPS,
-  asked: TidyAsked | null = null,
   /** The songs a checkup is about, when the request chose some: no change reaches past them. */
   among: readonly Song[] | null = null,
 ): Promise<TidyResult> {
   const remembered = deps.remembered ?? new Remembered()
-  if (asked) return askedTidy(deps, remembered, asked, steps)
   const songs = among ?? deps.songs()
   if (songs.length === 0) {
     return { changes: [], looked: 0, note: null, asked: null, reply: null, gaps: gapsIn(songs) }
@@ -570,12 +568,12 @@ async function needingIt(
 }
 
 /** One change asked for across the songs it is about, a batch at a time. */
-async function askedTidy(
+export async function askedTidy(
   deps: TidyDeps,
-  remembered: Remembered,
   asked: TidyAsked,
-  steps: Steps,
+  steps: Steps = NO_STEPS,
 ): Promise<TidyResult> {
+  const remembered = deps.remembered ?? new Remembered()
   const { llm } = deps
   const notes: string[] = []
   if (asked.unknown.length > 0) notes.push(`Your library has no ${asked.unknown.join(' or ')}.`)

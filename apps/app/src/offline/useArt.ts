@@ -86,10 +86,9 @@ export function useArt(drawnAt: number = KEPT_COVER_SIZE): (song: Song) => Art {
        */
       return drawn === kept ? address : artAddress(song.id, song.rev, drawn)
     },
-    // `seen` is not read, but it is why this is a new function when one of
-    // this screen's covers changes: a screen that memoizes on it (a
-    // playlist's mosaic) must look again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // A screen that memoizes on this (a playlist's mosaic) must look again
+    // when one of its covers changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `seen` is not read, but it is why this is a new function
     [fromCloud, watch, seen, kept, drawn],
   )
 }

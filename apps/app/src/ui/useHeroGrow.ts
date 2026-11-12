@@ -115,8 +115,7 @@ export function useHeroGrow(wide: boolean): {
       offEnd()
       clearTimeout(late)
     }
-    // Once, for the page's arrival.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the page's arrival
   }, [])
   const onHeroLayout = (): void => {
     if (!handed || heroPlaced.current) return

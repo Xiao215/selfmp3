@@ -27,16 +27,21 @@ interface Opened {
 function source(behaviour: { fail?: Error; slow?: boolean; late?: boolean } = {}): {
   source: RangeSource
   opened: Opened[]
+  /** Whether the server has asked for the bytes yet. */
+  asked: () => boolean
 } {
   const opened: Opened[] = []
+  let asked = false
   return {
     opened,
+    asked: () => asked,
     source: {
       sizeBytes: BYTES.length,
       mime: 'audio/mpeg',
       etag: '"x"',
       lastModified: new Date(0),
       open: async (start, end, signal) => {
+        asked = true
         if (behaviour.fail) throw behaviour.fail
         if (behaviour.late) {
           // Opened only once the client has already gone, and tied to the same
@@ -65,6 +70,12 @@ function source(behaviour: { fail?: Error; slow?: boolean; late?: boolean } = {}
 }
 
 let server: http.Server | null = null
+
+/** Waits until `done` holds, by the clock: the server's side runs on turns of its own. */
+async function until(done: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!done() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5))
+}
 
 async function serve(ranged: RangeSource): Promise<string> {
   const app = express()
@@ -140,7 +151,7 @@ describe('sendRange', () => {
   })
 
   it('lets go of a stream that opens after the client has gone, without crashing', async () => {
-    const { source: ranged, opened } = source({ late: true })
+    const { source: ranged, opened, asked } = source({ late: true })
     const url = await serve(ranged)
     // `pipeline` refuses a response that has already closed and never touches
     // the upstream: its AbortError then had nobody listening and took the
@@ -151,10 +162,13 @@ describe('sendRange', () => {
     try {
       const gone = new AbortController()
       const request = fetch(url, { headers: { Range: 'bytes=0-9' }, signal: gone.signal })
-      await new Promise(resolve => setTimeout(resolve, 20))
+      // Gone once the server has asked for the bytes, before they open.
+      await until(asked)
       gone.abort()
       await expect(request).rejects.toThrow()
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await until(() => opened[0]?.stream.destroyed === true)
+      // A few turns more, for an error the stream raises as it goes.
+      await new Promise(resolve => setTimeout(resolve, 20))
     } finally {
       process.off('uncaughtException', crash)
     }

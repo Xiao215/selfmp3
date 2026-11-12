@@ -595,16 +595,19 @@ export class FakeChanges {
 
 /**
  * The doorman's one tally (tally.ts), a real `TallyObject` with storage in a
- * map: its own code runs, and only the runtime is stood in for.
+ * map: its own code runs, and only the runtime is stood in for. `failing`
+ * makes every request to it fail, as an unreachable object would.
  */
 export class FakeTally {
   readonly values = new Map<string, unknown>()
+  failing = false
   #object: TallyObject | null = null
 
   namespace(): DurableObjectNamespace {
     const values = this.values
     return fakeNamespace(() => ({
       fetch: (input, init) => {
+        if (this.failing) return Promise.reject(new Error('Durable Object unreachable'))
         this.#object ??= new TallyObject({
           storage: {
             ...mapStorage({ values, alarm: null }),

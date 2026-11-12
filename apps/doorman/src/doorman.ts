@@ -2,6 +2,7 @@ import {
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanError,
+  messageOf,
   type BucketRefusalKind,
   type DoormanErrorCode,
   type DoormanHealth,
@@ -147,8 +148,11 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
         access: new Access(env.KV, env.OWNER_EMAILS, now, accessCache),
         bucketDeps: { fetch: fetcher, now, signingKeys },
         // Without the runtime's (a test calling in), the work simply runs on.
+        // Nobody waits on it, so a failure is the log's to say: the answer has gone.
         waitUntil: work => {
-          const settled = work.catch(() => undefined)
+          const settled = work.catch((error: unknown) => {
+            log.warn('work after an answer failed', { message: redact(messageOf(error)) })
+          })
           background?.waitUntil(settled)
         },
       }

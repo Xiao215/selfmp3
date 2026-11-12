@@ -127,6 +127,21 @@ describe('counting reads', () => {
     expect(days[1]?.counts['signins.new']).toBe(1)
     expect(h.tally.values.has('day:2025-01-01')).toBe(false)
   })
+
+  it('loses a count the tally cannot take, and says so, without failing the read', async () => {
+    const h = harness()
+    const owner = await h.signIn()
+    expect((await h.connect(owner)).status).toBe(200)
+    h.bucket.put(`selfmp3/${SONG}`, 'abc')
+    await h.settle()
+    h.tally.failing = true
+
+    expect((await h.call(DOORMAN_PATHS.file(SONG), { token: owner })).status).toBe(200)
+    await h.settle()
+    expect(h.logs).toContainEqual(
+      expect.objectContaining({ level: 'warn', message: 'work after an answer failed' }),
+    )
+  })
 })
 
 describe('refused sign-ins', () => {

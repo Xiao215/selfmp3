@@ -148,3 +148,11 @@ device's store, because the only data there is is the owner's.
   `services/youtubeMusic*.ts`, `services/spotify.ts`): each shape is someone else's and changes
   without notice, so a field is read where it is found and a missing one is skipped,
   where a schema would refuse the whole page.
+- **The song and list menus reach into features from `ui/components`** (`SongActionItems`,
+  `useListActions`, `SelectionBar`, `SongMenu`): they are the one menu every screen opens, so
+  what a menu item does (queue, share, add to a room, open a tag) is imported from the
+  feature that owns it. The app states no layer rule between `ui` and `features`, and
+  moving the menus into a feature would only move the same imports.
+- **`DeviceStore.update` returns `unknown`** (packages/replica's `platform.ts`): a generic
+  `update<T>` would move the outbox's one cast into each of the three stores (the phone's,
+  the browser's IndexedDB and the extension's), each of which writes whatever `change` gave.

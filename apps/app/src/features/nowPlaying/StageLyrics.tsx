@@ -36,7 +36,8 @@ interface LyricsProps {
 }
 
 /**
- * The lyrics on a computer's Now Playing page.
+ * The lyrics as a list that follows the song: a computer's Now Playing page,
+ * the phone's words (`PhoneWords`) and a shared song's page.
  *
  * The line being sung stays at the same height on screen and the list moves
  * under it. Click a line to jump to it; right-click it, or hold it on a
@@ -92,10 +93,8 @@ const LyricsList = memo(function LyricsList({
   const centredFor = useRef(-1)
   /** The line the words were last scrolled to, so a seek can be told from the song moving on. */
   const shownLine = useRef(-1)
-  const seekTo = useRef(player.seekTo)
   const lineMenu = useRef(onLineMenu)
   useEffect(() => {
-    seekTo.current = player.seekTo
     lineMenu.current = onLineMenu
   })
 
@@ -192,9 +191,9 @@ const LyricsList = memo(function LyricsList({
     (time: number) => {
       if (still) return
       lastManual.current = 0
-      seekTo.current(time)
+      player.seekTo(time)
     },
-    [still],
+    [still, player],
   )
   // The same function from one drawing to the next, as `seek` is; none without a menu.
   const hasMenu = onLineMenu !== undefined

@@ -1,3 +1,4 @@
+import type { z } from 'zod'
 import { CameWithSchema, CoverSwatchSchema, LyricsKindSchema, lovedAt } from '@selfmp3/shared'
 import type {
   CameWith,
@@ -104,17 +105,28 @@ function toLyricsKind(value: string): LyricsKind {
 }
 
 /**
- * A stored palette, when there is a sound one. A column written by hand or cut
- * short reads as no colour at all rather than failing the whole library.
+ * A JSON column read through its schema. One that is not JSON, or not this
+ * shape — written by hand, cut short, from before a change — reads as null,
+ * so one bad row never fails the whole answer it is part of.
  */
-function paletteOf(value: string | null): CoverSwatch[] | null {
+export function readStored<S extends z.ZodTypeAny>(
+  schema: S,
+  value: string | null,
+): z.output<S> | null {
   if (!value) return null
+  let json: unknown
   try {
-    const parsed = CoverSwatchSchema.array().min(1).max(8).safeParse(JSON.parse(value))
-    return parsed.success ? parsed.data : null
+    json = JSON.parse(value)
   } catch {
     return null
   }
+  const parsed = schema.safeParse(json)
+  return parsed.success ? (parsed.data as z.output<S>) : null
+}
+
+/** A stored palette, when there is a sound one; otherwise no colour at all. */
+function paletteOf(value: string | null): CoverSwatch[] | null {
+  return readStored(CoverSwatchSchema.array().min(1).max(8), value)
 }
 
 /** SQLite's GROUP_CONCAT gives "1,4,7"; empty and null both mean no tags. */
@@ -219,11 +231,5 @@ export function toTag(row: TagRow): Tag {
 
 /** A `came_with` column (jobs and songs alike), read back; anything malformed is none. */
 export function readCameWith(value: string | null): CameWith | null {
-  if (value === null) return null
-  try {
-    const parsed = CameWithSchema.safeParse(JSON.parse(value))
-    return parsed.success ? parsed.data : null
-  } catch {
-    return null
-  }
+  return readStored(CameWithSchema, value)
 }

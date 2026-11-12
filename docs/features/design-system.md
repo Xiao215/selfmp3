@@ -8,7 +8,9 @@ The shared UI primitives: the dropdown, the floating-layer shell every menu sits
 tokens, and the rules for stacking and focus. Anything built on top of these should not
 need to reinvent portalling, dismissing, focus handling or z-index numbers.
 
-Files:
+**Where:** the phone, the computer, the web and the desktop app, which all draw `apps/app`'s
+one tree; the browser extension writes the same tokens into its own CSS
+([browser-extension.md](browser-extension.md#the-look)). The code:
 
 | What | Where |
 |---|---|

@@ -35,6 +35,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions } from '../smart/AnswerParts'
 import { Press } from '../../ui/components/Press'
 import { smallTitle } from '../../ui/surfaces'
+import { playlistLink } from '../tag/placeLinks'
 
 /** Where the sheet is: the kind first, then what the kind needs, then the name. */
 type Step = 'kind' | 'tags' | 'describe' | 'name'
@@ -43,7 +44,7 @@ type Kind = 'pick' | 'follow' | 'describe'
 
 /**
  * Making a playlist, from wherever it is started: the sidebar's ＋, the
- * playlists page's New and its New tile, the phone's ＋.
+ * playlists page's New tile, File › New Playlist (⌘N), the phone's ＋.
  *
  * The kind first, then a name (L2, docs/features/lists.md), so nothing typed
  * goes anywhere it was not sent:
@@ -129,7 +130,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const finish = (id: number): void => {
     reset()
     onClose()
-    router.push({ pathname: '/playlists/[id]', params: { id: String(id) } })
+    router.push(playlistLink(id))
   }
 
   const cancel = (): void => {

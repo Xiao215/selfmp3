@@ -105,8 +105,15 @@ describe('the lines a playlist is described by', () => {
   })
 
   it('says how many are listed, and leaves the order to the dropdown', () => {
-    expect(playlistsSubline(4)).toBe('4 playlists')
-    expect(playlistsSubline(1)).toBe('1 playlist')
+    const answered = { loading: false, unreachable: false }
+    expect(playlistsSubline({ ...answered, count: 4 })).toBe('4 playlists')
+    expect(playlistsSubline({ ...answered, count: 1 })).toBe('1 playlist')
+    expect(playlistsSubline({ ...answered, count: 0 })).toBe('None of your own yet')
+  })
+
+  it('guesses no count before the library answers, or when it did not', () => {
+    expect(playlistsSubline({ loading: true, unreachable: false, count: 0 })).toBe('Loading…')
+    expect(playlistsSubline({ loading: false, unreachable: true, count: 0 })).toBe('Not loaded')
   })
 })
 

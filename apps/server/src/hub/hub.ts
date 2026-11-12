@@ -95,7 +95,7 @@ export class Hub {
     this.logger.info(`working for ${plural(this.#workspaces.size, 'library', 'libraries')}`)
   }
 
-  /** The libraries open, for the server's page and the log. */
+  /** The libraries open, for the admin page, the log and `GET /api/hub`. */
   workspaces(): readonly Workspace[] {
     return [...this.#workspaces.values()]
   }
@@ -103,8 +103,8 @@ export class Hub {
   /**
    * The library a request is for: the one whose token it carries. A request
    * from this machine with none goes to the library it names by id
-   * (`HUB_LIBRARY_HEADER`: the server's page and the `selfmp3` command, which
-   * read the ids from `GET /api/hub`), else to the only library, when there is
+   * (`HUB_LIBRARY_HEADER`: the `selfmp3` command, which reads the ids from
+   * `GET /api/hub`), else to the only library, when there is
    * only one — an extension pointed at localhost, on a machine nobody else
    * uses — and to none when there are several, since there is no telling
    * whose it meant. Naming one is no more than the token-less request to the
@@ -137,21 +137,23 @@ export class Hub {
    * to its library here at once, before any snapshot names this server.
    */
   async join(session: string): Promise<CloudServer> {
-    if (!this.#registry || !this.#doorman) {
+    const registry = this.#registry
+    const doorman = this.#doorman
+    if (!registry || !doorman) {
       throw HttpError.conflict(
-        this.#registry
+        registry
           ? 'This server has no doorman to check who you are with.'
           : 'This server’s bucket is a folder on its own disk; it works for no accounts.',
       )
     }
-    const me = await this.#askDoorman(() => this.#doorman!.me(session))
+    const me = await this.#askDoorman(() => doorman.me(session))
     const { account } = me
     if (!me.storage) {
       throw HttpError.conflict('Connect your storage first: this server works in your bucket.')
     }
-    const known = this.#registry.byAccount(account)
+    const known = registry.byAccount(account)
     if (known && this.#workspaces.has(known.id)) {
-      if (await this.#grantHolds(known)) return this.answer(known)
+      if (await grantHolds(doorman, known)) return this.answer(known)
       // Taken back a moment ago, and not noticed yet (an idle workspace looks
       // every ten minutes): answering its token would hand the device a
       // library about to be let go. Let it go now, and join afresh.
@@ -160,7 +162,7 @@ export class Hub {
 
     const pending = this.#joining.get(account)
     if (pending) return pending
-    const joining = this.#makeWorkspace(session, account, me).finally(() =>
+    const joining = this.#makeWorkspace(registry, doorman, session, me).finally(() =>
       this.#joining.delete(account),
     )
     this.#joining.set(account, joining)
@@ -183,18 +185,19 @@ export class Hub {
    * that long to agree that one ended (apps/doorman/src/kv.ts).
    */
   check(grant: string): void {
-    if (!this.#registry || !this.#doorman || this.#stopped) return
+    const doorman = this.#doorman
+    if (!this.#registry || !doorman || this.#stopped) return
     const entry = this.#holding(grant)
     if (!entry || this.#checking.has(entry.id)) return
     this.#checking.add(entry.id)
-    void this.#lookAgain(entry.id, grant)
+    void this.#lookAgain(doorman, entry.id, grant)
       .catch((error: unknown) => {
         this.logger.warn('could not look at a grant again', { message: messageOf(error) })
       })
       .finally(() => this.#checking.delete(entry.id))
   }
 
-  async #lookAgain(id: string, grant: string): Promise<void> {
+  async #lookAgain(doorman: DoormanClient, id: string, grant: string): Promise<void> {
     const since = Date.now() - (this.#checkedAt.get(id) ?? -Infinity)
     if (since < CHECK_GAP_MS) await pause(CHECK_GAP_MS - since)
     for (const wait of [0, CHECK_AGAIN_MS]) {
@@ -203,7 +206,7 @@ export class Hub {
       const entry = this.#holding(grant)
       if (!entry || this.#stopped) return
       this.#checkedAt.set(id, Date.now())
-      if (!(await this.#grantHolds(entry))) {
+      if (!(await grantHolds(doorman, entry))) {
         if (this.#holding(grant) === entry) this.#leave(entry, 'its grant was taken back')
         return
       }
@@ -250,9 +253,13 @@ export class Hub {
     this.#byToken.clear()
   }
 
-  async #makeWorkspace(session: string, account: string, me: DoormanMe): Promise<CloudServer> {
-    const registry = this.#registry!
-    const doorman = this.#doorman!
+  async #makeWorkspace(
+    registry: HubRegistry,
+    doorman: DoormanClient,
+    session: string,
+    me: DoormanMe,
+  ): Promise<CloudServer> {
+    const { account } = me
     const made = await this.#askDoorman(() => doorman.grant(session, this.#name()))
     const grant = { token: made.token, id: made.grant.id }
     // An account already in the registry with no workspace open: one whose
@@ -334,16 +341,6 @@ export class Hub {
     )
   }
 
-  /** Whether the doorman still takes a workspace's grant; a hiccup is not taken for no. */
-  async #grantHolds(entry: HubEntry): Promise<boolean> {
-    try {
-      await this.#doorman!.me(entry.grant.token)
-      return true
-    } catch (error) {
-      return !(error instanceof CloudError && error.kind === 'auth')
-    }
-  }
-
   /** What a grant names this server: its public address, else the first it listens on. */
   #name(): { server: string; name: string } {
     return {
@@ -380,6 +377,16 @@ const CHECK_GAP_MS = 5_000
 
 /** How long after a look that found the grant holding to look once more. */
 const CHECK_AGAIN_MS = 65_000
+
+/** Whether the doorman still takes a workspace's grant; a hiccup is not taken for no. */
+async function grantHolds(doorman: DoormanClient, entry: HubEntry): Promise<boolean> {
+  try {
+    await doorman.me(entry.grant.token)
+    return true
+  } catch (error) {
+    return !(error instanceof CloudError && error.kind === 'auth')
+  }
+}
 
 /** A wait that does not keep the process alive by itself. */
 function pause(ms: number): Promise<void> {

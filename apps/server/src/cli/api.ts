@@ -1,6 +1,8 @@
+import type { z } from 'zod'
 import {
   DEFAULT_LOCAL_SERVER_URL,
   HUB_LIBRARY_HEADER,
+  HealthSchema,
   HubStatusSchema,
   type Health,
   type HubStatus,
@@ -17,7 +19,8 @@ export interface ServerClient {
   health(): Promise<Health | null>
   /** Whom the server works for; null when it will not say (asked from another computer). */
   hub(): Promise<HubStatus | null>
-  post<T>(route: string, body?: unknown): Promise<T>
+  /** A POST, its answer read through `schema`. */
+  post<S extends z.ZodTypeAny>(route: string, schema: S, body?: unknown): Promise<z.output<S>>
 }
 
 /** Which library requests go to: by its token, or, from this computer, by its id. */
@@ -43,7 +46,7 @@ export function createClient(
   if (token) headers['authorization'] = `Bearer ${token}`
   else if (library) headers[HUB_LIBRARY_HEADER] = library
 
-  const request = async <T>(method: string, route: string, body?: unknown): Promise<T> => {
+  const request = async (method: string, route: string, body?: unknown): Promise<unknown> => {
     const response = await fetch(`${baseUrl}/api${route}`, {
       method,
       headers,
@@ -57,14 +60,14 @@ export function createClient(
           : response.statusText
       throw new ApiError(response.status, message)
     }
-    return payload as T
+    return payload
   }
 
   return {
     baseUrl,
     async health() {
       try {
-        return await request<Health>('GET', '/health')
+        return HealthSchema.parse(await request('GET', '/health'))
       } catch {
         return null
       }
@@ -77,7 +80,8 @@ export function createClient(
         throw error
       }
     },
-    post: (route, body) => request('POST', route, body),
+    post: async (route, schema, body) =>
+      schema.parse(await request('POST', route, body)) as z.output<typeof schema>,
   }
 }
 

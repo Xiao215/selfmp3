@@ -47,6 +47,8 @@ export function useRefreshReview(
           const next = refreshAlreadyHave(current, have, waiting, queued)
           if (next !== current) patchDraft(key, { review: next })
         })
+        // A check that did not answer leaves the rows saying what they said,
+        // which is what they said before it was asked; the next change asks again.
         .catch(() => undefined)
     }, SETTLE_MS)
     return () => {

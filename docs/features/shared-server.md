@@ -8,7 +8,7 @@ bucket, and a server's address only ever reached the devices that read *its* buc
 
 Xiao chose **a revocable grant** for the server's way into each bucket, and anyone
 signed in for who may use it — then, on 2026-10-13, an **allow list** for who may sign in
-at all, kept by the doorman's owner in Settings (below).
+at all, kept by the doorman's owner on the admin page's People tab (below).
 
 **Where:** the server (`apps/server/src/hub/`), the doorman (`apps/doorman/src/grants.ts`
 and `access.ts`), and every app, which knows the shared server's address the way it knows

@@ -24,12 +24,33 @@ export const HOME_TILES = 4
 /** And on a computer, three by two (`C03`). */
 export const HOME_TILES_WIDE = 6
 
+/**
+ * The day's five parts, each from the hour it starts until the next starts,
+ * and the night until five: what the greeting says in each, what the hour
+ * tile is called (usual.model.ts), and that tile's colour as a tag's hue —
+ * dawn, sun, sky, dusk, night. One table, so the two cut the day alike.
+ */
+const NIGHT = { from: 22, greeting: 'Good night', usual: 'Late night', hue: 265 } as const
+const DAY_PARTS = [
+  { from: 5, greeting: 'Good morning', usual: 'Early morning', hue: 340 },
+  { from: 8, greeting: 'Good morning', usual: 'Morning', hue: 85 },
+  { from: 12, greeting: 'Good afternoon', usual: 'Afternoon', hue: 220 },
+  { from: 17, greeting: 'Good evening', usual: 'Evening', hue: 40 },
+  NIGHT,
+] as const
+
+type DayPart = (typeof DAY_PARTS)[number]
+
+/** The part of the day an hour of this device's clock falls in. */
+export function dayPart(hour: number): DayPart {
+  let part: DayPart = NIGHT
+  for (const each of DAY_PARTS) if (hour >= each.from) part = each
+  return part
+}
+
 /** "Good evening." by the hour, on this device's clock. */
 export function greeting(hour: number): string {
-  if (hour >= 5 && hour < 12) return 'Good morning'
-  if (hour >= 12 && hour < 17) return 'Good afternoon'
-  if (hour >= 17 && hour < 22) return 'Good evening'
-  return 'Good night'
+  return dayPart(hour).greeting
 }
 
 /**

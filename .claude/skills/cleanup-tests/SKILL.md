@@ -36,13 +36,12 @@ inside run for real.
 The repo already has fakes at the right layer. Use them before writing a
 `vi.mock`:
 
-- **The server:** `createContainer(loadConfig())` with `SELFMP3_DATA_DIR`
-  pointed at a temp folder, so routes, services and repositories all run on a
-  real SQLite file (`routes/*.test.ts`). Set `SELFMP3_CLOUD_DIR=bucket` too, or
-  every route refuses because no bucket is connected. There is no shared
-  harness yet: the env save, temp folder, container and HTTP server are copied
-  across the route tests, and one helper would be a good `cleanup-shared-code`
-  fix.
+- **The server:** `startLibrary` (`apps/server/src/fixtures/library.ts`)
+  stands up a real container on a temp folder behind an HTTP server, so routes,
+  services and repositories all run on a real SQLite file, with
+  `SELFMP3_CLOUD_DIR=bucket` set so routes do not refuse for want of a bucket.
+  `setEnv` there sets env vars and hands back their undo. Build songs with
+  `newSong` (`apps/server/src/fixtures/songs.ts`).
 - **The server's two doors.** Route tests mount `createApp` (`app.ts`), a
   single-library app. Production runs `createHubApp` (`hub/app.ts`), which picks
   the library by token. Anything about who may reach a library is tested at the

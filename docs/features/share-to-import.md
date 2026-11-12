@@ -3,6 +3,11 @@
 Send a link from any app straight into the import queue — no copy, paste, open self.mp3,
 paste again.
 
+**Where:** the web app installed from Chrome (Android, or a computer's Chrome), through
+the manifest's Web Share Target; an iPhone through a Shortcut that posts to the server.
+The native phone apps and the desktop app register no share target of their own. The code
+is listed under [Implementation notes](#implementation-notes).
+
 ## Android / Chrome (installed web app)
 
 The web manifest declares a **Web Share Target**. Once self.mp3 is installed to the home

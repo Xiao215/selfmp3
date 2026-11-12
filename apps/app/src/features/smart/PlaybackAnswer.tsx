@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -41,9 +41,15 @@ export function PlaybackAnswer({
       playbackStep(answer, queue, isPlaying, id => songsById.get(id)?.title ?? null),
   )
 
+  // Said once per step: the caller's callback is new on every draw of the card,
+  // and saying it again redraws the caller, which draws the card again.
+  const sayTo = useRef(onCarriedOut)
   useEffect(() => {
-    onCarriedOut?.(step.say)
-  }, [onCarriedOut, step])
+    sayTo.current = onCarriedOut
+  })
+  useEffect(() => {
+    sayTo.current?.(step.say)
+  }, [step])
 
   useEffect(() => {
     if (carriedOut.has(answer)) return

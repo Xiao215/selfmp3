@@ -12,7 +12,7 @@ import { STALE } from '@selfmp3/client'
 import { appUpdate } from '../../ports/appUpdate'
 import { prefs } from '../../ports/prefs'
 import { dismissToast, showToast } from '../../ui/toast'
-import type { UpdateStatus } from './AboutCard'
+import { checkedStatus, checkLabel, type UpdateStatus } from './updateStatus.model'
 
 /**
  * A newer build of the phone app, shared from the `ios` or `android` release
@@ -232,16 +232,12 @@ export function useAppUpdateStatus(): UpdateStatus | null {
     }
   }
   const check = {
-    label: latest.isFetching ? 'Checking…' : latest.isSuccess ? 'Check again' : 'Check',
+    label: checkLabel(latest.isFetching, latest.isSuccess),
     onPress: () => void latest.refetch(),
     busy: latest.isFetching,
     testID: 'settings-app-update-check',
   }
-  return latest.isError
-    ? { tone: 'error', line: 'Couldn’t check', action: check }
-    : latest.isSuccess
-      ? { tone: 'good', line: 'Up to date', action: check }
-      : { tone: 'quiet', line: 'Not checked yet', action: check }
+  return checkedStatus(latest.isError ? 'failed' : latest.isSuccess ? 'upToDate' : 'notYet', check)
 }
 
 /** The version as About shows it: with the build number where builds are shared. */

@@ -1,14 +1,10 @@
-import fs from 'node:fs'
-import http from 'node:http'
-import type { AddressInfo } from 'node:net'
-import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import { API_ERROR } from '@selfmp3/shared'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createApp } from '../app.js'
-import { loadConfig } from '../config.js'
-import { createContainer, type Container } from '../container.js'
+import type { Container } from '../container.js'
+import { startLibrary, type TestLibrary } from '../fixtures/library.js'
+import { newSong } from '../fixtures/songs.js'
 
 /**
  * The server under a database that will not take a write — the disk full, a
@@ -16,71 +12,21 @@ import { createContainer, type Container } from '../container.js'
  * the real app and a real database (bug bash round 3: R3-M9, R3-m7, R3-m6).
  */
 describe('a database in trouble', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
+  let library: TestLibrary
   let container: Container
-  let server: http.Server
-  let origin = ''
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-trouble-'))
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    // The API answers nothing without a bucket; a folder stands in for one.
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-    container = createContainer(loadConfig())
-    server = http.createServer(createApp(container))
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    library = await startLibrary()
+    container = library.container
   })
 
-  afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
-  })
+  afterAll(() => library.close())
 
-  const send = (method: string, url: string, body?: unknown) =>
-    fetch(`${origin}${url}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${container.config.authToken ?? ''}`,
-        'Content-Type': 'application/json',
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    })
+  const send = (method: string, url: string, body?: unknown) => library.send(method, url, body)
 
   let files = 0
   const insert = (title: string) =>
-    container.songs.insert({
-      path: `${title}-${++files}.m4a`,
-      title,
-      artist: '',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 200,
-      sizeBytes: 1,
-      mime: 'audio/mp4',
-      mtimeMs: 0,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
+    container.songs.insert(newSong({ title, path: `${title}-${++files}.m4a`, duration: 200 }))
 
   it('says a full disk as that, and goes on answering', async () => {
     // The database may grow no further: as a full disk leaves it.

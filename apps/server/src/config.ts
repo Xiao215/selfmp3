@@ -169,9 +169,9 @@ const ConfigSchema = z.object({
   doormanAdminToken: z.string().trim().min(32).nullable().default(null),
 
   /**
-   * Where the app you listen in is published: the server's page links there,
-   * and a public address lets that site's origin call this server. The
-   * project's own Pages site unless you publish your own build.
+   * Where the app you listen in is published: a public address lets that
+   * site's origin call this server (`allowedOrigins`). The project's own Pages
+   * site unless you publish your own build.
    */
   appUrl: z
     .string()

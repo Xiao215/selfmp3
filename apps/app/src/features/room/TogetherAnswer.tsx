@@ -29,14 +29,11 @@ export function TogetherAnswer({
   answer,
   text,
   onDone,
-  onOpen,
 }: {
   answer: Extract<AskCard, { kind: 'together' }>
   text: string
   /** Search has done its job: the sheet opens over the page underneath. */
   onDone: () => void
-  /** Before the answer's page opens. */
-  onOpen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
@@ -76,10 +73,7 @@ export function TogetherAnswer({
       {id && ids.length > 0 ? (
         <Press
           feedback="dim"
-          onPress={() => {
-            onOpen()
-            router.push({ pathname: '/answer', params: { id } })
-          }}
+          onPress={() => router.push({ pathname: '/answer', params: { id } })}
           accessibilityRole="button"
           accessibilityLabel={`Open the ${plural(ids.length, 'song', 'songs')} picked for “${text}”`}
           style={styles.opens}

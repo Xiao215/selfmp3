@@ -26,15 +26,15 @@ import type { LinkTrouble } from './share.model'
 export function GoneLink({
   trouble,
   signedIn,
-  offline = false,
+  offline,
   onRetry,
-  retrying = false,
+  retrying,
 }: {
   trouble: LinkTrouble
   signedIn: boolean
-  offline?: boolean
-  onRetry?: () => void
-  retrying?: boolean
+  offline: boolean
+  onRetry: () => void
+  retrying: boolean
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
   const words = WORDS[trouble === 'unreachable' && offline ? 'offline' : trouble]
@@ -54,7 +54,7 @@ export function GoneLink({
             </Text>
             <Text style={styles.line}>{words.line}</Text>
           </View>
-          {trouble === 'unreachable' && onRetry ? (
+          {trouble === 'unreachable' ? (
             <Button label="Try again" busy={retrying} onPress={onRetry} />
           ) : null}
         </View>

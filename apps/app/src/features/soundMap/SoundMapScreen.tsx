@@ -49,8 +49,18 @@ import { useShiftHeld } from './fieldInput'
 import { MapHint, useMapHint } from './MapHint'
 import { MapTray, TRAY_PANEL_WIDTH } from './MapTray'
 import { SoundField } from './SoundField'
-import { chainAlong, lensTags, skyPoints, skyRegions, takeTone, type MapTake } from './sky.model'
+import {
+  chainAlong,
+  lensTags,
+  SKY_EDGE,
+  skyPoints,
+  skyRegions,
+  takeTone,
+  type MapTake,
+} from './sky.model'
 import { trayOrder, traySections } from './tray.model'
+import { boundsOf } from './soundMapView.model'
+import { KEY_ZOOM } from './fieldKeys.model'
 
 /** A drawn stroke's points closer than this (0–1) are one point. */
 const PATH_STEP = 0.004
@@ -111,18 +121,7 @@ export function SoundMapScreen(): ReactNode {
   const regions = useMemo(() => skyRegions(allRegions, lens), [allRegions, lens])
   const chips = useMemo(() => lensTags(tags, points), [tags, points])
   useEffect(() => {
-    if (places.length === 0) return
-    let x0 = 1
-    let y0 = 1
-    let x1 = 0
-    let y1 = 0
-    for (const place of places) {
-      x0 = Math.min(x0, place.x)
-      y0 = Math.min(y0, place.y)
-      x1 = Math.max(x1, place.x)
-      y1 = Math.max(y1, place.y)
-    }
-    control.setBounds({ x0, y0, x1, y1 })
+    if (places.length > 0) control.setBounds(boundsOf(places))
   }, [control, places])
 
   // Opened on a song: Show on the map.
@@ -157,13 +156,14 @@ export function SoundMapScreen(): ReactNode {
   )
   // The song the pointer is on in the tray's list, or the one last pressed there.
   const [lit, setLit] = useState<number | null>(null)
-  const emptyTray = (): void => {
+  // Its setters never change, so this is the same function for as long as the page is open.
+  const emptyTray = useCallback((): void => {
     setTakes([])
     setLeft(new Set())
     setNamed(null)
     setTrayOpen(false)
     setLit(null)
-  }
+  }, [])
   const clearTray = (): void => {
     const was = { takes, left, named }
     emptyTray()
@@ -210,11 +210,7 @@ export function SoundMapScreen(): ReactNode {
         !nearest ||
         Math.hypot(nearest.x - spot.x, nearest.y - spot.y) > reach * EMPTY_TAP
       ) {
-        setTakes([])
-        setLeft(new Set())
-        setNamed(null)
-        setTrayOpen(false)
-        setLit(null)
+        emptyTray()
         return false
       }
       player.playFrom(ids, 0, {
@@ -222,7 +218,7 @@ export function SoundMapScreen(): ReactNode {
       })
       return true
     },
-    [places, songs, player],
+    [places, songs, player, emptyTray],
   )
   const onPathStart = useCallback((spot: MapPlace) => {
     strokeRef.current = [spot]
@@ -516,7 +512,7 @@ export function SoundMapScreen(): ReactNode {
                   <IconButton
                     label="Zoom in"
                     filled
-                    onPress={() => control.zoomBy(1.6)}
+                    onPress={() => control.zoomBy(KEY_ZOOM)}
                     testID="sound-map-zoom-in"
                   >
                     <Plus size={iconSize.item} tone="textPrimary" />
@@ -524,7 +520,7 @@ export function SoundMapScreen(): ReactNode {
                   <IconButton
                     label="Zoom out"
                     filled
-                    onPress={() => control.zoomBy(1 / 1.6)}
+                    onPress={() => control.zoomBy(1 / KEY_ZOOM)}
                     testID="sound-map-zoom-out"
                   >
                     <Minus size={iconSize.item} tone="textPrimary" />
@@ -619,9 +615,9 @@ function HeadScrim({ height, beside }: { height: number; beside: number }): Reac
       <Svg width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
           <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#04050b" stopOpacity={0.88} />
-            <Stop offset={String(height / total)} stopColor="#04050b" stopOpacity={0.62} />
-            <Stop offset="1" stopColor="#04050b" stopOpacity={0} />
+            <Stop offset="0" stopColor={SKY_EDGE} stopOpacity={0.88} />
+            <Stop offset={String(height / total)} stopColor={SKY_EDGE} stopOpacity={0.62} />
+            <Stop offset="1" stopColor={SKY_EDGE} stopOpacity={0} />
           </LinearGradient>
         </Defs>
         <Rect width="100%" height="100%" fill={`url(#${id})`} />
@@ -631,7 +627,7 @@ function HeadScrim({ height, beside }: { height: number; beside: number }): Reac
 }
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: '#04050b' },
+  screen: { flex: 1, backgroundColor: SKY_EDGE },
   empty: { flex: 1, backgroundColor: theme.colors.surface0 },
   emptyHead: { padding: space.md },
   top: { position: 'absolute', left: 0, right: 0, top: 0 },

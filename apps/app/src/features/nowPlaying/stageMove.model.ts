@@ -69,8 +69,12 @@ export function turnMove(
 
 /** Where the stage puts the top of its cover. */
 export const COVER_TOP = 84
-/** The cover in Focus: a thumbnail in the header, beside the chevron. */
-const FOCUS_COVER = { left: 64, top: 10, size: 40 } as const
+/**
+ * The cover in Focus: a thumbnail in the header, beside the chevron, `past`
+ * the head's left edge (`HEAD_LEFT`, which the installed desktop app moves
+ * right of the traffic lights).
+ */
+const FOCUS_COVER = { past: 44, top: 10, size: 40 } as const
 /** A big cover's corners on the stage, a row cover's in the header (`S2`). */
 const COVER_RADIUS = { stage: radius.cardLg, focus: radius.cover } as const
 
@@ -122,12 +126,16 @@ export function stageCover(geometry: StageGeometry): CoverBox {
  * that makes the cover's edges travel exactly as the animated left, top and
  * width did.
  */
-export function coverPose(at: CoverBox, m: number, inset = 0): MovePose {
+export function coverPose(
+  at: CoverBox,
+  m: number,
+  head: { readonly left: number; readonly inset: number },
+): MovePose {
   const half = at.size / 2
   const focusHalf = FOCUS_COVER.size / 2
   return {
-    translateX: (FOCUS_COVER.left + focusHalf - (at.left + half)) * m,
-    translateY: (FOCUS_COVER.top + inset + focusHalf - (at.top + half)) * m,
+    translateX: (head.left + FOCUS_COVER.past + focusHalf - (at.left + half)) * m,
+    translateY: (FOCUS_COVER.top + head.inset + focusHalf - (at.top + half)) * m,
     scale: lerp(1, FOCUS_COVER.size / at.size, m),
     radius: lerp(COVER_RADIUS.stage, COVER_RADIUS.focus, m),
   }

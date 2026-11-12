@@ -1,4 +1,5 @@
 import {
+  DAY_MS,
   DoormanError,
   formatShareStart,
   parseShareStart,
@@ -16,8 +17,6 @@ import type { RoomTrack } from '../../player/roomTracks'
  * A share link as this device words and plays it (docs/features/share-links.md):
  * where it is in its life, the line under it, its songs as tracks.
  */
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Playing; on its last day (D1), when it says so and Get it leads; or over (E1). */
 type ShareStage = 'live' | 'lastDay' | 'ended'
@@ -211,6 +210,13 @@ export function sentSections(
 
 /** How many ended links show before the rest fold away under "Show 3 more" (J2). */
 export const ENDED_SHOWN = 5
+
+/** Every friend's ask for a link of yours again, with the link it is for (F1). */
+export function asksOf(
+  links: readonly ShareSummary[] | undefined,
+): { link: ShareSummary; ask: ShareSummary['asks'][number] }[] {
+  return (links ?? []).flatMap(link => link.asks.map(ask => ({ link, ask })))
+}
 
 /** The line under Links you shared's title (F): "11 links · 3 playing". */
 export function sentCountLine(links: readonly ShareSummary[], now: number): string {

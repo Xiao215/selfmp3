@@ -11,6 +11,11 @@ Ask and Suggest tags share), **Tidy up** for names (and what is missing, and son
 twice), the **Report in words**, **Fix song info's Suggested card** and **Names at import**.
 The letters and numbers are the canvas's names for them.
 
+**Where:** the phone, the computer, the web and the desktop app ask; the server answers, and
+every `/api/ai/…` route is one only a server can answer ("Where it runs", below). The server's
+half is `apps/server/src/ai/` and `apps/server/src/routes/ai.ts`; the app's is
+`apps/app/src/features/smart/`, with Ask's box in `apps/app/src/features/search/`.
+
 ---
 
 ## The three rules
@@ -80,16 +85,16 @@ Measured on the real library (1,342 songs) through cli-bridge: Describe 8–15 s
 plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 
 The app has no page for the model. `GET /api/ai` says where the server asks (scheme, host
-and path only, never the key) and which two models; with no address, Settings › Smart
-features dims its switch and says "Your server has no model set up." A feature whose call
+and path only, never the key) and which two models; with no address, Settings' Smart
+features tile says "Not set up" and cannot be pressed. A feature whose call
 fails says so in words: the endpoint down, the key refused, or a limit reached
 ([INSTALL.md](../INSTALL.md#smart-features-cli-bridge-beside-the-server)).
 
 **The sparkle.** Every way into a model carries the four-pointed sparkle (`Sparkle` in
 `Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Describe it,
 Suggest tags, the Report's "In words", Fix song info's Suggest, a model's guesses in a
-review, a model's names under an import row, Tidy up's "Fill them in", and the Smart
-features heading. An Ask answer kept in Home's recents or
+review, a model's names under an import row, Tidy up's "Fill them in", and Settings' Smart
+features tile. An Ask answer kept in Home's recents or
 named as Up next's source carries it too. A press with a sparkle asks a model; one without
 only searches, sorts or edits.
 
@@ -624,8 +629,8 @@ looked up took 26 s and said where its answer came from.
 "From now on, Chinese names only" is a `remember` card, that saves the note when you
 press Remember (`smartNotes` in the settings, at most 30). Every Ask after carries them under
 the request (`withNotes` in `ask.ts`: "Their standing preferences (follow them unless these
-words say otherwise)"), so the agent reads them with the request. Settings › Smart features lists
-them, each with Remove.
+words say otherwise)"), so the agent reads them with the request. Settings › What Ask remembers
+lists them, each with Remove.
 
 ## Follow-ups
 
@@ -1128,13 +1133,15 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 ## Settings › Smart features: one switch
 
-One switch, kept in the server's settings: "Use smart features" (`smartFeatures`, on by
-default), which says what leaves the library at all ("Song names and tags only. Never
-audio."). It covers every feature on this page: Ask (with New playlist's Describe it and Up
+One switch, kept in the server's settings: the **Smart features** tile among Settings' quick
+tiles (`smartFeatures`, on by default; `SmartTile` in
+`apps/app/src/features/settings/SmartPanel.tsx`). Song names and tags go to the model, never
+audio. It covers every feature on this page: Ask (with New playlist's Describe it and Up
 next), Tidy up, Suggest tags, the Report in words, Fix song info's Suggested card, names at
-import, and searching the web. With no model set up on the server the switch is dimmed and
-its hint says "Your server has no model set up." What Ask remembers is listed under it, each
-note with Remove, when there are any. Settings reads and writes the switch on the server
+import, and searching the web. With no model set up on the server the tile says "Not set up"
+and cannot be pressed; with the server out of reach it says "Can’t reach" and a press looks
+again. What Ask remembers is a row into a page of its own (`/settings/remembered`), each note
+with Remove, shown when there are any. Settings reads and writes the switch on the server
 itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy of the
 library keeps no settings. Off, no way in is drawn (`useSmartOn`, which asks the server
 presence has already found, so it costs no probe), and the server refuses every smart route

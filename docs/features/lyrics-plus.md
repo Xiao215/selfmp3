@@ -8,6 +8,13 @@ every derived form comes back **aligned 1:1** with the original lines — same o
 count, same timestamps — so the lyrics view just renders "line N, then its extras". The
 lyrics themselves are shown on Now Playing; see [now-playing.md](now-playing.md).
 
+**Where:** the phone, the computer, the web and the desktop app. Romanization is made by the
+server and travels in the bucket with the words, so it shows offline too; search by lyric asks
+a server, so it is missing while none is in reach. The code is in
+`apps/server/src/services/` (lyrics, romanization, the index), `packages/shared/src/script.ts`
+and `searchNames.ts`, and the app's `features/nowPlaying/` and `features/search/` (files at the
+end).
+
 ## Romanization (offline)
 
 On Now Playing, the **Romaji** / **Pinyin** pill beside the words (on a phone and a

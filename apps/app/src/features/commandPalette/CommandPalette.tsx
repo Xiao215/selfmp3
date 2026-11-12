@@ -16,11 +16,11 @@ import {
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { isComposing } from '../../shell/composing'
 import { enterFromSidebar } from '../../shell/sidebarEntry'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Dialog } from '../../ui/components/Dialog'
 import {
@@ -41,18 +41,19 @@ import { useSmartOn } from '../smart/useSmartOn'
 import { playAlone } from '../lists/lists.model'
 import { placesOf } from '../search/search.model'
 import { useLibrarySearch } from '../search/useLibrarySearch'
-import { artistLink } from '../tag/placeLinks'
+import { artistLink, playlistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
 import {
   PALETTE_LYRICS,
+  commandHref,
   paletteMatches,
   paletteResults,
   stepIndex,
   type PaletteCommandId,
   type PaletteResults,
-  type RecentItem,
 } from './commandPalette.model'
+import type { RecentItem } from '../search/search.model'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { PlaceLine } from '../../ui/components/PlaceLine'
@@ -93,14 +94,17 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const accent = useAccent()
   const router = useRouter()
   const pathname = usePathname()
-  const player = usePlayer()
+  const player = usePlayerCommands()
+  const playing = usePlayerPlaying()
+  const currentSongId = usePlayingSongId()
   const library = useLibrary()
   const { fromCloud } = useConnection()
   // Offered only to a device that talks to its server, which is then what answers it.
   const scan = useScanLibrary(fromCloud ? null : clientApi())
   const artFor = useArt(ROW_COVER_SIZE)
   // The app's own width for the box; the window's height, which no split lies about.
-  const { finePointer, width } = useLayout()
+  const finePointer = useLayoutValue(layout => layout.finePointer)
+  const width = useLayoutValue(layout => layout.width)
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
   const smartOn = useSmartOn()
@@ -116,7 +120,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const openTag = useOpenTag()
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const songIds = useMemo(() => songs.map(song => song.id), [songs])
-  const currentSongId = player.current?.id ?? null
   // Search's search, with the palette's commands and playlists beside it.
   const search = useLibrarySearch(query, {
     search: useCallback(
@@ -130,26 +133,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const lyricHits = search.lyricHits.slice(0, PALETTE_LYRICS)
 
   const runCommand = (id: PaletteCommandId): void => {
-    // Go to Library, Stats…: the sidebar's places, opened as the sidebar opens them (J1).
-    if (id.startsWith('nav-')) enterFromSidebar()
+    const href = commandHref(id)
+    if (href !== null) {
+      // Go to Library, Stats…: the sidebar's places, opened as the sidebar opens them (J1).
+      enterFromSidebar()
+      router.navigate(href)
+      return
+    }
     switch (id) {
-      case 'nav-library':
-        router.navigate('/library')
-        return
-      case 'nav-playlists':
-        router.navigate('/playlists')
-        return
-      case 'nav-import':
-        router.navigate('/import')
-        return
-      case 'nav-stats':
-        router.navigate('/stats')
-        return
       case 'tag-untagged':
         playAndTag.start()
-        return
-      case 'nav-settings':
-        router.navigate('/settings')
         return
       case 'shuffle-all':
         player.playShuffled(songIds, { kind: 'library' })
@@ -168,12 +161,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const playSong = (songId: number): void => {
     if (songIds.includes(songId)) playAlone(player, songId)
   }
-  const openPlaylist = (playlistId: number): void => router.navigate(`/playlists/${playlistId}`)
+  const openPlaylist = (playlistId: number): void => router.navigate(playlistLink(playlistId))
   /** The loaded song carries on where it is rather than starting again. */
   const runRecent = (recent: RecentItem): void => {
     if (recent.kind === 'playlist') openPlaylist(recent.playlist.id)
     else if (recent.song.id === currentSongId) {
-      if (!player.isPlaying) player.toggle()
+      if (!playing) player.toggle()
     } else playSong(recent.song.id)
   }
   const recentKey = (recent: RecentItem): string =>

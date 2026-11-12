@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
-import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { plural } from '@selfmp3/shared'
 import { useLayoutFlags } from '../../shell/useLayout'
@@ -13,7 +12,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { Cover } from '../../ui/components/Cover'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { ImportFoot, useImportPage } from './ImportPage'
+import { ImportFoot, useImportEnqueue, useImportPage } from './ImportPage'
 import { chooseAllIn } from './importDraft'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useFindSongs } from './useFindSongs'
@@ -22,7 +21,6 @@ import { canListen } from './listen.model'
 import {
   comingIn,
   countLabel,
-  importRequest,
   mosaicCovers,
   reviewKicker,
   reviewName,
@@ -33,7 +31,6 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
-import { countUse } from '../usage/usage'
 
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
@@ -67,7 +64,7 @@ export function ImportReview({
 } = {}): ReactNode {
   const { wide, finePointer } = useLayoutFlags()
   const page = useImportPage(via, onUnreachable)
-  const { source, draft, patchDraft, listen, backTo, failed } = page
+  const { source, draft, patchDraft, listen, backTo } = page
   const key = page.draftKey
   const { review, tagIds } = draft
   // A kept review's "In library" is from when the link was looked up.
@@ -93,16 +90,7 @@ export function ImportReview({
     patchDraft(imported ? { review: null, links: '', tagIds: new Set() } : { review: null })
   }
 
-  const enqueue = useMutation({
-    mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, tagIds)),
-    onSuccess: () => {
-      countUse('import')
-      // The songs are in the queue now, which Import shows under Currently importing.
-      void source.invalidateQueue()
-      leave({ imported: true })
-    },
-    onError: failed,
-  })
+  const enqueue = useImportEnqueue(page, () => leave({ imported: true }))
 
   // A From column only for a list whose songs come from more than where they were linked.
   const showFrom = review !== null && review.from !== 'youtube'

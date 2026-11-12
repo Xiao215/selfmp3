@@ -3,6 +3,11 @@
 A page for the song that is playing: its artwork, what the app knows about it, and its
 lyrics — or, for a song with no words, something to look at instead.
 
+**Where:** the phone, the computer, the web and the desktop app, at `/now-playing`. A wide screen
+has Stage and Focus; a phone has its own page (below), with no visual for a song without
+words (Xiao, 2026-10-09). The code is in `apps/app/src/features/nowPlaying/` (files at the
+end).
+
 ## Opening it
 
 | From | Does |
@@ -99,8 +104,8 @@ is playing from ("From Library", "From night"), which opens that list; and Toget
 the right. While a sleep timer runs, the middle is a pill saying "Stops in 12 min" (or "Stops
 after this song"), and tapping it changes the timer; in a room, it is the room's pill and
 Together steps aside (when the timer or tagging has the middle, the room's faces stand in for
-Together instead). The cover breathes — a little smaller while paused, full size
-while playing — with the title and the artists (each a link) under it, and the heart and
+Together instead). The cover breathes — a little smaller while paused, and slowly in and out while it rests
+there (`PAUSED_BREATH`; still under Reduce Motion), full size while playing — with the title and the artists (each a link) under it, and the heart and
 **Up next** beside them; then the tags, the scrubber and the round Play, low on the page where
 a thumb is. There is no foot (picked 2026-10-12, canvas `P4fvs9Sc86E42KpePUVufn`: A4, B1, C1,
 D1, E1; ⋯ moved to the top right on 2026-11-10).

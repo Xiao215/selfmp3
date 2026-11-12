@@ -27,6 +27,7 @@ import {
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { CloudError, type CloudStore } from '../bucket/store.js'
 import { MemoryCloudStore } from './fixtures/memoryStore.js'
@@ -237,24 +238,18 @@ describe('CloudSyncService', () => {
       fs.writeFileSync(path.join(root, `${name}/${name}.lrc`), fields.lyrics)
     const stat = fs.statSync(path.join(root, key))
     const [artist = '', title = name] = name.split(' - ')
-    return songs.insert({
-      path: key,
-      title,
-      artist,
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 200,
-      sizeBytes: stat.size,
-      mime: 'audio/mp4',
-      // As the sweep reads it: a later look at the copy compares with this.
-      mtimeMs: stat.mtime.getTime(),
-      hasArt: false,
-      artExt: null,
-      lyricsKind: fields.lyrics === undefined ? 'none' : 'synced',
-      sourceUrl: null,
-    })
+    return songs.insert(
+      newSong({
+        path: key,
+        title,
+        artist,
+        duration: 200,
+        sizeBytes: stat.size,
+        // As the sweep reads it: a later look at the copy compares with this.
+        mtimeMs: stat.mtime.getTime(),
+        lyricsKind: fields.lyrics === undefined ? 'none' : 'synced',
+      }),
+    )
   }
 
   const connect = async (input: Partial<CloudConnect> = {}): Promise<void> => {
@@ -2278,23 +2273,16 @@ describe('CloudSyncService', () => {
         const ahead = new Date(Date.now() + 365 * 24 * 60 * 60_000)
         fs.utimesSync(copy(name), ahead, ahead)
         const stat = fs.statSync(copy(name))
-        const id = songs.insert({
-          path: `${name}/${name}.m4a`,
-          title: 'One',
-          artist: 'A',
-          album: '',
-          albumArtist: '',
-          trackNo: null,
-          year: null,
-          duration: 200,
-          sizeBytes: stat.size,
-          mime: 'audio/mp4',
-          mtimeMs: stat.mtime.getTime(),
-          hasArt: false,
-          artExt: null,
-          lyricsKind: 'none',
-          sourceUrl: null,
-        })
+        const id = songs.insert(
+          newSong({
+            path: `${name}/${name}.m4a`,
+            title: 'One',
+            artist: 'A',
+            duration: 200,
+            sizeBytes: stat.size,
+            mtimeMs: stat.mtime.getTime(),
+          }),
+        )
         analysed.add(id)
 
         await service.connect(CONNECT)
@@ -3422,23 +3410,15 @@ describe('CloudSyncService', () => {
       it('stay while a song here names no audio and one of them could be its own', async () => {
         const audio = await stray('a song whose cloud row went')
         const words = await stray('words of something', 'lyrics', '.txt')
-        songs.insert({
-          path: 'Gone - Away/Gone - Away.m4a',
-          title: 'Away',
-          artist: 'Gone',
-          album: '',
-          albumArtist: '',
-          trackNo: null,
-          year: null,
-          duration: 200,
-          sizeBytes: Buffer.byteLength('a song whose cloud row went'),
-          mime: 'audio/mp4',
-          mtimeMs: 0,
-          hasArt: false,
-          artExt: null,
-          lyricsKind: 'none',
-          sourceUrl: null,
-        })
+        songs.insert(
+          newSong({
+            path: 'Gone - Away/Gone - Away.m4a',
+            title: 'Away',
+            artist: 'Gone',
+            duration: 200,
+            sizeBytes: Buffer.byteLength('a song whose cloud row went'),
+          }),
+        )
         await connect()
         await aMonthLater()
 

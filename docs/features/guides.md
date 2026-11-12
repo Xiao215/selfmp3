@@ -3,6 +3,10 @@
 How self.mp3 teaches a gesture that nothing on screen shows. Decided 2026-10-13 (UI review
 "Fewer words on screen, and a guide the first time", picks A1, B1 + B3, C1–C8, D1).
 
+**Where:** the phone, the computer, the web and the desktop app, each guide where its gesture
+works (the table below). The code is `apps/app/src/features/guide/`; the sound map draws its
+own (`apps/app/src/features/soundMap/MapHint.tsx`).
+
 ## What a guide is
 
 It works the way 网易云音乐's guides do. The whole screen goes dark, a spotlight with a dashed
@@ -41,7 +45,7 @@ modal.
 | --------------- | ------------------------------------------- | ------------------------------------------- | --------------------------- |
 | `playlist-move` | A list you order, 2+ songs (phone, computer) | Hold (drag with a mouse) to move            | nothing said it             |
 | `library-select`| Library, second visit (finger)              | Hold to select several                       | nothing said it             |
-| `lyrics`        | Now Playing, a song with lyrics (phone)     | Swipe up on the cover, or tap it             | nothing said it             |
+| `lyrics`        | Now Playing, a song with lyrics (phone); a share link's song page, the same guide | Swipe up on the cover, or tap it | nothing said it |
 | `sidebar-drop`  | Sidebar playlists, after ⋯ › Add to playlist (computer) | Drag songs onto a playlist       | nothing said it             |
 | `up-next`       | Up next sheet, 2+ to come (phone)           | Swipe left to remove, then hold to move      | the line under the list     |
 | `up-next-rail`  | Up next rail (computer)                     | Drag a song out to remove it                 | the rail's hint bubble (N2) |
@@ -49,6 +53,12 @@ modal.
 | `tag-hold`      | Tags (finger)                               | Hold a tag to rename, recolour or delete it  | the footer line             |
 | `import-review` | Import review (phone)                       | Tap a song to hear it; untick to leave it out| the line over the list      |
 | `import-box`    | Import, first visit                         | Search for a song, or paste a link           | the paragraph over the box  |
+| `sound-map-draw`| Sound map, first visit                      | Hold, then drag a line; go round a loop      | nothing said it             |
+
+The sound map's guide is its own layer (`MapHint.tsx`), not `Guide.tsx`'s spotlight: there is
+no one thing to light, so the touch draws a line and then a loop over the sky, and a tap or the
+first stroke drawn closes it ([sound-map.md](sound-map.md)). It shares the memory and the
+one-at-a-time rule (`guideMemory.ts`).
 
 Left without a guide, because they are standard or show themselves: pull to refresh, pulling a
 sheet down, the seek bar, Shift-click and ⌘-click, the song list scrollbar.

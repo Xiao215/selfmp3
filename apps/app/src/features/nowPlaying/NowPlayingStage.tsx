@@ -95,9 +95,8 @@ import { countUse } from '../usage/usage'
  *
  * A song with no lyrics is its visual (`C10`): the first tab reads Visual and
  * the visual takes the column the words would have had, so the page is laid
- * out exactly as a song with words lays it out. The look it shows is picked
- * beside the tabs, and Focus gives the visual the window as it gives the
- * words the page.
+ * out exactly as a song with words lays it out. Focus gives the visual the
+ * window as it gives the words the page.
  *
  * The page covers the sidebar but not the player bar, so play and pause never
  * move under your hand. Which tab and mode are showing live in the address.
@@ -540,7 +539,11 @@ function Stage({
           coverTravel,
         ]}
       >
-        <Moving move={move} pose={m => coverPose(box, m, geometry.inset)} style={styles.cover}>
+        <Moving
+          move={move}
+          pose={m => coverPose(box, m, { left: HEAD_LEFT, inset: geometry.inset })}
+          style={styles.cover}
+        >
           {uri ? (
             <Image source={{ uri }} style={styles.coverImage} resizeMode="cover" />
           ) : (
@@ -599,7 +602,6 @@ function Stage({
             onEdit={tagEditor.toggle}
             editing={tagEditor.shown}
             editRef={tagsButtonRef}
-            labelled
           />
           {tagging.on ? <TaggingLine line={tagging.line} onStop={tagging.stop} /> : null}
         </View>

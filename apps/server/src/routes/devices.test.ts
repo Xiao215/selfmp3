@@ -1,13 +1,6 @@
-import fs from 'node:fs'
-import http from 'node:http'
-import type { AddressInfo } from 'node:net'
-import os from 'node:os'
-import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { PlaybackState } from '@selfmp3/shared'
-import { createApp } from '../app.js'
-import { loadConfig, type ServingConfig } from '../config.js'
-import { createContainer, type Container } from '../container.js'
+import { startLibrary, type TestLibrary } from '../fixtures/library.js'
 
 /**
  * The command channel carries a handoff and nothing more: "Play there instead"
@@ -16,18 +9,7 @@ import { createContainer, type Container } from '../container.js'
  * so the wire refuses it rather than forwarding commands nobody sends.
  */
 describe('POST /api/devices/:id/command', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
-  let config: ServingConfig
-  let container: Container
-  let server: http.Server
-  let origin = ''
+  let library: TestLibrary
 
   const STATE: PlaybackState = {
     songId: null,
@@ -41,40 +23,16 @@ describe('POST /api/devices/:id/command', () => {
   }
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-devices-'))
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    // The API answers nothing without a bucket; a folder stands in for one.
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-
-    container = createContainer(loadConfig())
-    config = container.config
-    server = http.createServer(createApp(container))
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    library = await startLibrary()
   })
 
-  afterAll(async () => {
-    server.closeAllConnections()
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
+  afterAll(() => library.close())
+
+  const auth = (): Record<string, string> => ({
+    Authorization: `Bearer ${library.container.config.authToken}`,
   })
 
-  const auth = (): Record<string, string> => ({ Authorization: `Bearer ${config.authToken}` })
-
-  const post = (url: string, body: unknown): Promise<Response> =>
-    fetch(`${origin}${url}`, {
-      method: 'POST',
-      headers: { ...auth(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+  const post = (url: string, body: unknown): Promise<Response> => library.send('POST', url, body)
 
   const heartbeat = (deviceId: string): Promise<Response> =>
     post('/api/devices/heartbeat', { deviceId, name: deviceId, kind: 'desktop', state: STATE })
@@ -83,11 +41,13 @@ describe('POST /api/devices/:id/command', () => {
     expect((await heartbeat('laptop-0001')).status).toBe(200)
 
     const stream = new AbortController()
-    const events = await fetch(`${origin}/api/events?deviceId=laptop-0001`, {
+    const events = await fetch(`${library.origin}/api/events?deviceId=laptop-0001`, {
       headers: auth(),
       signal: stream.signal,
     })
     expect(events.status).toBe(200)
+    // Gzipped, the stream would be held back in the compressor until it filled.
+    expect(events.headers.get('content-encoding')).toBeNull()
     const reader = events.body!.getReader()
     const decoder = new TextDecoder()
 
@@ -121,7 +81,7 @@ describe('POST /api/devices/:id/command', () => {
 
     const stream = new AbortController()
     const events = await fetch(
-      `${origin}/api/events?deviceId=browser-tab-1&deviceId=browser-tab-2`,
+      `${library.origin}/api/events?deviceId=browser-tab-1&deviceId=browser-tab-2`,
       { headers: auth(), signal: stream.signal },
     )
     expect(events.status).toBe(200)

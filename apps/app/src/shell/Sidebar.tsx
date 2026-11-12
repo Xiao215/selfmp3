@@ -83,12 +83,11 @@ import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Bone, Skeleton } from '../ui/components/Skeleton'
 import { ResumeCard } from '../features/devices/ResumeToast'
-import { FOCUS_INSIDE } from './tabbing'
+import { FOCUS_INSIDE, tabbing } from './tabbing'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
 import { thisPlace } from '../ports/place'
-import { tabbing } from './tabbing'
 import { useOnline } from '../offline/useOnline'
 import { useWaitingEdits } from '../offline/waitingEdits'
 import { useSteadyOrder } from '../ui/useSteadyOrder'
@@ -519,10 +518,10 @@ function Tags(): ReactNode {
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const recentIds = useRecentTagIds()
   /*
-   * Four tags, not two hundred.
+   * Eight tags, not two hundred.
    *
    * A rail that lists every tag is a scroll nobody reaches the bottom of, and
-   * the ones that matter are somewhere in the middle of it. These four are the
+   * the ones that matter are somewhere in the middle of it. These eight are the
    * ones this device reached for last — no pinning, nothing to maintain —
    * and the rest are one press away on All tags, which the header opens.
    */

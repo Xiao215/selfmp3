@@ -30,7 +30,15 @@ import {
   SKY_EDGE,
   SKY_INK,
   SKY_TOP,
+  skyRgba,
   songUnder,
+  SPOTLIGHT_DIM,
+  SPOTLIGHT_INSET,
+  spotlightSide,
+  TWINKLE_FRAME_MS,
+  addressesOf,
+  COVERS_KEPT,
+  GLOW_SIDE,
   starAlpha,
   starLook,
   skyGrid,
@@ -151,9 +159,6 @@ const FILL = {
   height: '100%',
   display: 'block',
 } as const
-
-/** The deep sky is drawn again this often while it twinkles and the map holds still. */
-const TWINKLE_FRAME_MS = 40
 
 /**
  * The ground behind the songs: the night, its dust, and the deep sky (K3),
@@ -300,7 +305,6 @@ function useGround(field: FieldSize): HTMLCanvasElement | null {
 
 /** One glow a colour: a small picture of the falloff, drawn at each star's size. */
 const glows = new Map<string, HTMLCanvasElement>()
-const GLOW_SIDE = 64
 
 function glowOf(glow: string): HTMLCanvasElement {
   const key = glow
@@ -311,29 +315,20 @@ function glowOf(glow: string): HTMLCanvasElement {
   const ctx = canvas.getContext('2d')!
   const half = GLOW_SIDE / 2
   const fill = ctx.createRadialGradient(half, half, 0, half, half, half)
-  for (const [offset, opacity] of GLOW_STOPS) fill.addColorStop(offset, withAlpha(glow, opacity))
+  for (const [offset, opacity] of GLOW_STOPS) fill.addColorStop(offset, skyRgba(glow, opacity))
   ctx.fillStyle = fill
   ctx.fillRect(0, 0, GLOW_SIDE, GLOW_SIDE)
   glows.set(key, canvas)
   return canvas
 }
 
-function withAlpha(hex: string, alpha: number): string {
-  const n = parseInt(hex.slice(1, 7), 16)
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`
-}
-
-/**
- * The covers asked for, by address, the most recent last: about this many
- * kept, the oldest let go, but never one drawn in the frame being drawn. A
- * screenful of covers at the closest zoom is about sixty, so this holds a few
- * screens of looking about; further out, a crowd of a few thousand small
- * covers is all kept while it is on screen. (Until 2026-10-31 the cap held
- * whatever was on screen too: past 240 covers in view, each frame let go of
- * covers it then asked for again, and a large library moved at a few frames
- * a second.)
- */
-const COVERS_KEPT = 240
+// The covers asked for, by address, the most recent last (`COVERS_KEPT`):
+// never one drawn in the frame being drawn. A screenful of covers at the
+// closest zoom is about sixty, so the cap holds a few screens of looking
+// about; further out, a crowd of a few thousand small covers is all kept while
+// it is on screen. (Until 2026-10-31 the cap held whatever was on screen too:
+// past 240 covers in view, each frame let go of covers it then asked for
+// again, and a large library moved at a few frames a second.)
 /** At most this many covers start loading a frame, so a zoom into a crowd does not ask for them all at once. */
 const COVER_LOADS_A_FRAME = 24
 const coverCache = new Map<string, { image: HTMLImageElement; frame: number }>()
@@ -363,17 +358,6 @@ function coverImage(uri: string | null | undefined, arrived: () => void): HTMLIm
   return null
 }
 
-/** Each song's cover address, worked out once for as long as `art` is the same. */
-const addressBooks = new WeakMap<object, Map<number, string | null | undefined>>()
-function addressesOf(art: object): Map<number, string | null | undefined> {
-  let book = addressBooks.get(art)
-  if (!book) {
-    book = new Map()
-    addressBooks.set(art, book)
-  }
-  return book
-}
-
 /**
  * A bright star's four-pointed flare: two thin strokes through it, brightest
  * at the star and fading to nothing at their ends.
@@ -390,9 +374,9 @@ function flare(
     [0, reach],
   ] as const) {
     const stroke = ctx.createLinearGradient(spot.x - dx, spot.y - dy, spot.x + dx, spot.y + dy)
-    stroke.addColorStop(0, withAlpha(color, 0))
-    stroke.addColorStop(0.5, withAlpha(color, 0.9))
-    stroke.addColorStop(1, withAlpha(color, 0))
+    stroke.addColorStop(0, skyRgba(color, 0))
+    stroke.addColorStop(0.5, skyRgba(color, 0.9))
+    stroke.addColorStop(1, skyRgba(color, 0))
     ctx.strokeStyle = stroke
     ctx.beginPath()
     ctx.moveTo(spot.x - dx, spot.y - dy)
@@ -454,8 +438,8 @@ function draw(
         middle.y + dy,
         size,
       )
-      cloud.addColorStop(0, withAlpha(color, lens === null ? 0.16 : 0.24))
-      cloud.addColorStop(1, withAlpha(color, 0))
+      cloud.addColorStop(0, skyRgba(color, lens === null ? 0.16 : 0.24))
+      cloud.addColorStop(1, skyRgba(color, 0))
       ctx.fillStyle = cloud
       ctx.fillRect(middle.x + dx - size, middle.y + dy - size, size * 2, size * 2)
     }
@@ -622,10 +606,10 @@ function draw(
         else ctx.lineTo(spot.x, spot.y)
       })
       ctx.closePath()
-      ctx.fillStyle = withAlpha(take.tone, 0.07)
+      ctx.fillStyle = skyRgba(take.tone, 0.07)
       ctx.fill()
       ctx.setLineDash([6, 5])
-      ctx.strokeStyle = withAlpha(take.tone, 0.9)
+      ctx.strokeStyle = skyRgba(take.tone, 0.9)
       ctx.lineWidth = 1.8
       ctx.stroke()
       ctx.setLineDash([])
@@ -640,7 +624,7 @@ function draw(
         else ctx.lineTo(spot.x, spot.y)
         first = false
       }
-      ctx.strokeStyle = withAlpha(take.tone, 0.85)
+      ctx.strokeStyle = skyRgba(take.tone, 0.85)
       ctx.lineWidth = 1.4
       ctx.stroke()
     }
@@ -652,7 +636,7 @@ function draw(
       ctx.beginPath()
       ctx.arc(spot.x, spot.y, 2.2, 0, Math.PI * 2)
       ctx.fill()
-      ctx.strokeStyle = withAlpha(take.tone, 0.55)
+      ctx.strokeStyle = skyRgba(take.tone, 0.55)
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.arc(spot.x, spot.y, ringRadius(place, view.scale, 5.5), 0, Math.PI * 2)
@@ -670,7 +654,7 @@ function draw(
     })
     ctx.setLineDash([2, 7])
     ctx.lineCap = 'round'
-    ctx.strokeStyle = withAlpha(accent, 0.95)
+    ctx.strokeStyle = skyRgba(accent, 0.95)
     ctx.lineWidth = 3
     ctx.stroke()
     ctx.setLineDash([])
@@ -684,7 +668,7 @@ function draw(
   if (now && nowSong && !(underOpen && under === now)) {
     const spot = at(now)
     const big = Math.max(22, starLook(now, view.scale).side * 1.15)
-    ctx.fillStyle = withAlpha(accent, 0.25)
+    ctx.fillStyle = skyRgba(accent, 0.25)
     ctx.beginPath()
     ctx.arc(spot.x, spot.y, big * 1.05, 0, Math.PI * 2)
     ctx.fill()
@@ -706,7 +690,7 @@ function draw(
   }
 
   if (pulse) {
-    ctx.fillStyle = withAlpha(accent, 0.35)
+    ctx.fillStyle = skyRgba(accent, 0.35)
     ctx.beginPath()
     ctx.arc(pulse.x, pulse.y, 16, 0, Math.PI * 2)
     ctx.fill()
@@ -747,8 +731,7 @@ function draw(
     ctx.beginPath()
     if (look.share > 0.5) {
       // Just outside its cover, spotlit (and so larger) when it is the one named.
-      const side =
-        (chosen === under ? Math.max(SPOTLIGHT_COVER, look.side * 1.15) : look.side) + FOCUS_GAP * 2
+      const side = (chosen === under ? spotlightSide(look.side) : look.side) + FOCUS_GAP * 2
       ctx.roundRect(
         spot.x - side / 2,
         spot.y - side / 2,
@@ -778,7 +761,7 @@ function spotlight(
   image: HTMLImageElement | null,
   clear: number,
 ): void {
-  const side = Math.max(SPOTLIGHT_COVER, look.side * 1.15)
+  const side = spotlightSide(look.side)
   const half = side / 2
   const halo = side * 1.6
   ctx.globalAlpha = 0.9
@@ -789,7 +772,7 @@ function spotlight(
   // fill is left at the cover's soft edge as a light outline (2026-10-26).
   const inset = image ? SPOTLIGHT_INSET : 0
   ctx.save()
-  ctx.shadowColor = withAlpha(point.glow, 0.6)
+  ctx.shadowColor = skyRgba(point.glow, 0.6)
   ctx.shadowBlur = 22
   ctx.beginPath()
   ctx.roundRect(
@@ -832,12 +815,6 @@ function spotlight(
 /** A star's dot is drawn at one of this many steps of brightness. */
 const DOT_STEPS = 12
 
-/** How bright the rest of the sky stays while a cover is lit. */
-const SPOTLIGHT_DIM = 0.3
-/** The lit cover is at least this wide. */
-const SPOTLIGHT_COVER = 52
-/** How far inside a lit cover's edge its glow is cast from. */
-const SPOTLIGHT_INSET = 2
 /** How far outside the keys' lit cover its focus ring is drawn. */
 const FOCUS_GAP = 3
 

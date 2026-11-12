@@ -1,8 +1,7 @@
 /**
  * Whether a browser's wheel came from a mouse's wheel or a trackpad's two
- * fingers: both arrive as the same event. Over the sound map a mouse's wheel
- * zooms, as a map's does, and a trackpad's two fingers move it (Xiao,
- * 2026-10-27: scrolling a mouse moved the map up and down).
+ * fingers: both arrive as the same event. Over the sound map both zoom
+ * (`useFieldWheel`); which it was decides only how far a step zooms.
  */
 export type WheelSource = 'mouse' | 'trackpad'
 

@@ -15,7 +15,7 @@ import {
   type UpdatePlaylist,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import type { PlaylistRow } from '../db/rows.js'
+import { readStored, type PlaylistRow } from '../db/rows.js'
 import { libraryChanges } from './libraryChanges.js'
 
 /** A kept playlist that went with its last songs (`playlistEmptied`), kept aside to come back. */
@@ -287,13 +287,7 @@ export class PlaylistRepository {
    * hand-edited in the database, must not take the whole playlist list down.
    */
   #parseRules(raw: string | null): SmartRules | null {
-    if (!raw) return null
-    try {
-      const parsed = SmartRulesSchema.safeParse(JSON.parse(raw))
-      return parsed.success ? parsed.data : null
-    } catch {
-      return null
-    }
+    return readStored(SmartRulesSchema, raw)
   }
 
   #toPlaylist(row: PlaylistRow): Playlist {

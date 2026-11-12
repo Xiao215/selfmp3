@@ -115,7 +115,7 @@ the platform.
 **Every device gets in the same way: sign in with Google, and the library is your
 bucket's.** There is no server address to type anywhere; the app knows the shared server's
 address as it knows the doorman's. The server serves no page on its public port: its
-owner's admin page (Data, Access, Server) listens on the server's own machine and is opened
+owner's admin page (Data, People, iPhones) listens on the server's own machine and is opened
 through Tailscale ([docs/features/admin.md](docs/features/admin.md)).
 
 | | Server | Browser tab | iPhone and Android app | Desktop app |
@@ -129,7 +129,8 @@ through Tailscale ([docs/features/admin.md](docs/features/admin.md)).
 | **Keyboard** | — | Space for play and pause | — | The application menu's shortcuts, and `⌘K` for Search |
 
 On a phone the tabs are **Home · Library · Playlists**. Search opens from Home, and Profile
-from Home's avatar; Profile leads on to Stats, Import, the Report and Settings. On a
+from Home's avatar; Profile leads on to Import, Stats (and the Report from there), Links you
+shared and Settings. On a
 computer those live in the sidebar.
 
 ---
@@ -184,7 +185,8 @@ song, so "(Live)", a "(From …)" note and a "feat." credit all survive (`tidyVi
 `packages/shared/src/titles.ts`).
 
 **From your phone's share sheet.** Share a track from the YouTube Music app and it queues on
-the server: a share target on Android, a one-step Shortcut on iOS. See
+the server: the share target of the web app installed from Chrome on Android, a one-step
+Shortcut on iOS. See
 [share-to-import.md](docs/features/share-to-import.md).
 
 **From other services.** Liked Music, private playlists and artist pages import like any
@@ -222,7 +224,7 @@ playlists, similar songs, and an auto-mix that orders Up next into a smooth path
 
 **Smart features.** Ask in the Search box — play something, find songs, make a playlist,
 tidy names or tags — and Describe it when making a playlist. The model only ever proposes,
-from your own songs, and you approve. Each feature has its own switch in Settings. See
+from your own songs, and you approve. One switch in Settings turns them all off. See
 [ai.md](docs/features/ai.md).
 
 ### With friends
@@ -432,10 +434,11 @@ The decisions that shape it — shared schemas instead of documented ones, stora
 interface, the bucket as the library, every play kept as a row, platform differences behind
 ports — are explained in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-Six GitHub workflows:
+Nine GitHub workflows:
 
 - [`check.yml`](.github/workflows/check.yml): typecheck, lint, format and tests on every
-  push and pull request, and called by the three builds below before they run.
+  push and pull request, and called by the Pages, desktop, extension, iPhone and Android
+  builds below before they run.
 - [`e2e.yml`](.github/workflows/e2e.yml): the extension and desktop Playwright suites, on
   every push to `main` and every pull request.
 - [`pages.yml`](.github/workflows/pages.yml): publishes the web app to GitHub Pages from
@@ -446,6 +449,12 @@ Six GitHub workflows:
   tag.
 - [`extension.yml`](.github/workflows/extension.yml): zips the extension on an
   `extension-v*` tag.
+- [`ios.yml`](.github/workflows/ios.yml) and [`android.yml`](.github/workflows/android.yml):
+  build and sign the phone app for friends and put it on the `ios` and `android` releases,
+  on every push to `main` that changes the app, and nightly when it has changed
+  ([MOBILE.md](docs/MOBILE.md)).
+- [`autofix.yml`](.github/workflows/autofix.yml): when a push to `main` goes red in Check,
+  End to end, Pages or Docker, Claude looks at why and offers a fix as a pull request.
 
 The doorman is deployed by hand with `npx wrangler deploy` from `apps/doorman`
 ([apps/doorman/README.md](apps/doorman/README.md)).

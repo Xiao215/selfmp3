@@ -41,6 +41,7 @@ import {
   roomTracks,
   sendKeepGoing,
   upcomingRows,
+  mayBring,
   youMay,
 } from './room.model'
 
@@ -286,6 +287,14 @@ describe('what a member sees', () => {
     expect(youMay(as(room(), A), 'addLink')).toBe(true)
     expect(youMay(as(room(), X), 'kick')).toBe(true)
     expect(youMay(as(room(), M), 'kick')).toBe(false)
+  })
+
+  it('lets a guest bring a song by a link, and nobody but the host when the room says so', () => {
+    expect(mayBring(as(room(), A))).toBe(true)
+    const shut = { ...room(), rights: { ...DEFAULT_ROOM_RIGHTS, add: false, links: false } }
+    expect(mayBring(as(shut, A))).toBe(false)
+    expect(mayBring(as(shut, M))).toBe(false)
+    expect(mayBring(as(shut, X))).toBe(true)
   })
 
   it('lets you take out your own songs, and the host anyone’s', () => {

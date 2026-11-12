@@ -114,8 +114,8 @@ interface SongProps {
 }
 
 /**
- * A one-song link that still plays (docs/features/share-links.md): Now
- * Playing's own two layouts, drawn from what the link lends. On a computer
+ * A one-song link that still plays, or one song of a list link (`list`)
+ * (docs/features/share-links.md): Now Playing's own two layouts, drawn from what the link lends. On a computer
  * the stage, cover and names on the left and the words beside them in time;
  * on a phone the phone's page, the cover with Play low under it and the
  * words a view of their own, opened the way Now Playing's are.

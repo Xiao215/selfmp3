@@ -3,6 +3,11 @@
 Tags are the only way this library is browsed, so they have to be easy to put on, easy to
 change, easy to pick from wherever you are, and unmistakable once picked.
 
+**Where:** the phone, the computer, the web and the desktop app. On a phone a tile is held to
+edit and the row's chips sit on its second line; a computer has the pointer's Play, right-clicks
+and a tag column. The code is in `apps/app/src/features/tags/` (All tags),
+`apps/app/src/features/tag/` (a tag's page) and the files below.
+
 Files:
 
 | What | Where |
@@ -94,16 +99,19 @@ the library. Renamed, the tag's page follows the new name.
 Every tag as a place to go, most played first (`P07`), laid out as records rather than the
 square covers Playlists uses: a tile is the tag's covers, its name, its songs and time. A
 tile opens the tag's own page (`/tag/<name>`). With a pointer, the record slides out and
-**Play** waits on its label; on a phone a tap opens and holding edits. A tag all of whose
-songs another tag carries hangs off that tag's tile as a small chip ("Inside: ● late night
+**Play** waits on its label; on a phone a tap opens and holding edits. The record of the tag
+playing turns, and finishes its turn on a pause (`TagSleeve.tsx`). The tile grows into the
+page's head as the page opens (`useHeroGrow`); Back slides the page off as any pushed page
+does. A tag all of whose
+songs another tag carries hangs off that tag's tile as a small chip ("Includes ● late night
 drives… 3"), which opens it, and tags with only a song or two wait at the end, so the page opens on the ones in use. The header's **+** opens the new-tag card —
 a name field, the colours and **Create**, which stays open after each one because tags
 arrive in handfuls. A new tag left uncoloured — there, in Import, or from Ask's tag review —
 takes the palette's hue farthest from every tag's (`newTagHue`, `TAG_HUES` in
 `packages/shared/src/editRules.ts`; the server and a cloud library pick alike), the name
 choosing between hues as far; the first swatch shows it before Create. Its name alone once
-chose, and "calm" came out the red "live" already was (X5, 2026-10-25). The sidebar shows the four tags used last; its TAGS header opens this
-page.
+chose, and "calm" came out the red "live" already was (X5, 2026-10-25). The sidebar shows the eight tags used last and "N more" (`RAIL_TAGS`); its TAGS header
+opens this page.
 
 Combining is not here: a tag's or an artist's page has **Mix in…** (`AddSheet.tsx`),
 which puts tags and artists together on `/combined` (docs/features/lists.md). The library's

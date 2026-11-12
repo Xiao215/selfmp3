@@ -45,7 +45,7 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
   /*
    * The worker fetches songs and covers from the bucket for the player, and
    * is the first to hear the bucket refuse for the day. It holds off on its
-   * own (sw.ts, `SW_MESSAGE.bucketCapped`) and says so here, so the page's reads — the
+   * own (sw/bucket.ts, `SW_MESSAGE.bucketCapped`) and says so here, so the page's reads — the
    * snapshot, the words — hold off too, and the screens can say why.
    */
   if (!hearingWorker) {

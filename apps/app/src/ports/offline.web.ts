@@ -49,7 +49,7 @@ function streamUrlFor(songId: number): string {
 
 /**
  * How a song's copy is looked up: by its path alone, as the service worker
- * looks it up (sw.ts, `handleAudio`).
+ * looks it up (sw/audio.ts, `handleAudio`).
  *
  * The key is the stream address, and its query carries the song's revision
  * and, from a server, the token. Matched whole, a copy kept before either

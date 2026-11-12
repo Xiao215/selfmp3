@@ -68,7 +68,7 @@ apps/app                 one Expo app for iOS, Android and the web (Foundations 
   src/offline/           downloads, the saved library, the listen outbox
   src/shell/             the width-decided frame: tab bar or sidebar, mini player or bar
   src/ui/                components, icons, the Unistyles theme
-  sw/sw.ts               service worker, bundled to public/sw.js by esbuild
+  sw/                    service worker: sw.ts, audio.ts and bucket.ts, bundled to public/sw.js by esbuild
   public/                manifest, icons: copied into the web export as they are
   targets/widget/        the iOS home-screen widgets, in SwiftUI
 
@@ -403,7 +403,7 @@ phone, Playwright on the web. Nothing UI-shaped is left with zero coverage.
 | Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto. It is an alpha: its iOS half is patched at `pod install` (`apps/app/patches`, applied by `plugins/withPlayerPatches.js`) for a deadlock that stopped every animation in the app. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
 | Listening before importing, native | `expo-audio`, a player of its own | A preview on the review is not a song in track-player's one queue, and the web plays it in an audio element apart from the player (`ports/listen.web.ts`); the phone does the same through `expo-audio` (`ports/listen.ts`), told to leave the audio session, which is track-player's, alone, and given each stream through `preload` so opening it never holds the JavaScript thread. The playing row's colour comes from the server (`GET /api/import/cover-tone`, services/previewCoverTone.ts), which reads the cover as it reads the library's. Not a second engine: no queue, no lock screen. |
 | Offline, web | Cache API + service worker | Behind the offline port; the desktop app keeps files instead, through its bridge. |
-| Service worker build | esbuild | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
+| Service worker build | esbuild | The worker is `sw/sw.ts` and the few modules beside it, with no runtime dependencies, bundled to one `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
 | Offline, native | files + JSON index | Behind the same port. |
 | Icons | `react-native-svg` | One file for all three platforms. |
 | Hardware keyboard, iOS | **A local Expo module**, `apps/app/modules/key-commands` (Swift over `expo-modules-core`) | React Native delivers no key presses on iOS. The module puts `UIKeyCommand`s with a `discoverabilityTitle` on the root view controller, so holding ⌘ lists them, sends each press to JavaScript as `{ input, modifiers }`, withdraws the ones a text field must keep while one is being typed in, and says whether a keyboard is attached (`GCKeyboard`). Autolinked from `modules/`; iOS only, so Android and the web never build it. Passed over in September 2026: `react-native-key-command` (Expensify) needs an `AppDelegate` patch, has no config plugin and no `discoverabilityTitle`; `react-native-keyevent` is unmaintained; `react-native-keyboard-controller` is the soft keyboard only; `react-native-external-keyboard` is focus-scoped. |

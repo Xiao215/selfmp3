@@ -77,7 +77,7 @@ module.exports = [
      * The two rules the root config calls the #1 source of silent failures,
      * type-aware and so needing a project: this workspace's own tsconfig,
      * which is why the root config could not bring them here. Only what that
-     * tsconfig includes, `app/**` and `src/**` — `index.ts` and `sw/sw.ts` are
+     * tsconfig includes, `app/**` and `src/**` — `index.ts` and `sw/` are
      * in no reachable project (the worker has tsconfig.sw.json, for the
      * WebWorker library), and a file the project service cannot place is a
      * lint error rather than a linted file.

@@ -10,11 +10,11 @@ import { desktopBucketMedia } from './desktop/bucketMedia.desktop'
  *
  * In a tab these are the app's own `api/stream/<id>` and `api/art/<id>`, under
  * the base the build was made for — the same addresses a server would serve,
- * which is the point. The service worker intercepts them (sw/sw.ts), looks the
+ * which is the point. The service worker intercepts them (sw/bucket.ts), looks the
  * song's bucket key and the doorman session out of IndexedDB, and fetches the
  * file with the bearer header an `<audio>` element and an `<img>` could never
  * have sent. A song is downloaded whole once, and the player's ranges are read
- * from that download as it arrives (sw.ts, `playFromBucket`).
+ * from that download as it arrives (sw/audio.ts, `playFromBucket`).
  *
  * `rev` rides along as `?v=`. The worker matches the path, so the query is
  * free to name the revision — which is how a replaced cover defeats the cache

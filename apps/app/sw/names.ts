@@ -21,8 +21,8 @@ export const API_CACHE = 'selfmp3-api-v2'
 export const AUDIO_CACHE = 'selfmp3-audio-v1'
 
 /**
- * The last few cloud songs the worker downloaded whole to play them (sw.ts,
- * `playFromBucket`): the worker's own, and let go of at sign-out.
+ * The last few cloud songs the worker downloaded whole to play them
+ * (./audio.ts, `playFromBucket`): the worker's own, and let go of at sign-out.
  */
 export const PLAYED_CACHE = 'selfmp3-played-v1'
 

@@ -145,7 +145,7 @@ stream through it without it holding them.
    How a tab does it: the page asks for a song and a cover at addresses of the app's own,
    `api/stream/<id>` and `api/art/<id>` under the base the build was made for
    (`apps/app/src/ports/bucketMedia.web.ts`), and the service worker answers them
-   (`apps/app/sw/sw.ts`) — looking the song's bucket key and the doorman session out of
+   (`apps/app/sw/bucket.ts`) — looking the song's bucket key and the doorman session out of
    IndexedDB and fetching the file with the bearer header no `<audio>` element or `<img>`
    could have sent. The first range of a song starts one download of the whole file, and every
    range the player asks for — Safari's two-byte look first, a seek — is read from that
@@ -899,7 +899,7 @@ given a grant to, with *Remove* on each.
 | Live playlists on a device | `packages/shared/src/smartRules.ts` |
 | The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`, `src/changes.ts` the change counter, `src/access.ts` who may sign in, `src/grants.ts`), `apps/doorman/README.md` |
 | The doorman's contract | `packages/shared/src/schemas/doorman.ts`, `packages/shared/src/doormanWire.ts` |
-| A day past the bucket's cap | `packages/replica/src/hold.ts`, `BUCKET_HOLD_MS` in `packages/shared/src/doormanWire.ts`, `apps/app/sw/sw.ts` |
+| A day past the bucket's cap | `packages/replica/src/hold.ts`, `BUCKET_HOLD_MS` in `packages/shared/src/doormanWire.ts`, `apps/app/sw/bucket.ts` |
 | Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` and `s3.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes), `apps/server/src/bucket/kept.ts` (words read from the bucket, kept on disk) |
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |

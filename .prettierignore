@@ -8,6 +8,9 @@ package-lock.json
 # Built by `npm run build:sw`, and minified. Ignored by apps/app/.gitignore,
 # which Prettier does not read: it consults the root .gitignore only.
 apps/app/public/sw.js
+# packages/ytclient bundled for the sandbox frame and the phone's page by `npm run build:ytsandbox`, the same way.
+apps/app/public/yt-sandbox.js
+apps/app/public/yt-webview.js
 # Written by `npm run build:pages` from packages/shared/src/privacy.ts, bucketGuide.ts and
 # installPage.ts; git-ignored the same way.
 apps/app/public/privacy.html

@@ -18,6 +18,7 @@ import { draftSourceFor } from './importDraft.model'
 import { useImportSource } from './importSource'
 import { importErrorText, importLabel, importRequest } from './review.model'
 import { countUse } from '../usage/usage'
+import { enqueueImport } from './deviceImports'
 import { TapAway } from '../../ui/components/TapAway'
 
 /** What Import's pages say when the server they were pointed at stops answering. */
@@ -95,7 +96,8 @@ export function useImportEnqueue(
 ): UseMutationResult<unknown, Error, Review> {
   const { source, draft, failed } = page
   return useMutation({
-    mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, draft.tagIds)),
+    mutationFn: (current: Review) =>
+      enqueueImport(source.api, importRequest(current, draft.tagIds)),
     onSuccess: () => {
       countUse('import')
       void source.invalidateQueue()

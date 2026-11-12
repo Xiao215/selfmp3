@@ -529,6 +529,23 @@
   background: var(--border-strong);
 }
 
+/* Use my YouTube sign-in: one row, its switch at the end. */
+.youtube-sign-in {
+  border-radius: var(--radius-card);
+}
+
+.youtube-sign-in .typed {
+  cursor: pointer;
+}
+
+.youtube-sign-in input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 /* The address (D1): a row at the foot that opens in place. */
 .by-address {
   overflow: hidden;

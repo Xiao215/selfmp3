@@ -314,6 +314,12 @@ export class CoverService {
    * cover.
    */
   async saveFromUrl(songId: number, url: string): Promise<boolean> {
+    const picture = await this.fetchFromUrl(url)
+    return picture ? this.saveFetched(songId, picture) : false
+  }
+
+  /** The picture at `url`, fetched as `saveFromUrl` fetches one, or null when it did not come. */
+  async fetchFromUrl(url: string): Promise<FetchedCover | null> {
     try {
       const file = await fetchPublic(
         url,
@@ -321,19 +327,33 @@ export class CoverService {
         this.#allowed,
       )
       // Guard against a redirect to an HTML error page.
-      if (!file?.data || file.data.length < 512) return false
-
+      if (!file?.data || file.data.length < 512) return null
       const extension = file.contentType.includes('png')
         ? '.png'
         : file.contentType.includes('webp')
           ? '.webp'
           : '.jpg'
-      await this.save(songId, file.data, extension)
+      return { data: file.data, extension }
+    } catch {
+      return null
+    }
+  }
+
+  /** Keep a picture `fetchFromUrl` gave as the song's cover; false when it would not go. */
+  async saveFetched(songId: number, picture: FetchedCover): Promise<boolean> {
+    try {
+      await this.save(songId, picture.data, picture.extension)
       return true
     } catch {
       return false
     }
   }
+}
+
+/** A picture from the open web, and the extension its content type names. */
+export interface FetchedCover {
+  readonly data: Buffer
+  readonly extension: string
 }
 
 async function isFile(file: string): Promise<boolean> {

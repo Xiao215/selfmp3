@@ -1,0 +1,8 @@
+{
+  // A page, bundled by scripts/harness.mjs: tsc only checks it.
+  "extends": "../../../verify/tsconfig.base.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": ["**/*.ts"]
+}

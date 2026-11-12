@@ -48,6 +48,7 @@ import { Fold } from '../../ui/components/Fold'
 import { useKeptWhileClosing } from '../../ui/motion'
 import { useFadeMotion } from '../../ui/rowMotion'
 import { nextLine } from './importQueue.model'
+import { previewImport, warmImports } from './deviceImports'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
@@ -100,6 +101,8 @@ export function ImportScreen({
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
+  // A phone's YouTube page takes a moment to load: it starts as the screen opens, not at the first link.
+  useEffect(() => warmImports(), [])
   const { api, library, tools, refetchTools, queue, history } = source
   const params = useLocalSearchParams<{
     url?: string
@@ -130,7 +133,7 @@ export function ImportScreen({
   const tags = library?.tags ?? []
 
   const preview = useMutation({
-    mutationFn: (input: string) => source.lookUp.importPreview(input),
+    mutationFn: (input: string) => previewImport(api, input, source.lookUp),
     onSuccess: (result, input) => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search

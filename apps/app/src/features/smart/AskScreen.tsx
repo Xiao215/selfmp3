@@ -12,7 +12,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { beforeTurn, joinedArtists, plural } from '@selfmp3/shared'
+import { beforeTurn, joinedArtists } from '@selfmp3/shared'
 import { iconSize, radius, space, textStyle, type, useLibrary } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { reachedConnection } from '../../connection/via'
@@ -44,7 +44,7 @@ import { Stage, TurnStage, type Answered } from './AskTurn'
 import type { AnswerKeys } from './answerKeys'
 import { forgetThread, keepThread, keptThread, newThread } from './askThread.store'
 import { type keptAnswer, useKeptAnswer } from './answers.store'
-import { afterStop, retried, scrollToShow, type Turn } from './askTurns.model'
+import { afterStop, fieldWords, retried, scrollToShow, type Turn } from './askTurns.model'
 import { askSuggestions, picksHere } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
@@ -157,7 +157,10 @@ export function AskScreen(): ReactNode {
   const [letGoOf, setLetGoOf] = useState<string | null>(null)
   const target = onLog ? null : (shownTurn?.list ?? null)
   const changing = useKeptAnswer(target !== null && target !== letGoOf ? target : undefined)
-  const changingSongs = changing ? changingCount(changing, server.onDevice) : 0
+  const fieldSays = fieldWords(
+    changing ? changingCount(changing, server.onDevice) : null,
+    turns.length,
+  )
   // The answer on the screen, by its object's handle: the list while it wears
   // the chip, or any other answer that showed songs.
   const screen =
@@ -258,27 +261,15 @@ export function AskScreen(): ReactNode {
         onSend={words => ask(words, true)}
         onStop={working ? stop : null}
         chip={
-          changing
+          changing && fieldSays.chip !== null
             ? {
-                label:
-                  changingSongs === 1
-                    ? 'this song'
-                    : `these ${plural(changingSongs, 'song', 'songs')}`,
+                label: fieldSays.chip,
                 name: changing.result.understanding.name,
                 onLetGo: () => setLetGoOf(changing.id),
               }
             : null
         }
-        placeholder={
-          changing
-            ? // The chip already says which songs.
-              changingSongs === 1
-              ? 'Ask about it…'
-              : 'Ask about them…'
-            : turns.length === 0
-              ? 'Ask anything…'
-              : 'Ask a follow-up…'
-        }
+        placeholder={fieldSays.placeholder}
         autoFocus={turns.length === 0}
       />
       {finePointer && (answerKeys || (changing && !typing)) ? (

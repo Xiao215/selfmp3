@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AI_ERROR, type WrappedRange } from '@selfmp3/shared'
 import {
   ApiError,
@@ -36,20 +36,20 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   const queryClient = useQueryClient()
   const via = reachedConnection(server.reach)?.baseUrl ?? null
   const key = viaKey(via, 'ai', 'written', range)
+  const { api } = server
   const answer = useQuery({
     queryKey: key,
-    queryFn: () => server.api!.written(range),
-    enabled: written && server.api !== null,
+    queryFn: written && api ? () => api.written(range) : skipToken,
     ...ASKS_MODEL,
     staleTime: STALE.halfHour,
   })
   const [again, setAgain] = useState(false)
 
   const writeAgain = async (): Promise<void> => {
-    if (!server.api) return
+    if (!api) return
     setAgain(true)
     try {
-      queryClient.setQueryData(key, await server.api.written(range, true))
+      queryClient.setQueryData(key, await api.written(range, true))
     } catch (caught) {
       // The card keeps what it had; the press is told why nothing changed.
       showFailure('Couldn’t write it again', caught)
@@ -85,7 +85,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
           variant="text"
           icon={<Refresh tone="textSecondary" />}
           busy={again}
-          disabled={answer.isPending || !server.api}
+          disabled={answer.isPending || !api}
           onPress={() => void writeAgain()}
           testID="report-written-again"
         />

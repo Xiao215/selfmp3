@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useQuery } from '@tanstack/react-query'
+import { skipToken, useQuery } from '@tanstack/react-query'
 import { Button } from '../../ui/components/Button'
 import { Sparkle } from '../../ui/components/Icons'
 import { useServerApi } from '../../connection/useServerApi'
@@ -24,15 +24,12 @@ import { textStyle, iconSize, space } from '@selfmp3/client'
  */
 function useSmart() {
   const server = useServerApi()
-  const { settings, failed, retry, set } = useServerSettings(
-    server.api,
-    server.via?.baseUrl ?? null,
-  )
+  const { api } = server
+  const { settings, failed, retry, set } = useServerSettings(api, server.via?.baseUrl ?? null)
   const via = reachedConnection(server.reach)?.baseUrl ?? null
   const setup = useQuery({
     queryKey: viaKey(via, 'ai', 'setup'),
-    queryFn: () => server.api!.aiSetup(),
-    enabled: server.api !== null,
+    queryFn: api ? () => api.aiSetup() : skipToken,
     retry: false,
   })
   return { server, settings, failed, retry, set, noModel: setup.data?.address === null }

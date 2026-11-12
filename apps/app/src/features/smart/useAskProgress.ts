@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { skipToken, useQuery } from '@tanstack/react-query'
 import type { AskProgress } from '@selfmp3/shared'
 import { useSmartServer } from './useSmartServer'
 import { reachedConnection, viaKey } from '../../connection/via'
@@ -20,10 +20,10 @@ export function useAskProgress(
 ): AskProgress['steps'] | null {
   const server = useSmartServer()
   const via = reachedConnection(server.reach)?.baseUrl ?? null
+  const { api } = server
   const progress = useQuery({
     queryKey: viaKey(via, 'ai', 'ask-progress', ticket),
-    queryFn: () => server.api!.askProgress(ticket!),
-    enabled: server.api !== null && ticket !== null && active,
+    queryFn: api && ticket !== null && active ? () => api.askProgress(ticket) : skipToken,
     refetchInterval: 500,
     retry: false,
   })

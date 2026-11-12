@@ -11,6 +11,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { siteOf } from './content/anchors.js'
+import { ExtensionOptionsSchema } from './background/options.js'
 import { VIDEO_ID } from './content/videoIds.js'
 
 /**
@@ -66,6 +67,9 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('requests') }),
   z.object({ type: z.literal('cancelRequest'), uid: z.string().min(1).max(100) }),
+  /** The extension's own options (background/options.ts). */
+  z.object({ type: z.literal('options') }),
+  z.object({ type: z.literal('setOptions'), useYouTubeSignIn: z.boolean() }),
 ])
 export type BridgeRequest = z.output<typeof BridgeRequestSchema>
 export type RequestType = BridgeRequest['type']
@@ -133,13 +137,16 @@ export const REPLIES = {
   createTag: TagSchema,
   songFor: SongHitSchema.nullable(),
   owned: OwnedSchema,
-  enqueue: ImportEnqueueResultSchema,
+  // As the client gives it back (`EnqueuedImport`): a device lease is no page's, and this extension asks for none.
+  enqueue: ImportEnqueueResultSchema.omit({ device: true }),
   queue: ImportQueueSchema,
   cancel: OkSchema,
   retry: OkSchema,
   requestImport: ImportRequestViewSchema,
   requests: ImportRequestListSchema,
   cancelRequest: OkSchema,
+  options: ExtensionOptionsSchema,
+  setOptions: ExtensionOptionsSchema,
 } satisfies Record<RequestType, z.ZodTypeAny>
 
 export type Reply<T extends RequestType> = z.output<(typeof REPLIES)[T]>

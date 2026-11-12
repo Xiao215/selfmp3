@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { loginItem } from '../../ports/loginItem'
+import { downloadsHere } from '../../ports/deviceDownloads'
 import { macApp } from '../../ports/macApp'
 import { useMenuCommands } from '../../ports/menuKeys'
 import { AccountCards } from './ConnectionPanel'
 import { Confirmations } from './Confirmations'
 import { DesktopPanel } from './DesktopPanel'
+import { DeviceImportsPanel } from './DeviceImportsPanel'
 import { GetAppPanel } from './GetAppPanel'
 import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
@@ -44,6 +46,8 @@ export function AdvancedScreen(): ReactNode {
     <SettingsPage title="Advanced" back={BACK}>
       <LibraryPanel />
       <ImportingPanel />
+      {/* This device's own downloading (docs/features/client-download.md): a phone, or a tab the extension runs in. */}
+      {downloadsHere.available ? <DeviceImportsPanel /> : null}
       {loginItem.available ? <DesktopPanel /> : null}
       {macApp.offered ? <GetAppPanel /> : null}
       {shortcuts ? <ShortcutsPanel items={shortcuts} /> : null}

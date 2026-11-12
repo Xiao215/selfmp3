@@ -1,0 +1,39 @@
+{
+  "name": "@selfmp3/ytclient",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Downloading from YouTube on the device, with youtubei.js: in the page through the extension, or on a phone in a WebView of its own. See docs/features/client-download.md.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "source": "./src/host.ts",
+      "default": "./dist/host.js"
+    },
+    "./phone": {
+      "types": "./dist/phone.d.ts",
+      "source": "./src/phone.ts",
+      "default": "./dist/phone.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "harness": "node scripts/harness.mjs",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@selfmp3/shared": "*",
+    "bgutils-js": "^4.0.3",
+    "youtubei.js": "^18.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

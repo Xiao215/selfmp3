@@ -2,25 +2,21 @@ import { spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
 import {
-  youtubeWatchUrl,
   DAY_MS,
-  cleanArtist,
   isNeteaseUrl,
   isYouTubeUrl,
-  tidyVideoTitle,
-  withoutRepeats,
-  withoutTranslation,
-  withoutUseNote,
+  toProbedTrack,
+  type ProbedTrack,
   type ToolStatus,
+  type YtDlpJson,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
-import {
-  isRateLimited,
-  RateLimitedError,
-  type YtThrottleService,
-  PERSON_MAY_BORROW,
-} from './ytThrottle.js'
+import { isRateLimited, PERSON_MAY_BORROW, youtubeAddressOf } from '@selfmp3/shared'
+import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
+
+// Named here by everything that reads yt-dlp's tracks; the rules are shared's.
+export { toProbedTrack, type ProbedTrack }
 
 /**
  * A typed wrapper around the `yt-dlp` command line.
@@ -165,7 +161,10 @@ function summarizeError(stderr: string, fallback: string): string {
   const lines = stderr
     .split(/\r?\n/)
     .map(line => line.trim())
-    .filter(line => line.length > 0 && !line.startsWith('[download]'))
+    // A download's link line is no reason for anything, and its address is not for a person's eyes.
+    .filter(
+      line => line.length > 0 && !line.startsWith('[download]') && !line.startsWith(LINK_LINE),
+    )
 
   const errorLine = lines.reverse().find(line => /^ERROR:/i.test(line))
   const message = errorLine ?? lines[0] ?? fallback
@@ -265,87 +264,6 @@ export interface FoundAudio {
   readonly year: number | null
 }
 
-/** Metadata yt-dlp reports for one track. */
-export interface ProbedTrack {
-  url: string
-  title: string
-  artist: string
-  album: string
-  duration: number
-  thumbnail: string | null
-}
-
-/** The subset of yt-dlp's JSON dump this app reads. */
-interface YtDlpJson {
-  _type?: string
-  /** Which extractor a flat entry belongs to: `Youtube` for a video, `YoutubeTab` for a page. */
-  ie_key?: string
-  id?: string
-  url?: string
-  webpage_url?: string
-  title?: string
-  track?: string
-  artist?: string
-  creator?: string
-  uploader?: string
-  channel?: string
-  album?: string
-  duration?: number
-  thumbnail?: string
-  /** A search entry lists its thumbnails smallest first, and names no `thumbnail`. */
-  thumbnails?: { url?: string; width?: number }[]
-  entries?: YtDlpJson[]
-  playlist_title?: string
-}
-
-/** One entry of yt-dlp's JSON as a track to review and import. */
-export function toProbedTrack(json: YtDlpJson, fallbackUrl: string): ProbedTrack {
-  // Flat playlist entries carry only an id, so rebuild a watch URL from it.
-  const url =
-    json.webpage_url ??
-    (json.url && /^https?:/.test(json.url)
-      ? json.url
-      : json.id
-        ? youtubeWatchUrl(json.id)
-        : fallbackUrl)
-
-  // `track` and `artist` are the song's own when YouTube has music metadata.
-  // Without them `title` is the video's — "YOASOBI「アイドル」Official Music
-  // Video" — so it is tidied into the song's name, and the artist it writes in
-  // front is preferred to the channel's name (titles.ts).
-  const credited = json.artist ?? json.creator
-  const channel = cleanArtist(credited ?? json.uploader ?? json.channel ?? '')
-  const tidied = json.track ? null : tidyVideoTitle(json.title ?? '', channel)
-
-  // Named the way the library keeps names (A9, docs/features/ai.md): each
-  // name once in a credit — YouTube Music lists 薛之谦 three times on a song
-  // he sings three parts of — and the original name without the English a
-  // channel writes after it ("オリオン - Orion").
-  return {
-    url,
-    title: withoutUseNote(withoutTranslation((json.track ?? tidied?.title ?? '').trim())),
-    artist: withoutRepeats(credited ? channel : (tidied?.artist ?? channel)),
-    album: (json.album ?? '').trim(),
-    duration: typeof json.duration === 'number' ? json.duration : 0,
-    thumbnail: json.thumbnail ?? largestThumbnail(json.thumbnails),
-  }
-}
-
-/**
- * The cover of an entry that names none: a flat listing's entries name no
- * `thumbnail`, only `thumbnails`, so without this every song of a long
- * playlist reviewed through yt-dlp showed a letter where its picture goes.
- * The largest is the one to keep with the song.
- */
-function largestThumbnail(thumbnails: YtDlpJson['thumbnails']): string | null {
-  if (!thumbnails) return null
-  let best: { url?: string; width?: number } | null = null
-  for (const thumb of thumbnails) {
-    if (thumb.url && (best === null || (thumb.width ?? 0) >= (best.width ?? 0))) best = thumb
-  }
-  return best?.url ?? null
-}
-
 /**
  * Whether one entry of a flat listing is a video.
  *
@@ -381,11 +299,22 @@ function onlyMusicSites(url: string): void {
   }
 }
 
+/** The mark a download's line naming its link starts with (`YtDlpService.download`). */
+const LINK_LINE = 'selfmp3-link '
+
+/**
+ * How long the address YouTube last saw this server at is believed. A home
+ * address changes rarely, and the next download or listen says it again.
+ */
+const ADDRESS_FRESH_MS = 6 * 60 * 60_000
+
 export class YtDlpService {
   readonly #logger: Logger
   readonly #cookies: () => YtCookieSettings
   readonly #throttle: YtThrottleService
   #cachedStatus: ToolStatus | null = null
+  /** Where YouTube last saw this server: the address it wrote into a link it gave (`youtubeAddressOf`). */
+  #address: { address: string; at: number } | null = null
 
   /**
    * `cookies` is read on every call rather than once, so changing the cookie
@@ -399,6 +328,22 @@ export class YtDlpService {
     this.#logger = logger.child('yt-dlp')
     this.#cookies = cookies
     this.#throttle = throttle
+  }
+
+  /**
+   * Where YouTube last saw this server, or null when it has not said for a
+   * while. Every link yt-dlp is given names the address it was given to —
+   * `-4`'s, so the IPv4 one — and a device that YouTube sees there too asks
+   * from this server's budget (docs/features/client-download.md, "One address").
+   */
+  youtubeAddress(now = Date.now()): string | null {
+    const known = this.#address
+    return known && now - known.at < ADDRESS_FRESH_MS ? known.address : null
+  }
+
+  #noteLink(link: string): void {
+    const address = youtubeAddressOf(link)
+    if (address) this.#address = { address, at: Date.now() }
   }
 
   /**
@@ -618,6 +563,7 @@ export class YtDlpService {
       .find(([, , link]) => link !== undefined && /^https?:\/\//.test(link))
     if (!found) throw new Error('yt-dlp found no audio for that link')
     const [ext = '', date = '', link = ''] = found
+    this.#noteLink(link)
     const year = /^\d{4}/.exec(date)?.[0]
     return { url: link, ext: ext || 'm4a', year: year ? Number(year) : null }
   }
@@ -654,6 +600,11 @@ export class YtDlpService {
       '3',
       '--fragment-retries',
       '3',
+      // The link it downloads from, for the address in it (`youtubeAddress`).
+      // Printing quiets the rest, so the progress is asked for by name.
+      '--print',
+      `before_dl:${LINK_LINE}%(urls)s`,
+      '--progress',
       '--output',
       input.outputTemplate,
     ]
@@ -668,14 +619,14 @@ export class YtDlpService {
     const result = await run('yt-dlp', args, {
       timeoutMs: 20 * 60 * 1000,
       ...(input.signal ? { signal: input.signal } : {}),
-      ...(input.onProgress
-        ? {
-            onLine: (line: string) => {
-              const percent = parseProgress(line)
-              if (percent !== null) input.onProgress?.(percent)
-            },
-          }
-        : {}),
+      onLine: (line: string) => {
+        if (line.startsWith(LINK_LINE)) {
+          this.#noteLink(line.slice(LINK_LINE.length).trim())
+          return
+        }
+        const percent = parseProgress(line)
+        if (percent !== null) input.onProgress?.(percent)
+      },
     })
 
     if (result.timedOut) throw new Error('download timed out')

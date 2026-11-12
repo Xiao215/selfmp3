@@ -23,12 +23,35 @@
     "page": "options.html",
     "open_in_tab": true
   },
-  "permissions": ["activeTab", "contextMenus", "notifications", "alarms", "identity"],
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "notifications",
+    "alarms",
+    "identity",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "optional_permissions": ["cookies"],
+  "declarative_net_request": {
+    "rule_resources": [
+      { "id": "youtube-origin", "enabled": true, "path": "rules/youtube-origin.json" }
+    ]
+  },
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://m.youtube.com/*",
-    "https://music.youtube.com/*"
+    "https://music.youtube.com/*",
+    "https://youtubei.googleapis.com/*",
+    "https://*.googlevideo.com/*",
+    "https://www.google.com/js/th/*"
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://xiao215.github.io/selfmp3/*",
+      "http://localhost:4601/*",
+      "http://localhost:4602/*"
+    ]
+  },
   "content_scripts": [
     {
       "matches": [

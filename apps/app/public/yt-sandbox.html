@@ -1,0 +1,17 @@
+<!doctype html>
+<!--
+  The YouTube sandbox frame (docs/features/client-download.md): youtubei.js,
+  YouTube's player script and BotGuard run here, in an iframe the app makes
+  with sandbox="allow-scripts" and nothing else, so none of it can reach the
+  app's own page, its storage or its self.mp3 session. yt-sandbox.js is built
+  by `npm run build:ytsandbox` from packages/ytclient/src/sandbox/frame.ts.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>self.mp3 YouTube sandbox</title>
+  </head>
+  <body>
+    <script src="yt-sandbox.js"></script>
+  </body>
+</html>

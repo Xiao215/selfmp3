@@ -1,0 +1,5 @@
+{
+  // `harness/main.ts` comes in through the spec's import of its types.
+  "extends": "../../../verify/tsconfig.base.json",
+  "include": ["**/*.ts"]
+}

@@ -482,7 +482,7 @@ export const SongRow = memo(function SongRow({
               accessibilityLabel={`Play ${song.title}`}
               {...tip('Play')}
               {...untabbed}
-              style={styles.indexPlay}
+              style={({ pressed }) => [styles.indexPlay, pressed && styles.controlPressed]}
             >
               <Play size={iconSize.item} tone="textPrimary" />
             </Pressable>
@@ -537,7 +537,7 @@ export const SongRow = memo(function SongRow({
                   accessibilityLabel={`Edit tags for ${song.title}`}
                   {...tip('Edit tags')}
                   {...untabbed}
-                  style={styles.tagAdd}
+                  style={({ pressed }) => [styles.tagAdd, pressed && styles.controlPressed]}
                 >
                   {/* The player bar's tag-with-a-plus: a bare + on a song row read as
                       Add to playlist or Add to Up next. */}

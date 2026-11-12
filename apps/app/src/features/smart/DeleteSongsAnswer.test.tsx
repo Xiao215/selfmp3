@@ -73,9 +73,11 @@ it('says the playlist they empty goes too, asks once more, then deletes the tick
       '“DOME LIVE” goes too: nothing would be left in it. Also takes 1 song out of “Favourites”.',
     ),
   ).toBeTruthy()
-  // Leaving one out keeps the playlist: it says so at once.
+  // Leaving one out keeps the playlist: it says so at once. The rows wait for
+  // the library's songs, which the line above does not.
+  const [firstRow] = await screen.findAllByTestId('delete-songs-song')
   await act(async () => {
-    await fireEvent.press(screen.getAllByTestId('delete-songs-song')[0]!)
+    await fireEvent.press(firstRow!)
   })
   expect(
     screen.getByText('Also takes songs out of “DOME LIVE” (1), “Favourites” (1).'),

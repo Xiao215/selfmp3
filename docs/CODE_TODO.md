@@ -112,3 +112,15 @@ device's store, because the only data there is is the owner's.
   `start`; the sync's and the hub's tests drive passes one at a time through `syncNow`, and
   `verify` starts a pass over against the bucket the way a restart does, without making a
   second service on the same database.
+- **`PlayerProvider.tsx`, `SongRow.tsx` and `Sidebar.tsx` stay long, one file each**. The
+  provider's engine wiring, its commands and its recovery from a failed song share a dozen
+  refs (the comment above `useVolumeControls` there); a song row's phone and computer shapes
+  are placed from one set of parts, so a fix reaches both (the comment above `target` in
+  `SongRow.tsx`); the rail's sections share one stylesheet and its group heads. What had a
+  seam of its own has moved out: the volume, the sleep timer, play reporting and what the
+  operating system shows (`useNowPlaying`), and the worker's audio and bucket
+  (`sw/audio.ts`, `sw/bucket.ts`).
+- **`usePlayerProgress` reads `usePlayer()` for the song's own length**, so the scrubbers
+  and the synced lyrics render again for a queue edit. The playback store is told after the
+  commit, so taking the length from there would draw the last song's length under the new
+  one for a frame.

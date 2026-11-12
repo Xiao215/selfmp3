@@ -1,7 +1,6 @@
 import { promisify } from 'node:util'
 import { gzip } from 'node:zlib'
 import {
-  bucketPlace,
   HASH_NAMED_FOLDERS,
   messageOf,
   CLOUD_FORMAT_UNREADABLE,
@@ -28,6 +27,8 @@ import {
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
+  sameStorage,
+  storagePlace,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -37,11 +38,12 @@ import { DoormanClient } from '../bucket/doorman.js'
 import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
-import type {
-  CloudRepository,
-  CloudSongState,
-  DoormanSession,
-  SongFileInfo,
+import {
+  storageTarget,
+  type CloudRepository,
+  type CloudSongState,
+  type DoormanSession,
+  type SongFileInfo,
 } from '../repositories/cloud.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { TagRepository } from '../repositories/tags.js'
@@ -719,9 +721,7 @@ export class CloudSyncService {
       previous?.storage &&
       me.storage &&
       previous.token === token &&
-      previous.storage.endpoint === me.storage.endpoint &&
-      previous.storage.bucket === me.storage.bucket &&
-      previous.storage.prefix === me.storage.prefix
+      sameStorage(previous.storage, me.storage)
     if (!me.storage) {
       this.#drop()
       return
@@ -2109,6 +2109,7 @@ export class CloudSyncService {
     this.#deps.cloud.adoptTarget(target)
     const published = () => this.#deps.cloud.totals().songsInCloud > 0
     this.#use(new LocalCloudStore(dir, { published }), {
+      kind: 'bucket',
       ...target,
       region: '',
       keyIdHint: 'folder',
@@ -2118,8 +2119,8 @@ export class CloudSyncService {
   #useDoorman(session: DoormanSession): void {
     const storage = session.storage
     if (!storage || !this.#doorman) return
-    this.#deps.cloud.adoptTarget(storage)
-    const { host, folder } = bucketPlace(storage)
+    this.#deps.cloud.adoptTarget(storageTarget(storage))
+    const { host, folder } = storagePlace(storage)
     this.#use(this.#doorman.store(session.token, `${host} · ${folder} (via the doorman)`), {
       ...storage,
     })

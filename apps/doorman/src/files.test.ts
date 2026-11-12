@@ -106,7 +106,7 @@ describe('listing', () => {
   it('refuses a made-up cursor shape', async () => {
     const { h, token } = await connected()
     expect((await h.call('/v1/list?cursor=', { token })).status).toBe(400)
-    expect((await h.call(`/v1/list?cursor=${'x'.repeat(1025)}`, { token })).status).toBe(400)
+    expect((await h.call(`/v1/list?cursor=${'x'.repeat(4097)}`, { token })).status).toBe(400)
   })
 })
 

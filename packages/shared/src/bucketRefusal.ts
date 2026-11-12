@@ -15,9 +15,11 @@
  *   get through either.
  * - `busy`: the bucket asks for fewer requests for a moment (S3's SlowDown, a
  *   503 or a 429). Nothing is wrong with what was asked for: ask again later.
+ * - `full`: there is no room left for what was sent. Only a Google Drive says
+ *   so (apps/doorman/src/drive.ts): a bucket has no size of its own to run out of.
  * - `other`: anything else, in the bucket's own words.
  */
-export type BucketRefusalKind = 'auth' | 'network' | 'missing' | 'cap' | 'busy' | 'other'
+export type BucketRefusalKind = 'auth' | 'network' | 'missing' | 'cap' | 'busy' | 'full' | 'other'
 
 export interface BucketRefusal {
   readonly kind: BucketRefusalKind

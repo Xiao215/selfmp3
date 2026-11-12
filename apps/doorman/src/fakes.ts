@@ -1,5 +1,9 @@
-import { DoormanClaimResultSchema, signInStartUrl } from '@selfmp3/shared'
-import type { Fetch, FetchInit } from './bucket.js'
+import {
+  DoormanClaimResultSchema,
+  DoormanDriveStartedSchema,
+  signInStartUrl,
+} from '@selfmp3/shared'
+import type { Fetch, FetchInit } from './store.js'
 import type { Env } from './context.js'
 import { createDoorman, type Doorman } from './doorman.js'
 import { secureHex, toBase64, toBase64Url, utf8 } from './encoding.js'
@@ -14,13 +18,14 @@ import {
   KEY_ID,
   type SeenRequest,
 } from './fakeBucket.js'
+import { DRIVE_HOST, FakeDrive } from './fakeDrive.js'
 import { FakeChanges, FakeRooms, FakeShared, FakeShares, FakeTally } from './fakeObjects.js'
 import type { KvStore } from './kv.js'
 
 /**
  * Stand-ins for everything the doorman talks to, for the tests: KV and
- * Google's token endpoint here, the bucket (fakeBucket.ts) and the Durable
- * Objects (fakeObjects.ts) beside it, each in memory, and a harness that
+ * Google's token endpoint here, the bucket (fakeBucket.ts), Google Drive
+ * (fakeDrive.ts) and the Durable Objects (fakeObjects.ts) beside it, each in memory, and a harness that
  * wires them to a doorman the way Cloudflare would.
  */
 
@@ -106,34 +111,103 @@ export class FakeKv implements KvStore {
 
 // --- Google --------------------------------------------------------------------
 
+const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+
+/** What a trip to Google for Drive brings back besides the ID token. */
+export interface DriveGrant {
+  /** Left out, the person passed Google's page with the Drive box unticked. */
+  readonly scope?: string
+  /** Null for a Google that, against what was asked, sent no refresh token. */
+  readonly refreshToken?: string | null
+}
+
 /**
  * Google's token endpoint: trades a code for an ID token with the claims the
  * test chose — but only with the PKCE verifier whose challenge the code was
- * issued for, as Google checks it.
+ * issued for, as Google checks it. For a trip that asked for Google Drive it
+ * gives a refresh token too, trades that for access tokens good for an hour,
+ * and takes it back when told (`/revoke`).
  */
 export class FakeGoogle {
-  readonly #codes = new Map<string, { claims: Record<string, unknown>; challenge: string }>()
+  readonly #codes = new Map<
+    string,
+    { claims: Record<string, unknown>; challenge: string; drive: DriveGrant | null }
+  >()
+  /** Access tokens Google gave, and when each stops being good. */
+  readonly #access = new Map<string, { refreshToken: string; until: number }>()
+  readonly #clock: Clock
   #issued = 0
   /** Each exchange's form, as the doorman sent it. */
   readonly exchanges: URLSearchParams[] = []
+  /** Refresh tokens still good: taken out when revoked, by the doorman or by a test. */
+  readonly refreshTokens = new Set<string>()
+  /** Every refresh token the doorman handed back. */
+  readonly revoked: string[] = []
+  /** How many access tokens were made from refresh tokens. */
+  refreshes = 0
   refuse = false
+
+  constructor(clock: Clock) {
+    this.#clock = clock
+  }
 
   /**
    * A code that Google will trade for an ID token carrying these claims, once,
    * for whoever holds the verifier of this PKCE challenge.
    */
-  code(claims: Record<string, unknown>, challenge: string): string {
+  code(
+    claims: Record<string, unknown>,
+    challenge: string,
+    drive: DriveGrant | null = null,
+  ): string {
     const code = `4/0Abc-code-${++this.#issued}`
-    this.#codes.set(code, { claims, challenge })
+    this.#codes.set(code, { claims, challenge, drive })
     return code
+  }
+
+  /** Every access token given so far stops working, as when Google ends one early. */
+  expireAccess(): void {
+    this.#access.clear()
+  }
+
+  /** Whether Drive would take this access token now. */
+  accepts(accessToken: string): boolean {
+    const given = this.#access.get(accessToken)
+    return (
+      given !== undefined &&
+      given.until > this.#clock.now &&
+      this.refreshTokens.has(given.refreshToken)
+    )
   }
 
   async handle(request: Request): Promise<Response> {
     const form = new URLSearchParams(await request.text())
+    if (new URL(request.url).pathname === '/revoke') {
+      const token = form.get('token') ?? ''
+      this.revoked.push(token)
+      return this.refreshTokens.delete(token)
+        ? Response.json({})
+        : Response.json({ error: 'invalid_token' }, { status: 400 })
+    }
     this.exchanges.push(form)
     if (this.refuse) return Response.json({ error: 'server_error' }, { status: 500 })
     if (form.get('client_id') !== CLIENT_ID || form.get('client_secret') !== CLIENT_SECRET) {
       return Response.json({ error: 'invalid_client' }, { status: 401 })
+    }
+    if (form.get('grant_type') === 'refresh_token') {
+      const refreshToken = form.get('refresh_token') ?? ''
+      if (!this.refreshTokens.has(refreshToken)) {
+        return Response.json(
+          { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' },
+          { status: 400 },
+        )
+      }
+      return Response.json({
+        access_token: this.#accessFor(refreshToken),
+        expires_in: 3599,
+        token_type: 'Bearer',
+        scope: DRIVE_FILE_SCOPE,
+      })
     }
     const code = form.get('code') ?? ''
     const issued = this.#codes.get(code)
@@ -151,13 +225,35 @@ export class FakeGoogle {
     this.#codes.delete(code)
     const claims = issued.claims
     const part = (value: unknown): string => toBase64Url(utf8(JSON.stringify(value)))
+    const idToken = `${part({ alg: 'RS256', kid: 'test', typ: 'JWT' })}.${part(claims)}.c2lnbmF0dXJl`
+    if (!issued.drive) {
+      return Response.json({
+        access_token: 'an-access-token-the-doorman-never-uses',
+        expires_in: 3599,
+        token_type: 'Bearer',
+        scope: 'openid email profile',
+        id_token: idToken,
+      })
+    }
+    const refreshToken =
+      issued.drive.refreshToken === undefined
+        ? `1//0g-refresh-${this.#issued}`
+        : issued.drive.refreshToken
+    if (refreshToken !== null) this.refreshTokens.add(refreshToken)
     return Response.json({
-      access_token: 'an-access-token-the-doorman-never-uses',
+      access_token: refreshToken === null ? 'ya29.unused' : this.#accessFor(refreshToken),
       expires_in: 3599,
       token_type: 'Bearer',
-      scope: 'openid email profile',
-      id_token: `${part({ alg: 'RS256', kid: 'test', typ: 'JWT' })}.${part(claims)}.c2lnbmF0dXJl`,
+      scope: issued.drive.scope ?? `openid email ${DRIVE_FILE_SCOPE}`,
+      id_token: idToken,
+      ...(refreshToken === null ? {} : { refresh_token: refreshToken }),
     })
+  }
+
+  #accessFor(refreshToken: string): string {
+    const token = `ya29.access-${++this.refreshes}`
+    this.#access.set(token, { refreshToken, until: this.#clock.now + 3599_000 })
+    return token
   }
 }
 
@@ -170,6 +266,7 @@ export interface Harness {
   readonly google: FakeGoogle
   readonly bucket: FakeBucket
   readonly backblaze: FakeBackblaze
+  readonly drive: FakeDrive
   readonly changes: FakeChanges
   readonly rooms: FakeRooms
   readonly shared: FakeShared
@@ -193,10 +290,22 @@ export interface Harness {
   /** Connect it from the key alone, the way the page after sign-in does. */
   connectBackblaze(token: string, changes?: Record<string, unknown>): Promise<Response>
   /**
+   * Connect Google Drive, as the signed-in device and then the browser Google
+   * sends back: the callback's answer. `as` is who says yes on Google's page,
+   * the signed-in account unless a test says otherwise.
+   */
+  connectDrive(token: string, options?: ConnectDriveOptions): Promise<Response>
+  /**
    * Who may sign in besides the owners, as an owner would have set it, and a
    * minute on, so every Worker instance has let go of the list it remembered.
    */
   allow(list: { anyone?: boolean; emails?: string[] }): void
+}
+
+export interface ConnectDriveOptions {
+  readonly as?: Partial<Profile>
+  readonly returnTo?: string | null
+  readonly grant?: DriveGrant
 }
 
 export interface CallInit {
@@ -267,7 +376,8 @@ export async function signInCodeFrom(response: Response): Promise<string | null>
 export function harness(): Harness {
   const clock: Clock = { now: Date.parse('2026-09-11T12:00:00Z') }
   const kv = new FakeKv(clock)
-  const google = new FakeGoogle()
+  const google = new FakeGoogle(clock)
+  const drive = new FakeDrive(accessToken => google.accepts(accessToken))
   const bucket = new FakeBucket()
   const backblaze = new FakeBackblaze()
   const changes = new FakeChanges()
@@ -284,6 +394,7 @@ export function harness(): Harness {
     outside.push({ method: request.method, url, headers: new Headers(request.headers), init })
     if (url.host === 'oauth2.googleapis.com') return google.handle(request)
     if (url.host === B2_HOST) return bucket.handle(request)
+    if (url.host === DRIVE_HOST) return drive.handle(request)
     if (url.host === B2_API_HOST || url.host === B2_ACCOUNT_API_HOST) {
       return backblaze.handle(request)
     }
@@ -387,6 +498,25 @@ export function harness(): Harness {
       json: { keyId: KEY_ID, applicationKey: APPLICATION_KEY, ...changes },
     })
 
+  const connectDrive = async (
+    token: string,
+    options: ConnectDriveOptions = {},
+  ): Promise<Response> => {
+    const started = await call('/v1/storage/drive', {
+      token,
+      json: { returnTo: options.returnTo ?? null },
+    })
+    if (!started.ok) return started
+    const sentTo = new URL(DoormanDriveStartedSchema.parse(await started.json()).url)
+    const code = google.code(
+      idTokenClaims({ ...ME, ...options.as }, sentTo.searchParams.get('nonce') ?? '', clock),
+      sentTo.searchParams.get('code_challenge') ?? '',
+      options.grant ?? {},
+    )
+    const state = sentTo.searchParams.get('state') ?? ''
+    return call(`/v1/auth/callback?state=${state}&code=${encodeURIComponent(code)}`)
+  }
+
   return {
     doorman,
     env,
@@ -394,6 +524,7 @@ export function harness(): Harness {
     google,
     bucket,
     backblaze,
+    drive,
     changes,
     rooms,
     shared,
@@ -408,6 +539,7 @@ export function harness(): Harness {
     signIn,
     connect,
     connectBackblaze,
+    connectDrive,
     allow: ({ anyone = false, emails = [] }) => {
       kv.seed('access', { anyone, emails })
       clock.now += 61_000

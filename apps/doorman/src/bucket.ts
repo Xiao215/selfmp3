@@ -2,10 +2,21 @@ import { bucketUnreachable, classifyBucketRefusal, type BucketRefusalKind } from
 import { AwsV4Signer } from 'aws4fetch'
 import { fromUtf8, sha256Hex, utf8 } from './encoding.js'
 import { discard, readBytes } from './http.js'
+import {
+  StoreError,
+  uploadInit,
+  type Fetch,
+  type FetchInit,
+  type Store,
+  type StoredObject,
+  type Upload,
+  type WriteOptions,
+} from './store.js'
 import { parseError, parseListing } from './xml.js'
 
 /**
- * One account's bucket, spoken to over the S3 API: B2, R2, MinIO or AWS.
+ * One account's bucket, spoken to over the S3 API: B2, R2, MinIO or AWS. The
+ * S3 driver of the doorman's `Store` (store.ts).
  *
  * Requests are signed with aws4fetch (AWS Signature Version 4 on WebCrypto)
  * and sent with the doorman's own fetch, so tests can hand in an S3 look-alike.
@@ -42,16 +53,6 @@ export interface BucketTarget {
   readonly applicationKey: string
 }
 
-/** What `fetch` is given. `duplex` is Node's, for a streamed body; the Workers runtime ignores it. */
-export type FetchInit = RequestInit<RequestInitCfProperties> & { duplex?: 'half' }
-
-/**
- * The global `fetch`'s shape, taking the options as options rather than on a
- * Request. That matters: the runtime reads `encodeResponseBody` only from
- * fetch's own options, and silently drops it from a Request passed in.
- */
-export type Fetch = (url: string, init: FetchInit) => Promise<Response>
-
 export interface BucketDeps {
   readonly fetch: Fetch
   readonly now: () => number
@@ -64,27 +65,6 @@ export interface BucketDeps {
 }
 
 const SIGNING_KEYS_KEPT = 64
-
-interface BucketObject {
-  /** Relative to the account's folder: `audio/4f1c….m4a`. */
-  readonly key: string
-  readonly size: number
-}
-
-/**
- * Why a request to the bucket failed, in terms of what to do about it — the
- * same kinds, and the same words, as the server's `CloudError`: both read a
- * refusal with packages/shared's `classifyBucketRefusal`.
- */
-export class BucketError extends Error {
-  readonly kind: BucketRefusalKind
-
-  constructor(kind: BucketRefusalKind, message: string) {
-    super(message)
-    this.name = 'BucketError'
-    this.kind = kind
-  }
-}
 
 /** A thousand keys is a few hundred kilobytes of XML; an error a few hundred bytes. */
 const MAX_LISTING_BYTES = 4 * 1024 * 1024
@@ -107,15 +87,7 @@ interface SendOptions {
   readonly quick?: boolean
 }
 
-/** Bytes in hand, or a stream of them that is only ever handed on, never read here. */
-type Upload = Uint8Array | { readonly stream: ReadableStream; readonly length: number }
-
-interface WriteOptions {
-  readonly contentType: string
-  readonly contentEncoding?: string | null
-}
-
-export class Bucket {
+export class Bucket implements Store {
   readonly #target: BucketTarget
   readonly #deps: BucketDeps
   readonly #host: string
@@ -133,7 +105,7 @@ export class Bucket {
   async list(
     prefix: string,
     cursor: string | null,
-  ): Promise<{ objects: BucketObject[]; cursor: string | null }> {
+  ): Promise<{ objects: StoredObject[]; cursor: string | null }> {
     const query: Array<[string, string]> = [
       ['list-type', '2'],
       ['max-keys', '1000'],
@@ -146,10 +118,10 @@ export class Bucket {
     const bytes = await readBytes(response.body, MAX_LISTING_BYTES)
     const page = bytes.length < MAX_LISTING_BYTES ? parseListing(fromUtf8(bytes)) : null
     if (!page) {
-      throw new BucketError('other', `${this.#host} answered a listing with something else.`)
+      throw new StoreError('other', `${this.#host} answered a listing with something else.`)
     }
 
-    const objects: BucketObject[] = []
+    const objects: StoredObject[] = []
     for (const object of page.objects) {
       if (!object.key.startsWith(this.#root)) continue
       objects.push({ key: object.key.slice(this.#root.length), size: object.size })
@@ -203,7 +175,7 @@ export class Bucket {
    * inside gzip, or plain JSON labelled gzip).
    *
    * Answers a device can act on — 200, 206, 304, 412 and 416 — are returned;
-   * anything else is a `BucketError`.
+   * anything else is a `StoreError`.
    */
   async fetchObject(
     method: 'GET' | 'HEAD',
@@ -261,7 +233,7 @@ export class Bucket {
       return await this.#deps.fetch(url, init)
     } catch {
       const refused = bucketUnreachable(this.#host)
-      throw new BucketError(refused.kind, refused.message)
+      throw new StoreError(refused.kind, refused.message)
     }
   }
 
@@ -293,7 +265,7 @@ export class Bucket {
   }
 
   /** Turn a refusal into a message that says what to do about it, as the server's does. */
-  async #explain(response: Response): Promise<BucketError> {
+  async #explain(response: Response): Promise<StoreError> {
     const body = await readBytes(response.body, MAX_ERROR_BYTES)
     const { code, message } = parseError(fromUtf8(body))
     const refused = classifyBucketRefusal(
@@ -304,34 +276,8 @@ export class Bucket {
         secrets: [this.#target.applicationKey, this.#target.keyId],
       },
     )
-    return new BucketError(refused.kind, refused.message)
+    return new StoreError(refused.kind, refused.message)
   }
-}
-
-/**
- * A request body S3 will take. S3 needs the length up front and does not take
- * a chunked upload, so a stream has to say how long it is.
- *
- * In the Worker that is what FixedLengthStream is for: the runtime then sends
- * Content-Length instead of chunking, and fails the upload if the stream turns
- * out longer or shorter. Bytes in hand have a length the runtime sends by
- * itself. Node, where the tests run, has no FixedLengthStream but lets a
- * request carry its own Content-Length, and wants `duplex` for any stream.
- */
-function uploadInit(
-  upload: Upload,
-  headers: Headers,
-): Pick<RequestInit, 'body'> & { duplex?: 'half' } {
-  if (typeof FixedLengthStream === 'function') {
-    if (upload instanceof Uint8Array) return { body: upload }
-    const fixed = new FixedLengthStream(upload.length)
-    // If the device's upload stops short this fails, the fixed-length side
-    // errors, and so does the request to the bucket, which is where it is seen.
-    void upload.stream.pipeTo(fixed.writable).catch(() => undefined)
-    return { body: fixed.readable }
-  }
-  headers.set('content-length', String(upload.length))
-  return upload instanceof Uint8Array ? { body: upload } : { body: upload.stream, duplex: 'half' }
 }
 
 /** SigV4's signing key: the secret, narrowed by HMAC to one day, region and service. */

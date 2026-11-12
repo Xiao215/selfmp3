@@ -62,6 +62,8 @@ export const DOORMAN_ERROR = {
   lenderCapExceeded: 'lender_cap_exceeded',
   /** The bucket asks for fewer requests for a moment (SlowDown): the same request will do later. */
   bucketBusy: 'bucket_busy',
+  /** The account's Google storage has no room for what was sent. Reads still work. */
+  storageFull: 'storage_full',
   bucketError: 'bucket_error',
 
   // Listening rooms and shared playlists (`RoomRefusal`, and their own).
@@ -231,6 +233,7 @@ export const DOORMAN_PATHS = {
   stats: '/v1/stats',
   storage: '/v1/storage',
   backblaze: '/v1/storage/backblaze',
+  drive: '/v1/storage/drive',
   changes: '/v1/changes',
   /** An iPhone's ID, for the iPhone app's install page (apps/doorman/src/device.ts). */
   device: '/v1/device',

@@ -2,6 +2,7 @@ import path from 'node:path'
 import { z } from 'zod'
 import {
   DoormanStorageSchema,
+  type DoormanStorage,
   newCloudDeviceId,
   toSqliteTime,
   type CloudCoverPack,
@@ -175,6 +176,16 @@ interface CloudTarget {
 }
 
 /**
+ * A Google Drive folder as the bookkeeping names it: by its id, which is the
+ * same folder however it is renamed, under an endpoint no bucket has.
+ */
+export function storageTarget(storage: DoormanStorage): CloudTarget {
+  return storage.kind === 'drive'
+    ? { endpoint: 'drive://', bucket: storage.folder, prefix: '' }
+    : storage
+}
+
+/**
  * One bucket and folder, however it was spelt: a folder standing in for the
  * bucket by its resolved path (a trailing slash or a `..` is the same folder),
  * an endpoint without case or a trailing slash, a prefix without slashes at
@@ -182,10 +193,11 @@ interface CloudTarget {
  * and forgot every upload.
  */
 function targetFingerprint(target: CloudTarget): string {
-  const folder = target.endpoint === 'file://'
+  // A folder's path and a Drive folder's id are kept exactly as they are.
+  const folder = target.endpoint === 'file://' || target.endpoint === 'drive://'
   return JSON.stringify([
     folder ? target.endpoint : target.endpoint.trim().replace(/\/+$/, '').toLowerCase(),
-    folder ? path.resolve(target.bucket) : target.bucket.trim(),
+    target.endpoint === 'file://' ? path.resolve(target.bucket) : target.bucket.trim(),
     target.prefix.trim().replace(/^\/+|\/+$/g, ''),
   ])
 }

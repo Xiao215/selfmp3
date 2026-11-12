@@ -1,35 +1,38 @@
-import type { DoormanMe } from '@selfmp3/shared'
+import type { DoormanMe, DoormanStorage } from '@selfmp3/shared'
 import { z } from 'zod'
 import { keep, recall, remember, type BoundedCache } from './boundedCache.js'
-import type { BucketTarget } from './bucket.js'
 import type { Log } from './context.js'
+import { DriveTargetSchema } from './drive.js'
 import { sha256Hex } from './encoding.js'
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord, type KvStore } from './kv.js'
 import { seal, unseal } from './seal.js'
 import type { Session } from './sessions.js'
+import type { AccountStorage } from './stores.js'
 
 /**
- * What belongs to a Google account beyond its sessions: its one bucket, and
- * the last time it signed out everywhere.
+ * What belongs to a Google account beyond its sessions: the one place its
+ * library is kept, and the last time it signed out everywhere.
  *
- *   bucket:<sub>    the bucket's details and key, sealed (see seal.ts)
+ *   bucket:<sub>    where the library is and the way in, sealed (see seal.ts):
+ *                   a bucket's details and key, or a Google Drive folder's ids
+ *                   and Google's refresh token
  *   signout:<sub>   { sessionsValidAfter }: older sessions are refused
  *
  * Each has a key of its own, written only by the one thing that changes it:
- * connecting or forgetting the bucket, and signing out everywhere. KV is
+ * connecting or forgetting the storage, and signing out everywhere. KV is
  * eventually consistent, so a request that read a record a moment ago and
  * wrote it back whole could undo a change made meanwhile somewhere else.
  * With nothing else ever writing these keys, nothing can.
  *
- * A bucket is opened only inside the Worker, to sign requests, and never
+ * Storage is opened only inside the Worker, to make its requests, and never
  * sent anywhere. Both records are remembered by each Worker instance for a
  * minute, which saves KV reads on nearly every file a device fetches; a
  * change is seen at once by the instance that made it, and by others within
  * the minute, as KV's own copies elsewhere catch up.
  */
 
-/** What is sealed: everything needed to sign a request to the bucket. */
+/** What is sealed for a bucket: everything needed to sign a request to it. */
 const StoredBucketSchema = z.object({
   endpoint: z.string(),
   region: z.string(),
@@ -39,16 +42,25 @@ const StoredBucketSchema = z.object({
   applicationKey: z.string(),
 })
 
+/**
+ * What is sealed. A Drive record says it is one; a bucket's is the bucket's
+ * details and nothing else, as it was before there was any other kind.
+ */
+const StoredStorageSchema = z.union([
+  DriveTargetSchema.extend({ kind: z.literal('drive') }),
+  StoredBucketSchema.transform(bucket => ({ kind: 'bucket' as const, ...bucket })),
+])
+
 const SignOutSchema = z.object({ sessionsValidAfter: z.string().datetime() })
 
 interface AccountCache {
   /** `bucket:<sub>` as KV had it: the sealed string, or null. */
   readonly sealed: BoundedCache<string | null>
   /**
-   * Opened buckets, keyed by the sealed string they came from, so an entry is
+   * Opened storage, keyed by the sealed string it came from, so an entry is
    * only ever right — it needs no minute of its own, only a bound.
    */
-  readonly opened: Map<string, BucketTarget>
+  readonly opened: Map<string, AccountStorage>
   /** `signout:<sub>`, in milliseconds, or null for never. */
   readonly signedOut: BoundedCache<number | null>
 }
@@ -79,13 +91,13 @@ export class Accounts {
   }
 
   /**
-   * The account's bucket, opened, or null when it has none.
+   * Where the account keeps its library, opened, or null when it has nowhere.
    *
-   * A sealed bucket that will not open — SEAL_KEY was changed, or the record
-   * was edited — counts as none: the device is asked to connect its bucket
+   * A sealed record that will not open — SEAL_KEY was changed, or the record
+   * was edited — counts as none: the device is asked to connect its storage
    * again, which replaces it, rather than being stuck with an error.
    */
-  async bucket(sub: string): Promise<BucketTarget | null> {
+  async storage(sub: string): Promise<AccountStorage | null> {
     const sealed = await this.#remembered(this.#cache.sealed, sub, () =>
       this.#kv.get(bucketKey(sub)),
     )
@@ -97,26 +109,29 @@ export class Accounts {
     if (opened) return opened
 
     const { seal: key } = await this.#keys()
-    let target: BucketTarget
+    let storage: AccountStorage
     try {
-      target = StoredBucketSchema.parse(JSON.parse(await unseal(sealed, key, bucketKey(sub))))
+      storage = StoredStorageSchema.parse(JSON.parse(await unseal(sealed, key, bucketKey(sub))))
     } catch {
-      this.#log.warn('an account’s bucket could not be opened; treating it as not connected')
+      this.#log.warn('an account’s storage could not be opened; treating it as not connected')
       return null
     }
-    keep(this.#cache.opened, cacheKey, target)
-    return target
+    keep(this.#cache.opened, cacheKey, storage)
+    return storage
   }
 
-  /** Seal a bucket and make it the account's, replacing any it had. One KV write. */
-  async connect(sub: string, target: BucketTarget): Promise<void> {
+  /** Seal storage and make it the account's, replacing any it had. One KV write. */
+  async connect(sub: string, storage: AccountStorage): Promise<void> {
     const { seal: key } = await this.#keys()
-    const sealed = await seal(JSON.stringify(target), key, bucketKey(sub))
+    // A bucket's record is its details alone (`StoredStorageSchema`).
+    const { kind, ...details } = storage
+    const record = kind === 'drive' ? storage : details
+    const sealed = await seal(JSON.stringify(record), key, bucketKey(sub))
     await this.#kv.put(bucketKey(sub), sealed)
     this.#set(this.#cache.sealed, sub, sealed)
   }
 
-  /** Forget the bucket. The bucket and everything in it are left alone. One KV write. */
+  /** Forget the storage. It and everything in it are left alone. One KV write. */
   async disconnect(sub: string): Promise<void> {
     await this.#kv.delete(bucketKey(sub))
     this.#set(this.#cache.sealed, sub, null)
@@ -139,23 +154,15 @@ export class Accounts {
     this.#set(this.#cache.signedOut, sub, now)
   }
 
-  /** Who is signed in and where their bucket is, for `/v1/me`. Never the key. */
+  /** Who is signed in and where their library is kept, for `/v1/me`. Never the key or the token. */
   async me(session: Session): Promise<DoormanMe> {
-    const target = await this.bucket(session.sub)
+    const storage = await this.storage(session.sub)
     return {
       account: await accountId(session.sub),
       email: session.email,
       name: session.name,
       picture: session.picture,
-      storage: target
-        ? {
-            endpoint: target.endpoint,
-            region: target.region,
-            bucket: target.bucket,
-            prefix: target.prefix,
-            keyIdHint: `${target.keyId.slice(0, 6)}…`,
-          }
-        : null,
+      storage: storage && described(storage),
     }
   }
 
@@ -182,6 +189,18 @@ export class Accounts {
  */
 async function accountId(sub: string): Promise<string> {
   return (await sha256Hex(`account:${sub}`)).slice(0, 32)
+}
+
+function described(storage: AccountStorage): DoormanStorage {
+  if (storage.kind === 'drive') return { kind: 'drive', folder: storage.root }
+  return {
+    kind: 'bucket',
+    endpoint: storage.endpoint,
+    region: storage.region,
+    bucket: storage.bucket,
+    prefix: storage.prefix,
+    keyIdHint: `${storage.keyId.slice(0, 6)}…`,
+  }
 }
 
 function bucketKey(sub: string): string {

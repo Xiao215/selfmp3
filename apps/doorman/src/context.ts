@@ -1,17 +1,18 @@
 import type { Access } from './access.js'
 import type { Accounts } from './accounts.js'
-import { Bucket, type BucketDeps, type Fetch } from './bucket.js'
 import { changeCounter, type ChangeCounter } from './changes.js'
 import { DOORMAN_ERROR, DoormanError } from '@selfmp3/shared'
 import { unauthorized } from './http.js'
 import type { DoormanKeys } from './keys.js'
 import type { KvStore } from './kv.js'
 import { bearerToken, type Session, type Sessions } from './sessions.js'
+import type { Fetch, Store } from './store.js'
+import { openStore, type StoreDeps } from './stores.js'
 
 /**
  * What every route is handed: the request, the Worker's settings, and the
  * doorman's parts. Also the two gates a route may need to pass — a session
- * that is still good, and the account's bucket — so each route says which it
+ * that is still good, and the account's storage — so each route says which it
  * needs in one line and they are checked the same way everywhere.
  */
 
@@ -95,7 +96,8 @@ export interface Context {
   readonly accounts: Accounts
   /** Who may sign in: the owners, and the list they keep. */
   readonly access: Access
-  readonly bucketDeps: BucketDeps
+  /** What the storage drivers keep between requests, and reach the outside with. */
+  readonly storeDeps: StoreDeps
   /**
    * Work that goes on after the answer is sent, such as telling a server its
    * grant was taken back (grants.ts). The runtime's `waitUntil`, so the
@@ -128,11 +130,11 @@ export async function requireSession(ctx: Context): Promise<Session> {
   return session
 }
 
-/** The signed-in account's bucket, ready to use. */
-export async function requireBucket(ctx: Context, session: Session): Promise<Bucket> {
-  const target = await ctx.accounts.bucket(session.sub)
-  if (!target) throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your bucket first')
-  return new Bucket(target, ctx.bucketDeps)
+/** The signed-in account's storage, ready to use. */
+export async function requireStore(ctx: Context, session: Session): Promise<Store> {
+  const storage = await ctx.accounts.storage(session.sub)
+  if (!storage) throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your storage first')
+  return openStore(storage, ctx.storeDeps)
 }
 
 /** The signed-in account's change counter. */

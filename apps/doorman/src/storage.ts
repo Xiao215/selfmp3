@@ -4,6 +4,7 @@ import {
   DOORMAN_ERROR,
   DoormanError,
   DoormanBackblazeConnectSchema,
+  messageOf,
   FORMAT_KEY,
   cloudFormatProblem,
   formatZodError,
@@ -13,14 +14,26 @@ import {
   type CloudConnect,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { Bucket, BucketError, type BucketTarget } from './bucket.js'
+import { Bucket, type BucketTarget } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import type { Session } from './sessions.js'
 import { fromUtf8, toBase64, utf8 } from './encoding.js'
-import { badRequest, isLoopbackHost, json, mayReach, readJson, unprocessable } from './http.js'
+import {
+  badRequest,
+  isLoopbackHost,
+  json,
+  mayReach,
+  readJson,
+  redact,
+  unprocessable,
+} from './http.js'
+import { StoreError, type Store } from './store.js'
+import type { AccountStorage } from './stores.js'
 
 /**
  * Who is signed in, and connecting the one bucket that belongs to them.
+ * (An account that keeps its library in Google Drive instead connects that
+ * in driveConnect.ts, and is disconnected here like any other.)
  *
  * Connecting tries the key before anything is kept: list, then read
  * `format.json` — or, in a new bucket, write one and read it back, which
@@ -82,16 +95,41 @@ export async function connectBackblaze(ctx: Context): Promise<Response> {
 
 /** The key is tried against the bucket before anything is kept; a refusal is the bucket's own words. */
 async function tryThenKeep(ctx: Context, session: Session, target: BucketTarget): Promise<void> {
-  const bucket = new Bucket(target, ctx.bucketDeps)
+  const bucket = new Bucket(target, ctx.storeDeps.bucket)
   try {
     await bucket.list(FORMAT_KEY, null)
     await checkFormat(bucket, ctx.now)
   } catch (error) {
     // The bucket's answer is the useful part. It goes back to the form as it is.
-    if (error instanceof BucketError) throw unprocessable(error.message)
+    if (error instanceof StoreError) throw unprocessable(error.message)
     throw error
   }
-  await ctx.accounts.connect(session.sub, target)
+  const previous = await ctx.accounts.storage(session.sub)
+  await ctx.accounts.connect(session.sub, { kind: 'bucket', ...target })
+  letGo(ctx, previous)
+}
+
+/**
+ * What is owed to storage the account no longer uses. A bucket is owed
+ * nothing: its key was only ever here. A Google Drive's refresh token is
+ * handed back to Google, so self.mp3 is off the account's list of apps with
+ * access rather than holding a way in it no longer uses — unless the storage
+ * that replaced it uses that same token. After the answer, and never in its
+ * way: the doorman has forgotten the token whatever Google says.
+ */
+export function letGo(
+  ctx: Context,
+  previous: AccountStorage | null,
+  keptToken: string | null = null,
+): void {
+  if (previous?.kind !== 'drive' || previous.refreshToken === keptToken) return
+  ctx.waitUntil(
+    ctx.storeDeps.drive.tokens.revoke(previous.refreshToken).catch((error: unknown) => {
+      ctx.log.warn('Google would not take a Drive token back', {
+        message: redact(messageOf(error)),
+      })
+    }),
+  )
 }
 
 /** Where Backblaze says what a key may do. Basic auth with the key itself; v4 groups the bucket under `allowed`. */
@@ -273,10 +311,12 @@ async function checkLifecycle(ctx: Context, key: BackblazeKey, prefix: string): 
   }
 }
 
-/** `DELETE /v1/storage` — forget the bucket. The bucket and its files are left alone. */
+/** `DELETE /v1/storage` — forget the storage. It and its files are left alone. */
 export async function disconnect(ctx: Context): Promise<Response> {
   const session = await requireSession(ctx)
+  const previous = await ctx.accounts.storage(session.sub)
   await ctx.accounts.disconnect(session.sub)
+  letGo(ctx, previous)
   return json(await ctx.accounts.me(session))
 }
 
@@ -333,12 +373,12 @@ function targetFrom(input: CloudConnect, dev: boolean): BucketTarget {
 }
 
 /**
- * Make sure the bucket is one this build may write to: `format.json` says so,
+ * Make sure the storage is one this build may write to: `format.json` says so,
  * or there is none yet and this writes it — and reads it back. The rules and
  * the words are shared's (`cloudFormatProblem`), which the server's
  * `#checkFormat` judges by too.
  */
-async function checkFormat(bucket: Bucket, now: () => number): Promise<void> {
+export async function checkFormat(bucket: Store, now: () => number): Promise<void> {
   const existing = await bucket.read(FORMAT_KEY, FORMAT_MAX_BYTES + 1)
   if (existing) {
     // Far bigger than a format.json is not one, whatever it says.

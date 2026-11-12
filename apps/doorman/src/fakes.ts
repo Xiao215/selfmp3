@@ -185,9 +185,13 @@ export class FakeGoogle {
     if (new URL(request.url).pathname === '/revoke') {
       const token = form.get('token') ?? ''
       this.revoked.push(token)
-      return this.refreshTokens.delete(token)
-        ? Response.json({})
-        : Response.json({ error: 'invalid_token' }, { status: 400 })
+      if (!this.refreshTokens.has(token)) {
+        return Response.json({ error: 'invalid_token' }, { status: 400 })
+      }
+      // As Google does it: not the one token, but all the account gave this
+      // app. The fake has one person a harness, so that is every token.
+      this.refreshTokens.clear()
+      return Response.json({})
     }
     this.exchanges.push(form)
     if (this.refuse) return Response.json({ error: 'server_error' }, { status: 500 })

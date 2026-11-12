@@ -102,7 +102,9 @@ export class GoogleTokens {
 
   /**
    * Tell Google the refresh token is done with, when its account disconnects
-   * Drive or connects something else. Google's answer changes nothing here —
+   * Drive or connects a bucket instead. Google ends the app's whole access to
+   * the account with it, which is the point, and why this is never called for
+   * an account that still keeps its library in Drive. Google's answer changes nothing here —
    * the doorman has already forgotten the token — so a failure is only thrown
    * for the log.
    */

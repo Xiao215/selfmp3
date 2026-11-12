@@ -136,7 +136,7 @@ export async function callback(ctx: Context): Promise<Response> {
 
   const previous = await ctx.accounts.storage(state.drive)
   await ctx.accounts.connect(state.drive, { kind: 'drive', ...target })
-  letGo(ctx, previous, target.refreshToken)
+  letGo(ctx, previous, 'drive')
   return ended(state, null)
 }
 

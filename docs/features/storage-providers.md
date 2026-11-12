@@ -162,9 +162,10 @@ and keeps it in memory until five minutes before it runs out (`googleTokens.ts`)
 one request to Google per cold instance and no KV write, ever. A `401` from Drive makes a new
 one, once.
 
-**The end of access.** Disconnecting storage, or connecting something else, hands the
+**The end of access.** Disconnecting storage, or connecting a bucket instead, hands the
 refresh token back to Google (`/revoke`), so self.mp3 leaves the account's list of apps with
-access. A token Google no longer takes — access removed at myaccount.google.com, or unused
+access. Connecting Drive again over Drive hands nothing back: Google does not end one token
+but everything the account gave the app, the new token included. A token Google no longer takes — access removed at myaccount.google.com, or unused
 for six months — is told the way a refused bucket key is (`bucket_refused_key`), with
 "Connect Google Drive again in Settings."
 
@@ -251,5 +252,9 @@ What only the real API can settle, and where to look if it goes wrong:
 - **How soon a search sees a new file.** The driver leans on searching by name before a
   write. If a resent log file ever shows up twice in a listing of `log/`, this is why; a
   read still takes the oldest, and a delete removes both.
+- **That a folder is found again after disconnecting.** Disconnecting ends the app's access,
+  and connecting again asks Google afresh. The files the app made should still be the app's
+  to see (`drive.file` goes by which app made a file), and the driver counts on it to find
+  the same library; worth one disconnect and connect with the second account.
 - **The order of `orderBy=name`** for the library's names, which only the walk of the empty
   prefix cares about.

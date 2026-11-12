@@ -209,14 +209,14 @@ describe('one library, one store', () => {
     expect(ErrorBodySchema.parse(await list.json()).code).toBe('no_storage')
   })
 
-  it('keeps the new token when Drive is connected a second time', async () => {
+  it('hands nothing back when Drive is connected a second time: Google would end the new access too', async () => {
     const { h, token } = await signedIn()
     await h.connectDrive(token)
-    const [first = ''] = [...h.google.refreshTokens]
     await h.connectDrive(token)
     await h.settle()
-    expect(h.google.revoked).toEqual([first])
-    expect(h.google.refreshTokens.size).toBe(1)
+    expect(h.google.revoked).toEqual([])
+    // An hour on, the instance's access token has run out and the new refresh token is used.
+    h.clock.now += 61 * 60_000
     expect((await h.call('/v1/list?prefix=audio/', { token })).status).toBe(200)
   })
 

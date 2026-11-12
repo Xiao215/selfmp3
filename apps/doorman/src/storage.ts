@@ -106,23 +106,27 @@ async function tryThenKeep(ctx: Context, session: Session, target: BucketTarget)
   }
   const previous = await ctx.accounts.storage(session.sub)
   await ctx.accounts.connect(session.sub, { kind: 'bucket', ...target })
-  letGo(ctx, previous)
+  letGo(ctx, previous, 'bucket')
 }
 
 /**
  * What is owed to storage the account no longer uses. A bucket is owed
  * nothing: its key was only ever here. A Google Drive's refresh token is
  * handed back to Google, so self.mp3 is off the account's list of apps with
- * access rather than holding a way in it no longer uses — unless the storage
- * that replaced it uses that same token. After the answer, and never in its
- * way: the doorman has forgotten the token whatever Google says.
+ * access rather than holding a way in it no longer uses. After the answer,
+ * and never in its way: the doorman has forgotten the token whatever Google
+ * says.
+ *
+ * Not when Drive was connected again over Drive (`now`). Google does not take
+ * back one token: it ends everything the account gave this app, the token
+ * just made included. The old one is simply never used again.
  */
 export function letGo(
   ctx: Context,
   previous: AccountStorage | null,
-  keptToken: string | null = null,
+  now: AccountStorage['kind'] | null,
 ): void {
-  if (previous?.kind !== 'drive' || previous.refreshToken === keptToken) return
+  if (previous?.kind !== 'drive' || now === 'drive') return
   ctx.waitUntil(
     ctx.storeDeps.drive.tokens.revoke(previous.refreshToken).catch((error: unknown) => {
       ctx.log.warn('Google would not take a Drive token back', {
@@ -316,7 +320,7 @@ export async function disconnect(ctx: Context): Promise<Response> {
   const session = await requireSession(ctx)
   const previous = await ctx.accounts.storage(session.sub)
   await ctx.accounts.disconnect(session.sub)
-  letGo(ctx, previous)
+  letGo(ctx, previous, null)
   return json(await ctx.accounts.me(session))
 }
 

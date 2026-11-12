@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { z } from 'zod'
 import {
   DOORMAN_ERROR,
   DoormanError,
@@ -52,6 +53,8 @@ interface RoomView {
 }
 
 const PASS_KEY = 'room.pass'
+/** The pass as it is kept: which room, which member, the token. */
+const StoredPassSchema = z.object({ code: z.string(), member: z.string(), token: z.string() })
 
 /** How often the socket pings: the clock's samples, and a check the line is still there. */
 const PING_MS = 10_000
@@ -131,19 +134,8 @@ function endOf(error: DoormanError): RoomEnd {
 
 function readPass(): RoomPass | null {
   try {
-    const stored: unknown = JSON.parse(prefs.get(PASS_KEY) ?? 'null')
-    if (
-      typeof stored === 'object' &&
-      stored !== null &&
-      'code' in stored &&
-      'member' in stored &&
-      'token' in stored &&
-      typeof stored.code === 'string' &&
-      typeof stored.member === 'string' &&
-      typeof stored.token === 'string'
-    ) {
-      return { code: stored.code, member: stored.member, token: stored.token }
-    }
+    const read = StoredPassSchema.safeParse(JSON.parse(prefs.get(PASS_KEY) ?? 'null'))
+    if (read.success) return read.data
   } catch {
     // A pass that does not read is no pass.
   }

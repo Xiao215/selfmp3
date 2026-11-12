@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { z } from 'zod'
 import { messageOf } from '@selfmp3/shared'
 import type { Config } from './config.js'
 import type { Logger } from './logger.js'
@@ -164,6 +165,15 @@ function serverIdIn(dataDir: string): string {
   }
 }
 
+/** `ThrottleState` as the file holds it. */
+const ThrottleStateSchema = z.object({
+  tokens: z.number(),
+  ratchet: z.number(),
+  updatedAt: z.number(),
+  pausedUntil: z.number(),
+  limitedAt: z.number(),
+})
+
 /**
  * YouTube's pace kept in a file of its own, for a server with several
  * databases and one address. Read once and written through: nothing else
@@ -183,10 +193,9 @@ export class FileThrottleStore implements ThrottleStore {
   get(now: number): ThrottleState {
     if (this.#state) return this.#state
     try {
-      const read = JSON.parse(fs.readFileSync(this.#file, 'utf8')) as Partial<ThrottleState>
-      const fields = ['tokens', 'ratchet', 'updatedAt', 'pausedUntil', 'limitedAt'] as const
-      if (fields.every(field => typeof read[field] === 'number')) {
-        this.#state = read as ThrottleState
+      const read = ThrottleStateSchema.safeParse(JSON.parse(fs.readFileSync(this.#file, 'utf8')))
+      if (read.success) {
+        this.#state = read.data
         return this.#state
       }
     } catch {

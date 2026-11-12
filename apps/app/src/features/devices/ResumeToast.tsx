@@ -30,7 +30,8 @@ import { Play, X } from '../../ui/components/Icons'
 import { PlayButton } from '../../ui/components/Button'
 import { Press } from '../../ui/components/Press'
 import { useLayoutValue } from '../../shell/useLayout'
-import { useFade } from '../../ui/motion'
+import { useFade, useKeptWhileClosing } from '../../ui/motion'
+import { Fold } from '../../ui/components/Fold'
 import { MOVE_MS } from '../../ui/motion.model'
 import { ART, ToastButton, ToastCard } from '../../ui/components/ToastHost'
 import { useDeviceContext } from './DevicesProvider'
@@ -170,7 +171,9 @@ export function ResumeToast(): ReactNode {
  */
 export function ResumeCard(): ReactNode {
   const { theme } = useUnistyles()
-  const resume = useResumeOffer()
+  const offered = useResumeOffer()
+  // Kept as it folds away, taken or declined, so it leaves with its song.
+  const resume = useKeptWhileClosing(offered !== null, offered)
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const [hovered, setHovered] = useState(false)
   // Tabbed to, it shows as it does under the pointer.
@@ -179,44 +182,46 @@ export function ResumeCard(): ReactNode {
   if (!resume) return null
   const { song, from } = resume
   return (
-    <View
-      style={styles.card}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-      testID="sidebar-resume"
-    >
-      <Cover uri={resume.art} title={song.album || song.title} size={CARD_ART} />
-      <View style={styles.cardWords}>
-        <Text style={styles.cardFrom} numberOfLines={1}>
-          From {from}
-        </Text>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {song.title}
-        </Text>
+    <Fold open={offered !== null}>
+      <View
+        style={styles.card}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        testID="sidebar-resume"
+      >
+        <Cover uri={resume.art} title={song.album || song.title} size={CARD_ART} />
+        <View style={styles.cardWords}>
+          <Text style={styles.cardFrom} numberOfLines={1}>
+            From {from}
+          </Text>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {song.title}
+          </Text>
+        </View>
+        <PlayButton
+          size={CARD_PLAY}
+          label={resume.label}
+          icon={<Play size={14} color={theme.colors.onPrimary} />}
+          onPress={resume.take}
+          testID="sidebar-resume-play"
+        />
+        <Animated.View style={[styles.close, { opacity: close }]}>
+          <Press
+            feedback="dim"
+            onPress={resume.decline}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            accessibilityRole="button"
+            accessibilityLabel={`Don't continue from ${from}`}
+            hitSlop={hitSlopFor(CLOSE)}
+            style={styles.closeButton}
+            testID="sidebar-resume-dismiss"
+          >
+            <X size={iconSize.tiny} tone="textSecondary" />
+          </Press>
+        </Animated.View>
       </View>
-      <PlayButton
-        size={CARD_PLAY}
-        label={resume.label}
-        icon={<Play size={14} color={theme.colors.onPrimary} />}
-        onPress={resume.take}
-        testID="sidebar-resume-play"
-      />
-      <Animated.View style={[styles.close, { opacity: close }]}>
-        <Press
-          feedback="dim"
-          onPress={resume.decline}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          accessibilityRole="button"
-          accessibilityLabel={`Don't continue from ${from}`}
-          hitSlop={hitSlopFor(CLOSE)}
-          style={styles.closeButton}
-          testID="sidebar-resume-dismiss"
-        >
-          <X size={iconSize.tiny} tone="textSecondary" />
-        </Press>
-      </Animated.View>
-    </View>
+    </Fold>
   )
 }
 

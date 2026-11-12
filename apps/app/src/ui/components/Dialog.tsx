@@ -23,26 +23,24 @@ import { BACKDROP_SETTLE_MS, DIALOG_RISE } from './Sheet'
  * with it. A press on the dim and Escape both dismiss, Escape as the top layer
  * only (`useEscape`). To a screen reader the panel is a modal dialog.
  *
- * Most dialogs are simply there while they are drawn. `animated` gives one the
- * computer's sheet's arrival instead (`Sheet`'s wide shape): the dim fades in
- * while the panel fades up `DIALOG_RISE` points over `motion.slow`, and it goes
- * back over `motion.base`, kept drawn until that has landed — so the caller
- * keeps it mounted and turns `open` off.
+ * Every dialog arrives and leaves as a computer's sheet does (`Sheet`'s wide
+ * shape): the dim fades in while the panel fades up `DIALOG_RISE` points over
+ * `motion.slow`, and goes back over `motion.base`. One mounted already open
+ * moves in too, rather than simply being there (2026-11-11: a palette or a
+ * question that appeared in one frame read as a cut). A caller that keeps it
+ * mounted and turns `open` off sees it leave the same way; one that unmounts
+ * it takes it away at once.
  */
 export function Dialog({
   open = true,
-  animated = false,
   ...rest
 }: DialogProps & {
-  /** Whether it is asked for. A dialog that is not `animated` is drawn only while it is. */
+  /** Whether it is asked for: kept drawn until its exit has landed. */
   open?: boolean
-  /** Arrive and leave as a computer's sheet does, rather than simply being there. */
-  animated?: boolean
 }): ReactNode {
-  const presence = usePresence(open, motion.slow, motion.base)
-  const mounted = animated ? presence.mounted : open
-  return mounted ? (
-    <DialogLayer {...rest} open={open} progress={animated ? presence.progress : null} />
+  const presence = usePresence(open, motion.slow, motion.base, { appear: true })
+  return presence.mounted ? (
+    <DialogLayer {...rest} open={open} progress={presence.progress} />
   ) : null
 }
 
@@ -60,11 +58,7 @@ interface DialogProps {
   testID?: string
   /** The frame the panel is placed in: centred, with room all round, unless this says otherwise. */
   frameStyle?: StyleProp<ViewStyle>
-  /**
-   * The panel: its ground, size and shape. One stylesheet style where the
-   * dialog is `animated`: an `Animated.View` flattens its styles, and Unistyles
-   * cannot tell two of its own apart once they are merged.
-   */
+  /** The panel: its ground, size and shape. */
   style: StyleProp<ViewStyle>
   /** Keys pressed anywhere in the panel, before what has the focus hears them (a browser's). */
   onKeyDownCapture?: (event: never) => void
@@ -84,30 +78,33 @@ function DialogLayer({
   style,
   onKeyDownCapture,
   children,
-}: DialogProps & { open: boolean; progress: Animated.Value | null }): ReactNode {
+}: DialogProps & { open: boolean; progress: Animated.Value }): ReactNode {
   // Only while it is asked for: Escape during an exit would answer a question
   // that has already been answered.
   useEscape(open, onEscape ?? onDismiss, { layer: true })
   const [shownAt] = useState(() => Date.now())
   // Built once per dialog: the same nodes for its whole life.
   const moving = useMemo(
-    () =>
-      progress === null
-        ? null
-        : {
-            dim: { opacity: progress },
-            settle: {
-              opacity: progress,
-              transform: [
-                {
-                  translateY: progress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [DIALOG_RISE, 0],
-                  }),
-                },
-              ],
+    () => ({
+      dim: { opacity: progress },
+      // On a plain layer of its own around the frame, so the panel's and the
+      // frame's own styles never pass through an Animated.View: it flattens
+      // them, and Unistyles cannot tell two of its own apart once merged.
+      settle: [
+        FILL,
+        {
+          opacity: progress,
+          transform: [
+            {
+              translateY: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [DIALOG_RISE, 0],
+              }),
             },
-          },
+          ],
+        },
+      ],
+    }),
     [progress],
   )
 
@@ -126,7 +123,7 @@ function DialogLayer({
 
   useOverlay(
     <>
-      <Animated.View style={[styles.dim, moving?.dim]}>
+      <Animated.View style={[styles.dim, moving.dim]}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={() => {
@@ -138,17 +135,13 @@ function DialogLayer({
           tabIndex={-1}
         />
       </Animated.View>
-      <View style={[styles.frame, frameStyle]} pointerEvents="box-none">
-        {moving ? (
-          <Animated.View style={[style, moving.settle]} {...panel}>
-            {children}
-          </Animated.View>
-        ) : (
+      <Animated.View style={moving.settle} pointerEvents="box-none">
+        <View style={[styles.frame, frameStyle]} pointerEvents="box-none">
           <View style={style} {...panel}>
             {children}
           </View>
-        )}
-      </View>
+        </View>
+      </Animated.View>
     </>,
     true,
     open,

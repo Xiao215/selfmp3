@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
+import Reanimated from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
 import { space, textStyle } from '@selfmp3/client'
+import { useFadeMotion } from '../rowMotion'
 import { lineSub } from '../surfaces'
 
 /**
@@ -17,6 +19,10 @@ import { lineSub } from '../surfaces'
  * (`EmptyPictures`): the sound map's sky, Liked's heart, a link's page.
  * `compact` is for a sheet, a panel or the palette, where a page's room above
  * it would push it out of sight.
+ *
+ * It fades in where the list was (a filter that matches nothing, a playlist
+ * emptied in place) rather than replacing it in one frame. It does not fade
+ * out: the songs that come back take its place at once.
  */
 export function EmptyState({
   icon,
@@ -38,8 +44,13 @@ export function EmptyState({
   testID?: string
   style?: StyleProp<ViewStyle>
 }): ReactNode {
+  const { entering } = useFadeMotion()
   return (
-    <View style={[styles.empty, compact && styles.compact, style]} testID={testID}>
+    <Reanimated.View
+      entering={entering}
+      style={[styles.empty, compact && styles.compact, style]}
+      testID={testID}
+    >
       {picture ? (
         // A picture of nothing there yet: the title says it.
         <View style={styles.picture} aria-hidden>
@@ -53,7 +64,7 @@ export function EmptyState({
       </Text>
       {line ? <Text style={styles.line}>{line}</Text> : null}
       {children ? <View style={styles.after}>{children}</View> : null}
-    </View>
+    </Reanimated.View>
   )
 }
 

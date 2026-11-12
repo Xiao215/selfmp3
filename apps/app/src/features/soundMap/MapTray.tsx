@@ -5,6 +5,18 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable'
+import Reanimated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeInRight,
+  FadeOut,
+  FadeOutDown,
+  FadeOutRight,
+  LinearTransition,
+  SlideInDown,
+  SlideOutDown,
+} from 'react-native-reanimated'
 import Svg, { Circle, Path } from 'react-native-svg'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatDuration, formatLongDuration, plural, type Song } from '@selfmp3/shared'
@@ -30,6 +42,8 @@ import {
   X,
 } from '../../ui/components/Icons'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useMotionReduced } from '../../ui/motion'
+import { EASE_IN_POINTS, EASE_OUT_POINTS, MOVE_MS } from '../../ui/motion.model'
 import { floating, lineSub, smallTitle } from '../../ui/surfaces'
 import type { MapTake } from './sky.model'
 import type { TraySection } from './tray.model'
@@ -98,6 +112,7 @@ export function MapTray({
 }): ReactNode {
   const { theme } = useUnistyles()
   const art = useArt()
+  const moves = useTrayMotion(wide)
   const songs = useMemo(() => sections.flatMap(section => section.songs), [sections])
   const empty = songs.length === 0
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
@@ -128,7 +143,7 @@ export function MapTray({
           label="Play"
           variant="primary"
           grow
-          icon={<Play size={iconSize.item} color={theme.colors.onPrimary} />}
+          icon={<Play size={iconSize.item} color={theme.colors.onAccent} />}
           disabled={empty}
           onPress={onPlay}
           testID="sound-map-play"
@@ -180,7 +195,15 @@ export function MapTray({
 
   if (!open && !wide) {
     return (
-      <View style={[styles.tray, glassBlur]} testID="sound-map-tray">
+      // Keyed apart from the sheet: the same view type in the same place would
+      // be one view to React, and neither would come or go.
+      <Reanimated.View
+        key="folded"
+        style={[styles.tray, glassBlur]}
+        entering={moves.foldedIn}
+        exiting={moves.foldedOut}
+        testID="sound-map-tray"
+      >
         <GestureDetector gesture={pull}>
           <View style={styles.head}>
             <View style={styles.grab} />
@@ -232,7 +255,7 @@ export function MapTray({
             </View>
           </View>
         </GestureDetector>
-      </View>
+      </Reanimated.View>
     )
   }
 
@@ -366,7 +389,13 @@ export function MapTray({
   }
 
   return (
-    <View style={[styles.tray, styles.opened, glassBlur]} testID="sound-map-tray">
+    <Reanimated.View
+      key="sheet"
+      style={[styles.tray, styles.opened, glassBlur]}
+      entering={moves.sheetIn}
+      exiting={moves.sheetOut}
+      testID="sound-map-tray"
+    >
       <GestureDetector gesture={pull}>
         <View style={styles.head}>
           <View style={styles.grab} />
@@ -388,8 +417,45 @@ export function MapTray({
         </View>
       </GestureDetector>
       {list}
-    </View>
+    </Reanimated.View>
   )
+}
+
+type Entering = FadeInDown | FadeInRight | FadeIn | SlideInDown
+type Exiting = FadeOutDown | FadeOutRight | FadeOut | SlideOutDown
+
+/**
+ * How the tray comes and goes, so nothing about it is a cut: the first stroke
+ * brings it up from the foot (a computer's card in from the right), Clear
+ * takes it back down, and on a phone the sheet slides up out of the folded
+ * tray and back down into it as the folded line fades. The buttons over the
+ * folded tray glide up and down with it (`tools`). Nothing at all under
+ * Reduce Motion, as everywhere (`motion.ts`).
+ */
+export function useTrayMotion(wide: boolean): {
+  trayIn?: Entering
+  trayOut?: Exiting
+  foldedIn?: Entering
+  foldedOut?: Exiting
+  sheetIn?: Entering
+  sheetOut?: Exiting
+  tools?: LinearTransition
+} {
+  const reduced = useMotionReduced()
+  return useMemo(() => {
+    if (reduced) return {}
+    const out = Easing.bezier(...EASE_OUT_POINTS)
+    const away = Easing.bezier(...EASE_IN_POINTS)
+    return {
+      trayIn: (wide ? FadeInRight : FadeInDown).duration(MOVE_MS.sheetUp).easing(out),
+      trayOut: (wide ? FadeOutRight : FadeOutDown).duration(MOVE_MS.sheetDown).easing(away),
+      foldedIn: FadeIn.duration(MOVE_MS.rowIn).easing(out),
+      foldedOut: FadeOut.duration(MOVE_MS.rowOut).easing(away),
+      sheetIn: SlideInDown.duration(MOVE_MS.sheetUp).easing(out),
+      sheetOut: SlideOutDown.duration(MOVE_MS.sheetDown).easing(away),
+      tools: LinearTransition.duration(MOVE_MS.sheetUp).easing(out),
+    }
+  }, [reduced, wide])
 }
 
 /** The name, typed over: Return or leaving keeps it, an empty field goes back to the strokes' names. */

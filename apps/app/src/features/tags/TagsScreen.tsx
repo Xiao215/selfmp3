@@ -32,6 +32,7 @@ import { useGuide } from '../guide/useGuide'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { Press } from '../../ui/components/Press'
 import { MOVE_MS } from '../../ui/motion.model'
+import { Fold } from '../../ui/components/Fold'
 import { rightClick } from '../../ui/rightClick'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { card, label, pageFrame, rowTitle, hint, textColumn } from '../../ui/surfaces'
@@ -257,7 +258,7 @@ export function TagsScreen(): ReactNode {
           actions={actions}
         />
 
-        {adding ? (
+        <Fold open={adding}>
           <NewTag
             tags={tags}
             onExisting={tag => {
@@ -267,7 +268,7 @@ export function TagsScreen(): ReactNode {
             }}
             onClose={closeNew}
           />
-        ) : null}
+        </Fold>
 
         {playAndTag.count > 0 ? (
           <UntaggedCard

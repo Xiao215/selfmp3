@@ -431,7 +431,9 @@ const styles = StyleSheet.create(theme => ({
   // rail beside a tag's page on an iPad the name and its summary were drawn
   // ten points wide, a letter to a line, rather than the buttons wrapping.
   titlesWide: { flexGrow: 1, flexBasis: 220, minWidth: 220 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  // A row that runs out of width goes on to a second line rather than off the
+  // screen: an answer's Play, Shuffle, Save and Different songs on a phone.
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.snug },
   actionsWide: { marginLeft: 'auto', paddingBottom: space.tight },
   nameSerif: nameTitle(theme.colors),
   // A measuring copy: the name's width, out of sight and out of the way — of

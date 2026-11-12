@@ -52,6 +52,7 @@ import {
 } from './tag.model'
 import { rowTitle } from '../../ui/surfaces'
 import { useShownScheme } from '../../ui/theme/unistyles'
+import { Fold } from '../../ui/components/Fold'
 
 /**
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
@@ -214,24 +215,25 @@ export function PlacePage({
             </View>
           </View>
           <Text style={listHeadText.summary}>{summary}</Text>
-          {combining && onMatch ? (
-            // One switch, never a third chip state: any of them, or songs that are all of them.
-            <Segmented
-              label="Songs with"
-              size="small"
-              value={match}
-              onChange={onMatch}
-              options={MATCH_OPTIONS}
-              style={styles.match}
-            />
-          ) : null}
-          {combining ? (
+          {/* Folds in as a second place is added, and away as it goes. */}
+          <Fold open={combining}>
+            {onMatch ? (
+              // One switch, never a third chip state: any of them, or songs that are all of them.
+              <Segmented
+                label="Songs with"
+                size="small"
+                value={match}
+                onChange={onMatch}
+                options={MATCH_OPTIONS}
+                style={styles.match}
+              />
+            ) : null}
             <Chips
               chosen={chosen}
-              onRemove={entry => onChange(togglePlace(chosen, entry))}
+              onRemove={entry => onChange?.(togglePlace(chosen, entry))}
               onAdd={() => setAdding(true)}
             />
-          ) : null}
+          </Fold>
         </>
       }
       actions={

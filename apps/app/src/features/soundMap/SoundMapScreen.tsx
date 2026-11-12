@@ -4,6 +4,7 @@ import { View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
+import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg'
 import { StyleSheet, ScopedTheme } from 'react-native-unistyles'
 import { plural, type MapPlace } from '@selfmp3/shared'
@@ -47,7 +48,7 @@ import { newPlaylist } from '../playlists/playlists.model'
 import { FieldControl } from './fieldControl'
 import { useShiftHeld } from './fieldInput'
 import { MapHint, useMapHint } from './MapHint'
-import { MapTray, TRAY_PANEL_WIDTH } from './MapTray'
+import { MapTray, TRAY_PANEL_WIDTH, useTrayMotion } from './MapTray'
 import { SoundField } from './SoundField'
 import {
   chainAlong,
@@ -382,6 +383,7 @@ export function SoundMapScreen(): ReactNode {
   }, [wide, tray, toolsBottom, tools])
 
   const shown = places.length > 0
+  const trayMoves = useTrayMotion(wide)
 
   return (
     <ScopedTheme name="dark">
@@ -498,12 +500,13 @@ export function SoundMapScreen(): ReactNode {
               </View>
             </SafeAreaView>
 
-            <View
+            <Reanimated.View
               style={[
                 styles.tools,
                 wide ? styles.toolsWide : styles.toolsPhone,
                 { bottom: bottom + toolsBottom },
               ]}
+              layout={trayMoves.tools}
               pointerEvents="box-none"
               onLayout={event => setTools(event.nativeEvent.layout.height)}
             >
@@ -553,41 +556,51 @@ export function SoundMapScreen(): ReactNode {
               >
                 <DrawLine size={iconSize.item} tone={pen ? 'onAccent' : 'textPrimary'} />
               </IconButton>
-            </View>
+            </Reanimated.View>
 
             {holding ? (
-              <View
+              <Reanimated.View
                 style={[
                   wide ? styles.trayWide : styles.tray,
                   { bottom },
                   wide && styles.panel,
                   sheet > 0 && { height: sheet },
                 ]}
+                entering={trayMoves.trayIn}
+                exiting={trayMoves.trayOut}
                 pointerEvents="box-none"
                 onLayout={onTray}
               >
-                <MapTray
-                  name={trayName}
-                  sections={sections}
-                  open={trayOpen}
-                  wide={wide}
-                  saving={saving}
-                  onOpen={setTrayOpen}
-                  onRename={setNamed}
-                  onRemove={id => setLeft(before => new Set(before).add(id))}
-                  onBringBack={ids =>
-                    setLeft(before => new Set([...before].filter(id => !ids.includes(id))))
-                  }
-                  onDrop={dropTake}
-                  onShow={showSong}
-                  onLight={setLit}
-                  onClear={clearTray}
-                  onPlay={playTray}
-                  onShuffle={shuffleTray}
-                  onSave={saveTray}
-                  onUpNext={upNextTray}
-                />
-              </View>
+                {/* The sky is night whatever the app's appearance, but the tray
+                    is the app's own sheet laid over it, light in light mode as
+                    the mini player under it is. Its first paint rides the
+                    tray's own rise; a fold or an open after that moves. */}
+                <ScopedTheme reset>
+                  <LayoutAnimationConfig skipEntering>
+                    <MapTray
+                      name={trayName}
+                      sections={sections}
+                      open={trayOpen}
+                      wide={wide}
+                      saving={saving}
+                      onOpen={setTrayOpen}
+                      onRename={setNamed}
+                      onRemove={id => setLeft(before => new Set(before).add(id))}
+                      onBringBack={ids =>
+                        setLeft(before => new Set([...before].filter(id => !ids.includes(id))))
+                      }
+                      onDrop={dropTake}
+                      onShow={showSong}
+                      onLight={setLit}
+                      onClear={clearTray}
+                      onPlay={playTray}
+                      onShuffle={shuffleTray}
+                      onSave={saveTray}
+                      onUpNext={upNextTray}
+                    />
+                  </LayoutAnimationConfig>
+                </ScopedTheme>
+              </Reanimated.View>
             ) : null}
 
             {hint.shown && field ? <MapHint field={field} onDone={hint.done} /> : null}

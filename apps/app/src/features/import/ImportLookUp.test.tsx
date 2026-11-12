@@ -135,7 +135,8 @@ describe('Import, coming back after a look-up', () => {
     await act(async () => {
       await fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abd')
     })
-    expect(screen.queryByText('That is not a link this can read.')).toBeNull()
+    // The card folds away rather than vanishing in the same frame.
+    await waitFor(() => expect(screen.queryByText('That is not a link this can read.')).toBeNull())
   })
 })
 

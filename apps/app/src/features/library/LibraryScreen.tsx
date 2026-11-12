@@ -36,6 +36,7 @@ import { SyncStatus } from '../../ui/components/SyncStatus'
 import { CantReach } from './CantReach'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { Fold } from '../../ui/components/Fold'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { useSelection } from '../../selection/useSelection'
 import { useLayoutFlags, useWindowValue } from '../../shell/useLayout'
@@ -555,7 +556,7 @@ export function LibraryScreen(): ReactNode {
         the chip just tapped stays under the finger. Above it, the row pushed
         the strip down, and a second tap on the chip opened Search.
       */}
-      {!wide && listed ? (
+      <Fold open={!wide && listed}>
         <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
           <PlayButton
             label={playLabel}
@@ -571,7 +572,7 @@ export function LibraryScreen(): ReactNode {
             onPress={() => playTags(true)}
           />
         </View>
-      ) : null}
+      </Fold>
 
       {/* On a phone the list is headed by its order: "RECENTLY ADDED" (`P12`). */}
       {!wide && songs.length > 0 ? (

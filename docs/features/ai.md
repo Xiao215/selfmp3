@@ -377,8 +377,10 @@ A list does what the words led with (Xiao, "Play now, rest proposes", 2026-10-27
 play — a list, one song from one, "play it" — it starts playing as it comes, once however
 often it is drawn again, as a playback answer is carried out (`usePlayAsItComes`); in a
 reply of several, only its first list asked to play does. Asked to keep ("save it as
-Morning"), its head leads with one **Save as “Morning”** that makes the playlist of exactly
-the songs shown, and as a card among others, its card's Save does (`useSaveAnswer`). Adding
+Morning"), its head leads with one **Save** that makes a playlist called "Morning" of exactly
+the songs shown (the name is on the line above it; on the pill, a concert's long name ran the
+row off a phone, 2026-11-11), and as a card among others, its card's Save does
+(`useSaveAnswer`). The head's buttons go on to a second line when they run out of width. Adding
 to a playlist, tags and names stay proposals, each with its one button.
 
 **A question back** (`clarify`) is a card of its own, always a reply's only card: a question,

@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Text } from 'react-native'
+import Reanimated from 'react-native-reanimated'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { space, textStyle } from '@selfmp3/client'
+import { useFadeMotion } from '../rowMotion'
 import { Button } from './Button'
 
 /**
@@ -16,6 +18,10 @@ import { Button } from './Button'
  *
  * `retry` puts the way to try again at the line's end, for a failure that
  * another go may fix.
+ *
+ * It fades in as it comes (`useFadeMotion`), rather than popping under the
+ * form; it goes at once, since what replaces it (a fixed field, a result)
+ * is the news.
  */
 export function StatusLine({
   tone = 'error',
@@ -31,6 +37,7 @@ export function StatusLine({
   testID?: string
 }): ReactNode {
   const error = tone === 'error'
+  const { entering } = useFadeMotion()
   const words = (
     <Text
       style={[styles.text, error ? styles.error : tone === 'good' ? styles.good : styles.plain]}
@@ -40,7 +47,8 @@ export function StatusLine({
     </Text>
   )
   return (
-    <View
+    <Reanimated.View
+      entering={entering}
       style={[styles.line, style]}
       role={error ? 'alert' : undefined}
       accessibilityLiveRegion={error ? 'assertive' : 'polite'}
@@ -49,7 +57,7 @@ export function StatusLine({
       {retry ? (
         <Button variant="text" label={retry.label ?? 'Try again'} onPress={retry.onPress} />
       ) : null}
-    </View>
+    </Reanimated.View>
   )
 }
 

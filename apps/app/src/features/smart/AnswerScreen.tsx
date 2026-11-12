@@ -298,14 +298,14 @@ export function AnswerView({
             onShuffle={() => player.playShuffled(ids, source)}
           />
           {ledWith === 'save' ? (
+            // The name is on the line above, so the pill is just Save: a
+            // concert's whole name on it ran the row off the screen.
             <Button
-              label={
-                saved !== null
-                  ? `Saved “${saved}”`
-                  : saving
-                    ? 'Saving…'
-                    : `Save as “${result.understanding.name}”`
+              label={saved !== null ? 'Saved' : saving ? 'Saving…' : 'Save'}
+              accessibilityLabel={
+                saved !== null ? `Saved “${saved}”` : `Save as “${result.understanding.name}”`
               }
+              icon={<ListMusic tone="onAccent" />}
               variant="primary"
               disabled={ids.length === 0 || saving || saved !== null}
               onPress={() => void save()}

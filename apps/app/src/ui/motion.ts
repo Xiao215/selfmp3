@@ -217,14 +217,23 @@ export function usePresence(
   {
     easeIn = ease.out,
     easeOut = ease.in,
-  }: { easeIn?: EasingFunction; easeOut?: EasingFunction } = {},
+    appear = false,
+  }: {
+    easeIn?: EasingFunction
+    easeOut?: EasingFunction
+    /**
+     * Mounted already shown, it moves in from 0 rather than being there: for
+     * what is drawn only while it is asked for (a dialog mounted open).
+     */
+    appear?: boolean
+  } = {},
 ): { mounted: boolean; progress: Animated.Value } {
-  const [progress] = useState(() => new Animated.Value(shown ? 1 : 0))
+  const [progress] = useState(() => new Animated.Value(shown && !appear ? 1 : 0))
   const [mounted, setMounted] = useState(shown)
   // In the render, so the arriving thing never has a frame in which it is
   // asked for and not yet there.
   if (shown && !mounted) setMounted(true)
-  const sent = useRef(shown)
+  const sent = useRef(shown && !appear)
   useEffect(() => {
     if (sent.current === shown) return
     sent.current = shown
@@ -235,6 +244,17 @@ export function usePresence(
 }
 
 type EasingFunction = (t: number) => number
+
+/**
+ * What was shown while `open`, kept as it closes: in the render, so the frame
+ * that closes it already draws what it had, and a leaving thing never goes
+ * blank on its way out.
+ */
+export function useKeptWhileClosing<T>(open: boolean, value: T): T {
+  const [kept, setKept] = useState(value)
+  if (open && kept !== value) setKept(value)
+  return open ? value : kept
+}
 
 /**
  * A value that follows `shown` between 0 and 1: `inMs` on the way in and

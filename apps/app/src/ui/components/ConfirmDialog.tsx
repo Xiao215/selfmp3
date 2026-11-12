@@ -19,8 +19,7 @@ import { lineSub, dialogPanel, textColumn } from '../surfaces'
  * outside are the ways out. Deleting songs (`ConfirmRemoveSongs`) asks with
  * it too.
  *
- * It arrives and leaves the way a computer's sheet does (`Dialog`'s
- * `animated`): the ground behind it dims while the dialog fades up, and it
+ * It arrives and leaves the way a computer's sheet does (`Dialog`): the ground behind it dims while the dialog fades up, and it
  * goes back the same way, staying mounted until that has landed, so the one
  * dialog that asks before something irreversible does not read like an error
  * box.
@@ -69,7 +68,6 @@ export function ConfirmDialog({
   return (
     <Dialog
       open={open}
-      animated
       onDismiss={onDismiss}
       dismissLabel="Cancel"
       role="alertdialog"

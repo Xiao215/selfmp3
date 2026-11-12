@@ -75,7 +75,8 @@ import { useAccount } from '../features/profile/useAccount'
 import { activeDestination, NAV, navGoes, navItemProps } from './nav.model'
 import { NAV_ICON } from './navIcons'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
-import { useFade } from '../ui/motion'
+import { useFade, useKeptWhileClosing } from '../ui/motion'
+import { Fold } from '../ui/components/Fold'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
 import { label, serif } from '../ui/surfaces'
@@ -593,7 +594,7 @@ function Tags(): ReactNode {
         newRef={plus}
       />
 
-      {adding ? (
+      <Fold open={adding}>
         <View style={styles.tagForm} testID="sidebar-new-tag">
           <TagNameField
             form={form}
@@ -629,7 +630,7 @@ function Tags(): ReactNode {
             </View>
           ) : null}
         </View>
-      ) : null}
+      </Fold>
 
       <ScrollView
         style={styles.tagList}
@@ -921,24 +922,32 @@ function Foot(): ReactNode {
   const pageSays =
     failure !== null && !library.data && (pathname === '/library' || pathname === '/')
 
+  // Kept as it folds away, so the card leaves with its words.
+  const noticeShown = notice !== null && !pageSays
+  const card = useKeptWhileClosing(noticeShown, notice)
+
   return (
     <View style={styles.foot}>
-      {notice && !pageSays ? (
-        <NoticeCard
-          tone="warn"
-          wash
-          compact
-          live
-          title={notice.title}
-          style={styles.notice}
-          testID="sidebar-notice"
-          actions={
-            capped ? <Button label="Try again" size="small" onPress={askBucketAgain} /> : undefined
-          }
-        >
-          {notice.body}
-        </NoticeCard>
-      ) : null}
+      <Fold open={noticeShown}>
+        {card ? (
+          <NoticeCard
+            tone="warn"
+            wash
+            compact
+            live
+            title={card.title}
+            style={styles.notice}
+            testID="sidebar-notice"
+            actions={
+              capped ? (
+                <Button label="Try again" size="small" onPress={askBucketAgain} />
+              ) : undefined
+            }
+          >
+            {card.body}
+          </NoticeCard>
+        ) : null}
+      </Fold>
       {/* Another device's song, waiting to be picked up here (AE1). */}
       <ResumeCard />
       <Press

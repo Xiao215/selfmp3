@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Fold } from './Fold'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -56,8 +57,13 @@ export function ListenTags({
   /** What the choice comes to — "176 songs · 10 hr 52 min" — shown by the Done row. */
   summary?: string
 }): ReactNode {
-  if (!open) return null
-  return <Panel selected={selected} onToggle={onToggle} summary={summary} onDone={onClose} />
+  // Folds open in the page and away again, so the songs under it glide
+  // rather than jump.
+  return (
+    <Fold open={open}>
+      <Panel selected={selected} onToggle={onToggle} summary={summary} onDone={onClose} />
+    </Fold>
+  )
 }
 
 /** The panel itself, drawn in the caller's flow. */

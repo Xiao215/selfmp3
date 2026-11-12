@@ -1,6 +1,8 @@
 import { memo, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
+import Reanimated from 'react-native-reanimated'
+import { useFadeMotion } from '../../ui/rowMotion'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
@@ -182,6 +184,8 @@ export const TurnStage = memo(function TurnStage({
   // Asked again after it failed (Try again) is waiting too.
   const waiting = !tooLong && (answer.isPending || (answer.isError && answer.isFetching))
   const live = useAskProgress(ticket, waiting)
+  // The answer, or why there is none, fades in where the steps stood.
+  const { entering: answerIn } = useFadeMotion()
   const data = answer.data
   // Each songs card is an answer kept on its own (`answers.store`), by its place.
   const keptIds = useMemo(
@@ -330,7 +334,7 @@ export const TurnStage = memo(function TurnStage({
           <Working steps={FIRST_STEPS} live={live} testID="ask-waiting" />
         </View>
       ) : (
-        <View style={[styles.answered, wide && styles.answeredWide]}>
+        <Reanimated.View entering={answerIn} style={[styles.answered, wide && styles.answeredWide]}>
           <View style={styles.asked}>
             <AskedLabel label={room ? `Asked for ${room.title}` : 'You asked'} />
             <AskedTitle asked={turn.asked} testID="ask-turn-asked" />
@@ -373,7 +377,7 @@ export const TurnStage = memo(function TurnStage({
               beside={wide}
             />
           ) : null}
-        </View>
+        </Reanimated.View>
       )}
     </Stage>
   )

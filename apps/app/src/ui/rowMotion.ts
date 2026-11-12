@@ -34,3 +34,21 @@ export function useRowMotion(): {
     }
   }, [reduced])
 }
+
+/**
+ * Something that comes and goes in place: a status line under a form, an
+ * empty state where a list was. It fades in where it arrives and out where it
+ * leaves, so the change is never a one-frame cut; nothing moves, since what
+ * is around it does not. Spread onto a Reanimated `Animated.View`. Nothing at
+ * all under Reduce Motion.
+ */
+export function useFadeMotion(): { entering?: FadeIn; exiting?: FadeOut } {
+  const reduced = useMotionReduced()
+  return useMemo(() => {
+    if (reduced) return {}
+    return {
+      entering: FadeIn.duration(MOVE_MS.arrive).easing(Easing.bezier(...EASE_OUT_POINTS)),
+      exiting: FadeOut.duration(MOVE_MS.rowOut).easing(Easing.bezier(...EASE_IN_POINTS)),
+    }
+  }, [reduced])
+}

@@ -12,6 +12,7 @@ import { useLayout } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
 import { ease, spring, timing } from '../../ui/motion'
 import { MOVE_MS, OPACITY, roomShift } from '../../ui/motion.model'
+import { Fold } from '../../ui/components/Fold'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Downloaded, Grip } from '../../ui/components/Icons'
@@ -534,7 +535,9 @@ function Rail({
                         onOpen={() => router.navigate('/now-playing')}
                       />
                     </PlayingDrop>
-                    {ended ? <OnlySongEnd song={playing.song} player={player} /> : null}
+                    <Fold open={ended}>
+                      <OnlySongEnd song={playing.song} player={player} />
+                    </Fold>
                   </>
                 ) : null
               }

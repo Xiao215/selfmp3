@@ -13,7 +13,8 @@ import {
   type,
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
-import { timing } from '../motion'
+import { timing, useKeptWhileClosing } from '../motion'
+import { Fold } from './Fold'
 import { card } from '../surfaces'
 import { Press } from './Press'
 import { thisPlace } from '../../ports/place'
@@ -37,7 +38,10 @@ export function SyncStatus(): ReactNode {
   // Before the early return: the bar is only drawn while something is
   // downloading, and hooks are not.
   const fill = useProgressWidth(fraction)
-  const header = syncHeader(downloads.situation)
+  const now = syncHeader(downloads.situation)
+  // It folds in over the list and away again, saying its last words as it goes.
+  const shown = now.kind !== 'none'
+  const header = useKeptWhileClosing(shown, now)
   if (header.kind === 'none') return null
 
   const { text, action } = syncHeaderText(header, thisPlace())
@@ -53,34 +57,36 @@ export function SyncStatus(): ReactNode {
   const warn = header.kind === 'waiting' && header.reason === 'data'
 
   return (
-    <View style={styles.bar} testID="sync-status" accessibilityLiveRegion="polite">
-      {header.kind === 'downloading' ? (
-        <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressFill, fill]} />
-        </View>
-      ) : null}
-      <View style={styles.row}>
-        <Text
-          style={header.kind === 'error' ? styles.error : styles.text}
-          numberOfLines={header.kind === 'error' ? 2 : 1}
-        >
-          {text}
-        </Text>
-        {action ? (
-          <Press
-            feedback="dim"
-            onPress={onAction}
-            hitSlop={hitSlopFor(leading.small)}
-            accessibilityRole="button"
-            accessibilityLabel={action}
-          >
-            <Text style={[styles.action, warn ? styles.actionOnData : styles.actionAccent]}>
-              {action}
-            </Text>
-          </Press>
+    <Fold open={shown}>
+      <View style={styles.bar} testID="sync-status" accessibilityLiveRegion="polite">
+        {header.kind === 'downloading' ? (
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, fill]} />
+          </View>
         ) : null}
+        <View style={styles.row}>
+          <Text
+            style={header.kind === 'error' ? styles.error : styles.text}
+            numberOfLines={header.kind === 'error' ? 2 : 1}
+          >
+            {text}
+          </Text>
+          {action ? (
+            <Press
+              feedback="dim"
+              onPress={onAction}
+              hitSlop={hitSlopFor(leading.small)}
+              accessibilityRole="button"
+              accessibilityLabel={action}
+            >
+              <Text style={[styles.action, warn ? styles.actionOnData : styles.actionAccent]}>
+                {action}
+              </Text>
+            </Press>
+          ) : null}
+        </View>
       </View>
-    </View>
+    </Fold>
   )
 }
 

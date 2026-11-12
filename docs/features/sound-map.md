@@ -36,8 +36,13 @@ a panel down the right. The buttons hold their place: on a phone they stand over
 tray and the opened tray lies over them as a sheet does; on a computer the panel never
 reaches them (2026-10-27: on the right they moved over each time it opened). On a computer
 the page wears no way back however it was opened, Home's card included, since the sidebar
-has a row for it (Xiao, 2026-10-27). The page is dark in either theme, since the
-sky is the point (`ScopedTheme name="dark"`). Behind the head the night deepens, fading out
+has a row for it (Xiao, 2026-10-27). The sky, its head, chips and buttons are dark in
+either theme, since the sky is the point (`ScopedTheme name="dark"`); the tray is the app's
+own sheet laid over it and follows the app's appearance, as the mini player under it does
+(`ScopedTheme reset`, 2026-11-11: a dark tray in light mode read as a mistake). Under the
+scope a phone's Unistyles can paint a themed fill in the app's theme while the ink is the
+scope's, so `Chip` and `TagDot` work their colours out from `useUnistyles` instead of a
+themed style (the chips were light on light, 2026-11-11). Behind the head the night deepens, fading out
 just under the chips (`HeadScrim`), so a cover or a bright star passing under the name never
 sits behind it as if part of it (2026-10-31). A song not heard yet has no place and is left
 off; nothing counts them.
@@ -278,6 +283,12 @@ stays there (`FieldControl.setInsets`).
 
 **On a phone** it stays folded at the foot until pulled up or pressed, and opens as a sheet
 half the screen high, its buttons under its head; the map's clear part shrinks to above it.
+The sheet slides up as the folded line fades, and back down as the line comes back.
+
+Nothing about the tray is a cut (`useTrayMotion`, 2026-11-11): the first stroke brings it up
+from the foot (a computer's panel in from the right), Clear takes it away the same way, and
+the buttons that stand over the folded tray glide up and down with it. None of it under
+Reduce Motion.
 
 Whenever the panel or the sheet opens, or a stroke is drawn where the tray lies, the map
 slides at the same scale until the strokes are clear of it (`keepClear`, `keptClear`). Save

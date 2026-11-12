@@ -44,6 +44,8 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { isComposing } from '../../shell/composing'
 import { textBoxGrows } from '../../ports/textBoxGrows'
 import { FoldAction, Finished, JobGroup, JobRow, RunProgress } from './ImportQueue'
+import { Fold } from '../../ui/components/Fold'
+import { useKeptWhileClosing } from '../../ui/motion'
 import { nextLine } from './importQueue.model'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
@@ -119,6 +121,8 @@ export function ImportScreen({
   // The card offering a kept review counts songs coming in: as the library is now.
   useRefreshReview(api, key, reviewUrls(review))
   const { error, setError, failed } = useImportFailure(via, onUnreachable)
+  // Kept as the card folds away, dismissed or answered by a try that worked.
+  const shownError = useKeptWhileClosing(error !== null, error)
   const [linksFocused, setLinksFocused] = useState(false)
   /** What the pasted links take up, so a browser's box grows with them. */
   const [linksHeight, setLinksHeight] = useState(0)
@@ -351,11 +355,13 @@ export function ImportScreen({
           </Text>
         </NoticeCard>
       ) : null}
-      {error ? (
-        <NoticeCard tone="error" onDismiss={() => setError(null)}>
-          {error}
-        </NoticeCard>
-      ) : null}
+      <Fold open={error !== null}>
+        {shownError ? (
+          <NoticeCard tone="error" onDismiss={() => setError(null)}>
+            {shownError}
+          </NoticeCard>
+        ) : null}
+      </Fold>
       {/* Songs picked in a search and not imported yet: the search is in the draft, one tap away. */}
       {search && picked > 0 ? (
         <NavRow

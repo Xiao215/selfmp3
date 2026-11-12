@@ -1,6 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { parseSecrets, serialiseSecrets } from './secrets.js'
+import { describe, expect, it, vi } from 'vitest'
+
+import { parseSecrets, secretStore, serialiseSecrets } from './secrets.js'
+
+const userData = vi.hoisted(() => ({ dir: '' }))
+
+vi.mock('electron', () => ({
+  app: { getPath: () => userData.dir },
+  safeStorage: { isEncryptionAvailable: () => false },
+}))
 
 describe('the secrets document', () => {
   it('round-trips', () => {
@@ -25,5 +36,22 @@ describe('the secrets document', () => {
     expect(parseSecrets('["a"]')).toEqual({})
     expect(parseSecrets('null')).toEqual({})
     expect(parseSecrets('"a string"')).toEqual({})
+  })
+})
+
+describe('the secrets file', () => {
+  it('is not written over when it is there and cannot be read', () => {
+    userData.dir = mkdtempSync(join(tmpdir(), 'selfmp3-secrets-'))
+    const path = join(userData.dir, 'secrets.json')
+    writeFileSync(path, serialiseSecrets({ 'cloud.session': 'p:a2VwdA==' }))
+    chmodSync(path, 0o000)
+    try {
+      expect(() => secretStore.set('server.token', 'new')).toThrow()
+    } finally {
+      chmodSync(path, 0o600)
+    }
+    expect(parseSecrets(readFileSync(path, 'utf8'))).toEqual({ 'cloud.session': 'p:a2VwdA==' })
+    // Readable again, it is read rather than remembered as empty.
+    expect(secretStore.get('cloud.session')).toBe('kept')
   })
 })

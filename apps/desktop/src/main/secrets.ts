@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { codeOf } from '@selfmp3/shared'
 import { app, safeStorage } from 'electron'
 import { z } from 'zod'
 
@@ -77,12 +78,19 @@ let cached: SealedSecrets | null = null
  */
 const opened = new Map<string, string | null>()
 
-/** A copy: callers change what they are given, and the cache must not change with it. */
+/**
+ * A copy: callers change what they are given, and the cache must not change with it.
+ *
+ * No file yet is no secrets. A file that is there and cannot be read throws,
+ * and is not taken for empty: the next `set` writes the whole document, and
+ * would write every other secret out of it.
+ */
 function read(): SealedSecrets {
   if (cached === null) {
     try {
       cached = parseSecrets(readFileSync(file(), 'utf8'))
-    } catch {
+    } catch (error) {
+      if (codeOf(error) !== 'ENOENT') throw error
       cached = {}
     }
   }

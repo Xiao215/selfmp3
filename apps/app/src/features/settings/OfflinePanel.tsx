@@ -56,9 +56,13 @@ export function OfflinePanel({ title }: { title: string }): ReactNode {
   const settled = downloads.queue.length === 0
   useEffect(() => {
     let cancelled = false
-    void downloadsFolder.usage().then(next => {
-      if (!cancelled) setOnDisk(next)
-    })
+    // A shell that does not answer leaves the sizes out, as they are while it is asked.
+    downloadsFolder.usage().then(
+      next => {
+        if (!cancelled) setOnDisk(next)
+      },
+      () => undefined,
+    )
     return () => {
       cancelled = true
     }

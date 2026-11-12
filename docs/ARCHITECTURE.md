@@ -132,9 +132,9 @@ a one-line change.
 `StorageDriver` — `exists`, `stat`, `read`, `write`, `delete`, `list`, `rangeSource`,
 `localPath` — is the inbox folder; `CloudStore` — `head`, `get`, `put`, `list`, `delete`,
 `range`, and the change counter — is the bucket. Local disk implements the first; the
-doorman's store (`bucket/doorman.ts`, what a workspace uses, through its grant),
-`S3CloudStore` (a bucket reached with its own key) and a folder (`bucket/local.ts`, for the
-dev profile and the verify lanes) implement the second, and the sync cannot tell them apart.
+doorman's store (`bucket/doorman.ts`, what a workspace uses, through its grant) and a folder
+(`bucket/local.ts`, for the dev profile and the verify lanes) implement the second, and the
+sync cannot tell them apart.
 `localPath` always has an answer, so tools that need a real filesystem path (ffmpeg, the tag
 reader) take the file where it is.
 
@@ -308,7 +308,7 @@ Joining needs no button. A signed-in device whose bucket names no server joins
 the shared one, whose address the app knows as it knows the doorman's
 (`DEFAULT_SERVER_URL` in `packages/shared/src/cloud.ts`;
 `packages/replica/src/sharedServer.ts`). Who may sign in at all is the doorman's
-to decide: its owners, and a list the owner keeps in Settings.
+to decide: its owners, and a list the owner keeps on the admin page's People tab.
 
 With a folder for a bucket (`SELFMP3_CLOUD_DIR`: the dev profile, the verify
 lanes) there are no accounts, and the hub holds one library in the data folder

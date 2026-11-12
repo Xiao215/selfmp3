@@ -49,14 +49,12 @@ export function QueueRing({
   testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
-  const ink =
-    tone === 'plain'
-      ? theme.colors.textSecondary
-      : tone === 'danger'
-        ? theme.colors.danger
-        : tone === 'warning'
-          ? theme.colors.warning
-          : theme.colors.accent
+  const ink = {
+    accent: theme.colors.accent,
+    plain: theme.colors.textSecondary,
+    danger: theme.colors.danger,
+    warning: theme.colors.warning,
+  }[tone]
   /*
    * The arc moves on from where it was to where the next step puts it. It
    * follows the value by a listener rather than as an animated component:

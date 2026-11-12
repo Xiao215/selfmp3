@@ -21,7 +21,6 @@ import {
   motionKey,
   newestSnapshotKey,
   othersSnapshotsToPrune,
-  parseEndpoint,
   parseLogKey,
   parseSnapshotKey,
   lyricTextLines,
@@ -34,25 +33,22 @@ import {
   wordsKey,
   unfoldedLogKeys,
   type Change,
-  type CloudConnect,
   type CloudLyrics,
   type CloudSnapshot,
   type CloudWords,
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
-  SIGN_IN_TTL_MS,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
-import { CloudError, S3CloudStore, type CloudStore } from '../bucket/store.js'
+import { CloudError, type CloudStore } from '../bucket/store.js'
 import { LocalCloudStore } from '../bucket/local.js'
 import { DoormanClient } from '../bucket/doorman.js'
 import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
 import type {
-  CloudConnection,
   CloudRepository,
   CloudSongState,
   DoormanSession,
@@ -207,14 +203,8 @@ const LOG_READS_AT_ONCE = 6
 /** Songs whose files are looked at together while a pass works out what changed. */
 const SIGNATURES_AT_ONCE = 16
 
-/** How often to ask the doorman whether Google has finished: for as long as a sign-in lasts (`SIGN_IN_TTL_MS`). */
-const SIGN_IN_POLL_MS = 2_000
-
 /** The part of the doorman the sync uses. Tests hand in a fake. */
-export type Doorman = Pick<
-  DoormanClient,
-  'url' | 'claim' | 'me' | 'connectStorage' | 'signOut' | 'store'
->
+export type Doorman = Pick<DoormanClient, 'url' | 'me' | 'store'>
 
 interface Signatures {
   readonly audio: string
@@ -342,8 +332,7 @@ interface CloudSyncDeps {
   readonly coverToRead?: (songId: number) => boolean
   /**
    * A folder to use as the bucket instead of an account (bucket/local.ts).
-   * Connected from the start and never saved; signing in and connecting are
-   * refused while it is set.
+   * Connected from the start and never saved.
    */
   readonly cloudDir?: string
   /** Links other devices asked to import: how each is going goes in every snapshot. */
@@ -354,9 +343,7 @@ interface CloudSyncDeps {
    * while the library does not; the poll republishes when one has.
    */
   readonly server?: () => CloudServer
-  /** How a bucket client is made for a connection. Tests hand in a memory bucket. */
-  readonly openStore?: (connection: CloudConnection) => CloudStore
-  /** The doorman to sign in through; empty or absent for none. */
+  /** The doorman the account's bucket is reached through; empty or absent for none. */
   readonly doormanUrl?: string
   /**
    * The doorman stopped taking this server's session: it was signed out, or
@@ -377,7 +364,6 @@ interface CloudSyncDeps {
    */
   readonly publishAnyway?: boolean
   readonly now?: () => Date
-  readonly signInPollMs?: number
   readonly logPollMs?: number
   /** How long a pass that did not get everything up waits before the next: a step per failure. */
   readonly retryDelaysMs?: readonly number[]
@@ -396,10 +382,8 @@ type PublishOutcome = 'published' | 'unchanged' | 'deferred'
 export class CloudSyncService {
   readonly #deps: CloudSyncDeps
   readonly #logger: Logger
-  readonly #openStore: (connection: CloudConnection) => CloudStore
   readonly #doorman: Doorman | null
   readonly #now: () => Date
-  readonly #signInPollMs: number
   readonly #logPollMs: number
   readonly #retryDelaysMs: readonly number[]
   readonly #enrichmentDeferMs: number
@@ -421,10 +405,7 @@ export class CloudSyncService {
   #store: CloudStore | null = null
   /** Signed in through the doorman: the session, and what it last said about the account. */
   #session: DoormanSession | null = null
-  /** A sign-in started from this server that Google has not finished yet. */
-  #signIn: { attempt: string; until: number; needsCode: boolean } | null = null
-  #signInTimer: NodeJS.Timeout | null = null
-  /** Bumped on every connect and disconnect, so a pass for an old bucket stops. */
+  /** Bumped whenever the bucket in use changes or goes, so a pass for an old bucket stops. */
   #generation = 0
   #formatChecked = false
   /** Whether the bookkeeping has been checked against the bucket's own listing. */
@@ -548,7 +529,6 @@ export class CloudSyncService {
   constructor(deps: CloudSyncDeps) {
     this.#deps = deps
     this.#logger = deps.logger.child('cloud')
-    this.#openStore = deps.openStore ?? (connection => new S3CloudStore(connection))
     const openDoorman = deps.openDoorman ?? ((url: string) => new DoormanClient(url))
     this.#doorman = deps.doormanUrl ? openDoorman(deps.doormanUrl) : null
     // The shared debounce, for its ceiling: a steady drip of edits — a big
@@ -566,7 +546,6 @@ export class CloudSyncService {
       }
     }, deps.importPacing)
     this.#now = deps.now ?? (() => new Date())
-    this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
     this.#retryDelaysMs = deps.retryDelaysMs ?? RETRY_DELAYS_MS
     this.#enrichmentDeferMs = deps.enrichmentDeferMs ?? ENRICHMENT_DEFER_MS
@@ -598,8 +577,8 @@ export class CloudSyncService {
   }
 
   /**
-   * At boot: pick up where things were — signed in through the doorman, or
-   * connected directly — and run a first pass.
+   * At boot: pick up the account's session with the doorman (the grant the
+   * hub keeps) and run a first pass.
    */
   start(): void {
     if (this.#deps.cloudDir) {
@@ -610,25 +589,17 @@ export class CloudSyncService {
       return
     }
     const session = this.#deps.cloud.doormanSession()
-    if (session && this.#doorman && session.url === this.#doorman.url) {
-      this.#session = session
-      // What the doorman says about the account may have changed since: a
-      // bucket connected, or swapped, from another device. Ask, and use the
-      // answer; until it comes, the last one known.
-      void this.#refreshAccount()
-      return
-    }
-    const connection = this.#deps.cloud.connection()
-    if (!connection) return
-    this.#useDirect(connection)
-    this.#logger.info('publishing to the cloud', { bucket: this.#store?.description })
-    void this.#pass()
+    if (!session || !this.#doorman || session.url !== this.#doorman.url) return
+    this.#session = session
+    // What the doorman says about the account may have changed since: a
+    // bucket connected, or swapped, from another device. Ask, and use the
+    // answer; until it comes, the last one known.
+    void this.#refreshAccount()
   }
 
   stop(): void {
     this.#stopped = true
     this.#clearTimers()
-    this.#stopSignIn()
   }
 
   /** Something in the library changed. Cheap to call as often as you like. */
@@ -648,10 +619,10 @@ export class CloudSyncService {
   }
 
   /**
-   * Run a pass now. Resolves when it (or the one already running) is done.
-   * With `verify`, it first checks what the bucket really holds, the way the
-   * first pass after connecting or starting up does — for when you publish by
-   * hand because something looks wrong.
+   * Run a pass now, rather than after the wait `kick` keeps. Resolves when it
+   * (or the one already running) is done. With `verify`, it first checks what
+   * the bucket really holds, the way the first pass after starting up does.
+   * Only tests call it, to drive passes one at a time.
    */
   syncNow(options: { verify?: boolean } = {}): Promise<void> {
     this.#kickDebounce.cancel()
@@ -714,178 +685,7 @@ export class CloudSyncService {
       : null
   }
 
-  /**
-   * Connect to a bucket. The key is tried before anything is saved — listed,
-   * written, read back — so a mistake is reported while the form is still
-   * open, as a message that says whether it was the key, the address or the
-   * bucket. Throws `CloudError`.
-   */
-  async connect(input: CloudConnect): Promise<CloudStatus> {
-    this.#refuseWithFolder()
-    const endpoint = parseEndpoint(input.endpoint)
-    if (!endpoint) {
-      throw new CloudError(
-        'other',
-        'That endpoint is not an address, like s3.us-west-004.backblazeb2.com.',
-      )
-    }
-    const region = input.region?.trim() || endpoint.region
-    if (!region) {
-      throw new CloudError('other', 'Say which region the bucket is in, as its provider names it.')
-    }
-
-    const connection: CloudConnection = {
-      endpoint: endpoint.url,
-      region,
-      bucket: input.bucket.trim(),
-      prefix: input.prefix.replace(/^\/+|\/+$/g, ''),
-      keyId: input.keyId.trim(),
-      applicationKey: input.applicationKey.trim(),
-    }
-
-    const store = this.#openStore(connection)
-    await store.list(FORMAT_KEY)
-    await this.#checkFormat(store)
-
-    this.#stopSignIn()
-    this.#session = null
-    this.#deps.cloud.saveConnection(connection)
-    this.#useDirect(connection, store)
-    this.#formatChecked = true
-    this.#logger.info('connected to the cloud', { bucket: store.description })
-    void this.#pass()
-    return this.status()
-  }
-
-  /**
-   * Stop using the cloud, whichever way in: sign out of the doorman, or drop
-   * the direct connection. The bucket and everything in it are left alone.
-   */
-  disconnect(): CloudStatus {
-    this.#refuseWithFolder()
-    const session = this.#session
-    if (session && this.#doorman) {
-      // Best effort: the session is forgotten here either way.
-      this.#doorman.signOut(session.token).catch(() => undefined)
-    }
-    this.#stopSignIn()
-    this.#deps.cloud.clearConnection()
-    this.#session = null
-    this.#drop()
-    this.#logger.info('disconnected from the cloud')
-    return this.status()
-  }
-
-  // --- Signing in through the doorman ------------------------------------------
-
-  /**
-   * Wait for Google to finish a sign-in the browser has just started with
-   * this attempt id (it opens the doorman's page itself, so no popup is
-   * blocked). The doorman is asked every couple of seconds for ten minutes.
-   */
-  beginSignIn(attempt: string): CloudStatus {
-    this.#refuseWithFolder()
-    if (!this.#doorman) {
-      throw new CloudError('other', 'No doorman is set up for this server to sign in through.')
-    }
-    this.#stopSignIn()
-    this.#signIn = {
-      attempt,
-      until: this.#now().getTime() + SIGN_IN_TTL_MS,
-      needsCode: false,
-    }
-    this.#scheduleSignInPoll(0)
-    return this.status()
-  }
-
-  cancelSignIn(): CloudStatus {
-    this.#stopSignIn()
-    return this.status()
-  }
-
-  /**
-   * The code the doorman showed once Google had signed you in: what turns
-   * the attempt into a session (packages/shared/src/schemas/doorman.ts). A
-   * wrong one ends the attempt, and signing in starts again. Throws
-   * `CloudError`.
-   */
-  async enterSignInCode(code: string): Promise<CloudStatus> {
-    const signIn = this.#signIn
-    if (!signIn || !this.#doorman) {
-      throw new CloudError('other', 'That sign-in is over. Start it again.')
-    }
-    try {
-      const result = await this.#doorman.claim(signIn.attempt, code)
-      if (result.status !== 'signed-in') {
-        throw new CloudError('other', 'Google has not finished signing you in yet.')
-      }
-      // By attempt rather than by identity: the poll that runs alongside this
-      // replaces the whole object whenever anything about it changes, and then
-      // a sign-in that had just succeeded was left looking like one still
-      // waiting for its code.
-      if (this.#signIn?.attempt === signIn.attempt) this.#stopSignIn()
-      this.#logger.info('signed in to the cloud', { account: result.me.email })
-      this.#adoptAccount(result.token, result.me)
-      return this.status()
-    } catch (error) {
-      // The doorman forgets an attempt a wrong code was tried against.
-      if (this.#signIn?.attempt === signIn.attempt) this.#stopSignIn()
-      throw error
-    }
-  }
-
-  /**
-   * Connect a bucket to the signed-in Google account. The doorman tries the
-   * key before it keeps it, and says what was wrong if it was. Throws
-   * `CloudError`.
-   */
-  async connectStorage(input: CloudConnect): Promise<CloudStatus> {
-    const session = this.#session
-    if (!session || !this.#doorman) {
-      throw new CloudError('auth', 'Sign in with Google first.')
-    }
-    const me = await this.#doorman.connectStorage(session.token, input)
-    this.#adoptAccount(session.token, me)
-    return this.status()
-  }
-
-  #scheduleSignInPoll(delay: number): void {
-    this.#signInTimer = setTimeout(() => {
-      this.#signInTimer = null
-      void this.#pollSignIn()
-    }, delay)
-    this.#signInTimer.unref()
-  }
-
-  async #pollSignIn(): Promise<void> {
-    const signIn = this.#signIn
-    if (!signIn || !this.#doorman || this.#stopped) return
-    if (this.#now().getTime() > signIn.until) {
-      this.#signIn = null
-      return
-    }
-    // Google has finished and the code is on its way: nothing to ask until it comes.
-    if (signIn.needsCode) {
-      this.#scheduleSignInPoll(this.#signInPollMs)
-      return
-    }
-    try {
-      // Asked without a code, the doorman only ever says whether one is waiting.
-      const result = await this.#doorman.claim(signIn.attempt)
-      if (this.#signIn !== signIn) return
-      if (result.status === 'code') this.#signIn = { ...signIn, needsCode: true }
-    } catch (error) {
-      // Google takes its time and networks drop: keep asking until the deadline.
-      this.#logger.debug('sign-in not claimed yet', { message: messageOf(error) })
-    }
-    if (this.#signIn?.attempt === signIn.attempt) this.#scheduleSignInPoll(this.#signInPollMs)
-  }
-
-  #stopSignIn(): void {
-    if (this.#signInTimer) clearTimeout(this.#signInTimer)
-    this.#signInTimer = null
-    this.#signIn = null
-  }
+  // --- The account's session with the doorman -------------------------------
 
   /** Ask the doorman about the signed-in account, and use what it says. */
   async #refreshAccount(): Promise<void> {
@@ -903,9 +703,9 @@ export class CloudSyncService {
   }
 
   /**
-   * The doorman no longer knows this session — it expired, or was signed out
-   * from elsewhere. Publishing stops (every request would be refused) and the
-   * status says to sign in again, until someone does.
+   * The doorman no longer knows this session: the account took its grant
+   * back. Publishing stops (every request would be refused), the status says
+   * why, and a server working for accounts lets the library go (`sessionEnded`).
    */
   #sessionEnded(error: CloudError): void {
     this.#drop()
@@ -960,8 +760,6 @@ export class CloudSyncService {
       account: session
         ? { email: session.email, name: session.name, picture: session.picture }
         : null,
-      signingIn: this.#signIn !== null,
-      signInNeedsCode: this.#signIn?.needsCode ?? false,
       connected: store !== null,
       target: store ? this.#target : null,
       deviceId: store ? this.#deviceId() : null,
@@ -1237,7 +1035,7 @@ export class CloudSyncService {
     } catch (error) {
       if (generation !== this.#generation) return
       if (error instanceof CloudError && error.kind === 'auth' && this.#session) {
-        // Trying again will not bring a dead session back; signing in will.
+        // Trying again will not bring a dead session back.
         this.#sessionEnded(error)
         return
       }
@@ -2465,16 +2263,6 @@ export class CloudSyncService {
 
   // --- Plumbing ----------------------------------------------------------------
 
-  #useDirect(connection: CloudConnection, store?: CloudStore): void {
-    this.#use(store ?? this.#openStore(connection), {
-      endpoint: connection.endpoint,
-      region: connection.region,
-      bucket: connection.bucket,
-      prefix: connection.prefix,
-      keyIdHint: `${connection.keyId.slice(0, 6)}…`,
-    })
-  }
-
   /** A folder standing in for the bucket (bucket/local.ts). */
   #useFolder(dir: string): void {
     const target = { endpoint: 'file://', bucket: dir, prefix: '' }
@@ -2485,16 +2273,6 @@ export class CloudSyncService {
       region: '',
       keyIdHint: 'folder',
     })
-  }
-
-  /** With a folder as the bucket there is no account to sign in to or out of. */
-  #refuseWithFolder(): void {
-    if (!this.#deps.cloudDir) return
-    throw new CloudError(
-      'other',
-      `This server’s bucket is the folder ${this.#deps.cloudDir} (SELFMP3_CLOUD_DIR). ` +
-        'Unset that to sign in to an account instead.',
-    )
   }
 
   #useDoorman(session: DoormanSession): void {

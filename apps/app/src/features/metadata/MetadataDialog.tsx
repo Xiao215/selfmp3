@@ -177,7 +177,7 @@ export function MetadataDialog({
     const names: ApplyMetadata = {}
     if (hand.title !== undefined) names.title = hand.title
     if (hand.artist !== undefined) names.artist = hand.artist
-    if (Object.keys(names).length > 0) apply.mutate(names, { onSuccess: () => undefined })
+    if (Object.keys(names).length > 0) apply.mutate(names)
     else lookup.refetch()
   }
 

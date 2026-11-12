@@ -48,7 +48,7 @@ import {
 import { ServerAway } from '../../connection/ServerAway'
 import { ASKS_MODEL } from '../../connection/refetchFailed'
 import { reachedConnection, viaKey } from '../../connection/via'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayingSongId } from '../../player/PlayerProvider'
 import { fonts } from '../../ports/fonts'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { NarrowerContentWidth, useContentWidth } from '../../shell/contentWidth'
@@ -174,12 +174,10 @@ export function AskScreen(): ReactNode {
   const { theme } = useUnistyles()
   const window = useWindowDimensions()
   const server = useSmartServer()
-  const player = usePlayer()
+  const playingId = usePlayingSongId()
 
-  const playingNow = (): number | null => {
-    const id = player.current?.id
-    return id === undefined ? null : (server.onServer(id) ?? null)
-  }
+  const playingNow = (): number | null =>
+    playingId === null ? null : (server.onServer(playingId) ?? null)
   const turnFor = (asked: string, was: readonly Turn[], screen: string | null = null): Turn => ({
     id: nextTurn++,
     asked,
@@ -942,7 +940,6 @@ const TurnStage = memo(function TurnStage({
               // A proposal acted on or put aside becomes what came of it; anything
               // else stays to come back to.
               onSettle={settleCard}
-              onOpenPage={() => undefined}
               listHeight={listHeight}
               onKeys={latest && !settled ? onKeys : undefined}
               onAsk={onAsk}
@@ -1186,8 +1183,7 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.md,
     gap: space.sm,
   },
-  // On a computer the field keeps to the reading column, in the middle.
-  // At the log's foot, under the conversation it continues.
+  // On a computer: at the log's foot, under the conversation it continues.
   dockWide: { paddingBottom: space.xl },
   field: {
     minHeight: 50,

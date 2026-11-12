@@ -62,9 +62,9 @@ function main(): void {
         'given it with the sync',
     )
     /*
-     * The token itself, for the two cases nothing hands it to: this page opened
-     * from another computer, and an extension pointed at a LAN address — on a
-     * machine with one library, which is the only one these make sense on. It
+     * The token itself, for the one case nothing hands it to: an extension
+     * pointed at a LAN address, on a machine with one library, which is the
+     * only one that makes sense on. It
      * is a secret in a log, which is worth a moment's thought — but this log is
      * on the machine whose data directory holds every token there is, and
      * anyone who can read one can read the other.

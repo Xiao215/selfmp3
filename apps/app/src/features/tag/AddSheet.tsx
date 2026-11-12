@@ -47,14 +47,14 @@ export function AddSheet({
   chosen,
   onClose,
   onShow,
-  match = 'any',
+  match,
 }: {
   open: boolean
   chosen: readonly Place[]
   onClose: () => void
   onShow: (places: readonly Place[]) => void
   /** What the page it opened from counts: songs any of them holds, or all. */
-  match?: 'any' | 'all'
+  match: 'any' | 'all'
 }): ReactNode {
   // Mounted fresh each opening, so the copy starts from what the page shows.
   return (

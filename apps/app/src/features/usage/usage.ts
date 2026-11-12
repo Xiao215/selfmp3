@@ -1,4 +1,5 @@
 import {
+  DAY_MS,
   USAGE_ERRORS,
   USAGE_FEATURES,
   USAGE_MAX_PER_DAY,
@@ -6,6 +7,7 @@ import {
   type UsageFeature,
   type UsageReport,
 } from '@selfmp3/shared'
+import { z } from 'zod'
 import { prefs } from '../../ports/prefs'
 
 /**
@@ -19,7 +21,16 @@ const COUNTS_KEY = 'usageCounts'
 /** A day not sent within a week is let go: the server would not take it any more. */
 const DAYS_KEPT = 7
 
-type Counts = Record<string, UsageReport>
+/** The days counted, by day: any name, since the lists the server takes are checked as a day is sent. */
+const CountsSchema = z.record(
+  z.string(),
+  z.object({
+    day: z.string(),
+    uses: z.record(z.string(), z.number()),
+    errors: z.record(z.string(), z.number()),
+  }),
+)
+type Counts = z.infer<typeof CountsSchema>
 
 /** Today, as the server counts days: in UTC. */
 function usageDay(now = Date.now()): string {
@@ -28,8 +39,8 @@ function usageDay(now = Date.now()): string {
 
 function read(): Counts {
   try {
-    const parsed: unknown = JSON.parse(prefs.get(COUNTS_KEY) ?? '{}')
-    return parsed && typeof parsed === 'object' ? (parsed as Counts) : {}
+    const parsed = CountsSchema.safeParse(JSON.parse(prefs.get(COUNTS_KEY) ?? '{}'))
+    return parsed.success ? parsed.data : {}
   } catch {
     return {}
   }
@@ -39,7 +50,7 @@ function bump(kind: 'uses' | 'errors', name: string): void {
   const counts = read()
   const day = usageDay()
   const today = counts[day] ?? { day, uses: {}, errors: {} }
-  const bag = today[kind] as Record<string, number>
+  const bag = today[kind]
   bag[name] = Math.min((bag[name] ?? 0) + 1, USAGE_MAX_PER_DAY)
   counts[day] = today
   prefs.set(COUNTS_KEY, JSON.stringify(counts))
@@ -63,7 +74,7 @@ export function countShownError(code: UsageError): void {
 export function pendingReports(now = Date.now()): UsageReport[] {
   const counts = read()
   const today = usageDay(now)
-  const oldest = usageDay(now - DAYS_KEPT * 24 * 60 * 60 * 1000)
+  const oldest = usageDay(now - DAYS_KEPT * DAY_MS)
   const ready: UsageReport[] = []
   let dropped = false
   for (const [day, report] of Object.entries(counts)) {

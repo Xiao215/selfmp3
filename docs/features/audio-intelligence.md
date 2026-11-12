@@ -12,6 +12,11 @@ listening model runs on the server too, from files it downloads once. A server w
 several accounts ([shared-server.md](shared-server.md)) analyses one song at a time across
 all of them and holds one copy of the model for all of them.
 
+**Where:** measured and heard on the server; read on the phone, the computer, the web and the
+desktop app, where a song's sound, Sounds like and auto-mix are the same everywhere. With no
+server in reach a device's own copy of the library still answers "similar" by the measures
+alone. The files are listed under [Where the code is](#where-the-code-is).
+
 ## What is measured
 
 | Feature | How | Stored as |
@@ -212,3 +217,5 @@ the next run.
 - `apps/server/src/ai/describe.ts` (`soundOrder`, not exported) — Ask's songs in the order they sound
 - `scripts/sound-models/` — the export, its requirements and the model's licences
 - `packages/client/src/queue/autoMix.ts` — queue ordering and per-transition crossfade (tested)
+- `apps/app/src/features/song/SongFacts.tsx` (`SoundStrip`) and `playSimilar.ts` — a song's
+  sound and Play similar songs; the auto-mix toggle is in `features/queue/UpNextParts.tsx`

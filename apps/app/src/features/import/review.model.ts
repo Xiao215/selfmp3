@@ -128,6 +128,26 @@ export function sourceWords(
   return { words: 'YouTube', tone: item.netease ? 'warn' : 'quiet' }
 }
 
+/** How YouTube's match for a song went, or none looked for yet. */
+type YouTubeMatch = NonNullable<ImportPreviewItem['youtube']>['match'] | null
+
+/** YouTube's option in an open row's choice of where the song comes from. */
+export function youtubeOptionWords(match: YouTubeMatch): string {
+  if (match === 'looking') return 'Looking…'
+  if (match === 'none') return 'Not found'
+  if (match === 'unsure') return 'Not sure it’s the song'
+  if (match === 'sure') return 'Found'
+  return 'Find it there'
+}
+
+/** An open row's line about YouTube's match, for a song with nowhere else to come from. */
+export function youtubeFoundWords(match: YouTubeMatch): string {
+  if (match === 'looking') return 'Looking for it on YouTube…'
+  if (match === 'none') return 'Not found on YouTube. Fix its name, then look again.'
+  if (match === 'unsure') return 'Found on YouTube, but not sure it’s the song: have a listen.'
+  return 'Found on YouTube.'
+}
+
 /** What the place a review's songs were listed by is called. */
 const PLACES = {
   youtube: 'this link',

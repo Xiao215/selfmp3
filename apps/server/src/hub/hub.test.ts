@@ -26,6 +26,8 @@ import { createCloudSession, type CloudSession } from '../../../../packages/repl
 import { createSharedServer } from '../../../../packages/replica/src/sharedServer.js'
 import { loadConfig, type Config } from '../config.js'
 import { createContainer } from '../container.js'
+import { setEnv } from '../fixtures/library.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { createHubApp } from './app.js'
 import { Hub } from './hub.js'
@@ -38,18 +40,6 @@ import { Hub } from './hub.js'
  * bucket itself.
  */
 
-const variables = [
-  'SELFMP3_DATA_DIR',
-  'SELFMP3_LIBRARY_DIR',
-  'SELFMP3_LOG_LEVEL',
-  'SELFMP3_AUTH_TOKEN',
-  'SELFMP3_CLOUD_DIR',
-  'SELFMP3_DOORMAN_URL',
-  'SELFMP3_SOUND',
-  'SELFMP3_PUBLIC_URL',
-  'SELFMP3_HOST',
-] as const
-
 /** The hub's public address in these tests: what its grants and snapshots name. */
 const PUBLIC_URL = 'https://pi.example.ts.net'
 
@@ -59,11 +49,10 @@ let doormanServer: http.Server
 let doormanUrl = ''
 /** Every path the hub asked the doorman for, in order. */
 let doormanAsked: string[] = []
-const saved = new Map<string, string | undefined>()
+let restore = (): void => {}
 const open: { hub: Hub; server: http.Server }[] = []
 
 beforeEach(async () => {
-  for (const name of variables) saved.set(name, process.env[name])
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-hub-'))
   doorman = harness()
   doormanAsked = []
@@ -71,15 +60,17 @@ beforeEach(async () => {
   await new Promise<void>(resolve => doormanServer.listen(0, '127.0.0.1', resolve))
   doormanUrl = `http://127.0.0.1:${(doormanServer.address() as AddressInfo).port}`
 
-  process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-  process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-  process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-  process.env['SELFMP3_DOORMAN_URL'] = doormanUrl
-  process.env['SELFMP3_SOUND'] = 'false'
-  process.env['SELFMP3_PUBLIC_URL'] = PUBLIC_URL
-  process.env['SELFMP3_HOST'] = '127.0.0.1'
-  delete process.env['SELFMP3_AUTH_TOKEN']
-  delete process.env['SELFMP3_CLOUD_DIR']
+  restore = setEnv({
+    SELFMP3_DATA_DIR: path.join(root, 'data'),
+    SELFMP3_LIBRARY_DIR: path.join(root, 'library'),
+    SELFMP3_LOG_LEVEL: 'silent',
+    SELFMP3_DOORMAN_URL: doormanUrl,
+    SELFMP3_SOUND: 'false',
+    SELFMP3_PUBLIC_URL: PUBLIC_URL,
+    SELFMP3_HOST: '127.0.0.1',
+    SELFMP3_AUTH_TOKEN: undefined,
+    SELFMP3_CLOUD_DIR: undefined,
+  })
 })
 
 afterEach(async () => {
@@ -89,10 +80,7 @@ afterEach(async () => {
   }
   await new Promise<void>(resolve => doormanServer.close(() => resolve()))
   fs.rmSync(root, { recursive: true, force: true })
-  for (const [name, value] of saved) {
-    if (value === undefined) delete process.env[name]
-    else process.env[name] = value
-  }
+  restore()
 })
 
 /** The doorman's own `fetch`, behind a real socket the server's client can reach. */
@@ -220,23 +208,14 @@ describe('a server working for several accounts', () => {
       (await join(url, await account('2', 'friend@example.com', 'theirs'))).body,
     )
     const mine = hub.workspaces().find(w => w.container.config.authToken === me.token)!.container
-    const songId = mine.songs.insert({
-      path: 'monster.m4a',
-      title: 'Monster',
-      artist: 'YOASOBI',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 1,
-      sizeBytes: 1,
-      mime: 'audio/mp4',
-      mtimeMs: 0,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'plain',
-      sourceUrl: null,
-    })
+    const songId = mine.songs.insert(
+      newSong({
+        path: 'monster.m4a',
+        title: 'Monster',
+        artist: 'YOASOBI',
+        lyricsKind: 'plain',
+      }),
+    )
     mine.lyricsIndex.index(songId, 'running into the night')
 
     const search = async (token: string) => {
@@ -439,52 +418,6 @@ describe('a server working for several accounts', () => {
     const elsewhere = { 'X-Forwarded-For': '203.0.113.9' }
     expect((await listed(elsewhere)).status).toBe(403)
     expect((await cloud({ ...elsewhere, [HUB_LIBRARY_HEADER]: friend.id })).status).toBe(401)
-  })
-
-  it('lets a device read its library’s cloud state but change it only from its own machine', async () => {
-    const { url } = await startHub()
-    const me = CloudServerSchema.parse(
-      (await join(url, await account('1', 'me@example.com', 'mine'))).body,
-    )
-    const { workspaces } = HubStatusSchema.parse(await (await fetch(`${url}/api/hub`)).json())
-    const id = workspaces[0]!.id
-
-    // A device: its library's token, from another computer.
-    const device = { Authorization: `Bearer ${me.token}`, 'X-Forwarded-For': '203.0.113.9' }
-    const bucket = {
-      endpoint: 'https://s3.example.com',
-      bucket: 'elsewhere',
-      keyId: 'k',
-      applicationKey: 'secret',
-    }
-    const send = (method: string, path: string, headers: Record<string, string>, body?: unknown) =>
-      fetch(`${url}/api/cloud${path}`, {
-        method,
-        headers: body === undefined ? headers : { ...headers, 'Content-Type': 'application/json' },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      })
-
-    expect((await send('GET', '', device)).status).toBe(200)
-    expect((await send('GET', '/uids', device)).status).toBe(200)
-    for (const [method, path, body] of [
-      ['PUT', '', bucket],
-      ['DELETE', '', undefined],
-      ['POST', '/signin', { attempt: '0'.repeat(32) }],
-      ['DELETE', '/signin', undefined],
-      ['POST', '/signin/code', { code: 'ABCD-1234' }],
-      ['PUT', '/storage', bucket],
-      ['POST', '/sync', undefined],
-    ] as const) {
-      const refused = await send(method, path, device, body)
-      expect(refused.status, `${method} /api/cloud${path}`).toBe(403)
-    }
-    // Still connected: nothing a device sent got through.
-    const after = CloudStatusSchema.parse(await (await send('GET', '', device)).json())
-    expect(after.connected).toBe(true)
-    expect(after.account?.email).toBe('me@example.com')
-
-    // The server's own page, on its own machine, may.
-    expect((await send('POST', '/sync', { [HUB_LIBRARY_HEADER]: id })).status).toBe(200)
   })
 
   it('refuses a data folder holding a library and nothing to say whose', () => {

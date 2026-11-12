@@ -13,6 +13,7 @@ import {
 } from '@selfmp3/shared'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadConfig } from '../config.js'
+import { setEnv } from '../fixtures/library.js'
 import { createHubApp } from '../hub/app.js'
 import { Hub } from '../hub/hub.js'
 import { createLogger } from '../logger.js'
@@ -25,16 +26,6 @@ import { ADMIN_DIR, createAdminApp } from './app.js'
  * page as a total.
  */
 describe('the admin page', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-    'SELFMP3_ADMIN_URL',
-    'SELFMP3_AI_BASE_URL',
-    'SELFMP3_DOORMAN_URL',
-    'SELFMP3_DOORMAN_ADMIN_TOKEN',
-  ] as const
   const KEY = 'k'.repeat(64)
   /** The doorman, stood in for at its HTTP edge: it takes the admin key and nothing else. */
   let list = { anyone: false, emails: ['friend@example.com'], owners: ['me@example.com'] }
@@ -82,7 +73,7 @@ describe('the admin page', () => {
     json(404, { error: 'no', code: 'not_found' })
   })
   let doormanOrigin = ''
-  const saved = new Map<string, string | undefined>()
+  let restore = (): void => {}
   let root = ''
   let hub: Hub
   let admin: http.Server
@@ -96,18 +87,19 @@ describe('the admin page', () => {
   }
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-admin-'))
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    // The API answers nothing without a bucket; a folder stands in for one.
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-    process.env['SELFMP3_ADMIN_URL'] = 'https://pi.example.ts.net:4443'
-    delete process.env['SELFMP3_AI_BASE_URL']
     doormanOrigin = await listen(fakeDoorman)
-    process.env['SELFMP3_DOORMAN_URL'] = doormanOrigin
-    process.env['SELFMP3_DOORMAN_ADMIN_TOKEN'] = KEY
+    restore = setEnv({
+      SELFMP3_DATA_DIR: path.join(root, 'data'),
+      SELFMP3_LIBRARY_DIR: path.join(root, 'library'),
+      SELFMP3_LOG_LEVEL: 'silent',
+      // The API answers nothing without a bucket; a folder stands in for one.
+      SELFMP3_CLOUD_DIR: 'bucket',
+      SELFMP3_ADMIN_URL: 'https://pi.example.ts.net:4443',
+      SELFMP3_AI_BASE_URL: undefined,
+      SELFMP3_DOORMAN_URL: doormanOrigin,
+      SELFMP3_DOORMAN_ADMIN_TOKEN: KEY,
+    })
 
     const config = loadConfig()
     hub = new Hub(config, createLogger('silent'), null)
@@ -125,10 +117,7 @@ describe('the admin page', () => {
     hub.stop()
     hub.close()
     fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
+    restore()
   })
 
   it('serves the page at each tab’s own address', async () => {

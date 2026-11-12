@@ -12,7 +12,7 @@ import {
   type WrappedRange,
 } from '@selfmp3/shared'
 import { darkPalette, lightPalette, tagColors } from '@selfmp3/client'
-import { formatHour, playsLabel } from '../stats/stats.model'
+import { daysLabel, formatHour, playsLabel } from '../stats/stats.model'
 import { figure, minuteWord, weekdayName } from './wrapped.model'
 
 /**
@@ -166,7 +166,6 @@ export function clockHour(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }
 
-const days = (count: number): string => plural(count, 'day', 'days')
 const playsWord = (count: number): string => (count === 1 ? 'play' : 'plays')
 
 /**
@@ -407,7 +406,7 @@ export function paperLook({ wrapped }: LookInput): PaperLook {
     onRepeat: numberOne(wrapped),
     figures: [
       { value: wrapped.totals.plays.toLocaleString(), label: playsWord(wrapped.totals.plays) },
-      { value: days(wrapped.longestStreakDays), label: 'longest streak' },
+      { value: daysLabel(wrapped.longestStreakDays), label: 'longest streak' },
       { value: wrapped.peakHour ? formatHour(wrapped.peakHour.hour) : '—', label: 'peak hour' },
     ],
     tags: wrapped.topTags.slice(0, 3).map(tag => tag.key),
@@ -455,7 +454,7 @@ export function receiptLook(input: LookInput): ReceiptLook {
         name: 'DAYS WITH MUSIC',
         value: `${wrapped.totals.activeDays} / ${windowDays(input).count}`,
       },
-      { name: 'LONGEST STREAK', value: days(wrapped.longestStreakDays).toUpperCase() },
+      { name: 'LONGEST STREAK', value: daysLabel(wrapped.longestStreakDays).toUpperCase() },
       { name: 'PEAK HOUR', value: wrapped.peakHour ? clockHour(wrapped.peakHour.hour) : '—' },
     ],
     total: `${figure(wrapped.totals.minutes)} min`,
@@ -531,7 +530,7 @@ export function calendarLook(input: LookInput): CalendarLook {
     grid,
     caption: calendarCaption(grid),
     figure: figure(wrapped.totals.minutes),
-    figureLine: `${unit} · ${days(wrapped.totals.activeDays)}${streak}`,
+    figureLine: `${unit} · ${daysLabel(wrapped.totals.activeDays)}${streak}`,
     traits: wrapped.personality.traits.slice(0, 2),
   }
 }
@@ -598,7 +597,7 @@ export function wordsLook(input: LookInput): WordsLook {
     head: `self.mp3 · ${periodTitle(wrapped.range)}`,
     segments,
     size: wordsSize(segments),
-    foot: `${playsLabel(wrapped.totals.plays)} · ${days(wrapped.totals.activeDays)}${streak}`,
+    foot: `${playsLabel(wrapped.totals.plays)} · ${daysLabel(wrapped.totals.activeDays)}${streak}`,
     tags: wrapped.topTags.slice(0, 2).map(tag => tag.key),
     songId: wrapped.topSongs[0]?.songId ?? null,
   }
@@ -660,7 +659,7 @@ export function frontPageLook(input: LookInput): FrontPageLook {
   const minutes = minutesPhrase(wrapped.totals.minutes)
   const streak = wrapped.longestStreakDays
   const deck = [
-    `${periodTitle(wrapped.range)} came to ${playsLabel(wrapped.totals.plays)} across ${days(wrapped.totals.activeDays)}.`,
+    `${periodTitle(wrapped.range)} came to ${playsLabel(wrapped.totals.plays)} across ${daysLabel(wrapped.totals.activeDays)}.`,
     ...(wrapped.peakHour ? [`The busiest hour was ${formatHour(wrapped.peakHour.hour)}.`] : []),
     ...(streak > 1 ? [`The longest run was ${streak} days in a row.`] : []),
   ].join(' ')

@@ -5,7 +5,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { useBulkTag, useCreateTag, useLibrary, iconSize } from '@selfmp3/client'
 import { Pencil, Tag as TagIcon } from '../../ui/components/Icons'
 import type { MenuItem } from '../../ui/components/MoreMenu'
-import { showToast } from '../../ui/toast'
+import { showFailure, showToast } from '../../ui/toast'
 import { useOpenTag } from './useOpenTag'
 import { PlaceMissing, PlaceWaiting } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
@@ -89,7 +89,11 @@ function useMakeTag(artist: Artist | null): MenuItem {
     }
     busy.current = true
     try {
-      const tag = await createTag.mutateAsync({ name: artist.name })
+      const tag = await createTag.mutateAsync({ name: artist.name }).catch((error: unknown) => {
+        // Making a tag has no word of its own when it fails (`useCreateTag`).
+        showFailure('Couldn’t make the tag', error)
+        throw error
+      })
       await bulkTag.mutateAsync({ songIds: [...artist.songIds], tagId: tag.id, action: 'add' })
       const count = artist.songIds.length
       showToast(
@@ -98,7 +102,7 @@ function useMakeTag(artist: Artist | null): MenuItem {
       )
       openTag(tag)
     } catch {
-      // The mutations say what failed themselves.
+      // Said where it failed: above, or by tagging's own `meta.failure`.
     } finally {
       busy.current = false
     }

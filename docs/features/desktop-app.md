@@ -1,7 +1,9 @@
 # The app on a computer (macOS)
 
 **Where:** macOS (installed app); Windows and Linux: not built. The browser and
-the phone: see [offline-sync.md](offline-sync.md).
+the phone: see [offline-sync.md](offline-sync.md). The code is `apps/desktop` and
+`apps/app/src/ports/desktop/`, laid out in
+[How it is put together](#how-it-is-put-together).
 
 The same app the browser draws at 1280, installed. `apps/desktop` is an Electron
 shell around `apps/app`'s web export — the identical build GitHub Pages serves

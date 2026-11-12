@@ -233,8 +233,7 @@ Add `SELFMP3_AI_API_KEY` only if you gave cli-bridge an `API_KEY`. The two model
 `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART`, both `sonnet` unless you set them.
 To check that the model answers, run an Ask from the app: a failure says in words whether the
 server could not reach the model, the key was refused or a limit was hit. With no model set
-up, the app dims **Use smart features** in Settings › Smart features and says "Your server
-has no model set up."
+up, Settings' **Smart features** tile says "Not set up" and cannot be pressed.
 
 cli-bridge runs on your own Claude subscription, and its README asks that it serve only you.
 A server that works for other people's accounts runs their Smart features on the same model.

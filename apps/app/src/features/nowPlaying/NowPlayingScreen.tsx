@@ -22,7 +22,7 @@ import { describeSource } from '../lists/lists.model'
 import { RoomSheets } from '../room/RoomSheets'
 import { ShareSheet } from '../share/ShareSheet'
 import { RoomPill, TogetherButton } from '../room/Together'
-import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import {
   ease,
@@ -90,15 +90,14 @@ import { TouchFlag } from '../../ui/touchFlag'
  */
 export function NowPlayingScreen(): ReactNode {
   const { wide } = useLayoutFlags()
-  const player = usePlayer()
+  const songId = usePlayingSongId()
   const router = useRouter()
   const { song: songParam } = useLocalSearchParams<{ song?: string }>()
-  const songId = player.current?.id
   useEffect(() => countUse('now-playing'), [])
   // The address names the song, so a refresh or a copied link comes back to it
   // (usePlaybackMemory reads it when the app opens).
   useEffect(() => {
-    if (songId === undefined || songParam === String(songId)) return
+    if (songId === null || songParam === String(songId)) return
     router.setParams({ song: String(songId) })
   }, [songId, songParam, router])
   // A computer gets `NowPlayingStage`, with the lyrics beside the art; a phone
@@ -609,12 +608,11 @@ function CoverView({
 
       <SongTagsLine
         song={song}
-        // A page of the app, so the modal goes down first, as the song's own
-        // page does (`openSong`): pushed from inside it, the tag's page landed
-        // under the modal, out of sight.
+        // A page of the app, so the modal goes down first, as the song menu's
+        // pages do (`SongMenu`'s onOpen): pushed from inside it, the tag's page
+        // landed under the modal, out of sight.
         onOpen={href => leaveTo(router, href)}
         onEdit={onTags}
-        labelled
         style={styles.tags}
       />
 

@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react'
 import { render, screen } from '@testing-library/react-native'
 import { EMPTY_QUEUE, type AskCard } from '@selfmp3/shared'
 
@@ -53,4 +54,24 @@ it('tells the player nothing when there is nothing to do', async () => {
   await render(<PlaybackAnswer answer={{ kind: 'playback', op: 'resume', place: null }} />)
   for (const command of Object.values(mockCommands)) expect(command).not.toHaveBeenCalled()
   expect(screen.getByTestId('ask-playback-said')).toHaveTextContent('Already playing.')
+})
+
+it('says what it came to once, though the page that asked redraws with what it said', async () => {
+  const said = jest.fn()
+  function Page(): ReactNode {
+    // As the Ask page keeps it: a new record, and a new callback on every draw.
+    const [, setCarried] = useState<Record<number, string>>({})
+    return (
+      <PlaybackAnswer
+        answer={{ kind: 'playback', op: 'resume', place: null }}
+        onCarriedOut={came => {
+          said(came)
+          setCarried(was => ({ ...was, 0: came }))
+        }}
+      />
+    )
+  }
+  await render(<Page />)
+  expect(said).toHaveBeenCalledTimes(1)
+  expect(said).toHaveBeenCalledWith('Already playing.')
 })

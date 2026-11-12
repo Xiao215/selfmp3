@@ -25,7 +25,7 @@ import type { SongWords } from './nowPlaying.model'
  * here alone. A room's song, lent and not in the library, cannot be shared.
  */
 export function useLineMenu(
-  song: Song | null,
+  song: Song,
   words: SongWords,
 ): {
   onLineMenu: ((index: number, at: PopoverAnchor | null) => void) | undefined
@@ -48,10 +48,10 @@ export function useLineMenu(
   const time = synced?.[index]?.time
   const text = parsed ? (lyricTextLines(parsed)[index] ?? '').trim() : ''
   const reading = (words.status === 'lyrics' ? words.roman?.[index] : undefined)?.trim() || null
-  const shareable = song !== null && fromCloud && !needsStorage && !isRoomTrackId(song.id)
+  const shareable = fromCloud && !needsStorage && !isRoomTrackId(song.id)
 
   const items: MenuItem[] =
-    song && time !== undefined
+    time !== undefined
       ? [
           ...(text && shareable
             ? [
@@ -104,10 +104,10 @@ export function useLineMenu(
       // Held, there is no point to hang it off: a sheet, titled with the line.
       anchorRef={open?.at ? anchor : undefined}
       items={items}
-      title={text || song?.title}
+      title={text || song.title}
       align="start"
       testID="lyric-line-menu"
     />
   )
-  return { onLineMenu: synced && song ? onLineMenu : undefined, menu }
+  return { onLineMenu: synced ? onLineMenu : undefined, menu }
 }

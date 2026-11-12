@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { NO_NAMES, fuzzyRankNames, songSearchNames } from '@selfmp3/shared'
 
 import {
+  commandHref,
   paletteCommands,
   paletteMatches,
   paletteResults,
@@ -66,6 +67,12 @@ describe('the command palette', () => {
     expect(
       paletteResults('library', library, false, { pathname: '/library' }).commands.map(c => c.id),
     ).toContain('nav-library')
+  })
+
+  it('goes to each Go to command’s page, and nowhere for the rest', () => {
+    expect(commandHref('nav-stats')).toBe('/stats')
+    expect(commandHref('nav-import')).toBe('/import')
+    expect(commandHref('shuffle-all')).toBeNull()
   })
 
   it('names the destinations the way the sidebar does', () => {

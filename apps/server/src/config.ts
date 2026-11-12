@@ -169,9 +169,9 @@ const ConfigSchema = z.object({
   doormanAdminToken: z.string().trim().min(32).nullable().default(null),
 
   /**
-   * Where the app you listen in is published: the server's page links there,
-   * and a public address lets that site's origin call this server. The
-   * project's own Pages site unless you publish your own build.
+   * Where the app you listen in is published: a public address lets that
+   * site's origin call this server (`allowedOrigins`). The project's own Pages
+   * site unless you publish your own build.
    */
   appUrl: z
     .string()
@@ -234,8 +234,8 @@ const ConfigSchema = z.object({
     .default({}),
 
   /**
-   * The doorman this server signs in to the cloud through (docs/SYNC.md). Empty
-   * means none: the bucket can then only be connected directly, with its key.
+   * The doorman this server reaches each account's bucket through (docs/SYNC.md).
+   * Empty means none, and then only a folder (`SELFMP3_CLOUD_DIR`) can be the bucket.
    */
   doormanUrl: z
     .string()

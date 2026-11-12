@@ -1,13 +1,8 @@
-import fs from 'node:fs'
-import http from 'node:http'
-import type { AddressInfo } from 'node:net'
-import os from 'node:os'
-import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { SimilarSongs } from '@selfmp3/shared'
-import { createApp } from '../app.js'
-import { loadConfig } from '../config.js'
-import { createContainer, type Container } from '../container.js'
+import type { Container } from '../container.js'
+import { startLibrary, type TestLibrary } from '../fixtures/library.js'
+import { newSong } from '../fixtures/songs.js'
 
 /**
  * The similar-songs answer keeps the library it read until the library changes,
@@ -16,78 +11,27 @@ import { createContainer, type Container } from '../container.js'
  * must read it again all the same.
  */
 describe('GET /api/songs/:id/similar', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
-  let token = ''
+  let library: TestLibrary
   let container: Container
-  let server: http.Server
-  let origin = ''
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-similar-'))
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    // The API answers nothing without a bucket; a folder stands in for one.
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-
-    container = createContainer(loadConfig())
-    token = container.config.authToken ?? ''
-    for (const name of ['a', 'b', 'c']) {
-      container.songs.insert({
-        path: `${name}.m4a`,
-        title: name,
-        artist: '',
-        album: '',
-        albumArtist: '',
-        trackNo: null,
-        year: null,
-        duration: 1,
-        sizeBytes: 1,
-        mime: 'audio/mp4',
-        mtimeMs: 0,
-        hasArt: false,
-        artExt: null,
-        lyricsKind: 'none',
-        sourceUrl: null,
-      })
-    }
-
-    server = http.createServer(createApp(container))
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    library = await startLibrary()
+    container = library.container
+    for (const name of ['a', 'b', 'c']) container.songs.insert(newSong({ title: name }))
   })
 
-  afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
-  })
+  afterAll(() => library.close())
 
   const similar = async (id: number): Promise<SimilarSongs> => {
-    const response = await fetch(`${origin}/api/songs/${id}/similar`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const response = await library.send('GET', `/api/songs/${id}/similar`)
     expect(response.status).toBe(200)
     return (await response.json()) as SimilarSongs
   }
 
   const play = async (id: number): Promise<void> => {
-    const response = await fetch(`${origin}/api/songs/${id}/played`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ msPlayed: 60_000, completed: true }),
+    const response = await library.send('POST', `/api/songs/${id}/played`, {
+      msPlayed: 60_000,
+      completed: true,
     })
     expect(response.status).toBe(200)
   }
@@ -121,11 +65,7 @@ describe('GET /api/songs/:id/similar', () => {
 
   it('reads it again after an edit moves the version', async () => {
     await similar(1)
-    const response = await fetch(`${origin}/api/songs/2/loved`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loved: true }),
-    })
+    const response = await library.send('POST', '/api/songs/2/loved', { loved: true })
     expect(response.status).toBe(200)
     // Timed by the stamp on the edit, so Liked can put it first.
     expect(((await response.json()) as { lovedAt: string | null }).lovedAt).toMatch(
@@ -143,70 +83,23 @@ describe('GET /api/songs/:id/similar', () => {
  * log, to what a phone makes of it.
  */
 describe('POST /api/songs/merge', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
+  let library: TestLibrary
   let container: Container
-  let server: http.Server
-  let origin = ''
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-merge-'))
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-    container = createContainer(loadConfig())
-    server = http.createServer(createApp(container))
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    library = await startLibrary()
+    container = library.container
   })
 
-  afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
-  })
+  afterAll(() => library.close())
 
   let files = 0
   const insert = (title: string, album = '') =>
-    container.songs.insert({
-      path: `${title}-${++files}.m4a`,
-      title,
-      artist: 'YOASOBI',
-      album,
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 213,
-      sizeBytes: 1,
-      mime: 'audio/mp4',
-      mtimeMs: 0,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
+    container.songs.insert(
+      newSong({ title, path: `${title}-${++files}.m4a`, artist: 'YOASOBI', album, duration: 213 }),
+    )
 
-  const post = (url: string, body: unknown, method = 'POST') =>
-    fetch(`${origin}${url}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${container.config.authToken ?? ''}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
+  const post = (url: string, body: unknown, method = 'POST') => library.send(method, url, body)
 
   it('moves the copy’s tags, love, playlist places and plays to the song kept', async () => {
     const kept = insert('アイドル')
@@ -366,75 +259,26 @@ describe('POST /api/songs/merge', () => {
  * thousand plays of a three-second song at the same instant.
  */
 describe('POST /api/songs/:id/played', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_CLOUD_DIR',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
-  let token = ''
+  let library: TestLibrary
   let container: Container
-  let server: http.Server
-  let origin = ''
   const ids: Record<string, number> = {}
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-played-'))
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-
-    container = createContainer(loadConfig())
-    token = container.config.authToken ?? ''
+    library = await startLibrary()
+    container = library.container
     for (const [name, duration] of [
       ['sky', 735],
       ['tiny', 4],
       ['song', 200],
     ] as const) {
-      ids[name] = container.songs.insert({
-        path: `${name}.m4a`,
-        title: name,
-        artist: '',
-        album: '',
-        albumArtist: '',
-        trackNo: null,
-        year: null,
-        duration,
-        sizeBytes: 1,
-        mime: 'audio/mp4',
-        mtimeMs: 0,
-        hasArt: false,
-        artExt: null,
-        lyricsKind: 'none',
-        sourceUrl: null,
-      })
-    }
-
-    server = http.createServer(createApp(container))
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-  })
-
-  afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
+      ids[name] = container.songs.insert(newSong({ title: name, duration }))
     }
   })
+
+  afterAll(() => library.close())
 
   const play = async (id: number, body: object): Promise<Response> =>
-    fetch(`${origin}/api/songs/${id}/played`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    library.send('POST', `/api/songs/${id}/played`, body)
 
   const playCount = (id: number): number => container.songs.byId(id)?.playCount ?? -1
 

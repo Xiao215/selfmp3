@@ -1,4 +1,10 @@
-import type { SharedEntry, SharedMember, SharedPlaylist } from '@selfmp3/shared'
+import {
+  SharedIdSchema,
+  SharedInviteSchema,
+  type SharedEntry,
+  type SharedMember,
+  type SharedPlaylist,
+} from '@selfmp3/shared'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
 
@@ -78,4 +84,24 @@ export function nameToJoinWith(
   if (!me) return 'Me'
   const first = (me.name ?? '').trim().split(/\s+/)[0]
   return (first || me.email.split('@')[0] || 'Me').slice(0, 40)
+}
+
+/** An invite opened before signing in, kept by the page it opens until there is a library. */
+interface PendingJoin {
+  readonly id: string
+  readonly invite: string
+}
+
+/** A pending invite as it is kept: the address it opens. */
+export function pendingJoinPath({ id, invite }: PendingJoin): string {
+  return `/shared/${id}/join/${invite}`
+}
+
+/** The pending invite kept, or null for none, or for anything that is not an invite's address. */
+export function pendingJoinOf(kept: string | null): PendingJoin | null {
+  const [before, shared, id, join, invite, ...after] = (kept ?? '').split('/')
+  if (before !== '' || shared !== 'shared' || join !== 'join' || after.length > 0) return null
+  const ids = SharedIdSchema.safeParse(id)
+  const invites = SharedInviteSchema.safeParse(invite)
+  return ids.success && invites.success ? { id: ids.data, invite: invites.data } : null
 }

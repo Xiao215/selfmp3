@@ -380,12 +380,15 @@ export function useImportQueue(enabled: boolean): UseQueryResult<ImportQueue, Er
     queryKey: queryKeys.importQueue,
     queryFn: () => clientApi().importQueue(),
     enabled: ready && enabled,
-    refetchInterval: query => {
-      const data = query.state.data
-      if (!data) return false
-      return data.active > 0 || data.queued > 0 ? 1_000 : false
-    },
+    refetchInterval: importQueueInterval,
   })
+}
+
+/** Every second while the queue is busy, then not at all (`useImportQueue`). */
+export function importQueueInterval(query: { state: { data?: ImportQueue } }): number | false {
+  const data = query.state.data
+  if (!data) return false
+  return data.active > 0 || data.queued > 0 ? 1_000 : false
 }
 
 /** How many finished imports "Show all" reads: the server's most. */
@@ -564,10 +567,8 @@ export function useCloudStatus(enabled = true): UseQueryResult<CloudStatus, Erro
     queryKey: queryKeys.cloud,
     queryFn: () => clientApi().cloudStatus(),
     enabled: ready && enabled,
-    // Quickly while something is moving — an upload, or Google finishing a
-    // sign-in in another tab — and slowly otherwise.
-    refetchInterval: query =>
-      query.state.data?.state === 'syncing' || query.state.data?.signingIn ? 1_000 : 10_000,
+    // Quickly while an upload is moving, and slowly otherwise.
+    refetchInterval: query => (query.state.data?.state === 'syncing' ? 1_000 : 10_000),
     refetchIntervalInBackground: false,
   })
 }

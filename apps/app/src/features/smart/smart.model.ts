@@ -326,19 +326,21 @@ const LOG_LINE_MAX = 90
  * `answerRecap` is the model's.
  */
 export function logLine(reply: AskReply, told: Readonly<Record<number, string>> = {}): string {
-  const line = reply.cards.map((card, index) => told[index] ?? cardLine(card)).join(' + ')
+  return toLog(reply.cards.map((card, index) => told[index] ?? cardLine(card)).join(' + '))
+}
+
+/** A line cut to fit the log. */
+function toLog(line: string): string {
   return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
 }
 
 /** The first line of some words, cut to fit the log. */
 function firstLine(said: string): string {
-  const line = said.split('\n')[0]?.trim() ?? ''
-  return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
+  return toLog(said.split('\n')[0]?.trim() ?? '')
 }
 
 /** One card's part of the log's line (`logLine`). */
 function cardLine(answer: AskCard): string {
-  const first = firstLine
   const songs = (count: number): string => plural(count, 'song', 'songs')
   switch (answer.kind) {
     case 'songs':
@@ -351,9 +353,9 @@ function cardLine(answer: AskCard): string {
       return plural(answer.picks.length, 'song found', 'songs found')
     case 'explore':
     case 'open':
-      return first(answer.say)
+      return firstLine(answer.say)
     case 'clarify':
-      return first(answer.question)
+      return firstLine(answer.question)
     case 'tags':
       return `${plural(answer.review.changes.length, 'tag change', 'tag changes')} to look over`
     case 'tidy':

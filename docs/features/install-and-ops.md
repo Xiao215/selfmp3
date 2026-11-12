@@ -5,6 +5,12 @@ workflow, the compose file, the scripts for running without Docker, and the `sel
 command. The walkthrough is **[docs/INSTALL.md](../INSTALL.md)**. This file is what the
 pieces are and why they are shaped that way.
 
+**Where:** the server's own computer, never a device. The image is `Dockerfile`,
+`.github/workflows/docker.yml` and `docker-compose.yml`; running without Docker is
+`scripts/setup-mac.sh`, `install-service.sh`, `uninstall-service.sh` and `doctor.sh` (macOS;
+Linux gets a systemd unit in INSTALL.md); the `selfmp3` command is `apps/server/src/cli.ts`
+and `apps/server/src/cli/`.
+
 ## The image
 
 `Dockerfile`, two stages, both on `node:22-bookworm-slim`.
@@ -149,7 +155,9 @@ server's own computer.
 `backup` (`cli/backup.ts`) is the one command that touches files directly. A file is copied
 when the destination is missing, a different size, or meaningfully older: size plus mtime, no
 hashing. SQLite databases are copied through better-sqlite3's `backup()` instead, so the copy
-is consistent while the server writes, and `-wal`, `-shm` and `-journal` files are skipped.
+is consistent while the server writes, and `-wal`, `-shm` and `-journal` files are skipped,
+as is `room-to-start`, the space the server keeps aside to start in on a full disk
+(`apps/server/src/db/fullDisk.ts`).
 Nothing is ever deleted from the destination. Since workspaces, everything in the data folder
 except `hub.json` can be rebuilt from the buckets, so a backup is mostly a convenience
 ([shared-server.md](shared-server.md)).

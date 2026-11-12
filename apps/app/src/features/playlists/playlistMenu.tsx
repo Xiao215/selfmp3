@@ -12,6 +12,7 @@ import { useListActions } from '../../ui/components/useListActions'
 import { showFailure, showToast } from '../../ui/toast'
 import { PlaylistCover } from './PlaylistCover'
 import { copyName, isLive, newPlaylist } from './playlists.model'
+import { playlistLink } from '../tag/placeLinks'
 
 /**
  * What a playlist's menu offers, the same from its page's ⋯ and from its tile
@@ -64,7 +65,7 @@ export function usePlaylistMenu(
     try {
       const created = await createPlaylist({ input, songIds: kind === 'manual' ? ids : [] })
       showToast(`Made “${created.name}”`, 'good')
-      router.push({ pathname: '/playlists/[id]', params: { id: String(created.id) } })
+      router.push(playlistLink(created.id))
     } catch (caught) {
       showFailure(`Couldn’t copy “${playlist.name}”`, caught)
     }

@@ -91,7 +91,7 @@ const listeners = new Set<() => void>()
  * How a room ended for this device: it left (or, as host, ended it), the host
  * ended it (or it sat idle), or the host took this device out of it.
  */
-export type RoomEnd = 'left' | 'ended' | 'removed'
+type RoomEnd = 'left' | 'ended' | 'removed'
 
 const endedListeners = new Set<(state: RoomState, how: RoomEnd) => void>()
 
@@ -367,22 +367,7 @@ export function connectRoom(): void {
   // Closed, or a ping that went unanswered: the line is down either way.
   function lost(): void {
     if (socket !== opened) return
-    socket = null
-    opened.onopen = null
-    opened.onmessage = null
-    opened.onclose = null
-    opened.onerror = null
-    try {
-      opened.close()
-    } catch {
-      // Already closed.
-    }
-    if (pinger) clearInterval(pinger)
-    if (pongDue) clearTimeout(pongDue)
-    pinger = null
-    pongDue = null
-    pingNow = null
-    tellLinkWaiters(false)
+    closeSocket()
     if (!view.pass) return
     set({ link: 'offline' })
     retry = setTimeout(() => {

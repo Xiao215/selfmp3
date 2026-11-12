@@ -4,7 +4,6 @@ import {
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanChangesSchema,
-  DoormanClaimResultSchema,
   DoormanError,
   DoormanGrantMadeSchema,
   DoormanListSchema,
@@ -12,9 +11,7 @@ import {
   SHARE_GONE_MOST,
   doormanRequest,
   parseChangesHeader,
-  type CloudConnect,
   type DoormanCall,
-  type DoormanClaimResult,
   type DoormanErrorCode,
   type DoormanGrantMade,
   type DoormanGrantRequest,
@@ -66,12 +63,11 @@ const KIND_OF: Partial<Record<DoormanErrorCode, CloudError['kind']>> = {
 
 /** The few refusals said here in words of this server's, because what to do is done here. */
 const WORDS: Partial<Record<DoormanErrorCode, string>> = {
-  [DOORMAN_ERROR.unauthorized]:
-    'Your Google sign-in has expired or was signed out. Sign in again in Settings → Cloud.',
+  [DOORMAN_ERROR.unauthorized]: 'This server’s access to your bucket was taken back.',
   [DOORMAN_ERROR.noStorage]: 'No bucket is connected to this Google account yet.',
   [DOORMAN_ERROR.tooManyGrants]:
     'This Google account already lets as many servers in as it can. Remove one under ' +
-    'Settings → Cloud on one of your devices, then try again.',
+    'Settings › Account › Computers on one of your devices, then try again.',
 }
 
 export class DoormanClient {
@@ -83,30 +79,9 @@ export class DoormanClient {
     this.#send = doormanRequest<Response, AbortSignal>(this.url, fetchImpl)
   }
 
-  /**
-   * How a sign-in stands, or with the code the doorman showed, the session.
-   * A wrong code throws, and the doorman forgets the attempt.
-   */
-  async claim(attempt: string, code?: string): Promise<DoormanClaimResult> {
-    const response = await this.request('POST', DOORMAN_PATHS.claim, {
-      json: code === undefined ? { attempt } : { attempt, code },
-    })
-    return DoormanClaimResultSchema.parse(await response.json())
-  }
-
   async me(token: string): Promise<DoormanMe> {
     const response = await this.request('GET', DOORMAN_PATHS.me, { token })
     return DoormanMeSchema.parse(await response.json())
-  }
-
-  /** Connect a bucket to the signed-in Google account. The doorman tests it first. */
-  async connectStorage(token: string, input: CloudConnect): Promise<DoormanMe> {
-    const response = await this.request('PUT', DOORMAN_PATHS.storage, { token, json: input })
-    return DoormanMeSchema.parse(await response.json())
-  }
-
-  async signOut(token: string): Promise<void> {
-    await this.request('POST', DOORMAN_PATHS.signOut, { token })
   }
 
   /**

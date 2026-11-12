@@ -31,6 +31,8 @@ export const queryKeys = {
    * same cache, and one server's answer would stand in for the next's.
    */
   settings: (baseUrl: string | null) => ['settings', baseUrl] as const,
+  /** Everything about importing, what a change to the queue invalidates in one go. */
+  importRoot: ['import'] as const,
   importQueue: ['import', 'queue'] as const,
   importHistory: ['import', 'history'] as const,
   importTools: ['import', 'tools'] as const,

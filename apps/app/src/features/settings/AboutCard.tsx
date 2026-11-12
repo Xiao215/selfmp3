@@ -11,19 +11,7 @@ import { Check } from '../../ui/components/Icons'
 import { card } from '../../ui/surfaces'
 import { showFailure } from '../../ui/toast'
 import { useAppUpdateStatus, versionLabel } from './AppUpdate'
-
-/** Where an update check has got to, as the About card says it. */
-export interface UpdateStatus {
-  readonly tone: 'good' | 'ready' | 'quiet' | 'error'
-  readonly line: string
-  readonly action?: {
-    readonly label: string
-    readonly onPress: () => void
-    readonly primary?: boolean
-    readonly busy?: boolean
-    readonly testID?: string
-  }
-}
+import { checkedStatus, checkLabel, type UpdateStatus } from './updateStatus.model'
 
 /**
  * Settings' first card (B, 2026-10-26): which self.mp3 this is, and whether a
@@ -97,7 +85,7 @@ function useDesktopUpdateStatus(): UpdateStatus | null {
   if (!updates.available) return null
 
   const check = {
-    label: looking ? 'Checking…' : update ? 'Check again' : 'Check',
+    label: checkLabel(looking, update !== null),
     busy: looking,
     testID: 'update-check',
     onPress: () => {
@@ -114,7 +102,7 @@ function useDesktopUpdateStatus(): UpdateStatus | null {
   }
   switch (update?.state) {
     case 'none':
-      return { tone: 'good', line: 'Up to date', action: check }
+      return checkedStatus('upToDate', check)
     case 'available':
       return update.canInstall
         ? { tone: 'ready', line: `Downloading ${update.version ?? 'an update'}` }
@@ -141,9 +129,9 @@ function useDesktopUpdateStatus(): UpdateStatus | null {
         },
       }
     case 'error':
-      return { tone: 'error', line: 'Couldn’t check', action: check }
+      return checkedStatus('failed', check)
     default:
-      return { tone: 'quiet', line: 'Not checked yet', action: check }
+      return checkedStatus('notYet', check)
   }
 }
 

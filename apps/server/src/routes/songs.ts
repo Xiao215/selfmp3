@@ -35,7 +35,7 @@ import { keptByKey } from '../util/keptByKey.js'
 import { romanizedLines } from '../services/romanizedLines.js'
 
 /** The fields a patch sets, in `SONG_FIELDS` order: what an edit to it is stamped with. */
-const fieldsOf = (patch: Partial<SongFields>): (keyof SongFields)[] =>
+export const fieldsOf = (patch: Partial<SongFields>): (keyof SongFields)[] =>
   SONG_FIELDS.filter(field => patch[field] !== undefined)
 
 export function songRoutes(container: Container): Router {

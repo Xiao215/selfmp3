@@ -22,6 +22,7 @@ import {
   STALE,
   clientApi,
   handoffTarget,
+  queueAt,
   queryKeys,
   translateCommand,
   translateState,
@@ -196,7 +197,6 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
    */
   const playerRef = useRef(player)
   const identityRef = useRef({ deviceId, name, kind })
-  const executeRef = useRef<(command: DeviceCommand) => void>(() => undefined)
   const apiRef = useRef<DevicesApi | null>(api)
   const outboundRef = useRef<SongIdLookup>(outbound)
   const inboundRef = useRef<SongIdLookup>(inbound)
@@ -365,6 +365,36 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // --- incoming: the stream ------------------------------------------------
 
+  /**
+   * Commands this device is asked to obey — the other half of a handoff
+   * started somewhere else, and the reason the phone needed a real SSE reader
+   * rather than a polling stand-in: `playSong` when another device pushed its
+   * queue here, `pause` when another device took over from this one.
+   */
+  const execute = useCallback((asked: DeviceCommand): void => {
+    const local = playerRef.current
+    // A song this device has no number for — not yet synced, or the two
+    // libraries not lined up yet. Nothing is better than something else.
+    const command = translateCommand(asked, inboundRef.current)
+    if (command === null) return
+
+    switch (command.type) {
+      case 'pause':
+        if (local.isPlaying) local.toggle()
+        return
+      case 'playSong': {
+        // The song is the authority, never the index (`queueAt`).
+        const target = queueAt(
+          command.queueIds?.length ? command.queueIds : [command.songId],
+          command.queueIndex,
+          command.songId,
+        )
+        local.playFrom(target.queueIds, target.index, { position: command.position })
+        return
+      }
+    }
+  }, [])
+
   // The library version the stream last said. Every new connection says it
   // first thing, and a phone in a pocket reconnects often: the same number
   // again is nothing new, and refetching the whole library for it was. The
@@ -378,7 +408,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           client.setQueryData(devicesKey, { devices: event.devices, now: event.now })
           return
         case 'command':
-          if (event.deviceId === identityRef.current.deviceId) executeRef.current(event.command)
+          if (event.deviceId === identityRef.current.deviceId) execute(event.command)
           return
         case 'library':
           if (libraryVersion.current === event.version) return
@@ -396,7 +426,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           return
       }
     },
-    [client, devicesKey],
+    [client, devicesKey, execute],
   )
 
   useEffect(() => {
@@ -518,50 +548,6 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     },
     [send],
   )
-
-  /**
-   * Commands this device is asked to obey — the other half of a handoff
-   * started somewhere else, and the reason the phone needed a real SSE reader
-   * rather than a polling stand-in: `playSong` when another device pushed its
-   * queue here, `pause` when another device took over from this one.
-   */
-  const execute = useCallback((asked: DeviceCommand): void => {
-    const local = playerRef.current
-    // A song this device has no number for — not yet synced, or the two
-    // libraries not lined up yet. Nothing is better than something else.
-    const command = translateCommand(asked, inboundRef.current)
-    if (command === null) return
-
-    switch (command.type) {
-      case 'pause':
-        if (local.isPlaying) local.toggle()
-        return
-      case 'playSong': {
-        /*
-         * `songId` is the authority, never `queueIndex`. The index is used
-         * only where it actually points at that song — which is how a queue
-         * holding the same song twice resumes on the right copy — and a song
-         * the queue does not contain plays alone rather than at whatever
-         * happens to sit at that position. The same rule as `handoffTarget`,
-         * for the same reason: the alternative fails by playing something.
-         */
-        const queueIds = command.queueIds?.length ? [...command.queueIds] : [command.songId]
-        const at = command.queueIndex
-        const index =
-          at !== undefined && queueIds[at] === command.songId
-            ? at
-            : queueIds.indexOf(command.songId)
-        const options = { position: command.position }
-        if (index === -1) local.playFrom([command.songId], 0, options)
-        else local.playFrom(queueIds, index, options)
-        return
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    executeRef.current = execute
-  }, [execute])
 
   const rename = useCallback((next: string): void => setName(setDeviceName(next)), [])
 

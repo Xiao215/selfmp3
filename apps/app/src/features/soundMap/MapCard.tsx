@@ -7,13 +7,18 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius, space, useLibrary, useSoundMap } from '@selfmp3/client'
 import { Press } from '../../ui/components/Press'
 import { SectionHead } from '../../ui/components/SectionHead'
-import { skyPoints } from './sky.model'
+import { SKY_EDGE, skyPoints } from './sky.model'
 import { SkyLayer } from './SkyLayer'
 import { baseOf, boundsOf, fitView, stillView, type FieldSize } from './soundMapView.model'
 
 /** The most stars the card draws: enough for the shape of the library, cheap on Home. */
 const CARD_STARS = 400
 const CARD_HEIGHT = 128
+/**
+ * No regions, takes or line: the same empty list on every draw, since the
+ * phone's sky records its whole picture again when one of them is new.
+ */
+const NONE: readonly never[] = []
 
 /**
  * Home's way to the Sound map (A1, docs/features/sound-map.md): a small still
@@ -80,10 +85,10 @@ export function MapCard(): ReactNode {
               settled={view}
               base={baseOf(field)}
               points={points}
-              regions={[]}
+              regions={NONE}
               lens={null}
-              takes={[]}
-              stroke={[]}
+              takes={NONE}
+              stroke={NONE}
               playing={null}
               lit={null}
               panel={0}
@@ -105,6 +110,6 @@ const styles = StyleSheet.create(() => ({
     height: CARD_HEIGHT,
     borderRadius: radius.card,
     overflow: 'hidden',
-    backgroundColor: '#04050b',
+    backgroundColor: SKY_EDGE,
   },
 }))

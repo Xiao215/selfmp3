@@ -59,39 +59,6 @@ const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } })
 
 describe('DoormanClient', () => {
-  it('claims a sign-in: pending, then signed in with the account', async () => {
-    let answered = false
-    const { client, calls } = stand(() => {
-      if (!answered) {
-        answered = true
-        return json({ status: 'pending' })
-      }
-      return json({ status: 'signed-in', token: 't'.repeat(43), me: ME })
-    })
-    expect(await client.claim('b'.repeat(32))).toEqual({ status: 'pending' })
-    const second = await client.claim('b'.repeat(32))
-    expect(second.status === 'signed-in' && second.me.email).toBe('me@example.com')
-    expect(calls[0]).toMatchObject({
-      method: 'POST',
-      url: 'https://doorman.test/v1/auth/claim',
-      body: JSON.stringify({ attempt: 'b'.repeat(32) }),
-    })
-  })
-
-  it('claims with the code Google’s sign-in ended with, and passes a refusal on', async () => {
-    let tries = 0
-    const { client, calls } = stand(() => {
-      tries++
-      if (tries === 1) return json({ status: 'code' })
-      if (tries === 2) return json({ status: 'signed-in', token: 't'.repeat(43), me: ME })
-      return json({ error: 'That isn’t the code shown after signing in.', code: 'wrong_code' }, 403)
-    })
-    expect(await client.claim('b'.repeat(32))).toEqual({ status: 'code' })
-    expect((await client.claim('b'.repeat(32), '4F7K2QXM')).status).toBe('signed-in')
-    expect(calls[1]?.body).toBe(JSON.stringify({ attempt: 'b'.repeat(32), code: '4F7K2QXM' }))
-    await expect(client.claim('b'.repeat(32), 'AAAAAAAA')).rejects.toThrow(/isn’t the code/)
-  })
-
   it('sends the session with every signed-in request', async () => {
     const { client, calls } = stand(() => json(ME))
     await client.me('session-token')
@@ -100,7 +67,7 @@ describe('DoormanClient', () => {
 
   it('turns each way of failing into an error that says what to do', async () => {
     const answers: Array<[Response, string, RegExp]> = [
-      [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /Sign in again/],
+      [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /taken back/],
       [
         json({ error: 'connect your bucket first', code: 'no_storage' }, 409),
         'missing',

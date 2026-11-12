@@ -4,6 +4,7 @@ import {
   deviceLabels,
   handoffTarget,
   heardAt,
+  queueAt,
   serverTime,
   shortDeviceName,
   type ListHeard,
@@ -64,6 +65,16 @@ describe('handoffTarget', () => {
 
   it('has nothing to hand off when nothing was loaded', () => {
     expect(handoffTarget(device({ songId: null }), HEARD, NOW)).toBeNull()
+  })
+})
+
+describe('queueAt', () => {
+  it('finds the song when no index was said', () => {
+    expect(queueAt([4, 5, 6], undefined, 6)).toEqual({ queueIds: [4, 5, 6], index: 2 })
+  })
+
+  it('plays a song the queue does not hold alone', () => {
+    expect(queueAt([4, 5], 1, 9)).toEqual({ queueIds: [9], index: 0 })
   })
 })
 

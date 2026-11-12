@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { SmartRule } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
@@ -35,23 +36,13 @@ describe('TagRemoval', () => {
   })
 
   const song = (title: string): number =>
-    songs.insert({
-      path: `${title}.m4a`,
-      title,
-      artist: '',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 200,
-      sizeBytes: 1,
-      mime: 'audio/mp4',
-      mtimeMs: 0,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
+    songs.insert(
+      newSong({
+        path: `${title}.m4a`,
+        title,
+        duration: 200,
+      }),
+    )
 
   const live = (name: string, rules: SmartRule[]) =>
     playlists.create({

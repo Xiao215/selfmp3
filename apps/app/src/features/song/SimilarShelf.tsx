@@ -7,7 +7,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, SongCard } from '../../ui/components/Shelf'
-import { playSimilarOrder } from './song.model'
+import { playSimilarOrder, similarSource } from './song.model'
 
 /**
  * "Sounds like" on a song's own page (`P15`): the song's nearest neighbours by
@@ -17,20 +17,14 @@ import { playSimilarOrder } from './song.model'
  * above (F1, 2026-10-25). The cards are Home's Recently played's size, with
  * two lines for a name, so "雪国 - Snow Country" is not cut to "雪国 - Sno…".
  */
-export function SimilarShelf({
-  songs,
-  heading,
-}: {
-  songs: readonly Song[]
-  heading: string
-}): ReactNode {
+export function SimilarShelf({ songs }: { songs: readonly Song[] }): ReactNode {
   const player = usePlayerCommands()
   const { wide } = useLayout()
   const ids = songs.map(song => song.id)
 
   return (
-    <View style={styles.shelf} accessibilityLabel={heading} testID="similar-shelf">
-      <SectionHead title={heading} />
+    <View style={styles.shelf} accessibilityLabel="Sounds like" testID="similar-shelf">
+      <SectionHead title="Sounds like" />
       <Shelf gap={10}>
         {songs.map(song => (
           <SongCard
@@ -40,7 +34,7 @@ export function SimilarShelf({
             titleLines={2}
             onPress={() =>
               player.playFrom(playSimilarOrder(ids, song.id), 0, {
-                source: { kind: 'songs', origin: 'similar', name: `Similar to ${song.title}` },
+                source: similarSource(song),
               })
             }
           />

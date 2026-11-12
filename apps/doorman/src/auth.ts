@@ -397,7 +397,7 @@ const NOBODY_ALLOWED = {
   title: 'Nobody can sign in yet',
   lines: [
     'This self.mp3 has no owner, and nobody on its list of who may sign in.',
-    'Whoever runs it sets the OWNER_EMAILS secret, then adds people in self.mp3’s Settings.',
+    'Whoever runs it sets the OWNER_EMAILS secret, then adds people on the admin page’s People tab.',
   ],
 } as const
 

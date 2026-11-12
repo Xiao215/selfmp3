@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import {
   ApplyMetadataSchema,
-  SONG_FIELDS,
   type ApplyMetadataResult,
   type MetadataLookupResponse,
   type Ok,
@@ -10,6 +9,7 @@ import {
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
+import { fieldsOf } from './songs.js'
 
 /**
  * Metadata polish: look a song up on public databases, and apply what the
@@ -47,10 +47,7 @@ export function metadataRoutes(container: Container): Router {
         const patch: SongPatch = fields
         if (Object.keys(patch).length > 0) {
           container.songs.patch(song.id, patch)
-          container.edits.songs(
-            [song.id],
-            SONG_FIELDS.filter(field => patch[field] !== undefined),
-          )
+          container.edits.songs([song.id], fieldsOf(patch))
         }
 
         let artworkSaved = false

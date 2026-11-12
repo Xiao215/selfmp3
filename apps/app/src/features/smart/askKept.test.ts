@@ -15,6 +15,7 @@ const sent: AskSent = {
 const answer: AskReply = {
   say: 'Here it is.',
   cards: [{ kind: 'explore', say: 'Two albums.', songIds: [3, 4], get: null }],
+  from: [],
 }
 const running: AskProgress = { steps: [], known: true, done: false, answer: null, failed: null }
 const done: AskProgress = { ...running, done: true }

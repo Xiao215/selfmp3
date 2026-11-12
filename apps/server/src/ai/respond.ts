@@ -875,5 +875,5 @@ export async function respond(
     words = null
   }
   if (extra.length > 0) words = [words, ...extra].filter(Boolean).join(' ')
-  return { say: words, cards: cards.slice(0, ASK_CARDS_MAX) }
+  return { say: words, cards: cards.slice(0, ASK_CARDS_MAX), from: context.set.used() }
 }

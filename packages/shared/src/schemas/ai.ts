@@ -169,6 +169,9 @@ export const ASK_ANSWERED_MAX = 2000
 export const ASK_BEFORE_MAX = 8
 /** The most songs an answer's object carries back, in its order. */
 export const ASK_OBJECT_SONGS = 200
+
+/** The most earlier answers one reply says it was made from (`AskReply.from`). */
+export const ASK_FROM_MAX = 8
 /** The most cards one reply holds. */
 export const ASK_CARDS_MAX = 4
 /** The most answers a question back offers. */
@@ -650,6 +653,12 @@ export const AskReplySchema = z
     /** Its own words above the cards, or null when the cards say it all. */
     say: z.string().nullable(),
     cards: z.array(AskCardSchema).min(1).max(ASK_CARDS_MAX),
+    /**
+     * The earlier answers it was made from, by handle, in the order it first
+     * used them: what the page names above it ("From Calm study night"), so a
+     * follow-up never leans on something the person cannot see.
+     */
+    from: z.array(AskHandleSchema).max(ASK_FROM_MAX).default([]),
   })
   .refine(reply => reply.cards.length === 1 || reply.cards.every(card => card.kind !== 'clarify'), {
     message: 'A question back is the only card of its reply',

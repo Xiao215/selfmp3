@@ -1,14 +1,6 @@
-import {
-  EVERY_SONG,
-  PLAYBACK_ASKED,
-  plural,
-  rangeWords,
-  formatLongDuration,
-  tidyValue,
-} from '@selfmp3/shared'
+import { EVERY_SONG, plural, formatLongDuration, tidyValue } from '@selfmp3/shared'
 import type {
   AskCard,
-  AskReply,
   AskOrder,
   AskSort,
   BulkEditSongs,
@@ -312,75 +304,6 @@ export function askable(text: string): boolean {
  */
 export function asksOnEnter(text: string, matches: number): boolean {
   return askable(text) && matches === 0
-}
-
-/** The longest line Ask's log gives an answer before it is cut short. */
-const LOG_LINE_MAX = 90
-
-/**
- * A reply as one line of Ask's log (S1, 2026-10-27): what came of it, for a
- * person and short — how many songs and their name, what is waiting to be
- * looked over, or the start of what was said — a part for each card, in
- * order. `told` is what a card came to on this device, by its place: a
- * proposal done with ("Fixed 31 songs"), a playback card carried out.
- * `answerRecap` is the model's.
- */
-export function logLine(reply: AskReply, told: Readonly<Record<number, string>> = {}): string {
-  return toLog(reply.cards.map((card, index) => told[index] ?? cardLine(card)).join(' + '))
-}
-
-/** A line cut to fit the log. */
-function toLog(line: string): string {
-  return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
-}
-
-/** The first line of some words, cut to fit the log. */
-function firstLine(said: string): string {
-  return toLog(said.split('\n')[0]?.trim() ?? '')
-}
-
-/** One card's part of the log's line (`logLine`). */
-function cardLine(answer: AskCard): string {
-  const songs = (count: number): string => plural(count, 'song', 'songs')
-  switch (answer.kind) {
-    case 'songs':
-      return `${songs(answer.describe.picks.length)} · ${answer.describe.understanding.name}`
-    case 'together':
-      return answer.describe
-        ? `A listening room with ${songs(answer.describe.picks.length)}`
-        : 'A listening room'
-    case 'find':
-      return plural(answer.picks.length, 'song found', 'songs found')
-    case 'explore':
-    case 'open':
-      return firstLine(answer.say)
-    case 'clarify':
-      return firstLine(answer.question)
-    case 'tags':
-      return `${plural(answer.review.changes.length, 'tag change', 'tag changes')} to look over`
-    case 'tidy':
-      return `${plural(answer.tidy.changes.length, 'name change', 'name changes')} to look over`
-    case 'copies':
-      return `${songs(answer.copies.copies.length)} you have more than once`
-    case 'remember':
-      return 'Something to remember'
-    case 'getMusic':
-      return `${plural(answer.items.length, 'match', 'matches')} to get`
-    case 'playlists':
-      return answer.op === 'delete'
-        ? `${plural(answer.names.length, 'playlist', 'playlists')} to delete`
-        : 'A playlist to rename'
-    case 'playlistSongs':
-      return `A change to ${answer.playlist}`
-    case 'deleteSongs':
-      return `${songs(answer.songs.length)} to delete`
-    case 'library':
-      return songs(answer.count)
-    case 'stats':
-      return `${plural(answer.plays, 'play', 'plays')} in ${rangeWords(answer.range)}`
-    case 'playback':
-      return `Asked to ${PLAYBACK_ASKED[answer.op]}`
-  }
 }
 
 /**

@@ -317,36 +317,43 @@ place named exactly what was typed leads the results, so "calm" opens the tag (D
 
 ### The Ask page
 
-`/ask?q=…` (`smart/AskScreen.tsx`; a turn's request and answer in `AskTurn.tsx`, the field in
-`AskField.tsx`). It is a workbench (Xiao picked S1, 2026-10-27, from a
-third canvas round, after the chat column of 2026-10-24 — A1 B2 C1 D1 E1 F1 — the split of
-A2 that still left a chat column floating in an empty window until a list arrived, and R1's
-stage, whose answer sat against the page's left edge while its field sat in the middle).
+`/ask?q=…` (`smart/AskScreen.tsx`; a turn's request and reply in `AskTurn.tsx`, the field in
+`AskField.tsx`). It is a conversation with the music beside it (Xiao picked A1 + B1 + B3,
+2026-11-12, canvas https://claude.ai/artifact/TAE8Da2juFSds6FLU2hJcr). Before that it was
+S1's workbench (2026-10-27): a log of one line per question beside the one answer shown, so
+a follow-up leaned on words the page no longer showed (what the model said, the list it
+changed), and on a phone the log was a page of its own. Earlier still: the chat column of
+2026-10-24, A2's split, and R1's stage.
 
-On a computer the page is two parts. On the left, a 360 pane a step up from the ground: a
-log of what was asked, one line each, the newest last — the question, and under it what
-came of it (`logLine`: "14 songs · YOASOBI & 幾田りら", "5 songs · Ballads",
-"2 name changes to look over", the start of what was said), with the list's covers or a
-spinner beside it — and the field at the log's foot, under the conversation it continues.
-On the right, the answer you're on, always filled: a reply that is one list is the list
-itself (the answer's page, `AnswerView`, with the question as its title in the serif and the
-list's own name in the line under it); words stand beside the songs they name, in a card of
-their own (`AnswerBody` `beside`), wrapping under them on a narrow window; anything else is
-drawn as that kind of answer always is (`AnswerBody.tsx`), up to 1100 wide; and while it is
-worked on, the question and its steps stand where the answer will be. The newest answer is shown
-as it is asked; pressing a line of the log shows that one. The log follows the
-conversation: a new question, the answer shown and the field growing under it each scroll
-the line they are about into view, and scrolling back through it is left alone.
+Every turn stays on the page in full (`ThreadTurn`): what was asked, on the right as yours,
+and under it the reply — its steps while it is worked on, then Ask's own words and each card
+(`AnswerBody.tsx`), acted on where it stands. A proposal done with folds to what came of it.
+The conversation follows its foot while you are there (a new question, an answer coming in),
+and is left alone once you scroll back up.
 
-On a phone the log is a page of its own. A question opens its answer full screen, as R1's
-stage drew it (the question in the middle with the step running now while it works), and
-its ‹ comes back to the log; the log's ‹ leaves Ask. Every turn stays drawn, hidden when it
-is not the one shown, so a question still being answered is not given up by looking at
-another.
+On a computer the conversation is a 440 pane a step up from the ground, the field at its
+foot, and beside it the list you're on at full size (`AnswerView` with `inAsk`: titled by
+the list's name, no Change it, the conversation carrying the question). The newest list
+opens there by itself; a list's card opens that one and is lit while it is; a newer list
+opens itself again. Before any list the side says where one will open. On a phone the
+conversation is the page; a list's card opens the list as a page of its own over it, whose
+‹ comes back to the same place in the conversation, and a new question comes back too.
 
-The field floats with 24 under it on a computer (12 on a phone): "Ask a follow-up…", or on
-a list, the list's chip, "↳ these 19 songs" (Follow-ups, below): what "these" means, and
-nothing more. While a turn is worked on its send is the one
+A reply made from earlier answers says so above its words (B1): "From “Calm study night”",
+or "From “A” and 2 more". It is the server's own account (`AskReply.from`: every earlier
+handle a tool or a card read songs from, the `screen` set counted as the handle it stands
+for, `WorkingSet.used`), not a guess. Pressing it scrolls back to that turn, lights it for a
+moment and, on a computer, opens its list. A list made from an earlier list says on its card
+how many songs went and came ("−6 · +4 from “Calm study night”", `listChange`; nothing when
+they share under half). Each card stays the list as it was at that point of the conversation
+(B3: no version switch).
+
+The field floats with 24 under it on a computer (12 on a phone): "Ask a follow-up…". It
+wears nothing of what the words are about: you never pick context. The list open (on a
+phone, the newest) goes as the one on the screen, and Ask works out the rest from the
+conversation, saying after what it used (the "From" line). Until 2026-11-12 the field wore
+the list as a chip, "↳ these 19 songs", that could be let go; a shelf of such chips (B4)
+was proposed and left out as work for the person. While a turn is worked on its send is the one
 Stop, which takes that turn off the page and puts its words back in the field. ‹ goes back
 to Search, and the conversation is not kept after it (so there is no "new chat" button);
 the page drawn again any other way finds its turns as they were (`askThread.store.ts`).
@@ -354,7 +361,7 @@ Each visit is its own conversation, named in the address (`&thread=…`): the sa
 asked again from Search start afresh, and a reload, which loses the turns, opens with the
 question waiting in the field rather than asked (and done) again. A
 list played next, or asked for a room, keeps its card, whose button says what it does; the
-card opens the answer's page. A
+card opens the answer's own page. A
 question over 500 characters is not sent: the field stops there, and one from Search says
 it is too long. An answer that failed says why when the server said ("Your server couldn’t
 reach the model.", with Open Settings where Settings can help); Try again is worked on as a
@@ -386,12 +393,10 @@ that answers Ask sends the reply: `POST /api/ai/ask`, and `GET /api/ai/ask/progr
 for one collected by its ticket. The page draws a reply as one column (`AnswerBody`): its words, then each card in
 order. With more than one card each sits under a quiet heading of what it is (`cardHeading`:
 "Songs to play", "Tag changes", "To remember"), tone on tone as the cards always are, so the
-reply reads as parts of one answer rather than a chat. A list among other cards is its card
-(`SongsAnswerCard`): pressing it opens the list on the stage in the cards' place, on a
-computer and a phone alike, and its ‹ comes back to the cards. Each card is settled on its
-own: a review done with folds to what came of it while its siblings stay; only the first
-review still open takes the keys; the log's line has a part for each card ("6 songs · 周杰倫
-at night + 1 tag change to look over"), what came of one in its place.
+reply reads as parts of one answer. A list is always its card (`SongsAnswerCard`): pressing
+it opens the list beside the conversation, or as a page on a phone. Each card is settled on
+its own: a review done with folds to what came of it while its siblings stay; only the first
+review still open takes the keys.
 
 A list does what the words led with (Xiao, "Play now, rest proposes", 2026-10-27): asked to
 play — a list, one song from one, "play it" — it starts playing as it comes, once however
@@ -630,7 +635,7 @@ keeps what the list was for: an Up next list stays Up next, still ordered by how
 songs sound to the song it was asked to sound like (`like`).
 
 In Ask's field its answer is a turn of its own, kept beside the one it changed
-(`smart/answers.store.ts`), so an earlier line of the log shows the list as it was. On the
+(`smart/answers.store.ts`), so an earlier turn's card shows the list as it was. On the
 answer's own page, Change it asks Ask the same way: the words, with the list as the one turn
 before and on the screen (`changedTurn` in `ChangeIt.tsx`), and the reply's list takes the
 page's place; a reply with no list says its words under the field. The field itself says what
@@ -726,10 +731,10 @@ ids in the order shown (at most 200) with each one's reason, and for a list what
 (`lead`), the song it sounds like (`like`) and what it understood as it stands now. The
 server keeps no conversation: the device already holds the ids (`answers.store`, which keeps
 each songs card as an answer of its own, and `askKept`), and a list changed or moved on its
-page is sent as it is now. The chip on a list ("↳ these 19 songs": the list on the stage, or
-a reply's first list) puts its card's handle in `context.screen`; its ×, or ⌫ in the empty
-field, lets it go, and the words are asked with nothing on the screen. Any other answer that
-showed songs is the screen's while it is shown.
+page is sent as it is now. The list open beside the conversation (on a phone, the one open
+or else the newest) puts its card's handle in `context.screen`; with none, nothing is on the
+screen and the agent goes by the conversation. The reply names the earlier answers it was
+made from (`from`), which the page shows above it.
 
 The server sets the turns out and asks for the newest (`followed` in `ask.ts`: "Earlier in
 this conversation: They asked … You answered … It showed: t1.1", then each object with its

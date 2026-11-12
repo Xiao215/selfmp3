@@ -1,12 +1,10 @@
 import { memo, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { View } from 'react-native'
+import { Text, View, type LayoutChangeEvent } from 'react-native'
 import Reanimated from 'react-native-reanimated'
-import { useFadeMotion } from '../../ui/rowMotion'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   AI_ERROR,
   ASK_TEXT_MAX,
@@ -16,37 +14,31 @@ import {
   type AskReply,
   type ShownList,
 } from '@selfmp3/shared'
-import { ApiError, failureText, space } from '@selfmp3/client'
+import { ApiError, failureText, radius, space, textStyle, type } from '@selfmp3/client'
 import { ASKS_MODEL } from '../../connection/refetchFailed'
 import { viaKey } from '../../connection/via'
-import { useLayoutFlags } from '../../shell/useLayout'
-import { BackButton } from '../../ui/components/BackButton'
+import { useFadeMotion } from '../../ui/rowMotion'
 import { Button } from '../../ui/components/Button'
-import { ScrollView } from '../../ui/components/Scroll'
+import { Press } from '../../ui/components/Press'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { pageFrame } from '../../ui/surfaces'
 import { AddingToRoom } from '../room/RoomPicks'
 import { AnswerBody, TAKES_KEYS } from './AnswerBody'
-import { AskedLabel, AskedTitle } from './AskedTitle'
-import { AnswerView } from './AnswerScreen'
 import { AnswerActions } from './AnswerParts'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
 import { keepAnswer, shownOnServer, understandingOf, useKeptAnswers } from './answers.store'
-import type { Turn } from './askTurns.model'
-import { logLine } from './smart.model'
+import { fromLine, type Named, type Turn, type TurnList } from './askTurns.model'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { Working } from './Working'
 
 /**
  * An ask's query key: the server it went to, the turn, every question of the
- * conversation up to this one, the song playing then and the answer on the
- * screen. A turn drawn again
- * (Back from its list) is the same answer, kept for as long as the app is
- * open; the same words in a new turn are asked again, so "pause" said twice
- * pauses twice and a change said again changes the list as it is now. The
- * server remembers what the model said, so asking again costs little.
+ * conversation up to this one, the song playing then and the list open then.
+ * A turn drawn again is the same answer, kept for as long as the app is open;
+ * the same words in a new turn are asked again, so "pause" said twice pauses
+ * twice and a change said again changes the list as it is now. The server
+ * remembers what the model said, so asking again costs little.
  */
 function askKey(
   via: string | null,
@@ -58,8 +50,8 @@ function askKey(
   return viaKey(via, 'ai', 'ask', turn, asked, playing, screen)
 }
 
-/** What a turn's reply came to, as `TurnStage` tells the page. */
-export type Answered = Pick<Turn, 'answered' | 'list' | 'listHandle' | 'line' | 'objects'>
+/** What a turn's reply came to, as `ThreadTurn` tells the page. */
+export type Answered = Pick<Turn, 'answered' | 'lists' | 'objects'>
 
 /** What a turn that failed was answered with, for the turns after it. */
 const FAILED = '(This could not be answered.)'
@@ -70,55 +62,29 @@ const FIRST_STEPS = [
   { doing: 'Working on the answer', after: 3000 },
 ]
 
-/** An answer that is not only a list: its way back at the top on a phone, the rest scrolling under it. */
-export function Stage({
-  top,
-  hidden = false,
-  testID,
-  children,
-}: {
-  top: ReactNode
-  hidden?: boolean
-  testID?: string
-  children: ReactNode
-}): ReactNode {
-  const { wide } = useLayoutFlags()
-  const insets = useSafeAreaInsets()
-  const frame = pageFrame(wide)
-  return (
-    <View style={[styles.stage, hidden && styles.hidden]} testID={testID}>
-      <ScrollView
-        style={styles.stage}
-        contentContainerStyle={[
-          styles.stageContent,
-          frame,
-          { paddingTop: insets.top + frame.paddingTop },
-        ]}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-      >
-        {top}
-        {children}
-      </ScrollView>
-    </View>
-  )
-}
-
 /**
- * One turn on the stage: what was asked as the title, and its answer under it
- * — the step running now while it is worked on, a way to try again when it
- * failed, the line it was answered with once it is settled. A list is the
- * list itself, its head carrying the title. Off the stage it stays drawn,
- * hidden, so its request goes on.
+ * One turn of Ask's conversation (2026-11-12, after the workbench's log): what
+ * was asked, on the right as yours, and under it the reply in full — the
+ * steps running now while it is worked on, a way to try again when it failed,
+ * its own words and its cards once it came. Nothing of it is cut to a line,
+ * so a later follow-up never leans on words the page no longer shows.
+ *
+ * A reply made from earlier answers says so first ("From “Calm study
+ * night”"): pressing it brings that turn back into view. A list in it opens
+ * beside the conversation, or as a page on a phone (`onOpen`).
  */
-export const TurnStage = memo(function TurnStage({
+export const ThreadTurn = memo(function ThreadTurn({
   turn,
   number,
-  shown: onStage,
   latest,
-  top,
   via,
   listHeight,
+  named,
+  openId,
+  flash,
+  onOpen,
+  onShowFrom,
+  onLayout,
   onAnswered,
   onSettle,
   onRetry,
@@ -128,13 +94,19 @@ export const TurnStage = memo(function TurnStage({
   turn: Turn
   /** Its place on the page, 1 for the first: its objects' handles say it (`objectsOf`). */
   number: number
-  /** On the stage; otherwise drawn but hidden. */
-  shown: boolean
   latest: boolean
-  /** On a phone, the way back to the log; on a computer, nothing: the log is beside it. */
-  top: ReactNode
   via: string | null
   listHeight: number
+  /** Every earlier answer, by handle (`namedObjects`): what its "From" line names. */
+  named: ReadonlyMap<string, Named>
+  /** The list open beside the conversation, by its kept id: its card is lit. */
+  openId: string | null
+  /** Just brought back into view by a later "From" line: lit for a moment. */
+  flash: boolean
+  onOpen: (list: TurnList) => void
+  /** A "From" line pressed: the earlier answer it names, by handle. */
+  onShowFrom: (handle: string) => void
+  onLayout: (id: number, event: LayoutChangeEvent) => void
   onAnswered: (id: number, came: Answered) => void
   onSettle: (id: number, card: number, outcome: string) => void
   /** Try again, before it is asked again. */
@@ -144,7 +116,6 @@ export const TurnStage = memo(function TurnStage({
 }): ReactNode {
   const server = useSmartServer()
   const router = useRouter()
-  const { wide } = useLayoutFlags()
   const room = useContext(AddingToRoom)
   const said = turn.before
   // More than the server takes is said here rather than sent to be refused.
@@ -230,26 +201,23 @@ export const TurnStage = memo(function TurnStage({
     (index: number, came: string) => setCarried(was => ({ ...was, [index]: came })),
     [],
   )
-  // The lists that stand on the stage: one to play or keep, with songs, not for a room.
-  const stageLists = data
-    ? data.cards.flatMap((card, index) => {
-        const id = keptIds[index]
-        return card.kind === 'songs' &&
-          card.lead !== 'next' &&
-          !room &&
-          id !== undefined &&
-          card.describe.picks.length > 0
-          ? [{ id, index, lead: card.lead }]
-          : []
-      })
-    : []
-  // A reply that is one list is the list itself; among other cards, one is opened by pressing it.
-  const alone = data?.cards.length === 1 ? (stageLists[0] ?? null) : null
-  const [opened, setOpened] = useState<string | null>(null)
-  const openedList = stageLists.find(each => each.id === opened) ?? null
-  const onStageList = alone ?? openedList
-  // Its list: the one on the stage, or the reply's first; what the field's chip changes.
-  const listed = onStageList ?? stageLists[0] ?? null
+  // The lists that open beside it: ones to play or keep, with songs, not for a room.
+  const lists = useMemo<TurnList[]>(
+    () =>
+      data
+        ? data.cards.flatMap((card, index) => {
+            const id = keptIds[index]
+            return card.kind === 'songs' &&
+              card.lead !== 'next' &&
+              !room &&
+              id !== undefined &&
+              card.describe.picks.length > 0
+              ? [{ id, handle: `t${number}.${index + 1}`, lead: card.lead }]
+              : []
+          })
+        : [],
+    [data, keptIds, room, number],
+  )
   const recap = waiting
     ? null
     : shown
@@ -257,27 +225,21 @@ export const TurnStage = memo(function TurnStage({
       : answer.isError || tooLong
         ? FAILED
         : null
-  // What the log says under the question: a part per card, what came of each in its place.
-  const line = waiting || !shown ? null : logLine(shown, { ...carried, ...turn.outcomes })
   // What it showed, for the follow-ups to name by handle: each list as it is shown now.
   const objects = useMemo(
     () => (recap === null || !shown ? [] : objectsOf(shown, number, shownLists)),
     [recap, shown, number, shownLists],
   )
-  const list = listed?.id ?? null
-  const listHandle = listed ? `t${number}.${listed.index + 1}` : null
   useEffect(() => {
     if (
       recap !== null &&
       (recap !== turn.answered ||
-        list !== turn.list ||
-        listHandle !== turn.listHandle ||
-        line !== turn.line ||
+        JSON.stringify(lists) !== JSON.stringify(turn.lists) ||
         JSON.stringify(objects) !== JSON.stringify(turn.objects))
     ) {
-      onAnswered(turn.id, { answered: recap, list, listHandle, line, objects })
+      onAnswered(turn.id, { answered: recap, lists, objects })
     }
-  }, [recap, list, listHandle, line, objects, turn, onAnswered])
+  }, [recap, lists, objects, turn, onAnswered])
   // Done with when every review in it is: only the newest answer's keys work, and only while one is open.
   const settled =
     data !== undefined &&
@@ -292,99 +254,104 @@ export const TurnStage = memo(function TurnStage({
     (index: number, outcome: string) => onSettle(turn.id, index, outcome),
     [onSettle, turn.id],
   )
+  // A list of its own opens beside it; one for a room or Up next, as a page.
+  const openHere = useCallback(
+    (id: string) => {
+      const list = lists.find(each => each.id === id)
+      if (list) onOpen(list)
+      else router.push({ pathname: '/answer', params: { id } })
+    },
+    [lists, onOpen, router],
+  )
+  // The earlier answers it was made from, as the page still shows them.
+  const from = (data?.from ?? []).flatMap(handle => {
+    const object = named.get(handle)
+    return object ? [{ handle, ...object }] : []
+  })
+  const fromWords = fromLine(from.map(each => each.label))
+  const firstFrom = from[0]?.handle ?? null
+  // A list made from an earlier list says what went and came.
+  const earlierList = from.find(each => each.kind === 'songs') ?? null
+  const changedFrom = useMemo(
+    () => (earlierList ? { label: earlierList.label, songIds: earlierList.songIds } : null),
+    [earlierList?.label, earlierList?.songIds], // eslint-disable-line react-hooks/exhaustive-deps -- the same earlier list is the same change
+  )
 
-  // A list on the stage is the list itself: the reply's only card, or one opened from among its cards.
-  if (onStageList !== null && data) {
-    return (
-      <View style={[styles.stage, !onStage && styles.hidden]} testID={`ask-turn-${turn.id}`}>
-        <AnswerView
-          key={onStageList.id}
-          id={onStageList.id}
-          asked={turn.asked}
-          said={alone ? data.say : null}
-          top={
-            alone ? (
-              top
-            ) : (
-              // Back to the reply's cards, on a phone and a computer alike.
-              <BackButton
-                to="/search"
-                always
-                onPress={() => setOpened(null)}
-                testID="ask-to-reply"
-              />
-            )
-          }
-          lead={onStageList.lead}
-          playNow={alone !== null && onStageList.lead === 'play'}
-        />
-      </View>
-    )
-  }
   return (
-    <Stage top={top} hidden={!onStage} testID={`ask-turn-${turn.id}`}>
-      {waiting && !wide ? (
-        <View style={styles.working}>
-          <AskedLabel label={room ? `Asking for ${room.title}` : 'Asking'} />
-          <AskedTitle asked={turn.asked} center testID="ask-turn-asked" />
-          <Working steps={FIRST_STEPS} live={live} stage testID="ask-waiting" />
-        </View>
-      ) : waiting ? (
-        // On a computer the question and its steps stand where its answer will be.
-        <View style={[styles.answered, styles.answeredWide]}>
-          <View style={styles.asked}>
-            <AskedLabel label={room ? `Asking for ${room.title}` : 'Asking'} />
-            <AskedTitle asked={turn.asked} testID="ask-turn-asked" />
-          </View>
+    <View
+      style={styles.turn}
+      onLayout={event => onLayout(turn.id, event)}
+      testID={`ask-turn-${turn.id}`}
+    >
+      <View style={styles.mine}>
+        {room ? <Text style={styles.forRoom}>{`For ${room.title}`}</Text> : null}
+        <Text style={styles.mineText} selectable testID="ask-turn-asked">
+          {turn.asked}
+        </Text>
+      </View>
+      <View style={[styles.reply, flash && styles.replyFlash]}>
+        {fromWords && firstFrom ? (
+          <Press
+            feedback="dim"
+            onPress={() => onShowFrom(firstFrom)}
+            accessibilityRole="button"
+            accessibilityLabel={`${fromWords}: show it`}
+            style={styles.from}
+            testID="ask-turn-from"
+          >
+            <Text style={styles.fromMark}>↰</Text>
+            <Text style={styles.fromText} numberOfLines={1}>
+              {fromWords}
+            </Text>
+          </Press>
+        ) : null}
+        {waiting ? (
           <Working steps={FIRST_STEPS} live={live} testID="ask-waiting" />
-        </View>
-      ) : (
-        <Reanimated.View entering={answerIn} style={[styles.answered, wide && styles.answeredWide]}>
-          <View style={styles.asked}>
-            <AskedLabel label={room ? `Asked for ${room.title}` : 'You asked'} />
-            <AskedTitle asked={turn.asked} testID="ask-turn-asked" />
-          </View>
-          {tooLong ? (
-            <StatusLine testID="ask-too-long">
-              {`That’s too long to ask: Ask takes up to ${ASK_TEXT_MAX} characters.`}
-            </StatusLine>
-          ) : answer.error ? (
-            <View style={styles.failed}>
-              <StatusLine>{failureText('Couldn’t answer that', answer.error)}</StatusLine>
-              {latest ? (
-                <AnswerActions>
-                  {settingsHelp(answer.error) ? (
-                    <Button label="Open Settings" onPress={() => router.navigate('/settings')} />
-                  ) : null}
-                  <Button
-                    label="Try again"
-                    onPress={() => {
-                      onRetry(turn.id)
-                      void answer.refetch()
-                    }}
-                  />
-                </AnswerActions>
-              ) : null}
-            </View>
-          ) : data ? (
-            <AnswerBody
-              reply={data}
-              text={turn.asked}
-              outcomes={turn.outcomes}
-              // A proposal acted on or put aside becomes what came of it; anything
-              // else stays to come back to.
-              onSettle={settleCard}
-              listHeight={listHeight}
-              onKeys={latest && !settled ? onKeys : undefined}
-              onAsk={onAsk}
-              onCarriedOut={carriedOut}
-              onOpenList={setOpened}
-              beside={wide}
-            />
-          ) : null}
-        </Reanimated.View>
-      )}
-    </Stage>
+        ) : (
+          <Reanimated.View entering={answerIn} style={styles.answered}>
+            {tooLong ? (
+              <StatusLine testID="ask-too-long">
+                {`That’s too long to ask: Ask takes up to ${ASK_TEXT_MAX} characters.`}
+              </StatusLine>
+            ) : answer.error ? (
+              <View style={styles.failed}>
+                <StatusLine>{failureText('Couldn’t answer that', answer.error)}</StatusLine>
+                {latest ? (
+                  <AnswerActions>
+                    {settingsHelp(answer.error) ? (
+                      <Button label="Open Settings" onPress={() => router.navigate('/settings')} />
+                    ) : null}
+                    <Button
+                      label="Try again"
+                      onPress={() => {
+                        onRetry(turn.id)
+                        void answer.refetch()
+                      }}
+                    />
+                  </AnswerActions>
+                ) : null}
+              </View>
+            ) : data ? (
+              <AnswerBody
+                reply={data}
+                text={turn.asked}
+                outcomes={turn.outcomes}
+                // A proposal acted on or put aside becomes what came of it; anything
+                // else stays to come back to.
+                onSettle={settleCard}
+                listHeight={listHeight}
+                onKeys={latest && !settled ? onKeys : undefined}
+                onAsk={onAsk}
+                onCarriedOut={carriedOut}
+                onOpenList={openHere}
+                openList={openId}
+                changedFrom={changedFrom}
+              />
+            ) : null}
+          </Reanimated.View>
+        )}
+      </View>
+    </View>
   )
 })
 
@@ -401,27 +368,43 @@ function settingsHelp(error: unknown): boolean {
   )
 }
 
-/** The widest an answer that is not a list is set, on a big window. */
-const ANSWER_MAX = 1100
-
-const styles = StyleSheet.create({
-  // Every answer fills the answer side; the ones not shown are drawn and hidden.
-  stage: { ...StyleSheet.absoluteFillObject },
-  hidden: { display: 'none' },
-  stageContent: { flexGrow: 1, gap: space.xl, paddingBottom: space.xl },
-  // While it is worked on, the question and its step in the middle of the page.
-  working: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.lg,
-    paddingHorizontal: space.lg,
-    // Lifted a little off true centre, over the field below.
-    paddingBottom: space.gutterWide,
+const styles = StyleSheet.create(theme => ({
+  turn: { gap: space.md },
+  // Yours, on the right as in any chat: a step up from the ground.
+  mine: {
+    alignSelf: 'flex-end',
+    maxWidth: '85%',
+    gap: 2,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderRadius: radius.card,
+    borderBottomRightRadius: radius.coverSm,
+    backgroundColor: theme.colors.surface3,
   },
-  answered: { gap: space.xl },
-  // Wide enough for words beside their songs, not so wide a line runs on.
-  answeredWide: { maxWidth: ANSWER_MAX },
-  asked: { gap: space.sm },
+  mineText: { color: theme.colors.textPrimary, ...textStyle('body') },
+  forRoom: { color: theme.colors.textMuted, fontSize: type.small },
+  // The same room around it lit or not, so a flash moves nothing.
+  reply: {
+    gap: space.sm,
+    marginHorizontal: -space.sm,
+    padding: space.sm,
+    borderRadius: radius.card,
+  },
+  replyFlash: { backgroundColor: theme.colors.accentPill },
+  answered: { gap: space.md },
   failed: { gap: space.sm },
-})
+  from: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingLeft: space.sm,
+    paddingRight: space.snug,
+    paddingVertical: space.xs,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+  },
+  fromMark: { color: theme.colors.accent, fontSize: type.small, fontWeight: '700' },
+  fromText: { flexShrink: 1, color: theme.colors.textSecondary, fontSize: type.small },
+}))

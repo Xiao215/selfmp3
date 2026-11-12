@@ -28,7 +28,7 @@ import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
 import { DeleteSongsAnswer } from './DeleteSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
 import { RememberAnswer } from './RememberAnswer'
-import { SongsAnswerCard } from './SongsAnswerCard'
+import { SongsAnswerCard, type ChangedFrom } from './SongsAnswerCard'
 import { TogetherAnswer } from '../room/TogetherAnswer'
 import { TagsReview } from './TagsReview'
 import { TidyReview } from './TidyReview'
@@ -66,9 +66,9 @@ export const TAKES_KEYS: ReadonlySet<Answer['kind']> = new Set([
 ])
 
 /**
- * What one reply to Ask shows (S1, docs/features/ai.md): its own words, then
- * each card in the order asked. A turn of the Ask page (`TurnStage`) draws it
- * under what was asked.
+ * What one reply to Ask shows (docs/features/ai.md): its own words, then
+ * each card in the order asked. A turn of Ask's conversation (`ThreadTurn`)
+ * draws it under what was asked.
  *
  * Several cards read as parts of one answer, not a chat: one column, each
  * card under a quiet heading of what it is (`cardHeading`), tone on tone as
@@ -87,6 +87,8 @@ export function AnswerBody({
   onAsk,
   onCarriedOut,
   onOpenList,
+  openList = null,
+  changedFrom = null,
   beside = false,
 }: {
   reply: AskReply
@@ -100,8 +102,12 @@ export function AnswerBody({
   onAsk?: (text: string) => void
   /** A playback card, once done: what it came to, in its line. */
   onCarriedOut?: (index: number, said: string) => void
-  /** A list among other cards opens on the stage, by its kept id, rather than as a page. */
+  /** A list opens beside the conversation (a page of its own on a phone), by its kept id. */
   onOpenList?: (keptId: string) => void
+  /** The list open beside the conversation, by its kept id: its card is lit. */
+  openList?: string | null
+  /** The earlier list a list of this reply was made from: its card says what changed. */
+  changedFrom?: ChangedFrom | null
   /** Room to the side (Ask on a computer): words with the songs they name beside them. */
   beside?: boolean
 }): ReactNode {
@@ -142,7 +148,9 @@ export function AnswerBody({
                 onAsk={onAsk}
                 onCarriedOut={onCarriedOut && (said => onCarriedOut(index, said))}
                 playNow={index === playsNow}
-                onOpenList={several ? onOpenList : undefined}
+                onOpenList={onOpenList}
+                openList={openList}
+                changedFrom={changedFrom}
                 beside={beside}
               />
             )}
@@ -192,6 +200,8 @@ function AnswerCard({
   onCarriedOut,
   playNow,
   onOpenList,
+  openList,
+  changedFrom,
   beside,
 }: {
   answer: Answer
@@ -205,6 +215,8 @@ function AnswerCard({
   /** The reply's first list asked to play: played as it comes. */
   playNow: boolean
   onOpenList?: (keptId: string) => void
+  openList: string | null
+  changedFrom: ChangedFrom | null
   beside: boolean
 }): ReactNode {
   const router = useRouter()
@@ -217,6 +229,8 @@ function AnswerCard({
           onPlayed={onDone}
           playNow={playNow}
           onOpenHere={onOpenList}
+          openId={openList}
+          changedFrom={changedFrom}
         />
       )
     case 'together':

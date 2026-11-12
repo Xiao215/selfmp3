@@ -170,5 +170,5 @@ function oldAnswer(answer: unknown, byLabel: ReadonlyMap<string, number>): AskRe
     }
     return value
   }) as AskReply['cards'][number]
-  return { say: null, cards: [card] }
+  return { say: null, cards: [card], from: [] }
 }

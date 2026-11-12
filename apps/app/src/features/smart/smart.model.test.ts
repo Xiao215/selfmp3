@@ -18,7 +18,6 @@ import {
   askable,
   asksOnEnter,
   describeNotes,
-  logLine,
   onlyTags,
   parts,
   picksHere,
@@ -77,9 +76,6 @@ const base: Understanding = {
   sound: null,
   brief: null,
 }
-
-/** A reply of one card and no words of its own, as the router answers today. */
-const one = (card: AskCard): AskReply => ({ say: null, cards: [card] })
 
 describe('parts', () => {
   it('draws each part as a chip, a tag with its hue', () => {
@@ -277,32 +273,6 @@ describe('askable', () => {
   })
 })
 
-describe('logLine', () => {
-  it('says a list by its count and name', () => {
-    const describe = {
-      understanding: { name: 'Ballads' },
-      picks: [
-        { songId: 1, why: null },
-        { songId: 2, why: null },
-      ],
-    } as unknown as DescribeResult
-    expect(logLine(one({ kind: 'songs', lead: 'play', describe, like: null }))).toBe(
-      '2 songs · Ballads',
-    )
-  })
-
-  it('says words by their first line, cut short when long', () => {
-    expect(
-      logLine(
-        one({ kind: 'explore', say: 'Not sure.\nTry asking for a tag.', songIds: [], get: null }),
-      ),
-    ).toBe('Not sure.')
-    const line = logLine(one({ kind: 'explore', say: 'x'.repeat(200), songIds: [], get: null }))
-    expect(line).toHaveLength(90)
-    expect(line.endsWith('…')).toBe(true)
-  })
-})
-
 describe('a reply of several cards', () => {
   const calm = {
     understanding: { ...base, name: 'Calm' },
@@ -339,6 +309,7 @@ describe('a reply of several cards', () => {
   } satisfies AskCard
   const reply: AskReply = {
     say: 'Two calm songs, and 夜 for both.',
+    from: [],
     cards: [
       { kind: 'songs', lead: 'play', describe: calm, like: null },
       { kind: 'remember', note: 'Calm in the evening' },
@@ -371,25 +342,9 @@ describe('a reply of several cards', () => {
     const skipped: AskReply = {
       say: null,
       cards: [{ kind: 'playback', op: 'next', place: null }],
+      from: [],
     }
     expect(answerRecap(skipped, { 0: 'Nothing is playing.' })).toBe('Nothing is playing.')
-  })
-
-  it('logs a part for each card, what came of one in its place', () => {
-    expect(logLine(reply)).toBe(
-      '2 songs · Calm + Something to remember + 1 tag change to look over',
-    )
-    expect(logLine(reply, { 2: 'Tagged 2 songs' })).toBe(
-      '2 songs · Calm + Something to remember + Tagged 2 songs',
-    )
-  })
-
-  it('logs a question back by the question', () => {
-    expect(
-      logLine(
-        one({ kind: 'clarify', question: 'Which gym?\nYou have two.', options: ['gym', 'gym 2'] }),
-      ),
-    ).toBe('Which gym?')
   })
 })
 

@@ -347,6 +347,7 @@ describe('ask, following up', () => {
     )
     expect(reply.cards[0]).toMatchObject({ kind: 'songs', lead: 'next' })
     expect(ids(reply)).toEqual([9])
+    expect(reply.from).toEqual(['t1.1'])
     const prompt = d.llm.prompts['ask-agent']![0]!
     expect(prompt).toContain('On their screen now: t1.1 (the set screen).')
     expect(prompt).toContain('3. アポリア · Yorushika')
@@ -383,6 +384,27 @@ describe('ask, following up', () => {
       before,
     )
     expect(ids(reply)).toEqual([7, 9])
+    // The set called screen is the earlier answer it stands for.
+    expect(reply.from).toEqual(['t1.1'])
+  })
+
+  it('names no earlier answer when the reply was made from none', async () => {
+    const d = deps({
+      'ask-agent': [
+        calls(
+          ['find_songs', { as: 'calm', scope: null }],
+          respond({ cards: [{ kind: 'songs', from: { set: 'calm' }, lead: 'play' }] }),
+        ),
+      ],
+    })
+    const reply = await ask(
+      d,
+      'something new',
+      { playing: null, screen: 't1.1' },
+      undefined,
+      before,
+    )
+    expect(reply.from).toEqual([])
   })
 
   it('changes a list keeping the songs that still fit in their places, and picks only the rest', async () => {
@@ -603,6 +625,7 @@ describe('ask, checked before it reaches the device', () => {
     expect(reply).toEqual({
       say: null,
       cards: [{ kind: 'clarify', question: 'Which one?', options: ['a', 'b', 'c'] }],
+      from: [],
     })
   })
 

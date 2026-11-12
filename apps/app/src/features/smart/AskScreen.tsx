@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Text,
   View,
   useWindowDimensions,
   type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type TextInput,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -13,7 +16,7 @@ import { useLocalSearchParams, useNavigation } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { beforeTurn, joinedArtists } from '@selfmp3/shared'
-import { iconSize, radius, space, textStyle, type, useLibrary } from '@selfmp3/client'
+import { iconSize, space, textStyle, type, useLibrary } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { reachedConnection } from '../../connection/via'
 import { usePlayingSongId } from '../../player/PlayerProvider'
@@ -28,24 +31,28 @@ import { BackButton } from '../../ui/components/BackButton'
 import { Sparkle } from '../../ui/components/Icons'
 import { Chip } from '../../ui/components/Chip'
 import { Kbd } from '../../ui/components/Kbd'
-import { Press } from '../../ui/components/Press'
-import { Spinner } from '../../ui/components/Spinner'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
 import { pageFrame } from '../../ui/surfaces'
 import { useSvgId } from '../../ui/useSvgId'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { PlaylistCover } from '../playlists/PlaylistCover'
 import { roomTitle } from '../room/room.model'
 import { useRoom } from '../room/room.store'
 import { AddingToRoom } from '../room/RoomPicks'
+import { AnswerView } from './AnswerScreen'
 import { AskField, type DraftHandle } from './AskField'
-import { Stage, TurnStage, type Answered } from './AskTurn'
+import { ThreadTurn, type Answered } from './AskTurn'
 import type { AnswerKeys } from './answerKeys'
 import { forgetThread, keepThread, keptThread, newThread } from './askThread.store'
-import { type keptAnswer, useKeptAnswer } from './answers.store'
-import { afterStop, fieldWords, retried, scrollToShow, type Turn } from './askTurns.model'
-import { askSuggestions, picksHere } from './smart.model'
+import {
+  afterStop,
+  namedObjects,
+  retried,
+  scrollToShow,
+  type Turn,
+  type TurnList,
+} from './askTurns.model'
+import { askSuggestions } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
 import { useSmartServer } from './useSmartServer'
@@ -57,29 +64,25 @@ let nextTurn = 1
  * Ask (docs/features/ai.md, "The Ask page"): `/ask?q=…` from Search's Enter or
  * its Ask card, and from the palette's Ask row on a computer.
  *
- * A workbench (S1, 2026-10-27, after the chat column, A2's split and R1's
- * stage). On a computer the page is two parts: a narrow log of what was
- * asked, each with a line of what came of it, the field at the log's foot
- * under the conversation it continues; and beside it the answer you're on,
- * always filled — a list as the list itself (`AnswerView`), words beside the
- * songs they name, anything else as it would be shown on its own, and while
- * it is worked on, the question and its steps where the answer will be.
- * Pressing a line of the log puts that answer there. On a phone the log is a
- * page of its own: a new question opens its answer full screen, and its ‹
- * comes back to the log. A reply of several cards stands as one column of
- * them, each under its heading (`AnswerBody`); a list among them opens on the
- * stage in their place, its ‹ back to the cards. Every turn stays drawn, hidden when it is not the
- * one shown, so a question still being answered is not given up by looking
- * at another.
+ * A conversation (2026-11-12, after the workbench's log of one-line results
+ * left a follow-up leaning on words nobody could see any more). Every turn
+ * stays on the page in full: what was asked, Ask's own words, and its cards,
+ * each acted on where it stands, a proposal done with folding to what came of
+ * it. On a computer the conversation is a pane with the field at its foot,
+ * and beside it the list you're on, at full size: the newest list opens there
+ * by itself, a list's card opens that one, lit while it is. On a phone the
+ * conversation is the page, and a list's card opens it as a page of its own
+ * whose ‹ comes back to the same place in the conversation.
  *
  * The field asks the next question, after everything before it (F1: the
  * server hears each earlier question with what was shown for it, the songs
- * by handle, and answers the newest). On a list it wears the list's chip:
- * the words go with that list as what is on the screen, and Ask decides
- * whether they change it or act on it ("Ask decides", 2026-10-27). While
- * one is worked on its send is a Stop, which takes the turn back off the page
- * and its words back into the field. ‹ goes back to Search with the question
- * still typed; a conversation is not kept after it.
+ * by handle, and answers the newest). Nothing is picked as what the words are
+ * about: the list open is sent as what is on the screen, Ask works out the
+ * rest from the conversation, and each reply says which earlier answers it
+ * was made from ("From “Calm study night”"). While one is worked on its send
+ * is a Stop, which takes the turn back off the page and its words back into
+ * the field. ‹ goes back to Search with the question still typed; a
+ * conversation is not kept after it.
  *
  * `?to=room` asks for the room you are in, as Search does when adding to it
  * (A2): songs answered are added there rather than played.
@@ -106,9 +109,7 @@ export function AskScreen(): ReactNode {
     answered: null,
     outcomes: {},
     objects: [],
-    list: null,
-    listHandle: null,
-    line: null,
+    lists: [],
   })
   const opened = typeof params.q === 'string' ? params.q.trim() : ''
   // A visit's conversation is its thread, named in the address: a page drawn
@@ -141,34 +142,37 @@ export function AskScreen(): ReactNode {
   const latest = turns.at(-1)
   const latestId = latest?.id ?? null
   const working = latest !== undefined && latest.answered === null
-  // The answer shown: the newest, until a line of the log is pressed; a new
-  // question shows its own. On a phone, none is the log itself.
-  const [chosen, setChosen] = useState<{ latest: number | null; shown: number | null }>({
-    latest: latestId,
-    shown: latestId,
-  })
-  const picked = chosen.latest === latestId ? chosen.shown : latestId
-  const shownId = wide ? (picked ?? latestId) : picked
-  const onLog = !wide && (shownId === null || turns.length === 0)
-  const shownTurn = turns.find(turn => turn.id === shownId)
-  // The list shown wears the field's chip, "↳ these songs" (B1): what words
-  // that point at songs mean. Let go (its ×, or ⌫ in an empty field), the
-  // words are asked with nothing on the screen.
-  const [letGoOf, setLetGoOf] = useState<string | null>(null)
-  const target = onLog ? null : (shownTurn?.list ?? null)
-  const changing = useKeptAnswer(target !== null && target !== letGoOf ? target : undefined)
-  const fieldSays = fieldWords(
-    changing ? changingCount(changing, server.onDevice) : null,
-    turns.length,
+  const named = useMemo(() => namedObjects(turns), [turns])
+  // The newest list of the conversation: what opens by itself beside it.
+  const newest = useMemo(
+    () => [...turns].reverse().find(turn => turn.lists.length > 0)?.lists[0] ?? null,
+    [turns],
   )
-  // The answer on the screen, by its object's handle: the list while it wears
-  // the chip, or any other answer that showed songs.
-  const screen =
-    onLog || (target !== null && !changing)
-      ? null
-      : (shownTurn?.listHandle ?? shownTurn?.objects[0]?.handle ?? null)
-  // The answer's keys (a review's ticks) while the field has nothing typed: letters are a follow-up.
-  const answerKeys = !typing && !working ? keys : null
+  // The list open: on a computer the newest, until a card opens another; a
+  // new list opens itself again. On a phone none, until a card opens one; a
+  // new question comes back to the conversation.
+  const [picked, setPicked] = useState<{ since: number | null; list: TurnList | null }>({
+    since: latestId,
+    list: null,
+  })
+  const pickedNow = picked.since === latestId ? picked.list : null
+  const openList = wide ? (pickedNow ?? newest) : pickedNow
+  const openId = openList?.id ?? null
+  // What is on the screen as the words are asked: the list open, or on a
+  // phone the newest list, the one just above the field.
+  const screen = (openList ?? (wide ? null : newest))?.handle ?? null
+  // On a phone with a list open, the list is the page and the conversation waits under it.
+  const listPage = !wide && openList !== null
+  // The answer's keys (a review's ticks) while the field has nothing typed, and
+  // the review is on the page: letters are a follow-up.
+  const answerKeys = !typing && !working && !listPage ? keys : null
+
+  // The conversation follows its foot while you are at it — a new question,
+  // an answer coming in — and is left alone once you scroll back up.
+  const scroller = useRef<ScrollView>(null)
+  const following = useRef(true)
+  const view = useRef({ y: 0, height: 0 })
+  const spans = useRef(new Map<number, { y: number; height: number }>())
 
   // Words from the field empty it; words from a button (Get it, a Try) leave
   // whatever was being typed there.
@@ -178,6 +182,7 @@ export function AskScreen(): ReactNode {
     // Asked with what is on the screen: the router decides whether the words change it or act on it.
     setTurns(was => [...was, turnFor(asked, was, screen)])
     setKeys(null)
+    following.current = true
     if (fromField) draft.current?.write('')
   }
   // Stop: the turn being worked on comes off the page, its words back in the
@@ -207,6 +212,47 @@ export function AskScreen(): ReactNode {
   }, [])
   // Try again: the turn is worked on again, with its Stop, and the next question waits for it.
   const retry = useCallback((id: number) => setTurns(was => retried(was, id)), [])
+  const open = useCallback(
+    (list: TurnList | null) => setPicked({ since: latestId, list }),
+    [latestId],
+  )
+
+  const toFoot = useCallback(() => {
+    if (following.current) scroller.current?.scrollToEnd({ animated: true })
+  }, [])
+  const scrolled = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent
+    view.current = { y: contentOffset.y, height: layoutMeasurement.height }
+    following.current =
+      contentOffset.y + layoutMeasurement.height >= contentSize.height - FOLLOW_SLACK
+  }, [])
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', toFoot)
+    return () => shown.remove()
+  }, [toFoot])
+  const laidOut = useCallback((id: number, event: LayoutChangeEvent) => {
+    const { y, height } = event.nativeEvent.layout
+    spans.current.set(id, { y, height })
+  }, [])
+  // A "From" line pressed: its turn back in view, lit for a moment, and its list open beside.
+  const [flash, setFlash] = useState<number | null>(null)
+  useEffect(() => {
+    if (flash === null) return undefined
+    const timer = setTimeout(() => setFlash(null), FLASH_MS)
+    return () => clearTimeout(timer)
+  }, [flash])
+  const showFrom = useCallback(
+    (handle: string) => {
+      const object = named.get(handle)
+      if (!object) return
+      const span = spans.current.get(object.turnId)
+      const y = span ? scrollToShow(span, view.current, space.md) : null
+      if (y !== null) scroller.current?.scrollTo({ y, animated: true })
+      setFlash(object.turnId)
+      if (wide && object.list) open(object.list)
+    },
+    [named, wide, open],
+  )
 
   const passToAnswer = (event: {
     key: string
@@ -229,24 +275,15 @@ export function AskScreen(): ReactNode {
   const listHeight = Math.max(240, window.height * 0.55)
   useEffect(() => () => setPageFoot(0), [])
   const pageWidth = useContentWidth()
+  const { top } = useSafeAreaInsets()
+  const frame = pageFrame(wide)
   // ‹ lets the conversation go: the same question asked again starts afresh.
   const leave = useCallback(() => {
     forgetThread(thread)
     back()
   }, [thread, back])
-  const show = useCallback(
-    (id: number | null) => {
-      setChosen({ latest: latestId, shown: id })
-      setLetGoOf(null)
-    },
-    [latestId],
-  )
-  // On a phone an answer's ‹ comes back to the log; on a computer the log is beside it.
-  const top = wide ? null : (
-    <View style={styles.answerTop}>
-      <BackButton to="/search" always onPress={() => show(null)} testID="ask-to-log" />
-    </View>
-  )
+  const reachable = server.reach.state === 'reachable'
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
 
   const dock = (
     <View
@@ -260,21 +297,12 @@ export function AskScreen(): ReactNode {
         onTyping={setTyping}
         onSend={words => ask(words, true)}
         onStop={working ? stop : null}
-        chip={
-          changing && fieldSays.chip !== null
-            ? {
-                label: fieldSays.chip,
-                name: changing.result.understanding.name,
-                onLetGo: () => setLetGoOf(changing.id),
-              }
-            : null
-        }
-        placeholder={fieldSays.placeholder}
+        placeholder={turns.length === 0 ? 'Ask anything…' : 'Ask a follow-up…'}
         autoFocus={turns.length === 0}
       />
-      {finePointer && (answerKeys || (changing && !typing)) ? (
+      {finePointer && answerKeys ? (
         <View style={styles.keys}>
-          {(answerKeys?.hints ?? LET_GO_HINT).map(([caps, word]) => (
+          {answerKeys.hints.map(([caps, word]) => (
             <Text key={word} style={styles.keysText}>
               {caps.map((cap, at) => (
                 <Text key={cap}>
@@ -290,6 +318,60 @@ export function AskScreen(): ReactNode {
     </View>
   )
 
+  const conversation = (
+    <View
+      style={[styles.thread, wide && styles.threadWide, listPage && styles.hidden]}
+      testID="ask-thread"
+    >
+      <View style={[styles.threadHead, { paddingTop: top + frame.paddingTop }]}>
+        <BackButton to="/search" always onPress={leave} testID="ask-back" />
+        <Text style={styles.threadTitle} accessibilityRole="header">
+          Ask
+        </Text>
+      </View>
+      <ScrollView
+        ref={scroller}
+        style={styles.turns}
+        contentContainerStyle={styles.turnsContent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={64}
+        onScroll={scrolled}
+        onContentSizeChange={toFoot}
+      >
+        {!reachable ? (
+          <ServerAway reach={server.reach} need="ai" testID="ask-server" />
+        ) : (
+          turns.map((turn, index) => (
+            <ThreadTurn
+              key={turn.id}
+              turn={turn}
+              number={index + 1}
+              latest={turn.id === latestId}
+              via={via}
+              listHeight={listHeight}
+              named={named}
+              openId={wide ? openId : null}
+              flash={flash === turn.id}
+              onOpen={open}
+              onShowFrom={showFrom}
+              onLayout={laidOut}
+              onAnswered={answered}
+              onSettle={settle}
+              onRetry={retry}
+              // A dead end's suggestions, and Tidy up's "ask about the rest": the next turn.
+              onAsk={askFromAnswer}
+              onKeys={turn.id === latestId ? setKeys : undefined}
+            />
+          ))
+        )}
+        {turns.length === 0 && reachable ? <Suggestions onAsk={ask} /> : null}
+      </ScrollView>
+      {/* The conversation goes under the field rather than stopping at a line (C1). */}
+      {wide ? dock : <FootFade color={theme.colors.surface0} />}
+    </View>
+  )
+
   return (
     <AddingToRoom.Provider value={addingTo}>
       <SafeAreaView style={styles.screen} edges={['bottom']}>
@@ -301,49 +383,41 @@ export function AskScreen(): ReactNode {
           {...(answerKeys ? { onKeyDownCapture: passToAnswer } : {})}
         >
           <View style={[styles.body, wide && styles.bodyWide]}>
-            {wide || onLog ? (
-              <Log
-                turns={turns}
-                shownId={wide ? shownId : null}
-                onShow={show}
-                onBack={leave}
-                dock={wide ? dock : null}
-              >
-                {turns.length === 0 && server.reach.state === 'reachable' ? (
-                  <Suggestions onAsk={ask} />
-                ) : null}
-              </Log>
-            ) : null}
-            <NarrowerContentWidth max={wide ? Math.max(0, (pageWidth ?? 0) - LOG_WIDTH) : 10000}>
-              <View style={[styles.answerArea, onLog && styles.hidden]}>
-                {server.reach.state !== 'reachable' ? (
-                  <Stage top={top}>
-                    <ServerAway reach={server.reach} need="ai" testID="ask-server" />
-                  </Stage>
-                ) : (
-                  turns.map((turn, index) => (
-                    <TurnStage
-                      key={turn.id}
-                      turn={turn}
-                      number={index + 1}
-                      shown={turn.id === shownId}
-                      latest={turn.id === latestId}
-                      top={top}
-                      via={reachedConnection(server.reach)?.baseUrl ?? null}
-                      listHeight={listHeight}
-                      onAnswered={answered}
-                      onSettle={settle}
-                      onRetry={retry}
-                      // A dead end's suggestions, and Tidy up's "ask about the rest": the next turn.
-                      onAsk={askFromAnswer}
-                      onKeys={turn.id === latestId && turn.id === shownId ? setKeys : undefined}
+            {conversation}
+            {wide ? (
+              <NarrowerContentWidth max={Math.max(0, (pageWidth ?? 0) - THREAD_WIDTH)}>
+                <View style={styles.beside} testID="ask-beside">
+                  {openList ? (
+                    <AnswerView
+                      key={openList.id}
+                      id={openList.id}
+                      inAsk
+                      top={null}
+                      lead={openList.lead}
                     />
-                  ))
-                )}
+                  ) : (
+                    <NothingBeside />
+                  )}
+                </View>
+              </NarrowerContentWidth>
+            ) : openList ? (
+              <View style={styles.beside} testID="ask-list-page">
+                <AnswerView
+                  key={openList.id}
+                  id={openList.id}
+                  inAsk
+                  top={
+                    <BackButton
+                      to="/search"
+                      always
+                      onPress={() => open(null)}
+                      testID="ask-to-thread"
+                    />
+                  }
+                  lead={openList.lead}
+                />
               </View>
-            </NarrowerContentWidth>
-            {/* The page goes under the field rather than stopping at a line (C1). */}
-            {wide ? null : <FootFade color={theme.colors.surface0} />}
+            ) : null}
           </View>
           {wide ? null : dock}
         </KeyboardAvoidingView>
@@ -352,163 +426,18 @@ export function AskScreen(): ReactNode {
   )
 }
 
-/**
- * What was asked, one line each, the newest last: under each question what
- * came of it (`logLine`), and the one shown lit. On a computer the field is
- * at its foot; on a phone it is the page a question's answer comes back to.
- */
-function Log({
-  turns,
-  shownId,
-  onShow,
-  onBack,
-  dock,
-  children,
-}: {
-  turns: readonly Turn[]
-  /** The answer shown beside it, lit; none on a phone. */
-  shownId: number | null
-  onShow: (id: number) => void
-  onBack: () => void
-  /** The field, on a computer. */
-  dock: ReactNode
-  /** Under the lines: before any question, what to ask. */
-  children?: ReactNode
-}): ReactNode {
-  const { wide } = useLayoutFlags()
-  const { top } = useSafeAreaInsets()
-  const frame = pageFrame(wide)
-  // The log follows the conversation: a new question, the answer shown, and
-  // the field growing under it each bring the line they are about into view
-  // (on a phone, the newest). Lines below the field went unseen from about
-  // the eleventh question on. Scrolling back through it is left alone.
-  const scroller = useRef<ScrollView>(null)
-  const lines = useRef(new Map<number, { y: number; height: number }>())
-  const view = useRef({ y: 0, height: 0 })
-  const toShow = shownId ?? turns.at(-1)?.id ?? null
-  const wanted = useRef<number | null>(null)
-  const reveal = useCallback(() => {
-    const id = wanted.current
-    const line = id === null ? undefined : lines.current.get(id)
-    if (!line || view.current.height === 0) return
-    wanted.current = null
-    const y = scrollToShow(line, view.current, space.sm)
-    if (y !== null) scroller.current?.scrollTo({ y, animated: true })
-  }, [])
-  useEffect(() => {
-    wanted.current = toShow
-    reveal()
-  }, [toShow, turns.length, reveal])
+/** Beside the conversation before any list: where one will open. */
+function NothingBeside(): ReactNode {
+  const { theme } = useUnistyles()
   return (
-    <View style={[styles.log, wide && styles.logWide]} testID="ask-log">
-      <View style={[styles.logHead, { paddingTop: top + frame.paddingTop }]}>
-        <BackButton to="/search" always onPress={onBack} testID="ask-back" />
-        <Text style={styles.logTitle} accessibilityRole="header">
-          Ask
-        </Text>
-      </View>
-      <ScrollView
-        ref={scroller}
-        style={styles.logLines}
-        contentContainerStyle={styles.logLinesContent}
-        keyboardShouldPersistTaps="handled"
-        scrollEventThrottle={64}
-        onScroll={event => {
-          view.current = { ...view.current, y: event.nativeEvent.contentOffset.y }
-        }}
-        onLayout={event => {
-          const { height } = event.nativeEvent.layout
-          if (height === view.current.height) return
-          view.current = { ...view.current, height }
-          wanted.current = toShow
-          reveal()
-        }}
-      >
-        {turns.map(turn => (
-          <LogLine
-            key={turn.id}
-            turn={turn}
-            shown={turn.id === shownId}
-            onPress={() => onShow(turn.id)}
-            onLayout={({ nativeEvent: { layout } }) => {
-              lines.current.set(turn.id, { y: layout.y, height: layout.height })
-              if (turn.id === wanted.current) reveal()
-            }}
-          />
-        ))}
-        {children}
-      </ScrollView>
-      {dock}
+    <View style={styles.nothing} testID="ask-beside-empty">
+      <Sparkle size={iconSize.item} color={theme.colors.textMuted} />
+      <Text style={styles.nothingText}>The songs Ask picks open here.</Text>
     </View>
   )
 }
 
-/** One question in the log: a picture of what came of it, the question, and its line. */
-function LogLine({
-  turn,
-  shown,
-  onPress,
-  onLayout,
-}: {
-  turn: Turn
-  shown: boolean
-  onPress: () => void
-  onLayout: (event: LayoutChangeEvent) => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const server = useSmartServer()
-  const list = useKeptAnswer(turn.list ?? undefined)
-  const ids = list
-    ? (list.order ?? picksHere(list.result, server.onDevice).map(pick => pick.songId))
-    : []
-  const waiting = turn.answered === null
-  const line = waiting ? 'Working on it…' : (turn.line ?? 'Couldn’t answer that')
-  return (
-    <Press
-      feedback="dim"
-      onPress={onPress}
-      onLayout={onLayout}
-      accessibilityRole="button"
-      accessibilityState={{ selected: shown }}
-      accessibilityLabel={`${turn.asked}: ${line}`}
-      style={[styles.logLine, shown && styles.logLineShown]}
-      testID={`ask-log-${turn.id}`}
-    >
-      <View style={styles.logArt}>
-        {ids.length > 0 ? (
-          <PlaylistCover songIds={ids} size={LOG_ART} />
-        ) : waiting ? (
-          <Spinner />
-        ) : (
-          <Sparkle size={iconSize.small} color={theme.colors.textSecondary} />
-        )}
-      </View>
-      <View style={styles.logText}>
-        <Text style={styles.logAsked} numberOfLines={1}>
-          {turn.asked}
-        </Text>
-        <Text style={styles.logSaid} numberOfLines={1}>
-          {line}
-        </Text>
-      </View>
-    </Press>
-  )
-}
-
-/** How many songs the field's words would change: the songs its list shows, as the list counts them. */
-function changingCount(
-  list: NonNullable<ReturnType<typeof keptAnswer>>,
-  onDevice: (serverId: number) => number | undefined,
-): number {
-  return list.order?.length ?? picksHere(list.result, onDevice).length
-}
-
-/** Under an empty field with the chip on: how to ask something new instead. */
-const LET_GO_HINT: readonly (readonly [readonly string[], string])[] = [
-  [['⌫'], 'asks something new instead'],
-]
-
-/** The thread's foot fading into the ground the field floats over. */
+/** The conversation's foot fading into the ground the field floats over. */
 function FootFade({ color }: { color: string }): ReactNode {
   const id = useSvgId('ask-foot')
   return (
@@ -528,8 +457,8 @@ function FootFade({ color }: { color: string }): ReactNode {
 
 /**
  * Before the first question, three things to ask, made from this library
- * (`askSuggestions`), at the foot of the empty thread just above the field
- * (L1, 2026-10-25). A press asks it.
+ * (`askSuggestions`), at the foot of the empty conversation just above the
+ * field (L1, 2026-10-25). A press asks it.
  */
 function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
   const { data: library } = useLibrary()
@@ -564,78 +493,82 @@ function isTextField(target: unknown): boolean {
   )
 }
 
-/** The log's width beside the answer on a computer (S1). */
-const LOG_WIDTH = 360
+/**
+ * The conversation's width beside the list on a computer: room for a review's
+ * rows and a list's card, the list keeping the rest.
+ */
+const THREAD_WIDTH = 440
 
-/** A line of the log's picture: its list's covers, or what it is waiting on. */
-const LOG_ART = 40
+/** How near its foot the conversation still counts as followed. */
+const FOLLOW_SLACK = 64
+
+/** How long a turn a "From" line brought back stays lit. */
+const FLASH_MS = 1600
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
-  // A phone's page is the log or an answer; a computer's is both, side by side.
+  // A phone's page is the conversation or a list; a computer's is both, side by side.
   body: { flex: 1, minHeight: 0 },
   bodyWide: { flexDirection: 'row' },
-  answerArea: { flex: 1, minWidth: 0, minHeight: 0 },
   hidden: { display: 'none' },
-  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: space.xl },
-  answerTop: { flexDirection: 'row' },
-  log: { flex: 1, minHeight: 0 },
+  thread: { flex: 1, minHeight: 0 },
   // On a computer, a pane a step up from the ground, its field at the foot.
-  logWide: {
+  threadWide: {
     flex: 0,
-    flexBasis: LOG_WIDTH,
-    width: LOG_WIDTH,
+    flexBasis: THREAD_WIDTH,
+    width: THREAD_WIDTH,
     backgroundColor: theme.colors.surface1,
   },
-  logHead: {
+  threadHead: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.snug,
     paddingHorizontal: space.lg,
-    paddingBottom: space.md,
+    paddingBottom: space.sm,
   },
-  logTitle: { ...textStyle('large'), fontFamily: fonts.display, color: theme.colors.textPrimary },
-  logLines: { flex: 1, minHeight: 0 },
-  logLinesContent: {
+  threadTitle: {
+    ...textStyle('large'),
+    fontFamily: fonts.display,
+    color: theme.colors.textPrimary,
+  },
+  turns: { flex: 1, minHeight: 0 },
+  turnsContent: {
     flexGrow: 1,
-    paddingHorizontal: space.sm,
-    gap: space.xs,
-    paddingBottom: space.lg,
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
+    paddingBottom: space.xl,
+    gap: space.xl,
   },
-  logLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    padding: space.snug,
-    borderRadius: radius.card,
-  },
-  logLineShown: { backgroundColor: theme.colors.accentPill },
-  logArt: {
-    width: LOG_ART,
-    height: LOG_ART,
-    borderRadius: radius.coverSm,
+  beside: { flex: 1, minWidth: 0, minHeight: 0 },
+  nothing: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.surface2,
-    overflow: 'hidden',
+    gap: space.md,
+    padding: space.xl,
   },
-  logText: { flex: 1, minWidth: 0, gap: 2 },
-  logAsked: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  logSaid: { color: theme.colors.textMuted, fontSize: type.sub },
-  // At the foot of the empty thread, just above the field.
+  nothingText: { color: theme.colors.textMuted, ...textStyle('body') },
+  fade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: space.xl,
+  },
+  // At the foot of the empty conversation, just above the field.
   suggestions: { marginTop: 'auto', gap: space.sm },
   suggestionsLabel: { color: theme.colors.textMuted, fontSize: type.small },
   suggestion: { alignItems: 'flex-start' },
-  // The field floats over the thread's fading foot (C1), with room under it
-  // before the player bar or the phone's edge.
+  // The field floats over the conversation's fading foot (C1), with room
+  // under it before the player bar or the phone's edge.
   dock: {
     paddingHorizontal: space.lg,
     paddingTop: space.xs,
     paddingBottom: space.md,
     gap: space.sm,
   },
-  // On a computer: at the log's foot, under the conversation it continues.
+  // On a computer: at the pane's foot, under the conversation it continues.
   dockWide: { paddingBottom: space.xl },
   keys: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.md },
   keysText: { color: theme.colors.textMuted, fontSize: type.small },

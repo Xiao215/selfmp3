@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import {
+  ASK_FROM_MAX,
   editDistance,
   formatDuration,
   libraryArtists,
@@ -439,12 +440,19 @@ export function filtersUnderstanding(
 /** The handles a request comes with: the model may not name a set of its own after them. */
 const RESERVED = /^(playing|screen|t\d+\.\d+)$/
 
+/** A set an earlier answer showed, by its handle (`t2.1`). */
+const EARLIER = /^t\d+\.\d+$/
+
 export class WorkingSet {
   readonly #sets = new Map<string, NamedSet>()
   readonly #proposals = new Map<string, Proposal>()
   /** Every id the model has been shown in a row, a set or a result. */
   readonly #allowed = new Set<number>()
   readonly #byId: ReadonlyMap<number, Song>
+  /** The earlier answers named so far, by handle, in the order first named (`used`). */
+  readonly #used = new Set<string>()
+  /** The handle the set called screen stands for. */
+  readonly #screen: string | null
 
   constructor(
     readonly library: Library,
@@ -466,6 +474,7 @@ export class WorkingSet {
         lead: object.lead,
       })
     }
+    this.#screen = held.screen ?? null
     const screen = held.screen ? this.#sets.get(held.screen) : undefined
     if (screen && held.screen) {
       this.#keep('screen', screen.songs, `on their screen: ${held.screen}`, screen.why, screen.meta)
@@ -498,6 +507,11 @@ export class WorkingSet {
     return this.#sets.get(name)?.label ?? null
   }
 
+  /** The earlier answers whose songs this reply was made from, by handle, first named first. */
+  used(): string[] {
+    return [...this.#used].slice(0, ASK_FROM_MAX)
+  }
+
   /** The names of the sets there are. */
   names(): string[] {
     return [...this.#sets.keys()]
@@ -521,7 +535,11 @@ export class WorkingSet {
   /** A set's songs, in order; an error the model reads when there is no such set. */
   songsOf(name: string): readonly Song[] {
     const set = this.#sets.get(name)
-    if (set) return set.songs
+    if (set) {
+      const earlier = name === 'screen' ? this.#screen : name
+      if (earlier && EARLIER.test(earlier)) this.#used.add(earlier)
+      return set.songs
+    }
     if (name === PLAYING) throw new Error('Nothing is playing, so there is no set called playing.')
     const names = [...this.#sets.keys()]
     throw new Error(

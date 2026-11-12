@@ -27,8 +27,8 @@ import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { changeAnswer, editAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
-import { usePlayAsItComes, useSaveAnswer } from './useAnswerLead'
-import { AskedLabel, AskedTitle } from './AskedTitle'
+import { useSaveAnswer } from './useAnswerLead'
+import { AskedLabel } from './AskedLabel'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { noServerToAsk } from '../../connection/via'
@@ -58,38 +58,27 @@ export function AnswerScreen(): ReactNode {
 }
 
 /**
- * An answer's songs and head: its own page's, and Ask's stage when the answer
- * is a list (R1, 2026-10-26). On the stage the question is the title, in the
- * serif, and the list's own name joins the line under it; the corner holds
- * Ask's way back and what was said before, and Ask's field asks about the
- * list, so it has no Change it of its own.
- *
- * On the stage it does what the words led with ("Play now, rest proposes",
- * 2026-10-27): a list asked to play starts playing as it comes, once, as a
- * playback answer is carried out (`playNow`, the first such list of a
- * reply); a list asked to keep leads with one Save, as a playlist by its
- * name, of exactly the songs shown. Beside a reply's other cards it has no
- * title of its own: the cards stand under the question.
+ * An answer's songs and head: its own page's, and Ask's when the answer is a
+ * list, beside the conversation on a computer and as a page of its own over
+ * it on a phone (2026-11-12). On Ask the conversation carries the question,
+ * so the list is titled by its own name, and Ask's field asks about it, so it
+ * has no Change it of its own. A list asked to keep leads with one Save, as a
+ * playlist by its name, of exactly the songs shown ("Play now, rest
+ * proposes", 2026-10-27).
  */
 export function AnswerView({
   id,
-  asked,
-  said,
+  inAsk = false,
   top,
   lead: ledWith,
-  playNow = false,
 }: {
   id: string | undefined
-  /** On Ask's stage: what was asked, as the title; null beside a reply's cards, which carry it. */
-  asked?: string | null
-  /** On Ask's stage: the reply's own words, when it had some, under the title. */
-  said?: string | null
-  /** On Ask's stage: the way back and the trail, in the corner. */
+  /** On Ask's page, by its conversation. */
+  inAsk?: boolean
+  /** On Ask's page: the corner, the way back to the conversation on a phone. */
   top?: ReactNode
-  /** On Ask's stage: what the words asked for the list, to play it now or keep it. */
+  /** On Ask's page: what the words asked for the list, to play it now or keep it. */
   lead?: 'play' | 'save'
-  /** On Ask's stage: played as it comes. */
-  playNow?: boolean
 }): ReactNode {
   const router = useRouter()
   const { wide } = useLayoutFlags()
@@ -140,11 +129,10 @@ export function AnswerView({
     onSuccess: (answer, asked) => changeAnswer(asked.answerId, answer, asked.understanding),
   })
 
-  usePlayAsItComes(kept?.id, ids, playNow)
   const { save, saving, saved } = useSaveAnswer(result, ids)
 
   if (!kept || !result) {
-    if (asked !== undefined) return null
+    if (inAsk) return null
     return (
       <MissingPage
         testID="answer-gone"
@@ -215,17 +203,11 @@ export function AnswerView({
       cover={<PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
       titles={
         <>
-          {asked === null ? (
-            // Beside a reply's cards: the cards carry the question, the list its name.
+          {inAsk ? (
+            // By the conversation, which carries the question: the list by its name.
             <Text style={listHeadText.name} numberOfLines={2} testID="answer-name">
               {result.understanding.name}
             </Text>
-          ) : asked !== undefined ? (
-            <>
-              <AskedLabel label="You asked" />
-              <AskedTitle asked={asked} testID="answer-name" />
-              {said ? <Text style={styles.said}>{said}</Text> : null}
-            </>
           ) : (
             <>
               <AskedLabel label="Picked for you" />
@@ -243,7 +225,6 @@ export function AnswerView({
             </>
           )}
           <Text style={listHeadText.summary}>
-            {typeof asked === 'string' ? `${result.understanding.name} · ` : ''}
             {plural(ids.length, 'song', 'songs')}
             {ids.length > 0 ? ` · ${formatLongDuration(seconds)}` : ''}
             {result.fit > result.picks.length ? ` · picked from ${result.fit} that fit` : ''}
@@ -329,7 +310,7 @@ export function AnswerView({
           />
         </>
       }
-      after={asked !== undefined ? undefined : <ChangeIt answerId={kept.id} />}
+      after={inAsk ? undefined : <ChangeIt answerId={kept.id} />}
       wideOverrides={WIDE}
     />
   )
@@ -399,12 +380,11 @@ function AnswerPlay({
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  // Ask's trail takes the corner's width, the ⋯ at its end.
+  // Ask's way back takes the corner's width, the ⋯ at its end.
   top: { flex: 1, minWidth: 0, marginRight: space.sm },
   listArea: { flex: 1, minHeight: 0 },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
   nameLong: { ...textStyle('page'), letterSpacing: tracking.page },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   note: { color: theme.colors.textMuted, fontSize: type.small },
-  said: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))

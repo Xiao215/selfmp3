@@ -1,4 +1,4 @@
-import { plural, type AskObject, type AskTurn } from '@selfmp3/shared'
+import type { AskObject, AskObjectKind, AskTurn } from '@selfmp3/shared'
 
 /** One thing asked on the Ask page, and what came of it once it has come. */
 export interface Turn {
@@ -8,8 +8,8 @@ export interface Turn {
   /** The song playing when it was asked, by the server's id: what "this" meant then (A8). */
   readonly playing: number | null
   /**
-   * The answer on the screen when it was asked, by its object's handle: what
-   * "these" meant then, the field wearing its chip. Null once the chip is let go.
+   * The list open when it was asked, by its object's handle: what "these"
+   * meant then. Null when none was.
    */
   readonly screen: string | null
   /**
@@ -31,15 +31,21 @@ export interface Turn {
    */
   readonly objects: readonly AskObject[]
   /**
-   * The kept answer of the list its reply shows on the stage — its first list
-   * to play or keep, or the one opened beside the cards — once it has songs;
-   * null when it shows none. What the field's chip means.
+   * The lists its reply shows that open beside the conversation (on a phone,
+   * as a page of their own), in the reply's order, once they have songs: each
+   * by its kept answer, its object's handle (`t2.1`), and what the words led
+   * with. The page's newest is what opens by itself.
    */
-  readonly list: string | null
-  /** That list's object's handle (`t2.1`): what the chip puts on the screen. */
-  readonly listHandle: string | null
-  /** What came of it, as Ask's log says it under the question (`logLine`); null until answered. */
-  readonly line: string | null
+  readonly lists: readonly TurnList[]
+}
+
+/** A list a turn's reply shows, as the page opens it. */
+export interface TurnList {
+  /** Its kept answer (`answers.store`). */
+  readonly id: string
+  /** Its object's handle: what the screen is while it is open. */
+  readonly handle: string
+  readonly lead: 'play' | 'save'
 }
 
 /** A turn asked again (Try again): waiting for its answer, as a new one is. */
@@ -58,31 +64,74 @@ export function afterStop(typed: string, stopped: string): string {
 }
 
 /**
- * What the field says. Wearing a list's chip (`changing`, its songs as the
- * list counts them): which songs "these" means, and asking about it or them;
- * the chip already says which. Without: a first question, or a follow-up.
+ * An earlier answer as a later reply names it (`AskReply.from`): what it is
+ * called, the turn that showed it, its songs by the server's id, and the list
+ * it opens as, when it is one.
  */
-export function fieldWords(
-  changing: number | null,
-  turns: number,
-): { chip: string | null; placeholder: string } {
-  if (changing === 1) return { chip: 'this song', placeholder: 'Ask about it…' }
-  if (changing !== null) {
-    return { chip: `these ${plural(changing, 'song', 'songs')}`, placeholder: 'Ask about them…' }
-  }
-  return { chip: null, placeholder: turns === 0 ? 'Ask anything…' : 'Ask a follow-up…' }
+export interface Named {
+  readonly label: string
+  readonly turnId: number
+  readonly kind: AskObjectKind
+  readonly songIds: readonly number[]
+  readonly list: TurnList | null
 }
 
-/** Where a line sits in the log's lines, and what of them is in view. */
+/** Every answer the conversation has shown so far, by handle. */
+export function namedObjects(turns: readonly Turn[]): ReadonlyMap<string, Named> {
+  const named = new Map<string, Named>()
+  for (const turn of turns) {
+    for (const object of turn.objects) {
+      named.set(object.handle, {
+        label: object.label,
+        turnId: turn.id,
+        kind: object.kind,
+        songIds: object.songIds,
+        list: turn.lists.find(list => list.handle === object.handle) ?? null,
+      })
+    }
+  }
+  return named
+}
+
+/** The line over a reply made from earlier answers: "From “Calm study night”". */
+export function fromLine(labels: readonly string[]): string | null {
+  const [first, second] = labels
+  if (first === undefined) return null
+  if (second === undefined) return `From “${first}”`
+  if (labels.length === 2) return `From “${first}” and “${second}”`
+  return `From “${first}” and ${labels.length - 1} more`
+}
+
+/**
+ * How a list differs from the earlier one it was made from: the songs that
+ * went and the songs that came. Null when nothing did (the same songs, saved
+ * or played), and when they share too little for that to mean anything
+ * (under half of the earlier one): a new list that only took a song or two
+ * from it, not a change to it.
+ */
+export function listChange(
+  earlier: readonly number[],
+  now: readonly number[],
+): { removed: number; added: number } | null {
+  if (earlier.length === 0) return null
+  const was = new Set(earlier)
+  const is = new Set(now)
+  const kept = [...was].filter(id => is.has(id)).length
+  if (kept * 2 < was.size) return null
+  const change = { removed: was.size - kept, added: is.size - kept }
+  return change.removed === 0 && change.added === 0 ? null : change
+}
+
+/** Where a turn sits in the conversation, and what of it is in view. */
 interface Span {
   readonly y: number
   readonly height: number
 }
 
 /**
- * Where the log scrolls to bring a line into view, with `room` around it, or
- * null when it is in view already. A line above is brought to the top, one
- * below — a new question, under the field — to the foot.
+ * Where the conversation scrolls to bring a turn into view, with `room`
+ * around it, or null when it is in view already. One above is brought to the
+ * top, one below to the foot.
  */
 export function scrollToShow(line: Span, view: Span, room: number): number | null {
   if (line.y < view.y) return Math.max(0, line.y - room)

@@ -25,9 +25,7 @@ const turn = (id: number, asked: string): Turn => ({
   answered: 'Skipped to the next song.',
   outcomes: {},
   objects: [],
-  list: null,
-  listHandle: null,
-  line: null,
+  lists: [],
 })
 
 beforeEach(() => tab.clear())

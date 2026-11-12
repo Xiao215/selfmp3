@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { afterStop, fieldWords, retried, scrollToShow, type Turn } from './askTurns.model'
+import {
+  afterStop,
+  fromLine,
+  listChange,
+  namedObjects,
+  retried,
+  scrollToShow,
+  type Turn,
+} from './askTurns.model'
 
 const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   id,
@@ -10,9 +18,7 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   answered: `answer ${id}`,
   outcomes: {},
   objects: [],
-  list: null,
-  listHandle: null,
-  line: null,
+  lists: [],
   ...patch,
 })
 
@@ -31,15 +37,54 @@ describe('afterStop', () => {
   })
 })
 
-describe('fieldWords', () => {
-  it('names the songs a chip means, one or several, and asks about them', () => {
-    expect(fieldWords(1, 2)).toEqual({ chip: 'this song', placeholder: 'Ask about it…' })
-    expect(fieldWords(18, 2)).toEqual({ chip: 'these 18 songs', placeholder: 'Ask about them…' })
+describe('namedObjects', () => {
+  it('names each answer shown by its handle, with its turn and the list it opens as', () => {
+    const list = { id: 'answer-1', handle: 't1.1', lead: 'play' as const }
+    const object = {
+      handle: 't1.1',
+      kind: 'songs' as const,
+      label: 'Calm study night',
+      songIds: [3, 4],
+      why: [],
+      playlist: null,
+      lead: 'play' as const,
+      like: null,
+      understanding: null,
+    }
+    const named = namedObjects([turn(7, { objects: [object], lists: [list] }), turn(8)])
+    expect(named.get('t1.1')).toEqual({
+      label: 'Calm study night',
+      turnId: 7,
+      kind: 'songs',
+      songIds: [3, 4],
+      list,
+    })
+    expect(named.size).toBe(1)
+  })
+})
+
+describe('fromLine', () => {
+  it('names one, two, or the first and how many more', () => {
+    expect(fromLine([])).toBeNull()
+    expect(fromLine(['Calm'])).toBe('From “Calm”')
+    expect(fromLine(['Calm', 'Rain'])).toBe('From “Calm” and “Rain”')
+    expect(fromLine(['Calm', 'Rain', 'Night'])).toBe('From “Calm” and 2 more')
+  })
+})
+
+describe('listChange', () => {
+  it('counts the songs that went and came', () => {
+    expect(listChange([1, 2, 3, 4], [1, 2, 3, 5, 6])).toEqual({ removed: 1, added: 2 })
+    expect(listChange([1, 2, 3], [1, 3])).toEqual({ removed: 1, added: 0 })
   })
 
-  it('asks anything to start, and a follow-up after', () => {
-    expect(fieldWords(null, 0)).toEqual({ chip: null, placeholder: 'Ask anything…' })
-    expect(fieldWords(null, 3)).toEqual({ chip: null, placeholder: 'Ask a follow-up…' })
+  it('says nothing of the same songs', () => {
+    expect(listChange([1, 2], [2, 1])).toBeNull()
+  })
+
+  it('says nothing of a list that shares under half of the earlier one', () => {
+    expect(listChange([1, 2, 3, 4], [1, 9, 10])).toBeNull()
+    expect(listChange([], [1])).toBeNull()
   })
 })
 

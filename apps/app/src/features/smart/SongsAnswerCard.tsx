@@ -16,26 +16,33 @@ import { AddingToRoom } from '../room/RoomPicks'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { keepAnswer, useKeptAnswer } from './answers.store'
+import { listChange } from './askTurns.model'
 import { answerSongs, describeNotes } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { usePlayAsItComes, useSaveAnswer } from './useAnswerLead'
 import { Press } from '../../ui/components/Press'
 import { rowTitle, textColumn, lineSub } from '../../ui/surfaces'
 
+/** The earlier list a list was made from (`AskReply.from`): its name and songs, by the server's id. */
+export interface ChangedFrom {
+  readonly label: string
+  readonly songIds: readonly number[]
+}
+
 /**
- * Ask's answer when it is songs, in its thread (docs/features/lists.md, C1):
- * one card. ▶ plays it straight away — Up next wears the question as its
+ * Ask's answer when it is songs, in its conversation (docs/features/lists.md,
+ * C1): one card. ▶ plays it straight away — Up next wears the question as its
  * name, and Save is there once you know you like it. The card itself opens the
- * list as a page, to look before listening. Ask's stage shows a reply that is
- * one list as the list itself (`AnswerView`); this card is for one played
- * next or added to a room, and for a list among a reply's other cards. An
- * answer about what plays after this song (A8) leads with Play next instead.
- * Asked while Search is adding to a room (A2), it adds them to the room.
+ * list, to look before listening: beside the conversation on a computer, lit
+ * while it is the one open there, and as a page of its own on a phone
+ * (`onOpenHere`). An answer about what plays after this song (A8) leads with
+ * Play next instead. Asked while Search is adding to a room (A2), it adds them
+ * to the room.
  *
- * Among other cards it still does what the words led with: the reply's first
- * list asked to play plays as it comes (`playNow`), and one asked to keep
- * leads with Save. On a computer it opens beside the cards (`onOpenHere`),
- * lit while it is the one open there, rather than as a page of its own.
+ * It does what the words led with: the reply's first list asked to play plays
+ * as it comes (`playNow`), and one asked to keep leads with Save. Made from an
+ * earlier list ("less anime"), it says how many songs went and came, so each
+ * card stays the list as it was at that point of the conversation.
  */
 export function SongsAnswerCard({
   answer,
@@ -43,7 +50,8 @@ export function SongsAnswerCard({
   onPlayed,
   playNow = false,
   onOpenHere,
-  open: isOpen = false,
+  openId = null,
+  changedFrom = null,
 }: {
   answer: Extract<AskCard, { kind: 'songs' }>
   text: string
@@ -53,8 +61,10 @@ export function SongsAnswerCard({
   playNow?: boolean
   /** Opens its list beside the reply's cards, instead of as a page. */
   onOpenHere?: (keptId: string) => void
-  /** Its list is the one open beside the cards. */
-  open?: boolean
+  /** The list open beside the conversation: this card is lit when it is this one. */
+  openId?: string | null
+  /** The earlier list this one was made from: the card says what went and came. */
+  changedFrom?: ChangedFrom | null
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
@@ -74,6 +84,14 @@ export function SongsAnswerCard({
   const room = useContext(AddingToRoom)
   usePlayAsItComes(id, ids, playNow && !room)
   const { save, saving, saved } = useSaveAnswer(result, ids)
+  const isOpen = openId === id
+  // Counted on the server's ids, as the earlier list was told.
+  const change = changedFrom
+    ? listChange(
+        changedFrom.songIds,
+        songs.flatMap(song => server.onServer(song.id) ?? []),
+      )
+    : null
 
   if (ids.length === 0) {
     // Why there are none, when the answer says: a name it lacks, the songs
@@ -120,6 +138,14 @@ export function SongsAnswerCard({
           <Text style={styles.meta} numberOfLines={1}>
             {plural(ids.length, 'song', 'songs')} · {formatLongDuration(seconds)}
           </Text>
+          {change && changedFrom ? (
+            <Text style={styles.meta} numberOfLines={1} testID="songs-answer-change">
+              {change.removed > 0 ? <Text style={styles.removed}>−{change.removed}</Text> : null}
+              {change.removed > 0 && change.added > 0 ? ' · ' : null}
+              {change.added > 0 ? <Text style={styles.added}>+{change.added}</Text> : null}
+              {` from “${changedFrom.label}”`}
+            </Text>
+          ) : null}
         </View>
         <ChevronRight size={iconSize.field} color={theme.colors.textMuted} />
       </Press>
@@ -185,5 +211,7 @@ const styles = StyleSheet.create(theme => ({
   text: textColumn,
   title: rowTitle(theme.colors),
   meta: { color: theme.colors.textMuted, fontSize: type.small },
+  removed: { color: theme.colors.danger },
+  added: { color: theme.colors.good },
   line: lineSub(theme.colors),
 }))

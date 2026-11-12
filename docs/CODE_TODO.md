@@ -112,3 +112,10 @@ device's store, because the only data there is is the owner's.
   `start`; the sync's and the hub's tests drive passes one at a time through `syncNow`, and
   `verify` starts a pass over against the bucket the way a restart does, without making a
   second service on the same database.
+- **`packages/replica/src/library.ts` stays one file**: its closures share the replica, the
+  sign-out `generation`, the outbox's `exclusive` lock and what has been written, so a split
+  would hand all of that across. What the library points at in the bucket (words, covers,
+  the sound map) needed none of it and is already `libraryFiles.ts`. `packages/shared/src/sync.ts` stays one file too:
+  `applyChange` is one case per kind of change, and a list reads best whole.
+- **`parseDoormanRefusal` reads without zod** (`packages/shared/src/doormanWire.ts`): the
+  service worker imports `@selfmp3/shared/wire`, which stays free of zod to keep it small.

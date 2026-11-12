@@ -327,7 +327,8 @@ library stands with its bucket (`GET /api/cloud`) and the uid behind each song i
 (`SELFMP3_CLOUD_DIR`), for the dev profile and the verify lanes.
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
-file is present and uploads what the bucket does not have: the audio, hashed as it is read and
+file is present and uploads what the bucket does not have (one song's files are
+`services/cloudSongFiles.ts`): the audio, hashed as it is read and
 uploaded under its hash — skipped if the bucket already has that file — the cover, and the
 lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. The words go up
 as one JSON file, `{ text, romanized }` (`CloudWordsSchema`): the text as the sidecar holds it, and
@@ -902,7 +903,7 @@ given a grant to, with *Remove* on each.
 | A day past the bucket's cap | `packages/replica/src/hold.ts`, `BUCKET_HOLD_MS` in `packages/shared/src/doormanWire.ts`, `apps/app/sw/bucket.ts` |
 | Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` and `s3.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes), `apps/server/src/bucket/kept.ts` (words read from the bucket, kept on disk) |
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
-| Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
+| Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSongFiles.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
 | Plays, sound vectors and the sound map in the bucket | `apps/server/src/services/cloudLibraryFiles.ts` (sending them, and reading them back), `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
 | The sound map in the bucket | `apps/server/src/sound/soundMap.ts`, `packages/shared/src/soundMap.ts` |
 | Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `uploadCoverPacks` in `apps/server/src/services/cloudPictures.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |

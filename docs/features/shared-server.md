@@ -54,11 +54,11 @@ answered only to the server's own machine. There is no route to leave by: an
 account takes its grant back (below), which works while the server is off.
 
 The `selfmp3` command on the server itself lists the workspaces from `GET /api/hub`. The
-owner's admin page shows only how many there are ([admin.md](admin.md)). Changing a library's cloud connection
-(sign-in, bucket, disconnect, publish now) is refused from anywhere but that machine, token or
-not: a workspace reaches its bucket through the grant its devices gave it, and nothing a
-device holds may repoint it. The `selfmp3` command names one the same
-way, with `--library <id or email>` ([install-and-ops.md](install-and-ops.md)).
+owner's admin page shows only how many there are ([admin.md](admin.md)). Nothing changes a
+library's way into its bucket once it has joined: a workspace reaches its bucket through the
+grant its devices gave it, the server's cloud API only answers reads, and nothing a device
+holds may repoint it. The `selfmp3` command names a library the same way, with
+`--library <id or email>` ([install-and-ops.md](install-and-ops.md)).
 
 What the workspaces share is what is heavy, or tied to the machine rather than to anyone's
 library (`apps/server/src/shared.ts`):

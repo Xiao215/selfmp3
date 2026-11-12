@@ -132,9 +132,9 @@ a one-line change.
 `StorageDriver` — `exists`, `stat`, `read`, `write`, `delete`, `list`, `rangeSource`,
 `localPath` — is the inbox folder; `CloudStore` — `head`, `get`, `put`, `list`, `delete`,
 `range`, and the change counter — is the bucket. Local disk implements the first; the
-doorman's store (`bucket/doorman.ts`, what a workspace uses, through its grant),
-`S3CloudStore` (a bucket reached with its own key) and a folder (`bucket/local.ts`, for the
-dev profile and the verify lanes) implement the second, and the sync cannot tell them apart.
+doorman's store (`bucket/doorman.ts`, what a workspace uses, through its grant) and a folder
+(`bucket/local.ts`, for the dev profile and the verify lanes) implement the second, and the
+sync cannot tell them apart.
 `localPath` always has an answer, so tools that need a real filesystem path (ffmpeg, the tag
 reader) take the file where it is.
 

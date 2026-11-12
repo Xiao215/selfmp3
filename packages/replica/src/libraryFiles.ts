@@ -6,6 +6,7 @@ import {
   MotionSchema,
   artistKey,
   decodeSoundPack,
+  messageOf,
   parseCloudWords,
   parseSoundMap,
   type CloudCoverPack,
@@ -199,7 +200,7 @@ export function createLibraryFiles(
    */
   async function cloudText(session: CloudSession | null, key: string): Promise<string | null> {
     const cached = await platform.textCache?.read(key).catch((error: unknown) => {
-      warn(`the text cache could not be read: ${String(error)}`)
+      warn(`the text cache could not be read: ${messageOf(error)}`)
       return null
     })
     if (cached !== null && cached !== undefined) return cached
@@ -209,7 +210,7 @@ export function createLibraryFiles(
     if (response.status === 404) return null
     const text = await bucketText(platform, response)
     await platform.textCache?.write(key, text).catch((error: unknown) => {
-      warn(`the text cache could not be written: ${String(error)}`)
+      warn(`the text cache could not be written: ${messageOf(error)}`)
     })
     return text
   }

@@ -5,8 +5,11 @@ import {
   libraryArtists,
   namesFor,
   type ArtistJoinNames,
+  type CopiesResult,
   type Song,
   type Tag,
+  type TagReview,
+  type TidyResult,
   type Understanding,
 } from '@selfmp3/shared'
 import { normalizeForMatch } from '../services/youtubeMatch.js'
@@ -136,10 +139,10 @@ interface NamedSet {
 }
 
 /** A proposal a tool made, kept for the answer to name. */
-interface Proposal {
-  readonly kind: 'tags' | 'tidy' | 'copies'
-  readonly value: unknown
-}
+type Proposal =
+  | { readonly kind: 'tags'; readonly value: TagReview }
+  | { readonly kind: 'tidy'; readonly value: TidyResult }
+  | { readonly kind: 'copies'; readonly value: CopiesResult }
 
 /** A candidate for "did you mean": a name the library has and the other names it answers to. */
 interface Candidate {

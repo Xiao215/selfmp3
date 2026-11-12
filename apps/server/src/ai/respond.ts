@@ -10,7 +10,6 @@ import {
   CJK,
   NO_JOINS,
   type AskCard,
-  type AskPlaybackOp,
   type AskReply,
   type DescribeResult,
   type Song,
@@ -360,6 +359,63 @@ function emptyReason(card: CardArg, meta: SetMeta, last: boolean): string | null
   return meta.emptiedBy ?? (meta.notes && meta.notes.length > 0 ? meta.notes[0]! : null)
 }
 
+/**
+ * A songs card, or the room's: the songs its `from` names, checked against
+ * what the reply expects of them, and said why when there are none.
+ */
+function songsCard(context: Responding, card: CardArg, label: string): Made {
+  if (!card.from) {
+    if (card.kind === 'together') {
+      return { card: { kind: 'together', describe: null }, problems: [], notes: [] }
+    }
+    return failed(
+      label,
+      'a songs card needs from: the set or places it shows.',
+      'I couldn’t tell which songs you mean.',
+    )
+  }
+  const { songs: all, meta, why, label: setLabel } = scopeSongs(context, card.from)
+  const lead = card.lead ?? meta.lead ?? 'play'
+  // After the song playing, it is not one of them; with nothing playing, "next" plays now.
+  const steering = lead === 'next' && context.playing !== undefined
+  const pool = steering ? all.filter(song => song.id !== context.playing?.id) : all
+  const { songs, problems, notes } = checked(pool.slice(0, MAX_PICKS), card.expect, context, label)
+  const reason = songs.length === 0 ? emptyReason(card, meta, context.last === true) : null
+  if (songs.length === 0 && !reason) {
+    problems.push(
+      `${label}: holds no songs${meta.emptiedBy ? ` (${meta.emptiedBy})` : ''}. Look again another way, or say why in its note.`,
+    )
+  }
+  const name =
+    card.title ??
+    meta.understanding?.name ??
+    (card.kind === 'together' ? 'For the room' : setLabel) ??
+    'Songs'
+  const describe = described(context, songs, meta, why, name, card.expect, [
+    ...(card.note && songs.length > 0 ? [card.note] : []),
+    ...(songs.length === 0 && reason ? [reason] : []),
+  ])
+  if (card.kind === 'together') return { card: { kind: 'together', describe }, problems, notes }
+  return {
+    card: {
+      kind: 'songs',
+      lead: lead === 'next' && !steering ? 'play' : lead,
+      describe,
+      like: meta.like ?? null,
+    },
+    problems,
+    notes,
+  }
+}
+
+/** A set with nothing said about it: the whole library, as no scope narrowed it. */
+const NO_META: SetMeta = {}
+
+/** A card that could not be made: what is wrong, for the model, and the words shown instead. */
+function failed(label: string, problem: string, fallback: string): Made {
+  return { card: instead(fallback), problems: [`${label}: ${problem}`], notes: [] }
+}
+
 async function make(context: Responding, card: CardArg, index: number): Promise<Made> {
   const label = `Card ${index + 1} (${card.kind})`
   const made = (made: AskCard | null, problems: string[] = [], notes: string[] = []): Made => ({
@@ -367,57 +423,12 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
     problems,
     notes,
   })
-  const fail = (problem: string, fallback: string): Made =>
-    made(instead(fallback), [`${label}: ${problem}`])
+  const fail = (problem: string, fallback: string): Made => failed(label, problem, fallback)
   const { deps, set, steps } = context
   switch (card.kind) {
     case 'songs':
-    case 'together': {
-      if (!card.from) {
-        if (card.kind === 'together') return made({ kind: 'together', describe: null })
-        return fail(
-          'a songs card needs from: the set or places it shows.',
-          'I couldn’t tell which songs you mean.',
-        )
-      }
-      const { songs: all, meta, why, label: setLabel } = scopeSongs(context, card.from)
-      const lead = card.lead ?? meta.lead ?? 'play'
-      // After the song playing, it is not one of them; with nothing playing, "next" plays now.
-      const steering = lead === 'next' && context.playing !== undefined
-      const pool = steering ? all.filter(song => song.id !== context.playing?.id) : all
-      const { songs, problems, notes } = checked(
-        pool.slice(0, MAX_PICKS),
-        card.expect,
-        context,
-        label,
-      )
-      const reason = songs.length === 0 ? emptyReason(card, meta, context.last === true) : null
-      if (songs.length === 0 && !reason) {
-        problems.push(
-          `${label}: holds no songs${meta.emptiedBy ? ` (${meta.emptiedBy})` : ''}. Look again another way, or say why in its note.`,
-        )
-      }
-      const name =
-        card.title ??
-        meta.understanding?.name ??
-        (card.kind === 'together' ? 'For the room' : setLabel) ??
-        'Songs'
-      const describe = described(context, songs, meta, why, name, card.expect, [
-        ...(card.note && songs.length > 0 ? [card.note] : []),
-        ...(songs.length === 0 && reason ? [reason] : []),
-      ])
-      if (card.kind === 'together') return made({ kind: 'together', describe }, problems, notes)
-      return made(
-        {
-          kind: 'songs',
-          lead: lead === 'next' && !steering ? 'play' : lead,
-          describe,
-          like: meta.like ?? null,
-        },
-        problems,
-        notes,
-      )
-    }
+    case 'together':
+      return songsCard(context, card, label)
     case 'find': {
       if (!card.from)
         return fail(
@@ -443,7 +454,7 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
     case 'library': {
       const { songs, meta } = card.from
         ? scopeSongs(context, card.from)
-        : { songs: deps.songs(), meta: {} as SetMeta }
+        : { songs: deps.songs(), meta: NO_META }
       const question = {
         show: card.show ?? 'count',
         sortBy: card.sort ?? null,
@@ -508,23 +519,21 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
           'I couldn’t put that proposal together.',
         )
       }
-      if (proposal.kind === 'tags') return made({ kind: 'tags', review: proposal.value as never })
-      if (proposal.kind === 'tidy') return made({ kind: 'tidy', tidy: proposal.value as never })
-      return made({ kind: 'copies', copies: proposal.value as never })
+      if (proposal.kind === 'tags') return made({ kind: 'tags', review: proposal.value })
+      if (proposal.kind === 'tidy') return made({ kind: 'tidy', tidy: proposal.value })
+      return made({ kind: 'copies', copies: proposal.value })
     }
     case 'playlist':
       return playlistCard(context, card, label)
     case 'playback': {
-      const op = card.op
-      if (!op || !(AskPlaybackOpSchema.options as readonly string[]).includes(op)) {
+      const op = AskPlaybackOpSchema.safeParse(card.op)
+      if (!op.success) {
         return fail(
           `op is one of ${AskPlaybackOpSchema.options.join(', ')}.`,
           'I couldn’t tell what to do with the music.',
         )
       }
-      if (op !== 'upNext') {
-        return made({ kind: 'playback', op: op as AskPlaybackOp, place: null })
-      }
+      if (op.data !== 'upNext') return made({ kind: 'playback', op: op.data, place: null })
       if (!card.at)
         return fail('upNext needs at: the place in Up next.', 'Say which song in Up next to play.')
       return made({ kind: 'playback', op: 'upNext', place: card.at })
@@ -579,11 +588,7 @@ async function playlistCard(context: Responding, card: CardArg, label: string): 
   const { deps, playlists, steps } = context
   const asked = card.playlists ?? []
   const theirs = playlists.map(each => `“${each.name}”`).join(', ') || 'none'
-  const problem = (said: string, fallback: string): Made => ({
-    card: instead(fallback),
-    problems: [`${label}: ${said}`],
-    notes: [],
-  })
+  const problem = (said: string, fallback: string): Made => failed(label, said, fallback)
   switch (card.op) {
     case 'create': {
       const name = (card.newName ?? asked[0] ?? card.title ?? '').trim()
@@ -808,8 +813,8 @@ export async function respond(
   let words = (strange.length > 0 ? kept : say) || null
   // A words card with none of its own says the reply's words, which are then not said twice.
   const bare = cards.findIndex(card => card.kind === 'explore' && !card.say)
-  if (bare >= 0) {
-    const card = cards[bare] as Extract<AskCard, { kind: 'explore' }>
+  const card = cards[bare]
+  if (card?.kind === 'explore') {
     cards[bare] = { ...card, say: words ?? '' }
     words = null
   }

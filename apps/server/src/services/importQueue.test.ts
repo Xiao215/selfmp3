@@ -105,14 +105,16 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
     heard = null
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-queue-'))
 
-    // `--version` answers like the real thing so the tool check passes; any
-    // other call is a download, which is logged and then fails as instructed.
+    // `--version` answers like the real thing so the tool check passes, and a
+    // probe answers with what a test put in probe.json; any other call is a
+    // download, which is logged and then fails as instructed.
     const bin = path.join(dir, 'bin')
     fs.mkdirSync(bin)
     fs.writeFileSync(
       path.join(bin, 'yt-dlp'),
       `#!/bin/sh
 if [ "$1" = "--version" ]; then echo 2026.08.19; exit 0; fi
+case " $* " in *" --dump-single-json "*) cat "${dir}/probe.json"; exit $?;; esac
 echo call >> "${dir}/calls.log"
 if [ -f "${dir}/hang" ]; then exec sleep 60; fi
 cat "${dir}/stderr.txt" >&2
@@ -346,6 +348,46 @@ exit 1
     expect(downloads()).toBe(1)
     // And it took nothing from YouTube's budget: the next YouTube song still waits.
     expect(throttle.tryTake()).toBe(false)
+  })
+
+  it('asks the video who sings a song its listing did not name, before downloading it', async () => {
+    fs.writeFileSync(
+      path.join(dir, 'probe.json'),
+      JSON.stringify({
+        title: 'Video title',
+        artist: 'HOYO-MiX',
+        album: 'Jade Moon',
+        duration: 213,
+      }),
+    )
+    ytDlpFailsWith('Video unavailable')
+    const [job] = imports.enqueue(
+      [
+        {
+          url: 'https://music.163.com/song?id=1973665667',
+          title: 'Where Mercy Endures',
+          artist: '',
+          album: '',
+          thumbnail: null,
+          duration: 0,
+        },
+      ],
+      [],
+      null,
+    )
+    if (!job) throw new Error('nothing was queued')
+
+    queue.kick()
+    await until(() => imports.byId(job.id)?.status === 'error')
+    // The video's names fill what the listing left out, and its title stands
+    // over the listing's; the probe is not a download.
+    expect(imports.byId(job.id)).toMatchObject({
+      title: 'Video title',
+      artist: 'HOYO-MiX',
+      album: 'Jade Moon',
+      duration: 213,
+    })
+    expect(downloads()).toBe(1)
   })
 
   it('halves the budget for a rate limit, once, and does not restore it on its own', async () => {

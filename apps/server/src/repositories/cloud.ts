@@ -897,12 +897,12 @@ export class CloudRepository {
       const gone = (column: string): string =>
         `(${column} IS NOT NULL AND ${column} NOT IN (SELECT key FROM cloud_files))`
       const again = this.#db
-        .prepare(
+        .prepare<[], { n: number }>(
           `SELECT COUNT(*) AS n FROM cloud_songs
             WHERE ${gone('audio_key')} OR ${gone('cover_key')} OR ${gone('lyrics_key')}
                OR ${gone('motion_key')}`,
         )
-        .get() as { n: number }
+        .get()
       this.#db.exec(
         `DELETE FROM cloud_songs WHERE ${gone('audio_key')};
          UPDATE cloud_songs SET cover_key = NULL, cover_size = NULL, cover_sig = ''
@@ -924,7 +924,7 @@ export class CloudRepository {
          DELETE FROM cloud_plays WHERE key NOT IN (SELECT key FROM cloud_files);
          DELETE FROM cloud_cover_packs WHERE key NOT IN (SELECT key FROM cloud_files)`,
       )
-      return again.n
+      return again?.n ?? 0
     })()
   }
 

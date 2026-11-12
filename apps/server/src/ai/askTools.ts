@@ -36,7 +36,9 @@ import { NO_STEPS, type Steps } from './progress.js'
 import { tagReview, TagPlan } from './tagReview.js'
 import { pool } from '../util/pool.js'
 import { bare, tally } from './text.js'
-import { oneSpelling, tidy } from './tidy.js'
+import { askedTidy } from './askedTidy.js'
+import { oneSpelling } from './oneSpelling.js'
+import { tidy } from './tidy.js'
 import {
   applyFilters,
   candidatesOf,
@@ -629,12 +631,12 @@ export function askTools(
       }
       const result =
         what === 'checkup'
-          ? await tidy(deps, steps, null, songs)
+          ? await tidy(deps, steps, songs)
           : what === 'fill'
             ? await fillGaps(deps, limit ? chosen.slice(0, limit) : chosen, request, steps)
             : what === 'spellings'
               ? await oneSpelling(deps, asked, steps)
-              : await tidy(deps, steps, asked)
+              : await askedTidy(deps, asked, steps)
       set.propose(as, { kind: 'tidy', value: result })
       return {
         proposal: as,

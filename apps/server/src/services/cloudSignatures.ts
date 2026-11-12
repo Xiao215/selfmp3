@@ -1,6 +1,6 @@
 /**
  * The signatures a cloud pass compares a song's files against
- * (`cloud_songs.*_sig`; services/cloudSync.ts `#signatures`).
+ * (`cloud_songs.*_sig`; services/cloudSongFiles.ts `CloudSongFiles.signatures`).
  *
  * Spelled here once because two places write them: the pass, from what it
  * finds on this disk, and adoption (services/cloudAdopt.ts), which records a

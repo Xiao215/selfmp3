@@ -221,7 +221,7 @@ climbed when the one below cannot answer:
   | `judge_each({as, from, brief})` | `songsThatAre`: every song read against the brief, a count by meaning (an even 600 past that, said) | smart |
   | `find_half_remembered({as, terms, brief})` | `halfRemembered.ts` (the find action's) | smart |
   | `propose_tags({as, request, scope, add, remove, focus, songs, ops, newTag, artists, checkup, limit})` | `tagReview` over the scope, kept under `as`: `add`/`remove` change exactly the scope's songs with nothing judged; `focus`, `songs` and `ops` are what the review's plan would have read, so it is not asked | smart (the groups) |
-  | `propose_names({as, what: checkup/change/spellings/fill/copies, request, lookUp, scope, limit})` | `tidy`, `oneSpelling`, `fillGaps`, `findCopies`; kept under `as` | smart / fast |
+  | `propose_names({as, what: checkup/change/spellings/fill/copies, request, lookUp, scope, limit})` | `tidy`, `askedTidy`, `oneSpelling`, `fillGaps`, `findCopies`; kept under `as` | smart / fast |
   | `album_tracks({albums: [{album, artist}] ≤8})` | 网易云 album search + track list, each track matched with `haveTrack` (`getMusic.ts`): how many, which are theirs, which they lack | none |
   | `catalogue({words})` | 网易云 song search | none |
 

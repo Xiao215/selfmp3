@@ -190,8 +190,7 @@ export function useReviewRows({
     if (next === 'wait') return
     setOpening(null)
     if (next === 'open') setOpen(opening)
-    // The preview's url and status are what decide; the object changes every tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the preview's url and status are what decide; the object changes every tick.
   }, [opening, listeningUrl, listeningStatus])
   // Ticking is separate from hearing: an unticked song still plays and still
   // opens, so you can listen before deciding, and an open row stays open.

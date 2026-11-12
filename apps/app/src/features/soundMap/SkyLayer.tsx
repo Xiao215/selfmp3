@@ -253,8 +253,7 @@ function SongSky(
   useLayoutEffect(() => {
     latest.current = { props, art, accent, grid, byId }
     record(live.now())
-    // `props` itself is new each render; what is drawn from it is listed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `props` itself is new each render; what is drawn from it is listed.
   }, [
     record,
     live,

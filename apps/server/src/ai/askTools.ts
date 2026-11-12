@@ -36,7 +36,9 @@ import { NO_STEPS, type Steps } from './progress.js'
 import { tagReview, TagPlan } from './tagReview.js'
 import { pool } from '../util/pool.js'
 import { bare, tally } from './text.js'
-import { askedTidy, oneSpelling, tidy } from './tidy.js'
+import { askedTidy } from './askedTidy.js'
+import { oneSpelling } from './oneSpelling.js'
+import { tidy } from './tidy.js'
 import {
   applyFilters,
   candidatesOf,

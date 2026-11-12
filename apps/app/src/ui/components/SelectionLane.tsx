@@ -6,12 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { ease, timing, usePresence } from '../motion'
-import { MOVE_MS, overshootRange } from '../motion.model'
+import { MOVE_MS, OPACITY, overshootRange } from '../motion.model'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
 import { IconButton } from './IconButton'
 import { CheckSquare, More, type QueueAdd, X } from './Icons'
 import { Popover } from './Popover'
+import { Press } from './Press'
 import { SheetItem } from './Sheet'
 import { floating, smallTitle } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
@@ -119,6 +120,7 @@ export function SelectionLane({
   shown,
   inline = false,
   overHead = false,
+  capsule = false,
   actions,
   moreRef,
   summary,
@@ -155,6 +157,13 @@ export function SelectionLane({
    * rather than opening room: nothing under it moves.
    */
   overHead?: boolean
+  /**
+   * On a phone, a narrow capsule centred at the foot rather than the full-width
+   * slab: the count in words, each action with its label, then More and Done
+   * (Links you shared, C1 of 2026-11-11). For a bar with one or two actions;
+   * Library's four would not fit with their labels.
+   */
+  capsule?: boolean
   /** What the bar itself offers, in order. */
   actions: readonly BarAction[]
   /** More's button, which the menu opens beside and the caller may anchor to. */
@@ -269,7 +278,12 @@ export function SelectionLane({
   const closeMenu = (): void => setMenuOpen(false)
 
   const drawAction = (action: BarAction): ReactNode => (
-    <BarButton key={action.key} action={action} wide={wide} disabled={count === 0} />
+    <BarButton
+      key={action.key}
+      action={action}
+      look={wide ? 'button' : capsule ? 'pill' : 'icon'}
+      disabled={count === 0}
+    />
   )
 
   // More, at either width. A phone's opens with nothing ticked, since all is
@@ -404,6 +418,7 @@ export function SelectionLane({
     </Animated.View>
   )
 
+  const floatStyle = [styles.float, styles.floatBottom, { bottom: chrome + space.sm }, rise]
   const bar = wide ? (
     overHead ? (
       // Over the title row: no room, so nothing moves.
@@ -418,11 +433,26 @@ export function SelectionLane({
         {lane}
       </>
     )
-  ) : (
+  ) : capsule ? (
     <Animated.View
-      style={[styles.float, styles.floatBottom, { bottom: chrome + space.sm }, rise]}
+      style={[...floatStyle, styles.floatCentred]}
       pointerEvents={shown ? 'box-none' : 'none'}
     >
+      <View
+        style={styles.capsule}
+        role="toolbar"
+        aria-label="Selection actions"
+        testID="selection-bar"
+        onLayout={event => setMeasured(event.nativeEvent.layout.height)}
+      >
+        <View style={styles.capsuleCount}>{countText}</View>
+        {actions.map(drawAction)}
+        {more}
+        {done}
+      </View>
+    </Animated.View>
+  ) : (
+    <Animated.View style={floatStyle} pointerEvents={shown ? 'box-none' : 'none'}>
       <View
         style={[styles.bar, styles.barCompact]}
         role="toolbar"
@@ -535,6 +565,33 @@ const styles = StyleSheet.create(theme => ({
   },
   /* The foot itself is worked out per screen, above the player bar and the tab bar. */
   floatBottom: { left: space.sm, right: space.sm },
+  // A capsule's action: its words on a light wash, red for one that takes away.
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.tight,
+    height: 38,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.veil,
+  },
+  pillDanger: { backgroundColor: theme.colors.dangerWash },
+  pillOff: { opacity: OPACITY.disabled },
+  pillLabel: { fontSize: type.sub, fontWeight: '600' },
+  // The capsule is as wide as what is in it, in the middle of the foot.
+  floatCentred: { alignItems: 'center' },
+  capsuleCount: { marginRight: space.sm },
+  capsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingVertical: 5,
+    paddingLeft: space.lg + space.xs,
+    paddingRight: 5,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.glassSolid,
+    ...floating(theme.colors),
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -622,14 +679,15 @@ export interface BarAction {
   readonly danger?: boolean
 }
 
-/** One of the bar's own actions: a labelled button on a computer, an icon on a phone. */
+/** One of the bar's own actions: a labelled button on a computer and in a capsule, else an icon. */
 function BarButton({
   action,
-  wide,
+  look,
   disabled,
 }: {
   action: BarAction
-  wide: boolean
+  /** A computer's labelled button, a capsule's lighter pill with its words, or a phone's icon. */
+  look: 'button' | 'pill' | 'icon'
   disabled: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
@@ -638,7 +696,19 @@ function BarButton({
   const ink = action.danger ? theme.colors.danger : theme.colors.textPrimary
   return (
     <View ref={ref} collapsable={false}>
-      {wide ? (
+      {look === 'pill' ? (
+        <Press
+          onPress={press}
+          disabled={disabled}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          accessibilityState={{ disabled }}
+          style={[styles.pill, action.danger && styles.pillDanger, disabled && styles.pillOff]}
+        >
+          <action.Glyph size={iconSize.sub} color={ink} />
+          <Text style={[styles.pillLabel, { color: ink }]}>{action.label}</Text>
+        </Press>
+      ) : look === 'button' ? (
         <Button
           label={action.label}
           variant={action.danger ? 'danger' : 'secondary'}

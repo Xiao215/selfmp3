@@ -11,6 +11,8 @@ import {
   sentCountLine,
   sentLine,
   sentLinksHint,
+  sentRowSub,
+  sentRowWhen,
   sentSections,
   sentSub,
   sentTime,
@@ -179,6 +181,15 @@ describe('Links you shared', () => {
     expect(sentSub(summary({ ended: { at: NOW, why: 'removed' } }), NOW)).toBe(
       'No longer in your library',
     )
+    expect(sentRowSub(summary({ opened: ['Mia'] }), NOW)).toBe('Opened by Mia')
+    expect(sentRowSub({ ...endedLong, songs: 44 }, NOW)).toBe('44 songs · played 1 time')
+    expect(sentRowSub({ ...endedLately, songs: 1 }, NOW)).toBe('1 song · never played')
+    expect(sentRowSub(summary({ ended: { at: NOW, why: 'removed' } }), NOW)).toBe(
+      'No longer in your library',
+    )
+    expect(sentRowWhen(later, NOW)).toBe('6 days left')
+    expect(sentRowWhen(endedLately, NOW)).not.toMatch(/Ended/)
+    expect(sentRowWhen(summary({ ended: { at: NOW, why: 'removed' } }), NOW)).toBe('')
     expect(sentTime(later, NOW)).toBe('6 days left')
     expect(sentTime(summary({ endsAt: NOW + 6 * 60 * 60 * 1000 }), NOW)).toBe('Ends tonight')
     expect(sentTime(endedLately, NOW)).toMatch(/^Ended [^·]+$/)

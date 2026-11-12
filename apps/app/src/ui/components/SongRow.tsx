@@ -30,6 +30,7 @@ import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { rightClick, type PopoverAnchor } from '../rightClick'
 import { useSongColor } from '../useSongColor'
+import { selectedBand } from './selectedBand'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
@@ -87,6 +88,8 @@ export const SongRow = memo(function SongRow({
   onMore,
   selecting = false,
   selected = false,
+  selectedAbove = false,
+  selectedBelow = false,
   onToggleSelect,
   dragSongs,
   index,
@@ -131,6 +134,9 @@ export const SongRow = memo(function SongRow({
    */
   selecting?: boolean
   selected?: boolean
+  /** The rows touching it are ticked too, so its tint joins theirs (`selectedBand`). */
+  selectedAbove?: boolean
+  selectedBelow?: boolean
   /** The tick pressed: with the press, whose Shift ticks the rows between. */
   onToggleSelect?: (song: Song, event?: GestureResponderEvent) => void
   /**
@@ -288,8 +294,8 @@ export const SongRow = memo(function SongRow({
 
   // What the row is, as well as which song: picked, out of reach, being moved.
   const states = [
-    // Selected: a translucent accent that reads as picked on the dark UI.
-    selected && styles.selected,
+    // Ticked: one faint band with the ticked rows either side of it (B3).
+    selectedBand(selected, selectedAbove, selectedBelow),
     unavailable && styles.unavailable,
     // Resting (shared rest.ts): set aside, a little faded, and still a tap from playing.
     resting && !unavailable && styles.resting,
@@ -957,9 +963,6 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.md,
   },
-  // The palette's own selected-row colour, so picking a row is recoloured by
-  // the accent picker without re-rendering a list of them.
-  selected: { backgroundColor: theme.colors.accentSelected },
   held: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.colors.veilPressed },
   resting: {
     opacity: OPACITY.resting,

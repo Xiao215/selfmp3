@@ -262,15 +262,21 @@ I1 J2 K1):
   the latest first. Past five, the ended ones fold under _Show 3 more_.
 - **A row** is Library's. On a computer it has the name over who opened it, how many songs it
   holds, and how long it has where a song's length would be. That time is amber on the last
-  day. Once a link has ended, its line says how often it played, and its cover fades. On a
-  phone the second line says all of it.
+  day. Once a link has ended, its line says how often it played. On a phone the row reads
+  like a mail list: the name with how long it has, or the day it ended, at the right edge, and
+  under it who opened it, or for an ended link how many songs it had and how often it played
+  ([redesign](https://claude.ai/artifact/SygP2dGnCCMLoHqAtNBxRh), A1). The section head
+  already says Ended, so the row does not, and an ended link's cover is drawn at full strength.
 - **A press opens the link's page**: in a new tab in a browser, and in place on a phone or in
   the Mac app.
 - **Choosing** works as it does in Library: the circle, holding a row, shift-click. Once
   choosing is on, a press ticks and does not open anything. Each section's head has
   **Select 8**, which unfolds Ended first, so nothing ticked is out of sight. The bar's checkbox
   selects every link.
-- **The bar** has one button, **Remove**. It takes playing links too, after asking once
+- **While choosing**, the copy button and ⋯ step aside, and ticked rows join into one band
+  (B3, as in every list).
+- **The bar** has one button, **Remove**. On a phone it is a small capsule at the foot: the
+  count in words, Remove spelled out, More and ✕ (C1). It takes playing links too, after asking once
   (_1 of them is still playing and stops for everyone_). **More** holds **Share again**, **End**
   and **Copy links**.
 

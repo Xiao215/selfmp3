@@ -15,6 +15,7 @@ The code is in `apps/app/src/selection/` and the files in the table.
 | The selection's rules | `packages/client/src/selection/selection.ts` |
 | The hook a list uses | `apps/app/src/selection/useSelection.ts` |
 | A row's press, hold, tick and drag | `apps/app/src/ui/components/useSongRows.tsx`, `SongRow.tsx`, `Checkbox.tsx` |
+| How a ticked row looks | `apps/app/src/ui/components/selectedBand.ts` |
 | A list's keys: Tab, arrows, Space, ⇧F10, ⌘A | `apps/app/src/selection/useListKeys.web.ts`, `apps/app/src/selection/listRows.ts`, `apps/app/src/selection/useRowFocus.web.ts`, `apps/app/src/shell/keyOwner.ts` |
 | The bar, and where a page puts it | `apps/app/src/ui/components/SelectionBar.tsx`, `useListSelectionBar.tsx` |
 | What More offers (the song menu's items, for many) | `apps/app/src/ui/songActions.model.ts`, `apps/app/src/ui/components/SongActionItems.tsx` |
@@ -27,6 +28,10 @@ The code is in `apps/app/src/selection/` and the files in the table.
 | Bulk SQL | `apps/server/src/repositories/songs.ts`, `repositories/playlists.ts` |
 | Wire schemas | `packages/shared/src/schemas/song.ts`, `schemas/playlist.ts` |
 | Tests | `apps/server/src/repositories/bulk.test.ts`, `apps/server/src/services/songRemoval.test.ts`, `apps/app/src/selection/useListKeys.test.tsx`, `verify/flows/selection.spec.ts` |
+
+**A ticked row** is a faint tint of the accent, and ticked rows next to each other join into
+one band, rounded only at its ends. A run of ticks reads as one block rather than a stack of
+slabs with seams. An album's heading on an artist's page splits the band.
 
 ## Getting into it
 

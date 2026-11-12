@@ -68,6 +68,7 @@ export function useSongRows({
   withAlbum = true,
   numbered = true,
   playlist,
+  apart,
 }: {
   /** The rows, in the list's order. */
   songs: readonly Song[]
@@ -89,6 +90,11 @@ export function useSongRows({
   numbered?: boolean
   /** The playlist these are, for the song menu's "Remove from this playlist". */
   playlist?: { readonly id: number; readonly name: string }
+  /**
+   * Whether a heading stands between two neighbouring rows, so their ticked
+   * tints stay two bands rather than joining across it.
+   */
+  apart?: (above: Song, below: Song) => boolean
 }): SongRows {
   const artFor = useArt(ROW_COVER_SIZE)
   const availability = useRowAvailability()
@@ -169,6 +175,7 @@ export function useSongRows({
       onLongPress,
       selecting: selection.active,
       selected: selection.has(song.id),
+      ...ticksBeside(songs, index, selection, apart),
       onToggleSelect,
       dragSongs,
       listKey,
@@ -184,6 +191,8 @@ export function useSongRows({
       menuSongId,
       onLongPress,
       selection,
+      songs,
+      apart,
       onToggleSelect,
       dragSongs,
       listKey,
@@ -214,5 +223,22 @@ export function useSongRows({
         {withTags ? rowTags.picker : null}
       </>
     ),
+  }
+}
+
+/** Whether the rows touching row `index` are ticked too, for its band (`selectedBand`). */
+function ticksBeside(
+  songs: readonly Song[],
+  index: number,
+  selection: Selection,
+  apart: ((above: Song, below: Song) => boolean) | undefined,
+): { selectedAbove: boolean; selectedBelow: boolean } {
+  const song = songs[index]
+  const above = songs[index - 1]
+  const below = songs[index + 1]
+  if (!song || !selection.has(song.id)) return { selectedAbove: false, selectedBelow: false }
+  return {
+    selectedAbove: !!above && selection.has(above.id) && !apart?.(above, song),
+    selectedBelow: !!below && selection.has(below.id) && !apart?.(song, below),
   }
 }

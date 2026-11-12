@@ -389,6 +389,7 @@ export function PlaceSongs({
     testPrefix: 'place-song',
     // Under an album's heading a row's album would only repeat it (P12 A).
     withAlbum: !byAlbum,
+    apart: byAlbum ? newAlbum : undefined,
   })
   const { renderSong: renderRow } = rows
 
@@ -396,7 +397,7 @@ export function PlaceSongs({
     ({ item, index }: { item: Song; index: number }) => {
       const row = renderRow({ item, index })
       const previous = index > 0 ? songs[index - 1] : undefined
-      if (!byAlbum || (previous && previous.album.trim() === item.album.trim())) return row
+      if (!byAlbum || (previous && !newAlbum(previous, item))) return row
       return (
         <View>
           <AlbumHeading song={item} artUri={artFor(item)} wide={wide} />
@@ -477,3 +478,8 @@ const styles = StyleSheet.create(theme => ({
   notice: { paddingHorizontal: space.gutter, paddingTop: space.md },
   noticeWide: { paddingHorizontal: space.gutterWide },
 }))
+
+/** A new album starts between these two rows, under its own heading. */
+function newAlbum(above: Song, below: Song): boolean {
+  return above.album.trim() !== below.album.trim()
+}

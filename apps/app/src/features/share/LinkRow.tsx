@@ -15,29 +15,38 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Copy, More } from '../../ui/components/Icons'
 import { Press } from '../../ui/components/Press'
 import { Reveal } from '../../ui/components/Reveal'
-import { sentLine, sentSub, sentTime, shareStage } from './share.model'
+import { sentRowSub, sentRowWhen, sentSub, sentTime, shareStage } from './share.model'
+import { selectedBand } from '../../ui/components/selectedBand'
 
 /**
- * A link in Links you shared, drawn as Library draws a song (A1), so the page
+ * A link in Links you shared, drawn as Library draws a song (Oct 23's A1), so the page
  * reads as a list you already know: there is no play, and a press opens the
  * link's page.
+ *
+ * On a phone (Nov 11's A1) it is drawn as a mail list draws a message: the
+ * cover, the name with how long it has (or the day it ended) at the right
+ * edge, and under it who opened it, or how many songs and plays an ended one
+ * had; then copy and ⋯. Holding it picks it.
  *
  * At desktop width: the circle that picks it, the cover, the name over who
  * opened it, how many songs in a column of their own where Library has the
  * album, and how long it has at the end where a song's length is — amber on its
  * last day, quiet once it is over — then copy and ⋯. With a mouse the circle,
- * the copy and the ⋯ wait for the pointer. On a phone it is the cover, the name
- * over the whole line, copy and ⋯; holding it picks it. Copy is for a link that
- * still plays: an ended one keeps its place empty, so the columns line up.
+ * the copy and the ⋯ wait for the pointer. Copy is for a link that still
+ * plays: an ended one keeps its place empty, so the columns line up.
  *
- * An ended link keeps its row at full strength and only its cover faded: it
- * is still something to act on (share again, remove).
+ * While choosing, copy and ⋯ step aside at both widths: the bar is where you
+ * act. A ticked row is a faint band joined with the ticked rows beside it
+ * (B3). An ended link is drawn at full strength, cover too: the section head
+ * already says it is over.
  */
 export const LinkRow = memo(function LinkRow({
   link,
   cover,
   now,
   selected,
+  selectedAbove,
+  selectedBelow,
   picking,
   onPress,
   onLongPress,
@@ -50,6 +59,9 @@ export const LinkRow = memo(function LinkRow({
   cover: string | null | undefined
   now: number
   selected: boolean
+  /** The rows touching it are ticked too, so its band joins theirs. */
+  selectedAbove: boolean
+  selectedBelow: boolean
   /** Choosing is on, so every row shows its circle. */
   picking: boolean
   onPress: (event: GestureResponderEvent, link: ShareSummary) => void
@@ -87,11 +99,7 @@ export const LinkRow = memo(function LinkRow({
       {children}
     </Press>
   )
-  const art = (size: number): ReactNode => (
-    <View style={over ? styles.faded : undefined}>
-      <Cover uri={cover} title={link.name} size={size} />
-    </View>
-  )
+  const art = (size: number): ReactNode => <Cover uri={cover} title={link.name} size={size} />
   const name = (
     <Text style={styles.title} numberOfLines={1}>
       {link.name}
@@ -122,10 +130,15 @@ export const LinkRow = memo(function LinkRow({
     </IconButton>
   )
   const onRightClick = rightClick(() => onMore(link))
+  const band = selectedBand(selected, selectedAbove, selectedBelow)
 
   if (!wide) {
     return (
-      <View role="row" style={[styles.row, selected && styles.selected]} {...onRightClick}>
+      <View
+        role="row"
+        style={[styles.row, (picking || selected) && styles.rowPicking, band]}
+        {...onRightClick}
+      >
         {picking || selected ? box : null}
         {target(
           styles.grow,
@@ -133,15 +146,27 @@ export const LinkRow = memo(function LinkRow({
           <>
             {art(coverSize.row)}
             <View style={styles.text}>
-              {name}
+              <View style={styles.nameLine}>
+                <View style={styles.grow}>{name}</View>
+                <Text
+                  style={[styles.when, stage === 'lastDay' && styles.timeLastDay]}
+                  numberOfLines={1}
+                >
+                  {sentRowWhen(link, now)}
+                </Text>
+              </View>
               <Text style={styles.sub} numberOfLines={1}>
-                {sentLine(link, now)}
+                {sentRowSub(link, now)}
               </Text>
             </View>
           </>,
         )}
-        {over ? null : copy}
-        {more}
+        {picking || selected ? null : (
+          <>
+            {over ? null : copy}
+            {more}
+          </>
+        )}
       </View>
     )
   }
@@ -151,7 +176,7 @@ export const LinkRow = memo(function LinkRow({
   return (
     <View
       role="row"
-      style={[styles.rowWide, dense && revealed && styles.rowHovered, selected && styles.selected]}
+      style={[styles.rowWide, dense && revealed && !selected && styles.rowHovered, band]}
       onPointerEnter={dense ? () => setHovered(true) : undefined}
       onPointerLeave={dense ? () => setHovered(false) : undefined}
       {...onRightClick}
@@ -181,10 +206,11 @@ export const LinkRow = memo(function LinkRow({
       >
         {sentTime(link, now)}
       </Text>
-      <Reveal shown={revealed}>
+      {/* Kept in place while choosing, so the columns hold still; only hidden. */}
+      <Reveal shown={revealed && !picking}>
         {over ? <View style={dense ? styles.copySpaceDense : styles.copySpace} /> : copy}
       </Reveal>
-      <Reveal shown={revealed}>{more}</Reveal>
+      <Reveal shown={revealed && !picking}>{more}</Reveal>
     </View>
   )
 })
@@ -222,7 +248,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface1,
     _web: { transitionDuration: `${MOVE_MS.hoverIn}ms` },
   },
-  selected: { backgroundColor: theme.colors.accentSelected },
   grow: { flex: 1, minWidth: 0 },
   body: {
     flexDirection: 'row',
@@ -233,8 +258,15 @@ const styles = StyleSheet.create(theme => ({
   // Held to a reading width, as a song's title and album are (P1 C).
   mainWide: { flex: 1, minWidth: 0, maxWidth: 720 },
   main: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  faded: { opacity: 0.45 },
   text: { flex: 1, minWidth: 0, gap: 1 },
+  // While choosing the row ends in words, not buttons: as far in as it starts.
+  rowPicking: { paddingRight: space.lg },
+  nameLine: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  when: {
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    fontVariant: ['tabular-nums'],
+  },
   title: rowTitle(theme.colors),
   askDot: { color: theme.colors.accent, fontSize: type.tiny },
   sub: { color: theme.colors.textSecondary, fontSize: type.sub },

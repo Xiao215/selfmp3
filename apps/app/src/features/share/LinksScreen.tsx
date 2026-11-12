@@ -67,7 +67,8 @@ const RENEW_DETAIL = 'A week from now, a month if it keeps playing'
  * link's page — a new tab in a browser (K1) — the copy button beside ⋯ puts
  * its address on the clipboard, and ⋯ holds Keep it longer, End now and Remove.
  *
- * They are picked as songs are, with the same selection bar. "All" is chosen
+ * They are picked as songs are, with the same selection bar, which on a phone
+ * is a small capsule with Remove spelled out (C1, 2026-11-11). "All" is chosen
  * by the bar's checkbox, and each section's head selects just its own links,
  * so "every one that has stopped playing" is a click (C3, H1). The bar's one
  * button is Remove, which takes playing links too, after saying so (D2, D3);
@@ -170,14 +171,17 @@ export function LinksScreen(): ReactNode {
     },
   ]
 
+  const ticked = (link: ShareSummary | undefined): boolean => !!link && selection.has(link.id)
   const rows = (section: readonly ShareSummary[]): ReactNode =>
-    section.map(link => (
+    section.map((link, i) => (
       <LinkRow
         key={link.id}
         link={link}
         cover={coverOf(link)}
         now={now}
         selected={selection.has(link.id)}
+        selectedAbove={ticked(section[i - 1])}
+        selectedBelow={ticked(section[i + 1])}
         picking={selection.active}
         onPress={onPress}
         onLongPress={pick}
@@ -210,6 +214,7 @@ export function LinksScreen(): ReactNode {
           onSelectAll={selectAll}
           onDeselectAll={selection.clear}
           onDone={selection.clear}
+          capsule
           actions={actions}
           moreRef={moreRef}
           summary={namesOf(selected)}

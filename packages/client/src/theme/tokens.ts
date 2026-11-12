@@ -75,8 +75,9 @@ export function buildAccent(
       accentPill: oklchToHexAlpha(0.52, 0.19, hue, 0.14),
       washAlpha,
       accentWash: oklchToHexAlpha(0.52, 0.19, hue, washAlpha),
-      // The light theme draws a selected row in the dim accent itself.
-      accentSelected: oklchToHex(0.9, 0.05, hue),
+      // A faint tint of the accent itself: ticked rows join into one band
+      // (B3, 2026-11-11), and the solid dim accent made a run of them a wall.
+      accentSelected: oklchToHexAlpha(0.52, 0.19, hue, 0.1),
     }
   }
   const washAlpha = 0.26

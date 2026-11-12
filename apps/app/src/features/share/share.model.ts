@@ -236,6 +236,30 @@ export function sentSub(link: ShareSummary, now: number): string {
   return openedLine(link)
 }
 
+/**
+ * The line under a link's name on a phone (Xiao picked A1, 2026-11-11): who
+ * opened one that plays; how many songs an ended one had and how much it
+ * played, which also tells two links to the same playlist apart. The section
+ * head already says Ended, so the row does not.
+ */
+export function sentRowSub(link: ShareSummary, now: number): string {
+  if (shareStage(link, now) !== 'ended') return openedLine(link)
+  if (link.ended?.why === 'removed') return 'No longer in your library'
+  const played = link.plays > 0 ? `played ${plural(link.plays, 'time', 'times')}` : 'never played'
+  return `${plural(link.songs, 'song', 'songs')} · ${played}`
+}
+
+/**
+ * At a phone row's right edge, as a mail list has the date: how long a link
+ * has while it plays ("6 days left", "Ends tonight"), the day it ended once it
+ * has, and nothing for one whose songs have gone.
+ */
+export function sentRowWhen(link: ShareSummary, now: number): string {
+  if (shareStage(link, now) !== 'ended') return sentTime(link, now)
+  if (link.ended?.why === 'removed') return ''
+  return shortDate(link.ended?.at ?? link.endsAt)
+}
+
 /** Its time column (A1), where a song's length would be: "6 days left", "Ends tonight", "Ended Oct 20". */
 export function sentTime(link: ShareSummary, now: number): string {
   const line = shareTimeLine(link, now)

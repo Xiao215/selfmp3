@@ -36,7 +36,12 @@ import { DoormanClient } from '../bucket/doorman.js'
 import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
-import type { CloudRepository, DoormanSession, SongFileInfo } from '../repositories/cloud.js'
+import type {
+  CloudRepository,
+  CloudSongState,
+  DoormanSession,
+  SongFileInfo,
+} from '../repositories/cloud.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { TagRepository } from '../repositories/tags.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
@@ -188,6 +193,12 @@ const SIGNATURES_AT_ONCE = 16
 
 /** The part of the doorman the sync uses. Tests hand in a fake. */
 export type Doorman = Pick<DoormanClient, 'url' | 'me' | 'store'>
+
+/** A song's file, and what its files look like here now. */
+interface SignedFile {
+  readonly file: SongFileInfo
+  readonly signatures: Signatures
+}
 
 /** A song wholly in the bucket as it is here, and what of it this disk still holds. */
 interface Settled {
@@ -799,7 +810,6 @@ export class CloudSyncService {
     this.#retry = null
     this.#state = 'syncing'
     this.#passes++
-    let failed = 0
 
     try {
       await this.#prepareBucket(store)
@@ -820,106 +830,11 @@ export class CloudSyncService {
 
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
-      const files = cloud.songFiles()
-      const signed = await pool(files, SIGNATURES_AT_ONCE, file =>
-        this.#songFiles.signatures(file, states.get(file.id) ?? null),
-      )
-      const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
-      /** Songs wholly in the bucket as they are here: what may be let go of below. */
-      const settled: Settled[] = []
-      let withoutCopy = 0
-      let stillWriting = 0
-      for (const [index, file] of files.entries()) {
-        const state = states.get(file.id)
-        const signatures = signed[index] as Signatures
-        const { audioHere, sidecarHere } = signatures
-        if (
-          state &&
-          state.audioSig === signatures.audio &&
-          state.coverSig === signatures.cover &&
-          state.lyricsSig === signatures.lyrics &&
-          state.motionSig === signatures.motion
-        ) {
-          settled.push({ file, audioHere, sidecarHere })
-          continue
-        }
-        // New audio has to be read from a copy here. A cover, a curve or the
-        // words can go up without it; a song whose audio changed and whose
-        // copy has already gone is published as the bucket has it, and what
-        // could not be sent for it is said once.
-        if ((!state || state.audioSig !== signatures.audio) && !signatures.audioHere) {
-          withoutCopy++
-          continue
-        }
-        // A copy something may still be writing is sent once it has been
-        // left alone a while, and a pass comes back for it then.
-        if (!state || state.audioSig !== signatures.audio) {
-          const wait = stillIn(file.mtimeMs, this.#stillMs.send)
-          if (wait > 0) {
-            stillWriting++
-            this.#passOnceStill(wait)
-            continue
-          }
-        }
-        changed.push({ file, signatures })
-      }
-      if (withoutCopy > 0) {
-        this.#logger.debug('songs with something to send and no copy here to send it from', {
-          songs: withoutCopy,
-        })
-      }
-      if (stillWriting > 0) {
-        this.#logger.debug('songs whose copies changed a moment ago, sent once left alone', {
-          songs: stillWriting,
-        })
-      }
-
-      const total = changed.length
-      let done = 0
-      /** Copies found written to since the sweep read them: not sent, and not failures either. */
-      let notAsRead = 0
-      this.#progress = { done, total, current: null }
-      for (const { file, signatures } of changed) {
-        if (generation !== this.#generation || this.#stopped) return
-        this.#progress = { done, total, current: file.title }
-        try {
-          await this.#songFiles.upload(store, file, states.get(file.id) ?? null, signatures)
-          settled.push({
-            file,
-            audioHere: signatures.audioHere,
-            sidecarHere: signatures.sidecarHere,
-          })
-        } catch (error) {
-          // Offline, a refused key, no bucket, a used-up cap, a bucket asking
-          // for fewer requests: nothing else will work either, and every try
-          // against a cap or a busy bucket is one more call.
-          if (error instanceof CloudError && error.kind !== 'other') throw error
-          // Written to since the sweep read it: not sent, and not a failure.
-          // The sweep reads it again once it is still, and that sends it.
-          if (error instanceof CopyChanged) {
-            this.#logger.info('a copy changed since it was read; it goes up once read again', {
-              path: file.path,
-            })
-            this.onCopyChanged?.()
-            notAsRead++
-            done++
-            this.#progress = { done, total, current: null }
-            continue
-          }
-          // Removed while the pass was sending it, its copy with it: what was
-          // asked, not a failure to try again over.
-          if (this.#deps.cloud.songFile(file.id)) {
-            failed++
-            this.#lastError = `${file.title}: ${messageOf(error)}`
-            this.#logger.warn('could not upload a song', {
-              songId: file.id,
-              message: messageOf(error),
-            })
-          }
-        }
-        done++
-        this.#progress = { done, total, current: null }
-      }
+      const { changed, settled } = await this.#whatChanged(states)
+      const sent = await this.#sendChanged(store, changed, states, generation)
+      if (!sent) return
+      settled.push(...sent.settled)
+      const { failed, notAsRead } = sent
 
       if (generation !== this.#generation || this.#stopped) return
       await this.#pictures.uploadArtists(store)
@@ -961,26 +876,7 @@ export class CloudSyncService {
           failed,
         })
       }
-      // The names artists also go by, for any nobody has named: found ones go
-      // up with the pass this starts.
-      void this.#deps.names?.lookup
-        .fill()
-        .then(found => {
-          if (found > 0 && !this.#stopped) this.kick()
-        })
-        .catch((error: unknown) => {
-          this.#logger.warn('could not look up artists’ names', { message: messageOf(error) })
-        })
-      // Pictures for artists that have none yet, in the background: one found
-      // is put in the bucket by the pass this starts.
-      void this.#deps.artists
-        ?.fill()
-        .then(found => {
-          if (found > 0 && !this.#stopped) this.kick()
-        })
-        .catch((error: unknown) => {
-          this.#logger.warn('could not look for artists’ pictures', { message: messageOf(error) })
-        })
+      this.#lookForArtists()
       this.#lastSyncAt = this.#now().toISOString()
       if (failed === 0 && logs.unreadable === 0) {
         this.#retryIndex = 0
@@ -1014,6 +910,157 @@ export class CloudSyncService {
     } finally {
       if (generation === this.#generation) this.#progress = null
     }
+  }
+
+  /**
+   * Every song's files against what was last sent for it: the songs to send
+   * now, and the songs wholly in the bucket as they are here, which a pass may
+   * let go of. A song is neither while its new audio has no copy here to be
+   * sent from, or while its copy may still be being written.
+   */
+  async #whatChanged(
+    states: ReadonlyMap<number, CloudSongState>,
+  ): Promise<{ changed: SignedFile[]; settled: Settled[] }> {
+    const signed = await pool(this.#deps.cloud.songFiles(), SIGNATURES_AT_ONCE, async file => ({
+      file,
+      signatures: await this.#songFiles.signatures(file, states.get(file.id) ?? null),
+    }))
+    const changed: SignedFile[] = []
+    const settled: Settled[] = []
+    let withoutCopy = 0
+    let stillWriting = 0
+    for (const { file, signatures } of signed) {
+      const state = states.get(file.id)
+      const { audioHere, sidecarHere } = signatures
+      if (
+        state &&
+        state.audioSig === signatures.audio &&
+        state.coverSig === signatures.cover &&
+        state.lyricsSig === signatures.lyrics &&
+        state.motionSig === signatures.motion
+      ) {
+        settled.push({ file, audioHere, sidecarHere })
+        continue
+      }
+      // New audio has to be read from a copy here. A cover, a curve or the
+      // words can go up without it; a song whose audio changed and whose
+      // copy has already gone is published as the bucket has it, and what
+      // could not be sent for it is said once.
+      if ((!state || state.audioSig !== signatures.audio) && !signatures.audioHere) {
+        withoutCopy++
+        continue
+      }
+      // A copy something may still be writing is sent once it has been
+      // left alone a while, and a pass comes back for it then.
+      if (!state || state.audioSig !== signatures.audio) {
+        const wait = stillIn(file.mtimeMs, this.#stillMs.send)
+        if (wait > 0) {
+          stillWriting++
+          this.#passOnceStill(wait)
+          continue
+        }
+      }
+      changed.push({ file, signatures })
+    }
+    if (withoutCopy > 0) {
+      this.#logger.debug('songs with something to send and no copy here to send it from', {
+        songs: withoutCopy,
+      })
+    }
+    if (stillWriting > 0) {
+      this.#logger.debug('songs whose copies changed a moment ago, sent once left alone', {
+        songs: stillWriting,
+      })
+    }
+    return { changed, settled }
+  }
+
+  /**
+   * Send what changed, a song at a time, counting progress as it goes. Says
+   * which songs are now wholly in the bucket, how many failed and how many
+   * were found written to since they were read; null when the pass was
+   * stopped or replaced on the way.
+   */
+  async #sendChanged(
+    store: CloudStore,
+    changed: readonly SignedFile[],
+    states: ReadonlyMap<number, CloudSongState>,
+    generation: number,
+  ): Promise<{ settled: Settled[]; failed: number; notAsRead: number } | null> {
+    const settled: Settled[] = []
+    let failed = 0
+    const total = changed.length
+    let done = 0
+    /** Copies found written to since the sweep read them: not sent, and not failures either. */
+    let notAsRead = 0
+    this.#progress = { done, total, current: null }
+    for (const { file, signatures } of changed) {
+      if (generation !== this.#generation || this.#stopped) return null
+      this.#progress = { done, total, current: file.title }
+      try {
+        await this.#songFiles.upload(store, file, states.get(file.id) ?? null, signatures)
+        settled.push({
+          file,
+          audioHere: signatures.audioHere,
+          sidecarHere: signatures.sidecarHere,
+        })
+      } catch (error) {
+        // Offline, a refused key, no bucket, a used-up cap, a bucket asking
+        // for fewer requests: nothing else will work either, and every try
+        // against a cap or a busy bucket is one more call.
+        if (error instanceof CloudError && error.kind !== 'other') throw error
+        // Written to since the sweep read it: not sent, and not a failure.
+        // The sweep reads it again once it is still, and that sends it.
+        if (error instanceof CopyChanged) {
+          this.#logger.info('a copy changed since it was read; it goes up once read again', {
+            path: file.path,
+          })
+          this.onCopyChanged?.()
+          notAsRead++
+          done++
+          this.#progress = { done, total, current: null }
+          continue
+        }
+        // Removed while the pass was sending it, its copy with it: what was
+        // asked, not a failure to try again over.
+        if (this.#deps.cloud.songFile(file.id)) {
+          failed++
+          this.#lastError = `${file.title}: ${messageOf(error)}`
+          this.#logger.warn('could not upload a song', {
+            songId: file.id,
+            message: messageOf(error),
+          })
+        }
+      }
+      done++
+      this.#progress = { done, total, current: null }
+    }
+
+    return { settled, failed, notAsRead }
+  }
+
+  /**
+   * The names artists also go by, and pictures for artists, for any that have
+   * none yet, in the background: what is found goes up with the pass this
+   * starts.
+   */
+  #lookForArtists(): void {
+    void this.#deps.names?.lookup
+      .fill()
+      .then(found => {
+        if (found > 0 && !this.#stopped) this.kick()
+      })
+      .catch((error: unknown) => {
+        this.#logger.warn('could not look up artists’ names', { message: messageOf(error) })
+      })
+    void this.#deps.artists
+      ?.fill()
+      .then(found => {
+        if (found > 0 && !this.#stopped) this.kick()
+      })
+      .catch((error: unknown) => {
+        this.#logger.warn('could not look for artists’ pictures', { message: messageOf(error) })
+      })
   }
 
   /** A pass that did not get everything up runs again, later each time it happens. */

@@ -97,7 +97,7 @@ export function finish(app: Express, logger: Logger): Express {
  * One library's API, mounted at `/api`, for a request already let in.
  *
  * The library is the bucket's: until one is connected there is none to
- * serve, so everything but connecting one waits for it.
+ * serve, so everything but the health check and the cloud state waits for it.
  */
 export function libraryApi(container: Container): Router {
   const api = express.Router()

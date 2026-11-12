@@ -198,8 +198,7 @@ function allowedOrigins(config: OriginConfig): Set<string> {
  * it, so with none connected there is nothing to answer about: no songs to
  * list, nowhere for an import to go. Rather than answer with an empty library
  * that every device would take for the truth, the API says so, and only the
- * routes that connect a bucket — and the health check the page reads first —
- * are open until one is.
+ * health check and the cloud state are open until one is.
  */
 export function requireCloud(connected: () => boolean): RequestHandler {
   const open = ['/health', '/cloud']
@@ -210,8 +209,8 @@ export function requireCloud(connected: () => boolean): RequestHandler {
     }
     next(
       HttpError.conflict(
-        'No cloud bucket is connected. The library lives in the bucket, so connect one first: ' +
-          'sign in with Google on the server’s page.',
+        'No cloud bucket is connected. The library lives in the bucket, so there is none here ' +
+          'until one is.',
       ),
     )
   }

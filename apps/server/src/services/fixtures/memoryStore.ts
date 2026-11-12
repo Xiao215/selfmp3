@@ -35,7 +35,7 @@ export class MemoryCloudStore implements CloudStore {
    * A change counter like the doorman's, once `keepCount` is called: it moves
    * for this store's own writes and deletes of snapshots and logs, and for
    * `countChange` — another device's write, which a test makes by setting
-   * `objects` directly. Null, as for a bucket reached with its own key, until then.
+   * `objects` directly. Null, as for a folder standing in for a bucket, until then.
    */
   #count: number | null = null
   readonly #ownMoves = new Map<string, string>()

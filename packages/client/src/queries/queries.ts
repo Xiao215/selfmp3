@@ -567,10 +567,8 @@ export function useCloudStatus(enabled = true): UseQueryResult<CloudStatus, Erro
     queryKey: queryKeys.cloud,
     queryFn: () => clientApi().cloudStatus(),
     enabled: ready && enabled,
-    // Quickly while something is moving — an upload, or Google finishing a
-    // sign-in in another tab — and slowly otherwise.
-    refetchInterval: query =>
-      query.state.data?.state === 'syncing' || query.state.data?.signingIn ? 1_000 : 10_000,
+    // Quickly while an upload is moving, and slowly otherwise.
+    refetchInterval: query => (query.state.data?.state === 'syncing' ? 1_000 : 10_000),
     refetchIntervalInBackground: false,
   })
 }

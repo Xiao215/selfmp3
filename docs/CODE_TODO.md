@@ -101,8 +101,14 @@ device's store, because the only data there is is the owner's.
   each builds its own in-memory library and reads it back, and a case's expectation is
   written as a SQL condition over `songs` on purpose, so an answer is checked against the
   database rather than against the code under test. They are scripts, not services.
-- **The server's sign-in and its reading of other devices' logs stay in `cloudSync.ts`**:
-  each reads and writes the pass's own state (the session and the bucket in use; the newest
-  snapshot of its own and how far its plays reach), so a module of its own would call back
-  into the sync for most of what it does. The sound vectors, the sound map and the plays
-  (`cloudLibraryFiles.ts`) and the pictures (`cloudPictures.ts`) did not, and moved.
+- **The account's doorman session and the reading of other devices' logs stay in
+  `cloudSync.ts`**: each reads and writes the pass's own state (the session and the bucket
+  in use; the newest snapshot of its own and how far its plays reach), so a module of its
+  own would call back into the sync for most of what it does. The sound vectors, the sound
+  map and the plays (`cloudLibraryFiles.ts`) and the pictures (`cloudPictures.ts`) did not,
+  and moved.
+- **`CloudSyncService.syncNow` stays, though only tests call it** since *Publish now* and
+  its route went (2026-11-11). The real entries are `kick`, which waits out a debounce, and
+  `start`; the sync's and the hub's tests drive passes one at a time through `syncNow`, and
+  `verify` starts a pass over against the bucket the way a restart does, without making a
+  second service on the same database.

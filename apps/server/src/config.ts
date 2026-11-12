@@ -234,8 +234,8 @@ const ConfigSchema = z.object({
     .default({}),
 
   /**
-   * The doorman this server signs in to the cloud through (docs/SYNC.md). Empty
-   * means none: the bucket can then only be connected directly, with its key.
+   * The doorman this server reaches each account's bucket through (docs/SYNC.md).
+   * Empty means none, and then only a folder (`SELFMP3_CLOUD_DIR`) can be the bucket.
    */
   doormanUrl: z
     .string()

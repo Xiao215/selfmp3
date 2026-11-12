@@ -1,106 +1,19 @@
 import { Router } from 'express'
-import {
-  CloudConnectSchema,
-  CloudSignInCodeSchema,
-  CloudSignInSchema,
-  type CloudStatus,
-  type CloudUids,
-} from '@selfmp3/shared'
+import type { CloudStatus, CloudUids } from '@selfmp3/shared'
 import type { Container } from '../container.js'
-import { CloudError } from '../bucket/store.js'
-import { HttpError } from '../http/errors.js'
-import { isLocalRequest } from '../http/local.js'
 import { route } from '../http/route.js'
 
 /**
- * This server's way into the cloud bucket (docs/SYNC.md): sign in with Google
- * through the doorman and connect the bucket that belongs to that account —
- * or, with no doorman, connect a bucket directly with its key. Then: see how
- * publishing is going, publish now, disconnect. A key is accepted here and
- * never sent back, and the doorman's session never leaves this server.
- *
- * Only reading is open to a device. Everything that changes the connection —
- * signing in, connecting or dropping a bucket, publishing now — is taken from
- * the server's own machine alone (`isLocalRequest`): a
- * library's token is in every one of its account's devices, and none of them
- * should be able to point the library at another bucket or sign it out. A
- * library on a server working for accounts reaches its bucket through a grant
- * its devices give it anyway (`POST /api/hub/join`).
+ * How this server's library stands with its bucket (docs/SYNC.md). Both are
+ * reads: a library reaches its bucket through the grant its devices gave the
+ * server (`POST /api/hub/join`), and nothing a device sends here repoints it.
  */
 export function cloudRoutes(container: Container): Router {
   const router = Router()
 
-  router.use('/cloud', (req, _res, next) => {
-    const reading = req.method === 'GET' || req.method === 'HEAD'
-    next(
-      reading || isLocalRequest(req)
-        ? undefined
-        : HttpError.forbidden('only on the server itself: open its page there'),
-    )
-  })
-
-  /** The bucket's own answer is the useful part — it goes back to the form as it is. */
-  const explain = async <T>(work: () => Promise<T> | T): Promise<T> => {
-    try {
-      return await work()
-    } catch (error) {
-      if (error instanceof CloudError) {
-        throw error.kind === 'auth'
-          ? HttpError.unauthorized(error.message)
-          : HttpError.unprocessable(error.message)
-      }
-      throw error
-    }
-  }
-
   router.get(
     '/cloud',
     route({}, (): CloudStatus => container.cloudSync.status()),
-  )
-
-  /** Connect a bucket directly with its key: the way in when there is no doorman. */
-  router.put(
-    '/cloud',
-    route({ body: CloudConnectSchema }, ({ body }): Promise<CloudStatus> =>
-      explain(() => container.cloudSync.connect(body)),
-    ),
-  )
-
-  router.delete(
-    '/cloud',
-    route({}, (): CloudStatus => container.cloudSync.disconnect()),
-  )
-
-  /**
-   * Start waiting for a Google sign-in the browser has just opened with this
-   * attempt id. Answers at once; poll GET for the account appearing.
-   */
-  router.post(
-    '/cloud/signin',
-    route({ body: CloudSignInSchema }, ({ body }): Promise<CloudStatus> =>
-      explain(() => container.cloudSync.beginSignIn(body.attempt)),
-    ),
-  )
-
-  router.delete(
-    '/cloud/signin',
-    route({}, (): CloudStatus => container.cloudSync.cancelSignIn()),
-  )
-
-  /** The code Google's sign-in ended with, to claim the session with. */
-  router.post(
-    '/cloud/signin/code',
-    route({ body: CloudSignInCodeSchema }, ({ body }): Promise<CloudStatus> =>
-      explain(() => container.cloudSync.enterSignInCode(body.code)),
-    ),
-  )
-
-  /** Connect a bucket to the signed-in Google account, through the doorman. */
-  router.put(
-    '/cloud/storage',
-    route({ body: CloudConnectSchema }, ({ body }): Promise<CloudStatus> =>
-      explain(() => container.cloudSync.connectStorage(body)),
-    ),
   )
 
   /**
@@ -117,19 +30,6 @@ export function cloudRoutes(container: Container): Router {
     route({}, (): CloudUids => ({
       songs: container.cloudRepo.songFiles().map(song => ({ id: song.id, uid: song.uid })),
     })),
-  )
-
-  /**
-   * Publish now rather than after the next change, checking first what the
-   * bucket really holds. Answers at once; poll GET for progress.
-   */
-  router.post(
-    '/cloud/sync',
-    route({}, (): CloudStatus => {
-      if (!container.cloudSync.connected) throw HttpError.conflict('not connected to a bucket')
-      void container.cloudSync.syncNow({ verify: true })
-      return container.cloudSync.status()
-    }),
   )
 
   return router

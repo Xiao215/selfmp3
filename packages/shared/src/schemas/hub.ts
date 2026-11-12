@@ -22,9 +22,9 @@ export type HubStatus = z.infer<typeof HubStatusSchema>
 
 /**
  * Which library a request from the server's own machine means, by its id in
- * `GET /api/hub`, when it carries no token. The server's page and the
- * `selfmp3` command send it on a server working for several. From anywhere
- * else it is ignored: a library is only ever named there by its token.
+ * `GET /api/hub`, when it carries no token. The `selfmp3` command sends it
+ * on a server working for several. From anywhere else it is ignored: a
+ * library is only ever named there by its token.
  */
 export const HUB_LIBRARY_HEADER = 'X-Selfmp3-Library'
 

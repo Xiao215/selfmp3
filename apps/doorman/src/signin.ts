@@ -72,6 +72,8 @@ export type SignInState = z.infer<typeof StateSchema>
 const DriveStateSchema = z.object({
   /** The Google account's id that asked, and that Google must answer for. */
   drive: z.string().min(1),
+  /** The Drive is where the library is to be moved to (move.ts), not the storage itself yet. */
+  move: z.boolean().optional(),
   returnTo: z.string().nullable(),
   nonce: z.string().regex(TOKEN_PATTERN),
   exp: z.number().int(),

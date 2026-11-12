@@ -314,6 +314,12 @@ redirect URI in step 2).
   part of their library. Disconnecting storage, or connecting a bucket
   instead, hands Google its token back and leaves the folder as it is, and
   connecting Drive again finds the same folder.
+- **Moving a library**: Settings › Account moves a library between a bucket
+  and Google Drive (`/v1/storage/move`, src/move.ts). The device copies it
+  through the doorman a few files at a time, and the new place becomes the
+  storage only once everything is in it; the old place is left as it was. A
+  large library is a few hundred requests, well inside a day's allowance, and
+  a move left half way writes one KV record that the next move replaces.
 - **Old versions in a Backblaze bucket**: B2 keeps a deleted or replaced
   file's old version, billed as stored, unless the bucket's Lifecycle Settings
   say "Keep only the last version of the file" (docs/SYNC.md, *Setting up*).

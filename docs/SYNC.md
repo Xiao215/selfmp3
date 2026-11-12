@@ -912,7 +912,8 @@ page and comes back with the folder made (`POST /v1/storage/drive`, then Google'
 Backblaze?* takes the endpoint, name and region instead (`PUT /v1/storage`). The key goes to the
 doorman, sealed; no device keeps it. A second device signed in to the same account skips the
 page: the storage is already the account's. Afterwards it is *Settings › Account › Storage*, to
-change or disconnect, and *Settings › Account › Computers* lists the servers the account has
+see how much room a Google Drive has left, to move the library to the other kind of place
+(docs/features/storage-providers.md, "Moving") or to disconnect, and *Settings › Account › Computers* lists the servers the account has
 given a grant to, with *Remove* on each.
 
 ---

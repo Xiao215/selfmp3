@@ -496,14 +496,24 @@ export class CloudRepository {
    * remembered about the previous one is forgotten, so the next pass uploads
    * the library to where it now belongs instead of assuming it is already
    * there. A new key, or a new sign-in, for the same bucket keeps it all.
+   *
+   * So does a library moved, file for file, from the place remembered
+   * (`movedFrom`, the doorman's word for it: apps/doorman/src/move.ts).
+   * Everything known of the old place is true of the new one, and forgetting
+   * it would read the logs a second time.
    */
-  adoptTarget(target: CloudTarget): void {
+  adoptTarget(target: CloudTarget, movedFrom?: CloudTarget): void {
     const fingerprint = targetFingerprint(target)
     this.#db.transaction(() => {
       const before = this.#getSecret.get(TARGET_SECRET)?.value
-      if (before !== undefined && storedFingerprint(before) === fingerprint) {
+      const known = before === undefined ? null : storedFingerprint(before)
+      if (known === fingerprint) {
         // Written before spellings were tidied: kept in the tidy form from now on.
         if (before !== fingerprint) this.#setSecret.run(TARGET_SECRET, fingerprint)
+        return
+      }
+      if (known !== null && movedFrom && known === targetFingerprint(movedFrom)) {
+        this.#setSecret.run(TARGET_SECRET, fingerprint)
         return
       }
       this.#forgetUploads()

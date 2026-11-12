@@ -21,7 +21,8 @@ import {
  *
  * Connecting Google Drive is the same trip made by someone already signed in
  * (apps/doorman/src/driveConnect.ts), and ends the same way at
- * `selfmp3://storage`, saying only how it went: nothing is claimed.
+ * `selfmp3://storage`, saying only how it went: nothing is claimed. Asked for
+ * as somewhere to move a library to, it ends at `selfmp3://move`.
  *
  * The inbox keeps a link that arrives before its screen is listening, which a
  * cold launch from a sign-in always is, and hands each code over once.
@@ -29,11 +30,13 @@ import {
 
 /**
  * Where a trip to Google can come back to: Welcome, from signing in, and Where
- * it lives, from connecting Google Drive (`features/welcome/StorageScreen`).
+ * it lives, from connecting Google Drive (`features/welcome/StorageScreen`),
+ * and the Move page, from asking for Drive to move a library into
+ * (`features/settings/MoveScreen`).
  * The owner's admin page signs in on its own (`apps/server/admin/admin.js`),
  * not through the app.
  */
-export type SignInTarget = 'welcome' | 'storage'
+export type SignInTarget = 'welcome' | 'storage' | 'move'
 
 /** What a sign-in came back with: the code that claims it, or why there is none. */
 export type SignInBack =
@@ -44,6 +47,7 @@ export type SignInBack =
 export interface BackTo {
   readonly welcome: SignInBack
   readonly storage: DriveBack
+  readonly move: DriveBack
 }
 
 type SignInLink = {
@@ -64,9 +68,9 @@ export function signInLink(url: string): SignInLink | null {
     .replace(new RegExp(`^${DEEP_LINK_SCHEME}://`), '/')
     .replace(/\/+$/, '')
   const last = path.slice(path.lastIndexOf('/') + 1)
-  if (last === 'storage') {
+  if (last === 'storage' || last === 'move') {
     const back = driveBackFromUrl(url)
-    return back ? { target: 'storage', back } : null
+    return back ? { target: last, back } : null
   }
   if (last !== 'welcome') return null
   const code = signInCodeFromUrl(url)
@@ -91,6 +95,7 @@ export function createSignInInbox(): SignInInbox {
   const listeners: { [Target in SignInTarget]: Set<(back: BackTo[Target]) => void> } = {
     welcome: new Set(),
     storage: new Set(),
+    move: new Set(),
   }
   /*
    * A code is handed over once. The same link can arrive twice — a phone
@@ -108,8 +113,9 @@ export function createSignInInbox(): SignInInbox {
       for (const listener of listeners.welcome) listener(link.back)
       return true
     }
-    if (listeners.storage.size === 0) return false
-    for (const listener of listeners.storage) listener(link.back)
+    const hearing = listeners[link.target]
+    if (hearing.size === 0) return false
+    for (const listener of hearing) listener(link.back)
     return true
   }
 

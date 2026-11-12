@@ -22,6 +22,7 @@ import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
 import { linkPage } from './linkPage.js'
+import * as move from './move.js'
 import { share } from './shareRoutes.js'
 import {
   errorResponse,
@@ -92,6 +93,11 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.storage]: { PUT: storage.connect, DELETE: storage.disconnect },
   [DOORMAN_PATHS.backblaze]: { POST: storage.connectBackblaze },
   [DOORMAN_PATHS.drive]: { POST: driveConnect.start },
+  [DOORMAN_PATHS.space]: { GET: move.space },
+  [DOORMAN_PATHS.move]: { GET: move.state, PUT: move.start, DELETE: move.stop },
+  [DOORMAN_PATHS.moveList]: { GET: move.list },
+  [DOORMAN_PATHS.moveCopy]: { POST: move.copy },
+  [DOORMAN_PATHS.moveFinish]: { POST: move.finish },
   [DOORMAN_PATHS.list]: { GET: files.list },
   [DOORMAN_PATHS.changes]: { GET: files.changes },
 }

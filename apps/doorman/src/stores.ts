@@ -1,5 +1,6 @@
 import { Bucket, type BucketDeps, type BucketTarget } from './bucket.js'
 import { Drive, type DriveDeps, type DriveTarget } from './drive.js'
+import type { DoormanStorage } from '@selfmp3/shared'
 import type { Store } from './store.js'
 
 /**
@@ -7,8 +8,12 @@ import type { Store } from './store.js'
  * reach it, the key or token included. Sealed in KV (accounts.ts), opened
  * only inside the Worker, never sent anywhere.
  */
-export type AccountStorage =
+export type AccountStorage = (
   ({ readonly kind: 'bucket' } & BucketTarget) | ({ readonly kind: 'drive' } & DriveTarget)
+) & {
+  /** Where the library was before it was moved here (move.ts), for `/v1/me` to say. */
+  readonly movedFrom?: DoormanStorage | undefined
+}
 
 /** What the drivers need of the Worker: fetch, a clock, and what each keeps between requests. */
 export interface StoreDeps {

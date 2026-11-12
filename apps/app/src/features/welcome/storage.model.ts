@@ -1,3 +1,4 @@
+import { bytesInWords, type MoveProgress } from '@selfmp3/replica'
 import {
   DRIVE_FOLDER_NAME,
   parseEndpoint,
@@ -50,6 +51,42 @@ export interface AddressFields {
   readonly applicationKey: string
 }
 
+/** What is typed for a bucket, either way of saying which: its key alone, or its address. */
+export interface BucketEntryValue {
+  readonly mode: 'backblaze' | 'address'
+  readonly keyId: string
+  readonly applicationKey: string
+  readonly address: AddressFields
+}
+
+export const NEW_BUCKET_ENTRY: BucketEntryValue = {
+  mode: 'backblaze',
+  keyId: '',
+  applicationKey: '',
+  address: {
+    endpoint: '',
+    region: '',
+    bucket: '',
+    prefix: 'selfmp3',
+    keyId: '',
+    applicationKey: '',
+  },
+}
+
+/** Enough typed for Connect, or Move, to mean anything. */
+export function bucketEntryReady(entry: BucketEntryValue): boolean {
+  return entry.mode === 'backblaze'
+    ? backblazeReady(entry.keyId, entry.applicationKey)
+    : addressReady(entry.address)
+}
+
+/** What to say when it is pressed before that. */
+export function bucketEntryMissing(entry: BucketEntryValue): string {
+  return entry.mode === 'backblaze'
+    ? 'Both strings are needed: the key ID and the application key.'
+    : 'The address, the bucket, the key ID and the application key are all needed.'
+}
+
 /** An address that does not name its region — Cloudflare R2's, say — needs one typed. */
 export function needsRegion(endpoint: string): boolean {
   const parsed = endpoint.trim() ? parseEndpoint(endpoint) : null
@@ -78,6 +115,67 @@ export function whereItIs(storage: DoormanStorage): string {
   return /\.backblazeb2\.com$/i.test(host)
     ? `${storage.bucket} on Backblaze, ${storage.region}`
     : `${storage.bucket} at ${host}`
+}
+
+/** "self.mp3 in your Google Drive" as the place something was left: "the self.mp3 folder in your Google Drive". */
+function placeOf(storage: DoormanStorage): string {
+  return storage.kind === 'drive'
+    ? `the ${DRIVE_FOLDER_NAME} folder in your Google Drive`
+    : whereItIs(storage)
+}
+
+/** Where a library is moved from the Account page (`features/settings/MoveScreen`). */
+export const MOVE_ROUTE = '/move'
+
+/** The one other place a library can go: a bucket's goes to Google Drive, a Drive's to a bucket. */
+export function moveTarget(storage: DoormanStorage): 'drive' | 'bucket' {
+  return storage.kind === 'drive' ? 'bucket' : 'drive'
+}
+
+/** The one thing to do about where the library is, on the Account page. */
+export function moveAction(storage: DoormanStorage): string {
+  return moveTarget(storage) === 'drive'
+    ? 'Move your library to Google Drive'
+    : 'Move your library to your own bucket'
+}
+
+/** "4.1 GB free of 15 GB", or what is used where a Google account has no limit. */
+export function spaceLine(space: { readonly used: number; readonly limit: number | null }): string {
+  if (space.limit === null) return `${bytesInWords(space.used)} used`
+  const free = Math.max(0, space.limit - space.used)
+  return `${bytesInWords(free)} free of ${bytesInWords(space.limit)}`
+}
+
+/** Nearly full: the line is drawn as a warning from here (`SPACE_LOW`). */
+export function spaceLow(space: { readonly used: number; readonly limit: number | null }): boolean {
+  return space.limit !== null && space.used >= space.limit * SPACE_LOW
+}
+const SPACE_LOW = 0.8
+
+const counted = (n: number): string => n.toLocaleString('en-US')
+
+/** "Moving 412 of 1,930 songs", and what the page says before and after the songs. */
+export function moveProgressLine(progress: MoveProgress): string {
+  switch (progress.phase) {
+    case 'looking':
+      return 'Looking at what there is to move…'
+    case 'songs':
+      return `Moving ${counted(progress.done)} of ${counted(progress.total)} songs`
+    case 'rest':
+      return `Moving covers, lyrics and the rest: ${counted(progress.done)} of ${counted(progress.total)}`
+    case 'finishing':
+      return 'Everything is across. Finishing…'
+  }
+}
+
+/** What the page says once the library is in its new place. */
+export function movedLine(from: DoormanStorage, to: DoormanStorage): string {
+  return `Your library is now in ${placeOf(to)}. The copy in ${placeOf(from)} was left as it was; you can delete it there.`
+}
+
+/** What the page says of a move begun before and not finished. */
+export function unfinishedMoveLine(to: DoormanStorage): string {
+  return `A move to ${placeOf(to)} was started and not finished. Nothing has changed: your library is still where it was.`
 }
 
 /**

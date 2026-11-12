@@ -18,7 +18,8 @@ import { DRIVE_SCOPE, GoogleError, authUrl, checkIdToken, exchangeCode } from '.
 import { page } from './html.js'
 import { json, notSetUp, readJson, redirect } from './http.js'
 import { openState, pkceChallenge, pkceVerifier, signState, type DriveState } from './signin.js'
-import { checkFormat, letGo } from './storage.js'
+import { holdsLibrary, movable } from './move.js'
+import { checkFormat, dropMove, letGo } from './storage.js'
 import { StoreError } from './store.js'
 
 /**
@@ -56,9 +57,13 @@ export async function start(ctx: Context): Promise<Response> {
   if (!google) throw notSetUp('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set.')
   const keys = await ctx.keys()
 
+  // A move needs somewhere to move from, and somewhere else to move to.
+  if (input.move) await movable(ctx, session.sub, 'drive')
+
   const nonce = randomToken()
   const state: DriveState = {
     drive: session.sub,
+    ...(input.move ? { move: true } : {}),
     returnTo: auth.safeReturn(
       input.returnTo ?? null,
       ctx.origins,
@@ -121,7 +126,9 @@ export async function callback(ctx: Context): Promise<Response> {
     if (!answer.refreshToken) throw new GoogleError('Google answered without a refresh token', 502)
 
     target = await prepareDrive(answer.refreshToken, ctx.storeDeps.drive)
-    await checkFormat(new Drive(target, ctx.storeDeps.drive), ctx.now)
+    const drive = new Drive(target, ctx.storeDeps.drive)
+    await checkFormat(drive, ctx.now)
+    if (state.move && (await holdsLibrary(drive))) return ended(state, DRIVE_REFUSAL.holdsLibrary)
   } catch (error) {
     // A format.json this build may not write to is said as it is (`checkFormat`).
     if (error instanceof DoormanError && error.code === DOORMAN_ERROR.unprocessable) {
@@ -134,9 +141,15 @@ export async function callback(ctx: Context): Promise<Response> {
     return ended(state, DRIVE_REFUSAL.failed, said)
   }
 
+  if (state.move) {
+    // The storage is left as it is: the Drive is only where the move is going (move.ts).
+    await ctx.accounts.startMove(state.drive, { kind: 'drive', ...target })
+    return ended(state, null)
+  }
   const previous = await ctx.accounts.storage(state.drive)
   await ctx.accounts.connect(state.drive, { kind: 'drive', ...target })
   letGo(ctx, previous, 'drive')
+  await dropMove(ctx, state.drive, 'drive')
   return ended(state, null)
 }
 
@@ -157,7 +170,11 @@ function ended(state: DriveState, refusal: DriveRefusal | null, said?: string): 
     return page({
       status: 200,
       title: 'Google Drive is connected',
-      lines: ['Your music will be kept in a folder called self.mp3 in your Google Drive.'],
+      lines: [
+        state.move
+          ? 'Your library can be moved to a folder called self.mp3 in your Google Drive.'
+          : 'Your music will be kept in a folder called self.mp3 in your Google Drive.',
+      ],
       notes: ['Go back to self.mp3.'],
     })
   }

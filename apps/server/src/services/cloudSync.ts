@@ -26,6 +26,7 @@ import {
   type CloudSnapshot,
   type CloudStatus,
   type DoormanMe,
+  type DoormanStorage,
   type CloudServer,
   sameStorage,
   storagePlace,
@@ -730,7 +731,7 @@ export class CloudSyncService {
       this.#target = { ...me.storage }
       return
     }
-    this.#useDoorman(session)
+    this.#useDoorman(session, me.movedFrom)
     void this.#pass()
   }
 
@@ -2116,10 +2117,14 @@ export class CloudSyncService {
     })
   }
 
-  #useDoorman(session: DoormanSession): void {
+  /** `movedFrom`: where the doorman says the library was moved here from, when it was. */
+  #useDoorman(session: DoormanSession, movedFrom?: DoormanStorage): void {
     const storage = session.storage
     if (!storage || !this.#doorman) return
-    this.#deps.cloud.adoptTarget(storageTarget(storage))
+    this.#deps.cloud.adoptTarget(
+      storageTarget(storage),
+      movedFrom ? storageTarget(movedFrom) : undefined,
+    )
     const { host, folder } = storagePlace(storage)
     this.#use(this.#doorman.store(session.token, `${host} · ${folder} (via the doorman)`), {
       ...storage,

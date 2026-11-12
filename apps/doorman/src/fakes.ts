@@ -310,6 +310,8 @@ export interface ConnectDriveOptions {
   readonly as?: Partial<Profile>
   readonly returnTo?: string | null
   readonly grant?: DriveGrant
+  /** The Drive is asked for as somewhere to move the library to (move.ts). */
+  readonly move?: boolean
 }
 
 export interface CallInit {
@@ -508,7 +510,7 @@ export function harness(): Harness {
   ): Promise<Response> => {
     const started = await call('/v1/storage/drive', {
       token,
-      json: { returnTo: options.returnTo ?? null },
+      json: { returnTo: options.returnTo ?? null, ...(options.move ? { move: true } : {}) },
     })
     if (!started.ok) return started
     const sentTo = new URL(DoormanDriveStartedSchema.parse(await started.json()).url)

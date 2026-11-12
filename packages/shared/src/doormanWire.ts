@@ -45,6 +45,8 @@ export const DOORMAN_ERROR = {
   wrongCode: 'wrong_code',
   /** The account has no bucket yet: connect one first. */
   noStorage: 'no_storage',
+  /** Nothing is being moved: start a move first (`DoormanMoveSchema`). */
+  noMove: 'no_move',
   /** The account already lets the most servers in it may (`MAX_GRANTS`). */
   tooManyGrants: 'too_many_grants',
 
@@ -234,6 +236,11 @@ export const DOORMAN_PATHS = {
   storage: '/v1/storage',
   backblaze: '/v1/storage/backblaze',
   drive: '/v1/storage/drive',
+  space: '/v1/storage/space',
+  move: '/v1/storage/move',
+  moveList: '/v1/storage/move/list',
+  moveCopy: '/v1/storage/move/copy',
+  moveFinish: '/v1/storage/move/finish',
   changes: '/v1/changes',
   /** An iPhone's ID, for the iPhone app's install page (apps/doorman/src/device.ts). */
   device: '/v1/device',
@@ -251,6 +258,11 @@ export const DOORMAN_PATHS = {
   /** One page of a folder: `/v1/list?prefix=log/&cursor=…`. */
   listing: (prefix: string, cursor?: string | null): string =>
     `${LIST}${query({ prefix, cursor })}`,
+  /** One page of everything the place a move is going to holds so far. */
+  moveListing: (cursor?: string | null): string => `/v1/storage/move/list${query({ cursor })}`,
+  /** The room in the storage, or in the place a move is going to. */
+  spaceOf: (of: 'storage' | 'move'): string =>
+    `/v1/storage/space${query({ of: of === 'move' ? 'move' : null })}`,
   /** `/v1/files/<key>`. */
   file: (key: string): string => `${FILES}${encodeKey(key)}`,
   grant: (id: string): string => `${GRANTS}/${encodeURIComponent(id)}`,

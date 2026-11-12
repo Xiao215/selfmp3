@@ -151,6 +151,23 @@ describe('the account’s session and the bucket it points at', () => {
     expect(cloud.hasFile(`audio/${'a'.repeat(64)}.m4a`)).toBe(false)
   })
 
+  it('keeps what was uploaded when the library was moved from the place it knew', () => {
+    const key = `audio/${'a'.repeat(64)}.m4a`
+    const drive = { endpoint: 'drive://', bucket: '1AbC', prefix: '' }
+    cloud.adoptTarget(target)
+    cloud.recordFile(key, 10)
+
+    cloud.adoptTarget(drive, target)
+    expect(cloud.hasFile(key)).toBe(true)
+    // The new place is the one remembered now.
+    cloud.adoptTarget(drive)
+    expect(cloud.hasFile(key)).toBe(true)
+
+    // Moved from somewhere this server never knew: nothing it holds is about that.
+    cloud.adoptTarget(target, { ...target, prefix: 'elsewhere' })
+    expect(cloud.hasFile(key)).toBe(false)
+  })
+
   it('keeps what was uploaded when the same folder or endpoint is only spelt another way', () => {
     const key = `audio/${'a'.repeat(64)}.m4a`
     // As a server before tidy spellings stored it: a folder with a trailing slash.

@@ -6,7 +6,10 @@ import {
   DoormanClaimResultSchema,
   DoormanError,
   DoormanDriveStartedSchema,
+  DoormanListSchema,
   DoormanMeSchema,
+  DoormanMoveSchema,
+  DoormanSpaceSchema,
   SIGN_IN_TTL_MS,
   bucketCallOf,
   doormanRequest,
@@ -15,11 +18,15 @@ import {
   type CloudConnect,
   type DoormanBackblazeConnect,
   type DoormanMe,
+  type DoormanMoveStart,
+  type DoormanSpace,
+  type DoormanStorage,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { bucketHold, holdBucket, keepHolds, releaseBucket } from './hold.js'
 import type { CloudPlatform, CloudResponse } from './platform.js'
 import { forgetDoormanTrouble, noteDoormanAnswer } from './reach.js'
+import type { MoveApi } from './storageMove.js'
 
 /**
  * Signed in to the doorman (docs/SYNC.md).
@@ -118,7 +125,25 @@ export interface CloudSessionApi {
    * the browser returns to `returnTo` saying how it went (shared's
    * `driveBackFromUrl`), after which `refreshSession` finds the storage.
    */
-  beginDriveConnect: (session: CloudSession, returnTo: string | null) => Promise<void>
+  beginDriveConnect: (
+    session: CloudSession,
+    returnTo: string | null,
+    /** The Drive is asked for as where to move the library to, not as the storage. */
+    move?: boolean,
+  ) => Promise<void>
+  /** How much room the storage has, or the place a move is going to. Null for a bucket. */
+  storageSpace: (session: CloudSession, of: 'storage' | 'move') => Promise<DoormanSpace['space']>
+  /** Where the move under way is going, or null when there is none. */
+  movingTo: (session: CloudSession) => Promise<DoormanStorage | null>
+  /** A bucket to move the library to: tried, then kept as where the move is going. */
+  startMove: (session: CloudSession, input: DoormanMoveStart) => Promise<DoormanStorage | null>
+  /** Stop the move under way. The storage is as it was. */
+  stopMove: (session: CloudSession) => Promise<void>
+  /**
+   * The doorman's half of a move, for `runMove` (storageMove.ts). Finishing
+   * makes the new place the storage, and the stored session follows.
+   */
+  moveApi: (session: CloudSession) => MoveApi
   /** Forget the account's storage. It and its files are left alone. */
   disconnectStorage: (session: CloudSession) => Promise<CloudSession>
   /**
@@ -387,13 +412,71 @@ export function createCloudSession(
       return keepAnswer(session, response)
     },
 
-    async beginDriveConnect(session: CloudSession, returnTo: string | null): Promise<void> {
+    async beginDriveConnect(
+      session: CloudSession,
+      returnTo: string | null,
+      move = false,
+    ): Promise<void> {
       const response = await doormanFetch(session, DOORMAN_PATHS.drive, {
         method: 'POST',
-        json: { returnTo },
+        json: move ? { returnTo, move } : { returnTo },
       })
       const { url } = DoormanDriveStartedSchema.parse(await response.json())
       await platform.openSignIn(url)
+    },
+
+    async storageSpace(
+      session: CloudSession,
+      of: 'storage' | 'move',
+    ): Promise<DoormanSpace['space']> {
+      const response = await doormanFetch(session, DOORMAN_PATHS.spaceOf(of))
+      return DoormanSpaceSchema.parse(await response.json()).space
+    },
+
+    async movingTo(session: CloudSession): Promise<DoormanStorage | null> {
+      const response = await doormanFetch(session, DOORMAN_PATHS.move)
+      return DoormanMoveSchema.parse(await response.json()).to
+    },
+
+    async startMove(
+      session: CloudSession,
+      input: DoormanMoveStart,
+    ): Promise<DoormanStorage | null> {
+      const response = await doormanFetch(session, DOORMAN_PATHS.move, {
+        method: 'PUT',
+        json: input,
+      })
+      return DoormanMoveSchema.parse(await response.json()).to
+    },
+
+    async stopMove(session: CloudSession): Promise<void> {
+      await doormanFetch(session, DOORMAN_PATHS.move, { method: 'DELETE' })
+    },
+
+    moveApi(session: CloudSession): MoveApi {
+      const listed = async (path: string) =>
+        DoormanListSchema.parse(await (await doormanFetch(session, path)).json())
+      return {
+        listFrom: cursor => listed(DOORMAN_PATHS.listing('', cursor)),
+        listTo: cursor => listed(DOORMAN_PATHS.moveListing(cursor)),
+        room: async () => {
+          const response = await doormanFetch(session, DOORMAN_PATHS.spaceOf('move'))
+          return DoormanSpaceSchema.parse(await response.json()).space
+        },
+        copy: async (keys, remove) => {
+          await doormanFetch(session, DOORMAN_PATHS.moveCopy, {
+            method: 'POST',
+            json: { keys, remove },
+          })
+        },
+        finish: async () => {
+          const response = await doormanFetch(session, DOORMAN_PATHS.moveFinish, {
+            method: 'POST',
+            json: {},
+          })
+          await keepAnswer(session, response)
+        },
+      }
     },
 
     async disconnectStorage(session: CloudSession): Promise<CloudSession> {

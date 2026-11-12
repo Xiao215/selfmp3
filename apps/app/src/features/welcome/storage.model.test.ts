@@ -7,7 +7,12 @@ import {
   backblazeReady,
   cloudConnectInput,
   driveArrived,
+  moveAction,
+  movedLine,
+  moveProgressLine,
   needsRegion,
+  spaceLine,
+  spaceLow,
   storageDue,
   whereItIs,
 } from './storage.model'
@@ -143,5 +148,47 @@ describe('the address as it is sent', () => {
     expect(
       cloudConnectInput({ ...typed, endpoint: 'abc123.r2.cloudflarestorage.com' }).region,
     ).toBe('auto')
+  })
+})
+
+describe('moving the library', () => {
+  const bucket = {
+    kind: 'bucket' as const,
+    endpoint: 'https://s3.us-west-004.backblazeb2.com',
+    region: 'us-west-004',
+    bucket: 'my-music',
+    prefix: 'selfmp3',
+    keyIdHint: '004abc…',
+  }
+  const drive = { kind: 'drive' as const, folder: '1AbC' }
+
+  it('names the one other place a library can go', () => {
+    expect(moveAction(bucket)).toBe('Move your library to Google Drive')
+    expect(moveAction(drive)).toBe('Move your library to your own bucket')
+  })
+
+  it('says how much room is left, and when that is little', () => {
+    const GB = 1024 ** 3
+    expect(spaceLine({ used: 10.9 * GB, limit: 15 * GB })).toBe('4.1 GB free of 15 GB')
+    expect(spaceLine({ used: 16 * GB, limit: 15 * GB })).toBe('0 MB free of 15 GB')
+    expect(spaceLine({ used: 2 * GB, limit: null })).toBe('2.0 GB used')
+    expect(spaceLow({ used: 11 * GB, limit: 15 * GB })).toBe(false)
+    expect(spaceLow({ used: 12 * GB, limit: 15 * GB })).toBe(true)
+    expect(spaceLow({ used: 900 * GB, limit: null })).toBe(false)
+  })
+
+  it('says how far a move has got', () => {
+    expect(moveProgressLine({ phase: 'songs', done: 412, total: 1930 })).toBe(
+      'Moving 412 of 1,930 songs',
+    )
+    expect(moveProgressLine({ phase: 'rest', done: 3, total: 2400 })).toBe(
+      'Moving covers, lyrics and the rest: 3 of 2,400',
+    )
+  })
+
+  it('says where the library is now, and that the old copy was left', () => {
+    expect(movedLine(drive, bucket)).toBe(
+      'Your library is now in my-music on Backblaze, us-west-004. The copy in the self.mp3 folder in your Google Drive was left as it was; you can delete it there.',
+    )
   })
 })

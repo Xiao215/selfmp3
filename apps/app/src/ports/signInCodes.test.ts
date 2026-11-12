@@ -75,6 +75,11 @@ describe('a link back from connecting Google Drive', () => {
     expect(signInLink('selfmp3://storage#signin-code=4F7K2QXM')).toBeNull()
     expect(signInLink('selfmp3://welcome#storage=connected')).toBeNull()
     expect(signInLink('selfmp3://storage')).toBeNull()
+    // The same trip, asked for as somewhere to move a library to.
+    expect(signInLink('selfmp3://move#storage-refused=holds-library')).toEqual({
+      target: 'move',
+      back: { kind: 'refused', refusal: 'holds-library' },
+    })
     expect(signInLink('selfmp3://storage#storage-refused=because')).toBeNull()
   })
 

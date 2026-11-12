@@ -1,4 +1,4 @@
-import type { DoormanMe, DoormanStorage } from '@selfmp3/shared'
+import { DoormanStorageSchema, type DoormanMe, type DoormanStorage } from '@selfmp3/shared'
 import { z } from 'zod'
 import { keep, recall, remember, type BoundedCache } from './boundedCache.js'
 import type { Log } from './context.js'
@@ -17,6 +17,9 @@ import type { AccountStorage } from './stores.js'
  *   bucket:<sub>    where the library is and the way in, sealed (see seal.ts):
  *                   a bucket's details and key, or a Google Drive folder's ids
  *                   and Google's refresh token
+ *   move:<sub>      where the library is being moved to, sealed the same way,
+ *                   from the moment the new place is connected until the move
+ *                   is finished or stopped (move.ts)
  *   signout:<sub>   { sessionsValidAfter }: older sessions are refused
  *
  * Each has a key of its own, written only by the one thing that changes it:
@@ -42,13 +45,16 @@ const StoredBucketSchema = z.object({
   applicationKey: z.string(),
 })
 
+/** Where the library was moved here from, kept with the record so `/v1/me` can say (move.ts). */
+const Moved = { movedFrom: DoormanStorageSchema.optional() }
+
 /**
  * What is sealed. A Drive record says it is one; a bucket's is the bucket's
  * details and nothing else, as it was before there was any other kind.
  */
 const StoredStorageSchema = z.union([
-  DriveTargetSchema.extend({ kind: z.literal('drive') }),
-  StoredBucketSchema.transform(bucket => ({ kind: 'bucket' as const, ...bucket })),
+  DriveTargetSchema.extend({ kind: z.literal('drive'), ...Moved }),
+  StoredBucketSchema.extend(Moved).transform(bucket => ({ kind: 'bucket' as const, ...bucket })),
 ])
 
 const SignOutSchema = z.object({ sessionsValidAfter: z.string().datetime() })
@@ -116,11 +122,8 @@ export class Accounts {
     const opened = this.#cache.opened.get(cacheKey)
     if (opened) return opened
 
-    const { seal: key } = await this.#keys()
-    let storage: AccountStorage
-    try {
-      storage = StoredStorageSchema.parse(JSON.parse(await unseal(sealed, key, bucketKey(sub))))
-    } catch {
+    const storage = await this.#open(sealed, bucketKey(sub))
+    if (!storage) {
       this.#log.warn('an account’s storage could not be opened; treating it as not connected')
       return null
     }
@@ -130,13 +133,47 @@ export class Accounts {
 
   /** Seal storage and make it the account's, replacing any it had. One KV write. */
   async connect(sub: string, storage: AccountStorage): Promise<void> {
+    const sealed = await this.#seal(storage, bucketKey(sub))
+    await this.#kv.put(bucketKey(sub), sealed)
+    this.#set(this.#cache.sealed, sub, sealed)
+  }
+
+  /**
+   * Where the account's library is being moved to, or null when no move is
+   * under way. Read from KV each time: a move is one device's few hundred
+   * requests, once, and the browser that connected Google Drive for it may
+   * have reached another instance than the device's next request does.
+   */
+  async moving(sub: string): Promise<AccountStorage | null> {
+    const sealed = await this.#kv.get(moveKey(sub))
+    return sealed === null ? null : this.#open(sealed, moveKey(sub))
+  }
+
+  /** Keep the place a move is going to, replacing one begun before. One KV write. */
+  async startMove(sub: string, to: AccountStorage): Promise<void> {
+    await this.#kv.put(moveKey(sub), await this.#seal(to, moveKey(sub)))
+  }
+
+  /** Forget the place a move was going to. It and what was copied there are left alone. */
+  async stopMove(sub: string): Promise<void> {
+    await this.#kv.delete(moveKey(sub))
+  }
+
+  async #seal(storage: AccountStorage, context: string): Promise<string> {
     const { seal: key } = await this.#keys()
     // A bucket's record is its details alone (`StoredStorageSchema`).
     const { kind, ...details } = storage
-    const record = kind === 'drive' ? storage : details
-    const sealed = await seal(JSON.stringify(record), key, bucketKey(sub))
-    await this.#kv.put(bucketKey(sub), sealed)
-    this.#set(this.#cache.sealed, sub, sealed)
+    return seal(JSON.stringify(kind === 'drive' ? storage : details), key, context)
+  }
+
+  /** A sealed record opened, or null for one that will not open under this SEAL_KEY and name. */
+  async #open(sealed: string, context: string): Promise<AccountStorage | null> {
+    const { seal: key } = await this.#keys()
+    try {
+      return StoredStorageSchema.parse(JSON.parse(await unseal(sealed, key, context)))
+    } catch {
+      return null
+    }
   }
 
   /** Forget the storage. It and everything in it are left alone. One KV write. */
@@ -171,6 +208,7 @@ export class Accounts {
       name: session.name,
       picture: session.picture,
       storage: storage && described(storage),
+      ...(storage?.movedFrom ? { movedFrom: storage.movedFrom } : {}),
     }
   }
 
@@ -199,7 +237,8 @@ async function accountId(sub: string): Promise<string> {
   return (await sha256Hex(`account:${sub}`)).slice(0, 32)
 }
 
-function described(storage: AccountStorage): DoormanStorage {
+/** Storage as a device may know it: where it is, and never the way in. */
+export function described(storage: AccountStorage): DoormanStorage {
   if (storage.kind === 'drive') return { kind: 'drive', folder: storage.root }
   return {
     kind: 'bucket',
@@ -213,6 +252,10 @@ function described(storage: AccountStorage): DoormanStorage {
 
 function bucketKey(sub: string): string {
   return `bucket:${sub}`
+}
+
+function moveKey(sub: string): string {
+  return `move:${sub}`
 }
 
 function signOutKey(sub: string): string {

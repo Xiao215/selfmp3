@@ -58,6 +58,10 @@ export class FakeDrive {
   busy = false
   /** The account's Google storage is full: uploads are refused. */
   full = false
+  /** The account's Google storage in bytes, or null for an account with no limit. */
+  limit: number | null = 15 * 1024 ** 3
+  /** What Gmail and Photos take of it, beside the files here. */
+  usedElsewhere = 0
   /** An upload is answered with Drive's default few fields, whatever was asked for. */
   terse = false
   /** The clock files are stamped by, a millisecond on for each. */
@@ -141,6 +145,19 @@ export class FakeDrive {
     const { pathname } = url
     if (pathname === '/upload/drive/v3/files' || pathname.startsWith('/upload/drive/v3/files/')) {
       return this.#upload(incoming, url, pathname.slice('/upload/drive/v3/files'.length + 1))
+    }
+    if (pathname === '/drive/v3/about' && incoming.method === 'GET') {
+      if (url.searchParams.get('fields') !== 'storageQuota') {
+        return driveError(400, 'required', 'The "fields" parameter is required for this method.')
+      }
+      let usage = this.usedElsewhere
+      for (const file of this.files.values()) usage += file.body.length
+      return json({
+        storageQuota: {
+          ...(this.limit === null ? {} : { limit: String(this.limit) }),
+          usage: String(usage),
+        },
+      })
     }
     if (pathname === '/drive/v3/files') {
       if (incoming.method === 'GET') return this.#search(url.searchParams)

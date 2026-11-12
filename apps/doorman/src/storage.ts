@@ -12,6 +12,7 @@ import {
   newCloudFormatText,
   parseEndpoint,
   type CloudConnect,
+  type DoormanBackblazeConnect,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { Bucket, type BucketTarget } from './bucket.js'
@@ -59,7 +60,7 @@ export async function me(ctx: Context): Promise<Response> {
 /** `PUT /v1/storage` — connect a bucket, or replace the one connected. */
 export async function connect(ctx: Context): Promise<Response> {
   const session = await requireDevice(ctx)
-  const target = targetFrom(await readJson(ctx.request, CloudConnectSchema), ctx.env.DEV === 'true')
+  const target = bucketFrom(ctx, await readJson(ctx.request, CloudConnectSchema))
   await tryThenKeep(ctx, session, target)
   return json(await ctx.accounts.me(session))
 }
@@ -77,7 +78,24 @@ export async function connect(ctx: Context): Promise<Response> {
  */
 export async function connectBackblaze(ctx: Context): Promise<Response> {
   const session = await requireDevice(ctx)
-  const input = await readJson(ctx.request, DoormanBackblazeConnectSchema)
+  const target = await backblazeBucket(
+    ctx,
+    await readJson(ctx.request, DoormanBackblazeConnectSchema),
+  )
+  await tryThenKeep(ctx, session, target)
+  return json(await ctx.accounts.me(session))
+}
+
+/** A bucket from the form's fields, tidied and checked for shape. Nothing is asked of it yet. */
+export function bucketFrom(ctx: Context, input: CloudConnect): BucketTarget {
+  return targetFrom(input, ctx.env.DEV === 'true')
+}
+
+/** The bucket a Backblaze key opens, as Backblaze says, with its lifecycle rules checked. */
+export async function backblazeBucket(
+  ctx: Context,
+  input: DoormanBackblazeConnect,
+): Promise<BucketTarget> {
   const found = await askBackblaze(ctx, input.keyId, input.applicationKey)
   const parsed = CloudConnectSchema.safeParse({
     endpoint: found.endpoint,
@@ -89,12 +107,14 @@ export async function connectBackblaze(ctx: Context): Promise<Response> {
   if (!parsed.success) throw badRequest(formatZodError(parsed.error))
   const target = targetFrom(parsed.data, ctx.env.DEV === 'true')
   await checkLifecycle(ctx, found, target.prefix)
-  await tryThenKeep(ctx, session, target)
-  return json(await ctx.accounts.me(session))
+  return target
 }
 
-/** The key is tried against the bucket before anything is kept; a refusal is the bucket's own words. */
-async function tryThenKeep(ctx: Context, session: Session, target: BucketTarget): Promise<void> {
+/**
+ * The key tried against the bucket: list, then `format.json` read, or written
+ * and read back. A refusal is the bucket's own words, for the form.
+ */
+export async function tryBucket(ctx: Context, target: BucketTarget): Promise<Bucket> {
   const bucket = new Bucket(target, ctx.storeDeps.bucket)
   try {
     await bucket.list(FORMAT_KEY, null)
@@ -104,9 +124,32 @@ async function tryThenKeep(ctx: Context, session: Session, target: BucketTarget)
     if (error instanceof StoreError) throw unprocessable(error.message)
     throw error
   }
+  return bucket
+}
+
+/** The key is tried against the bucket before anything is kept. */
+async function tryThenKeep(ctx: Context, session: Session, target: BucketTarget): Promise<void> {
+  await tryBucket(ctx, target)
   const previous = await ctx.accounts.storage(session.sub)
   await ctx.accounts.connect(session.sub, { kind: 'bucket', ...target })
   letGo(ctx, previous, 'bucket')
+  await dropMove(ctx, session.sub, 'bucket')
+}
+
+/**
+ * A move under way ends when the storage is changed some other way: where it
+ * was going is forgotten, and a Google Drive it was going to is let go of as
+ * `letGo` lets one go. What was copied there is left alone.
+ */
+export async function dropMove(
+  ctx: Context,
+  sub: string,
+  now: AccountStorage['kind'] | null,
+): Promise<void> {
+  const to = await ctx.accounts.moving(sub)
+  if (!to) return
+  await ctx.accounts.stopMove(sub)
+  letGo(ctx, to, now)
 }
 
 /**
@@ -321,6 +364,7 @@ export async function disconnect(ctx: Context): Promise<Response> {
   const previous = await ctx.accounts.storage(session.sub)
   await ctx.accounts.disconnect(session.sub)
   letGo(ctx, previous, null)
+  await dropMove(ctx, session.sub, null)
   return json(await ctx.accounts.me(session))
 }
 

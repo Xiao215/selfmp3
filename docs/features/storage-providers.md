@@ -19,7 +19,8 @@ that needs from the owner, and what to check first, is under "Before it is real"
 ## What does not change
 
 - **One library, one store.** An account has a bucket or a Drive folder, never both, and
-  connecting one replaces the other. Nothing copies a library across; that is "Later".
+  connecting one replaces the other. A library goes from one to the other only by being
+  moved, whole ("Moving", below): the new place is the storage once everything is in it.
 - **The keys.** `audio/<sha>.m4a`, `snapshots/…`, `log/<device>/…` are the same in either
   store, so `packages/shared`, the server, the replica and every device are untouched by
   which one an account has. Only the doorman knows.
@@ -183,7 +184,8 @@ for six months — is told the way a refused bucket key is (`bucket_refused_key`
   the "Daily limit used up" line and its Backblaze buttons stay a bucket's.
 - **Drive's version of the cap is being full.** `403 storageQuotaExceeded` is a new kind,
   `full`, sent as `storage_full`: writes are refused, reads go on. The server's pass stops
-  at it as it does at a cap. The banner that offers more space is "Later".
+  at it as it does at a cap. Settings › Account says how much room is left before that
+  ("The page").
 - **The Worker.** Bytes stream through in both directions as before, so CPU is unchanged.
   The extra per request is a search's JSON, a few hundred bytes.
 
@@ -215,7 +217,12 @@ from a capped bucket still says `lender_cap_exceeded`; from a Drive there is no 
 Where it lives opens on Google Drive: one line of what happens, **Use Google Drive**, and
 under it **Use your own bucket instead**, which is the page as it was (a Backblaze key, or
 *Not Backblaze?* for an address). Settings › Account › Storage says "self.mp3 in your Google
-Drive" and its **Change** opens the same page.
+Drive", and under it how much of the Google account's storage is free ("4.1 GB free of
+15 GB", from Drive's `about.get` through `GET /v1/storage/space`; in the warning colour from
+80% used). A bucket has no size to ask about and no such line. The one action there is
+**Move your library to your own bucket**, or **…to Google Drive**: there is no Change, so
+nothing on the page can point the account at an empty place by mistake. Disconnecting is
+still at the foot of the page.
 
 - **A. Drive first, the bucket one press away.** (Built, recommended.)
 - **B. Two cards side by side**, Drive and a bucket, neither first. More to read on the one
@@ -223,15 +230,39 @@ Drive" and its **Change** opens the same page.
 - **C. Drive only, with the bucket in Settings.** Hides the choice from the person who
   came for it.
 
-## Later
+## Moving
 
-Not built, and shaped to fit:
+Built with the page above (`apps/doorman/src/move.ts`, `packages/replica/src/storageMove.ts`,
+`apps/app/src/features/settings/MoveScreen.tsx`). The word everywhere is *move*.
 
-- **A banner at about 80% of the Drive's space**, or when an upload is refused (`storage_full`
-  is the hook), offering **Get more Google storage** or **Move to your own bucket**. Drive's
-  `about.get` gives the numbers.
-- **A resumable move** from any store to any store. `Store` is what both ends of it would
-  be written against; it would run in steps or on the server because of the Worker's limits.
+- **One storage throughout.** The new place is connected the way Where it lives connects it
+  (a yes on Google's page with `move: true`, or a bucket's key to `PUT /v1/storage/move`),
+  but kept beside the storage as where the move is going (`move:<sub>` in KV, sealed). Every
+  device goes on reading and writing the old place until the move is finished.
+- **The device drives it.** A Worker's answer may make fifty requests and use ten
+  milliseconds of CPU, and a library is thousands of files. The page lists both places, and
+  names what the new one lacks eight files at a time (`POST /v1/storage/move/copy`); the
+  doorman streams each from one store into the other, with its type and encoding. Songs go
+  first ("Moving 412 of 1,930 songs"), then covers and lyrics, then logs, and snapshots
+  last. It lists again until a round finds nothing to copy, so a song imported meanwhile is
+  in the next round.
+- **Finishing is one step.** `POST /v1/storage/move/finish` makes the new place the
+  storage. The doorman refuses if the newest snapshot is not across. `/v1/me` then carries
+  `movedFrom`, and a server that kept its books against the old place keeps them
+  (`adoptTarget`): everything it knew is true of the new one.
+- **Every way out is safe.** Stop, a closed page or a locked phone change nothing. The page
+  offers an unfinished move again and carries on from what is already across; **Don't move
+  after all** forgets the new place.
+- **The old place is never touched.** The page says so at the end, and that the copy can be
+  deleted there. Leaving Google Drive hands its token back to Google; the files stay.
+- **Refused:** a place that already holds a library (it has a snapshot; that is also why
+  snapshots go last), the place the library is already in, Google Drive to Google Drive, and
+  a Drive with less free space than the library needs, before anything is copied.
+
+Not built: the move running while no page is open (it would have to run on a server), and a
+prompt to move when the Drive is nearly full. A move begun, stopped with **Don't move after
+all** during its last few files, and begun again to the same place is refused as "already
+has a library"; emptying that place is the way on.
 
 ## Before it is real
 

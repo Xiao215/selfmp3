@@ -24,6 +24,11 @@ import { z } from 'zod'
  *                                                         library in your Google Drive; Google
  *                                                         comes back to /v1/auth/callback
  *   DELETE /v1/storage                                 → forget it
+ *   GET    /v1/storage/space[?of=move]                 → how much room a Google Drive has
+ *   GET | PUT | DELETE  /v1/storage/move               → the move under way: where to, start, stop
+ *   GET    /v1/storage/move/list?cursor=<c>            → what the new place holds so far
+ *   POST   /v1/storage/move/copy  { keys, remove }     → copy a few files across
+ *   POST   /v1/storage/move/finish                     → the new place becomes the storage
  *   GET    /v1/list?prefix=<p>&cursor=<c>
  *   GET    /v1/changes                                 → the account's change counter
  *   GET | HEAD | PUT | DELETE  /v1/files/<key>
@@ -204,6 +209,11 @@ export function sameStorage(a: DoormanStorage, b: DoormanStorage): boolean {
  */
 export const DoormanDriveStartSchema = z.object({
   returnTo: z.string().max(1024).nullable().optional(),
+  /**
+   * The Drive is where the library is to be moved to (`DoormanMoveSchema`),
+   * not connected in place of the storage the account has.
+   */
+  move: z.boolean().optional(),
 })
 export type DoormanDriveStart = z.infer<typeof DoormanDriveStartSchema>
 
@@ -228,6 +238,8 @@ export const DRIVE_REFUSAL = {
   otherAccount: 'other-account',
   /** Google, or Drive, could not finish. */
   failed: 'failed',
+  /** A move was asked for, and the Drive already has a library of its own in it. */
+  holdsLibrary: 'holds-library',
 } as const
 export type DriveRefusal = (typeof DRIVE_REFUSAL)[keyof typeof DRIVE_REFUSAL]
 
@@ -239,6 +251,7 @@ export const DRIVE_REFUSAL_WORDS: Readonly<Record<DriveRefusal, string>> = {
   [DRIVE_REFUSAL.otherAccount]:
     'That was a different Google account. Choose the one you are signed in to self.mp3 with.',
   [DRIVE_REFUSAL.failed]: 'Google Drive could not be connected. Try again in a moment.',
+  [DRIVE_REFUSAL.holdsLibrary]: `Your Google Drive already has a library in its ${DRIVE_FOLDER_NAME} folder. Delete that folder in Google Drive, then move again.`,
 }
 
 export type DriveBack =
@@ -291,6 +304,12 @@ export const DoormanMeSchema = z.object({
   picture: z.string().nullable(),
   /** Null until storage is connected: the first thing a new account does. */
   storage: DoormanStorageSchema.nullable(),
+  /**
+   * Where the library was before it was moved to `storage`, file for file
+   * (`DoormanMoveSchema`). A server that kept its books against the old place
+   * keeps them: everything it knew is still true of the new one.
+   */
+  movedFrom: DoormanStorageSchema.optional(),
 })
 export type DoormanMe = z.infer<typeof DoormanMeSchema>
 
@@ -455,3 +474,18 @@ export function parseChangesHeader(
 
 export const DoormanHealthSchema = z.object({ ok: z.literal(true), version: z.string() })
 export type DoormanHealth = z.infer<typeof DoormanHealthSchema>
+
+/**
+ * How much room the account's storage has (`GET /v1/storage/space`). Null for
+ * a bucket, which has no size to run out of that the doorman can ask about.
+ * `limit` is null for a Google account with no limit.
+ */
+export const DoormanSpaceSchema = z.object({
+  space: z
+    .object({
+      used: z.number().nonnegative(),
+      limit: z.number().nonnegative().nullable(),
+    })
+    .nullable(),
+})
+export type DoormanSpace = z.infer<typeof DoormanSpaceSchema>

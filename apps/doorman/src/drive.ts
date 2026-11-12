@@ -140,6 +140,14 @@ const ListedFilesSchema = z.object({
 })
 
 /** Drive's own error document: `{ error: { code, message, errors: [{ reason }] } }`. */
+/** What `about.get` says of the account's storage. Sizes are strings; no `limit` means no limit. */
+const AboutSchema = z.object({
+  storageQuota: z.object({
+    limit: z.string().regex(/^\d+$/).optional(),
+    usage: z.string().regex(/^\d+$/),
+  }),
+})
+
 const DriveErrorSchema = z.object({
   error: z.object({
     message: z.string().optional(),
@@ -358,6 +366,27 @@ export class Drive implements Store {
       if (response.status !== 404 && !response.ok) throw await explain(response, 'file')
       await discard(response)
     }
+  }
+
+  /**
+   * How much of the account's Google storage is used, and how much there is:
+   * Drive, Gmail and Photos together, which is what an upload is refused by.
+   * `limit` is null for an account with no limit.
+   */
+  async space(): Promise<{ used: number; limit: number | null }> {
+    const response = await this.#send('GET', `${DRIVE_API}/about?fields=storageQuota`, {
+      quick: true,
+    })
+    if (!response.ok) throw await explain(response, 'file')
+    const about = AboutSchema.safeParse(parseJson(await readBytes(response.body, MAX_ANSWER_BYTES)))
+    if (!about.success) {
+      throw new StoreError(
+        'other',
+        'Google Drive answered a question about space with something else.',
+      )
+    }
+    const { limit, usage } = about.data.storageQuota
+    return { used: Number(usage), limit: limit === undefined ? null : Number(limit) }
   }
 
   /**

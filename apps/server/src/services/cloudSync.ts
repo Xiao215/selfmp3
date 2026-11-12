@@ -1,5 +1,3 @@
-import fsp from 'node:fs/promises'
-import path from 'node:path'
 import { gzipSync } from 'node:zlib'
 import {
   bucketPlace,
@@ -12,30 +10,20 @@ import {
   FORMAT_KEY,
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
-  audioKey,
-  coverKey,
   isReplacedWholeKey,
   foldedLogKeys,
-  detectLyricsLanguage,
-  isSynced,
-  motionKey,
   newestSnapshotKey,
   othersSnapshotsToPrune,
   parseLogKey,
   parseSnapshotKey,
-  lyricTextLines,
-  parseLyrics,
   readLogFile,
   snapshotFileKeys,
   snapshotKey,
   snapshotsToPrune,
   parseCloudWords,
-  wordsKey,
   unfoldedLogKeys,
   type Change,
-  type CloudLyrics,
   type CloudSnapshot,
-  type CloudWords,
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
@@ -48,12 +36,7 @@ import { DoormanClient } from '../bucket/doorman.js'
 import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
-import type {
-  CloudRepository,
-  CloudSongState,
-  DoormanSession,
-  SongFileInfo,
-} from '../repositories/cloud.js'
+import type { CloudRepository, DoormanSession, SongFileInfo } from '../repositories/cloud.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { TagRepository } from '../repositories/tags.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
@@ -68,7 +51,8 @@ import type { SpellingService } from './spellings.js'
 import type { NamesRepository } from '../repositories/names.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
 import { CloudPictures } from './cloudPictures.js'
-import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
+import { NO_FILE_SIGNATURE } from './cloudSignatures.js'
+import { CloudSongFiles, CopyChanged, type Signatures } from './cloudSongFiles.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
@@ -89,7 +73,6 @@ import {
   storedSnapshotCoreHash,
 } from './cloudSnapshot.js'
 import type { AdoptionResult, CloudAdopt } from './cloudAdopt.js'
-import { sha256 } from '../util/hash.js'
 import { pool } from '../util/pool.js'
 
 /**
@@ -206,37 +189,11 @@ const SIGNATURES_AT_ONCE = 16
 /** The part of the doorman the sync uses. Tests hand in a fake. */
 export type Doorman = Pick<DoormanClient, 'url' | 'me' | 'store'>
 
-interface Signatures {
-  readonly audio: string
-  readonly cover: string
-  readonly lyrics: string
-  /** The motion curve file's size and time, or `none` before analysis has made one. */
-  readonly motion: string
-  /** Whether the audio is on this disk: what a changed audio signature needs to be sent from. */
-  readonly audioHere: boolean
-  /** Whether a lyric sidecar is on this disk beside it. */
-  readonly sidecarHere: boolean
-}
-
 /** A song wholly in the bucket as it is here, and what of it this disk still holds. */
 interface Settled {
   readonly file: SongFileInfo
   readonly audioHere: boolean
   readonly sidecarHere: boolean
-}
-
-/** A song's words file in the bucket: the text and its romanized lines (`wordsKey`). */
-interface UploadedLyrics {
-  readonly key: string
-  readonly size: number
-  readonly kind: CloudLyrics['kind']
-}
-
-/** Whether a lyric text is Chinese or Japanese: words that should have romanized lines. */
-function wantsRomanized(text: string): boolean {
-  const parsed = parseLyrics(text)
-  const lines = lyricTextLines(parsed)
-  return detectLyricsLanguage(lines) !== 'none'
 }
 
 interface CloudSyncDeps {
@@ -442,6 +399,7 @@ export class CloudSyncService {
   readonly #libraryFiles: CloudLibraryFiles
   /** Artists' pictures and the packs of covers in the bucket. */
   readonly #pictures: CloudPictures
+  readonly #songFiles: CloudSongFiles
   /** The pass for copies here not yet still for long enough to send or let go, and when it is due. */
   #stillTimer: NodeJS.Timeout | null = null
   #stillAt = 0
@@ -568,6 +526,17 @@ export class CloudSyncService {
       putOnce: (store, key, data, contentType) => this.#putOnce(store, key, data, contentType),
       stopped: () => this.#stopped,
       ...(deps.artists ? { artists: deps.artists } : {}),
+    })
+    this.#songFiles = new CloudSongFiles({
+      cloud: deps.cloud,
+      storage: deps.storage,
+      covers: deps.covers,
+      lyrics: deps.lyrics,
+      metadata: deps.metadata,
+      putOnce: (store, key, data, contentType) => this.#putOnce(store, key, data, contentType),
+      ...(deps.romanize ? { romanize: deps.romanize } : {}),
+      ...(deps.motion ? { motion: deps.motion } : {}),
+      ...(deps.kept ? { kept: deps.kept } : {}),
     })
     if (deps.cloudDir) this.#useFolder(deps.cloudDir)
   }
@@ -793,7 +762,7 @@ export class CloudSyncService {
     if (!file) throw new Error('the song is no longer in the library')
 
     await this.#prepareBucket(store)
-    await this.#uploadSongFiles(store, file, this.#deps.cloud.state(songId))
+    await this.#songFiles.upload(store, file, this.#deps.cloud.state(songId))
     if (more) {
       this.#publishLater.trigger()
       return
@@ -853,7 +822,7 @@ export class CloudSyncService {
       const states = cloud.states()
       const files = cloud.songFiles()
       const signed = await pool(files, SIGNATURES_AT_ONCE, file =>
-        this.#signatures(file, states.get(file.id) ?? null),
+        this.#songFiles.signatures(file, states.get(file.id) ?? null),
       )
       const changed: Array<{ file: SongFileInfo; signatures: Signatures }> = []
       /** Songs wholly in the bucket as they are here: what may be let go of below. */
@@ -914,7 +883,7 @@ export class CloudSyncService {
         if (generation !== this.#generation || this.#stopped) return
         this.#progress = { done, total, current: file.title }
         try {
-          await this.#uploadSongFiles(store, file, states.get(file.id) ?? null, signatures)
+          await this.#songFiles.upload(store, file, states.get(file.id) ?? null, signatures)
           settled.push({
             file,
             audioHere: signatures.audioHere,
@@ -1486,10 +1455,11 @@ export class CloudSyncService {
       if (!cloud.hasFile(song.audio.key)) continue
       const file = cloud.songFile(songId)
       if (!file || (await storage.exists(file.path))) continue
-      // Words kept nowhere here read as whatever was last sent (`#signatures`):
-      // the bucket's, as the snapshot names them. A cover or curve here that
-      // the snapshot has none of goes up (an empty signature matches nothing).
-      const signatures = await this.#signatures(file)
+      // Words kept nowhere here read as whatever was last sent
+      // (`CloudSongFiles.signatures`): the bucket's, as the snapshot names
+      // them. A cover or curve here that the snapshot has none of goes up (an
+      // empty signature matches nothing).
+      const signatures = await this.#songFiles.signatures(file)
       cloud.saveState({
         songId,
         audioKey: song.audio.key,
@@ -1529,132 +1499,6 @@ export class CloudSyncService {
     }
   }
 
-  /**
-   * What a song's files look like now, in terms that change exactly when a
-   * file does: the audio file's size and mtime (from its row — no disk access),
-   * the cover's revision, the lyric sidecar's size and mtime, and the motion
-   * curve's. Lyrics kept in the audio file's own tags change when the audio
-   * file does. The curve is compared by a stat rather than by hashing it, as
-   * the sidecar is: it is written whole and renamed into place, so a new curve
-   * is always a new time, and a pass over an unchanged library reads no file.
-   *
-   * With neither a sidecar nor the audio here — the ordinary state, once the
-   * pass has let both go — nothing here can have changed the words, and their
-   * signature is whatever was sent: the bucket's words stand. The one thing
-   * that can still change them is the row saying there are none (the words
-   * were cleared by hand), which is `none`, and sends the song up without them.
-   */
-  async #signatures(file: SongFileInfo, state: CloudSongState | null = null): Promise<Signatures> {
-    const audio = audioSignature(file.sizeBytes, file.mtimeMs)
-    const cover = file.hasArt ? `art-${file.artRev}` : NO_FILE_SIGNATURE
-    const curve = (await this.#deps.motion?.stat(file.id)) ?? null
-    const motion = curve ? `motion-${curve.size}-${Math.round(curve.mtimeMs)}` : NO_FILE_SIGNATURE
-    const audioHere = await this.#deps.storage.exists(file.path)
-    const sidecar = await this.#deps.lyrics.findSidecar(file.path)
-    if (!sidecar) {
-      const lyrics = audioHere
-        ? tagsLyricsSignature(audio)
-        : file.lyricsKind === 'none'
-          ? NO_FILE_SIGNATURE
-          : (state?.lyricsSig ?? NO_FILE_SIGNATURE)
-      return { audio, cover, lyrics, motion, audioHere, sidecarHere: false }
-    }
-    const stat = await this.#deps.storage.stat(sidecar.key)
-    const lyrics = stat
-      ? `sidecar${sidecar.extension}-${stat.sizeBytes}-${stat.modifiedAt.getTime()}`
-      : tagsLyricsSignature(audio)
-    return { audio, cover, lyrics, motion, audioHere, sidecarHere: true }
-  }
-
-  /** Upload whatever of one song's files the bucket does not have yet. */
-  async #uploadSongFiles(
-    store: CloudStore,
-    file: SongFileInfo,
-    state: CloudSongState | null,
-    known?: Signatures,
-  ): Promise<void> {
-    const signatures = known ?? (await this.#signatures(file, state))
-
-    let audio: { key: string; size: number }
-    if (state && state.audioSig === signatures.audio) {
-      audio = { key: state.audioKey, size: state.audioSize }
-    } else {
-      const data = await this.#deps.storage.read(file.path)
-      // What was read is the song as the sweep read it, or it is not sent:
-      // the row's size and time are what every later look compares with.
-      const after = await this.#deps.storage.stat(file.path)
-      if (
-        data.length !== file.sizeBytes ||
-        !after ||
-        after.sizeBytes !== file.sizeBytes ||
-        Math.floor(after.modifiedAt.getTime()) !== file.mtimeMs
-      ) {
-        throw new CopyChanged(file.path)
-      }
-      const key = audioKey(sha256(data), path.extname(file.path))
-      await this.#putOnce(store, key, data, file.mime)
-      audio = { key, size: data.length }
-    }
-
-    let cover: { key: string; size: number } | null
-    if (state && state.coverSig === signatures.cover) {
-      cover = state.coverKey !== null ? { key: state.coverKey, size: state.coverSize ?? 0 } : null
-    } else {
-      cover = await this.#uploadCover(store, file)
-    }
-
-    let lyrics: UploadedLyrics | null
-    let lyricsSig = signatures.lyrics
-    if (state && state.lyricsSig === signatures.lyrics) {
-      lyrics =
-        state.lyricsKey !== null && state.lyricsKind !== null
-          ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }
-          : null
-    } else {
-      const uploaded = await this.#uploadLyrics(store, file)
-      lyrics = uploaded?.lyrics ?? null
-      // Chinese or Japanese words that got no romaji this time are not done:
-      // an empty signature never matches, so the next pass tries again.
-      if (uploaded?.romanizedMissing) lyricsSig = ''
-    }
-
-    let motion: string | null
-    if (state && state.motionSig === signatures.motion) {
-      motion = state.motionKey
-    } else {
-      motion = await this.#uploadMotion(store, file)
-    }
-
-    this.#deps.cloud.saveState({
-      songId: file.id,
-      audioKey: audio.key,
-      audioSize: audio.size,
-      audioSig: signatures.audio,
-      coverKey: cover?.key ?? null,
-      coverSize: cover?.size ?? null,
-      coverSig: signatures.cover,
-      lyricsKey: lyrics?.key ?? null,
-      lyricsSize: lyrics?.size ?? null,
-      lyricsKind: lyrics?.kind ?? null,
-      lyricsSig,
-      motionKey: motion,
-      motionSig: signatures.motion,
-    })
-  }
-
-  async #uploadCover(
-    store: CloudStore,
-    file: SongFileInfo,
-  ): Promise<{ key: string; size: number } | null> {
-    if (!file.hasArt) return null
-    const found = await this.#deps.covers.find(file.id)
-    if (!found) return null
-    const data = await fsp.readFile(found.path)
-    const key = coverKey(sha256(data), path.extname(found.path))
-    await this.#putOnce(store, key, data, found.contentType)
-    return { key, size: data.length }
-  }
-
   /** A pass in `wait` ms, or sooner if one is already due sooner. */
   #passOnceStill(wait: number): void {
     const at = Date.now() + wait
@@ -1670,63 +1514,6 @@ export class CloudSyncService {
     )
     this.#stillTimer.unref()
   }
-
-  /**
-   * The words — the sidecar if there is one, else the audio file's own tags —
-   * put up with their romanized lines, as the server's own lyrics answer
-   * carries them. `romanizedMissing` says the words are Chinese or Japanese
-   * and no romaji could be made this time.
-   */
-  async #uploadLyrics(
-    store: CloudStore,
-    file: SongFileInfo,
-  ): Promise<{ lyrics: UploadedLyrics; romanizedMissing: boolean } | null> {
-    let text: string | null = null
-    let kind: CloudLyrics['kind'] = 'plain'
-
-    const sidecar = await this.#deps.lyrics.readSidecar(file.path)
-    if (sidecar && sidecar.kind !== 'none') {
-      text = sidecar.text
-      kind = sidecar.kind
-    } else {
-      const embedded = (await this.#deps.metadata.read(file.path)).embeddedLyrics
-      if (embedded?.trim()) {
-        text = embedded
-        kind = isSynced(embedded) ? 'synced' : 'plain'
-      }
-    }
-    if (!text?.trim()) return null
-
-    // One file, the text and its romanized lines together, so a device reads
-    // both with one call to the bucket.
-    const romanize = this.#deps.romanize
-    const romanized = romanize ? await romanize(file.id, text).catch(() => null) : null
-    const words: CloudWords = { text, romanized }
-    const data = Buffer.from(JSON.stringify(words), 'utf8')
-    const key = wordsKey(sha256(data))
-    await this.#putOnce(store, key, data, 'application/json')
-    // Read from here once the sidecar is let go, rather than from the bucket.
-    await this.#deps.kept?.keep(key, data)
-    return {
-      lyrics: { key, size: data.length, kind },
-      romanizedMissing: romanize !== undefined && romanized === null && wantsRomanized(text),
-    }
-  }
-
-  /**
-   * The song's motion curve, as the server's own motion answer carries it, in
-   * `lyrics/` under the hash of its JSON: the doorman already lets devices read
-   * that folder, so no doorman has to be redeployed for it. Null before
-   * analysis has made one.
-   */
-  async #uploadMotion(store: CloudStore, file: SongFileInfo): Promise<string | null> {
-    const data = (await this.#deps.motion?.bytes(file.id)) ?? null
-    if (!data || data.length === 0) return null
-    const key = motionKey(sha256(data))
-    await this.#putOnce(store, key, data, 'application/json')
-    return key
-  }
-
   /**
    * Let go of the copies on this disk: the audio, the words beside it, and
    * the folder they were in.
@@ -1736,11 +1523,11 @@ export class CloudSyncService {
    * has not reached yet keeps it a while longer — as does one whose cover could
    * not be kept and is still to be read out of it. From here on the words are
    * read from the bucket (`fetchLyrics`), and the pass knows they are current
-   * because nothing here can have changed them (`#signatures`).
+   * because nothing here can have changed them (`CloudSongFiles.signatures`).
    *
-   * What is here is what `#signatures` saw at the start of the pass, so a
-   * library already let go costs no second look. A sidecar written since then
-   * has not been sent yet, and stays for the next pass to send.
+   * What is here is what `CloudSongFiles.signatures` saw at the start of the
+   * pass, so a library already let go costs no second look. A sidecar written
+   * since then has not been sent yet, and stays for the next pass to send.
    *
    * The last copy is not deleted on the word of what this server remembers
    * sending: the bucket is asked, once a song, for the audio every device
@@ -2358,14 +2145,6 @@ export class CloudSyncService {
 function stillIn(mtimeMs: number, forMs: number): number {
   const since = Math.abs(Date.now() - mtimeMs)
   return since < forMs ? forMs - since : 0
-}
-
-/** A copy here written to since the sweep read it: what was read is not the song any more. */
-class CopyChanged extends Error {
-  constructor(key: string) {
-    super(`changed since it was read: ${key}`)
-    this.name = 'CopyChanged'
-  }
 }
 
 function parseJson(data: Buffer): unknown {

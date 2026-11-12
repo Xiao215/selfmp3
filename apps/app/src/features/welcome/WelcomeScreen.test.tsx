@@ -5,10 +5,12 @@ import { WelcomeScreen } from './WelcomeScreen'
 
 /**
  * Waiting on Google, Cancel ends the attempt: a look at the doorman still out
- * when it is pressed, which comes back signed in, signs nobody in.
+ * when it is pressed, which comes back signed in, signs nobody in; and a start
+ * that fails after it says nothing over the attempt begun since.
  */
 
 const mockAdopt = jest.fn()
+const mockBegin = jest.fn(() => Promise.resolve())
 let mockClaimed: (outcome: unknown) => void = () => undefined
 const mockClaim = jest.fn(
   () =>
@@ -19,7 +21,7 @@ const mockClaim = jest.fn(
 jest.mock('../../replica', () => ({
   library: {},
   session: {
-    beginSignIn: () => Promise.resolve(),
+    beginSignIn: () => mockBegin(),
     pendingSignIn: () => Promise.resolve({ attempt: 'a1' }),
     claimSignIn: () => mockClaim(),
     endedSession: () => Promise.resolve(null),
@@ -70,6 +72,34 @@ it('signs nobody in from a look that answers after Cancel', async () => {
 
     expect(mockAdopt).not.toHaveBeenCalled()
     expect(screen.getByTestId('welcome-google')).toBeTruthy()
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
+it('keeps a new attempt waiting when one cancelled before it fails', async () => {
+  let failFirst: (error: unknown) => void = () => undefined
+  mockBegin.mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        failFirst = reject
+      }),
+  )
+  jest.useFakeTimers()
+  try {
+    await render(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WelcomeScreen />
+      </SafeAreaProvider>,
+    )
+    await fireEvent.press(screen.getByTestId('welcome-google'))
+    await fireEvent.press(screen.getByText('Cancel'))
+    await fireEvent.press(screen.getByTestId('welcome-google'))
+    await act(async () => {
+      failFirst(new Error('offline'))
+    })
+
+    expect(screen.getByText('Cancel')).toBeTruthy()
   } finally {
     jest.useRealTimers()
   }

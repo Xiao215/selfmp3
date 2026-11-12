@@ -24,41 +24,6 @@ export interface FieldSize {
   readonly height: number
 }
 
-/**
- * Where the map is as it moves, read by whatever draws it without a render:
- * a move is many frames a second, and drawing the page again for each one
- * was what made the map lag behind a finger (2026-10-26).
- */
-export interface LiveView {
-  readonly now: () => MapView
-  /** Told every frame of a move; returns the way to stop listening. */
-  readonly watch: (moved: (view: MapView) => void) => () => void
-}
-
-/** The live view a field feeds: `show` each frame, and the sky reads it. */
-export function liveView(first: MapView): LiveView & { show: (view: MapView) => void } {
-  let view = first
-  const watchers = new Set<(view: MapView) => void>()
-  return {
-    now: () => view,
-    watch: moved => {
-      watchers.add(moved)
-      return () => {
-        watchers.delete(moved)
-      }
-    },
-    show: next => {
-      view = next
-      for (const moved of watchers) moved(next)
-    },
-  }
-}
-
-/** A view that never moves: Home's card. */
-export function stillView(view: MapView): LiveView {
-  return { now: () => view, watch: () => () => {} }
-}
-
 const MIN_SCALE = 0.8
 export const MAX_SCALE = 24
 /** Room around the map at its fitted size, so tiles at the edge are not cut. */
@@ -66,6 +31,7 @@ const FIT_INSET = 16
 
 /** The side of the map's square at scale 1. */
 export function baseOf(field: FieldSize): number {
+  'worklet'
   return Math.max(1, Math.min(field.width, field.height) - FIT_INSET * 2)
 }
 
@@ -94,11 +60,28 @@ export function boundsOf(places: readonly MapPlace[]): MapBounds {
 
 /** A place as drawn: turned a quarter clockwise when the view is. */
 function orient(place: MapPlace, turned: boolean | undefined): MapPlace {
+  'worklet'
   return turned ? { x: 1 - place.y, y: place.x } : place
 }
 
 function unorient(place: MapPlace, turned: boolean | undefined): MapPlace {
+  'worklet'
   return turned ? { x: place.y, y: 1 - place.x } : place
+}
+
+export function toScreen(view: MapView, base: number, place: MapPlace): { x: number; y: number } {
+  'worklet'
+  const drawn = orient(place, view.turned)
+  return { x: view.x + drawn.x * base * view.scale, y: view.y + drawn.y * base * view.scale }
+}
+
+export function toMap(view: MapView, base: number, point: { x: number; y: number }): MapPlace {
+  'worklet'
+  const drawn = {
+    x: (point.x - view.x) / (base * view.scale),
+    y: (point.y - view.y) / (base * view.scale),
+  }
+  return unorient(drawn, view.turned)
 }
 
 /** A map this much wider than tall, on a field as much taller than wide, is turned. */
@@ -158,8 +141,11 @@ export function centredOn(
   field: FieldSize,
   place: MapPlace,
   scale: number,
-  insets: FieldInsets = NO_INSETS,
+  given?: FieldInsets,
 ): MapView {
+  'worklet'
+  // Defaulted here, not in the parameters: a worklet takes only what its body names.
+  const insets = given ?? NO_INSETS
   const base = baseOf(field)
   const next = { ...view, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale)), x: 0, y: 0 }
   const at = toScreen(next, base, place)
@@ -216,6 +202,7 @@ export function keptClear(
  * the field moves in a straight line.
  */
 export function between(from: MapView, to: MapView, t: number, field: FieldSize): MapView {
+  'worklet'
   const scale = Math.exp(Math.log(from.scale) + (Math.log(to.scale) - Math.log(from.scale)) * t)
   const base = baseOf(field)
   const middle = { x: field.width / 2, y: field.height / 2 }
@@ -225,21 +212,9 @@ export function between(from: MapView, to: MapView, t: number, field: FieldSize)
   return centredOn({ ...to, scale }, field, spot, scale)
 }
 
-export function toScreen(view: MapView, base: number, place: MapPlace): { x: number; y: number } {
-  const drawn = orient(place, view.turned)
-  return { x: view.x + drawn.x * base * view.scale, y: view.y + drawn.y * base * view.scale }
-}
-
-export function toMap(view: MapView, base: number, point: { x: number; y: number }): MapPlace {
-  const drawn = {
-    x: (point.x - view.x) / (base * view.scale),
-    y: (point.y - view.y) / (base * view.scale),
-  }
-  return unorient(drawn, view.turned)
-}
-
 /** Zoomed by `factor` about a point of the field, which stays under the finger or pointer. */
 export function zoomAt(view: MapView, factor: number, point: { x: number; y: number }): MapView {
+  'worklet'
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * factor))
   const ratio = scale / view.scale
   return {
@@ -251,6 +226,7 @@ export function zoomAt(view: MapView, factor: number, point: { x: number; y: num
 }
 
 export function panBy(view: MapView, dx: number, dy: number): MapView {
+  'worklet'
   return { ...view, x: view.x + dx, y: view.y + dy }
 }
 
@@ -265,8 +241,11 @@ export function heldOn(
   view: MapView,
   field: FieldSize,
   bounds: MapBounds,
-  insets: FieldInsets = NO_INSETS,
+  given?: FieldInsets,
 ): MapView {
+  'worklet'
+  // Defaulted here, not in the parameters: a worklet takes only what its body names.
+  const insets = given ?? NO_INSETS
   const base = baseOf(field)
   const a = toScreen(view, base, { x: bounds.x0, y: bounds.y0 })
   const b = toScreen(view, base, { x: bounds.x1, y: bounds.y1 })
@@ -295,6 +274,7 @@ export function flung(
   velocity: { x: number; y: number },
   ms: number,
 ): { x: number; y: number; done: boolean } {
+  'worklet'
   const tau = -1 / Math.log(FLING_KEEP)
   const share = 1 - Math.pow(FLING_KEEP, ms)
   const speed = Math.hypot(velocity.x, velocity.y) * Math.pow(FLING_KEEP, ms)
@@ -307,8 +287,11 @@ export function flung(
  * so zooming in opens gaps between them.
  */
 export function tileSide(scale: number): number {
-  return Math.min(64, Math.max(7, 8 * Math.pow(scale, 0.6)))
+  return Math.min(TILE_MOST, Math.max(7, 8 * Math.pow(scale, 0.6)))
 }
+
+/** A tile's side, in points, at its largest. */
+export const TILE_MOST = 64
 
 /** How far from a drawn path a song may be to be taken: about a finger's width on screen. */
 export function pathReach(view: MapView, base: number): number {

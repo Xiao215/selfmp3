@@ -112,7 +112,8 @@ moved; react-native-unistyles turns every distinct style into a CSS rule, so eve
 tile was moved to became a new rule, and a few minutes of zooming filled Chrome's memory
 until the tab died (Xiao, 2026-10-26). The browser now draws the sky into one `<canvas>`, at
 most once a frame while it moves and not at all while it holds still, reading where the map is
-from the field (`LiveView`) rather than through a render (the ground and the deep sky are a second canvas
+from the field's shared value (`fieldMotion`'s `view`, whose listeners a browser calls as it
+is set) rather than through a render (the ground and the deep sky are a second canvas
 under it, drawn again at most 25 times a second while they twinkle, so a twinkle never draws
 the songs again); nothing a song is drawn
 with is a style. It keeps a glow picture per colour and about 240 covers (the oldest let
@@ -130,18 +131,33 @@ address again.
 **On a phone** the sky is drawn with Skia (`@shopify/react-native-skia`) on the GPU: one
 canvas for the songs over one for the ground and the deep sky (`SkyLayer.tsx`). The songs
 (nebulae, stars, covers and their titles, what the tray holds, the song playing) are recorded
-as a picture for where the map is, a third of a screen past each edge; the field hands each
-frame's view to a Reanimated shared value (`LiveView`, `useLiveView`), and the native side
-moves and scales that picture, so a move costs React nothing. A picture is drawing commands,
+as a picture for where the map is, a third of a screen past each edge; the gestures move the
+map's view, a Reanimated shared value, on the UI thread (`fieldMotion`), and the native side
+moves and scales that picture from it, so a move costs React and the JavaScript thread
+nothing. A picture is drawing commands,
 not pixels, so a pinch stays sharp. It is recorded again when the map settles and, while it
 moves, once its edge would come near the screen or the zoom has gone a quarter either way
-from it (`drifted`), at most once in 90 ms. The stroke being drawn, the pressed spot and the
+from it (`drifted`, watched on the UI thread and asked of the JavaScript thread once), at most
+once in 90 ms. The stroke being drawn, the pressed spot and the
 song lit from the tray are a second, small picture over it, moved the same way. The deep sky
-is a picture a twinkle for each layer, recorded with the songs and moved a part as far
-(`deepSince`); a twinkle is a group's opacity, stepped every 40 ms, on its own canvas so it
-never draws the songs again. Covers are read as Skia images by address and kept like the
-browser's; titles are laid out as paragraphs (so a Japanese or Chinese title finds its font)
-and kept.
+is a picture a twinkle for each layer, moved a part as far as the songs (`deepSince`) and
+recorded again only once its own edge would show (`deepDrifted`), not each time the songs
+are; a twinkle is a group's opacity, stepped every 40 ms, on its own canvas so it never draws
+the songs again. Covers are read by address and kept like the browser's, each decoded once on
+a thread of its own (`decode`, a worklet runtime) into a small image the size the sky draws it
+largest (`decodedSmall`, about 220 pixels on a 3× screen) rather than the 640-pixel copy the
+phone keeps. Covers arriving while the map holds still are recorded in at once; while it moves
+they wait for the next recording the move brings, or the one it settles with. Colours are
+parsed once (`colorOf`); titles are laid out as paragraphs (so a Japanese or Chinese title
+finds its font) and kept.
+
+Until 2026-11-12 a cover was handed to Skia still encoded, so the UI thread decoded it the
+first frame that drew it, and again whenever the GPU's cache let it go: a few hundred covers
+at 1.6 MB each outgrew that cache, and each burst of covers arriving recorded the whole sky
+and the deep sky again, several times a second, on the JavaScript thread the gestures move the
+map from. Close in, the first seconds were smooth, then moving about stalled the frame for
+up to 1.8 s at a time on the iPhone simulator with 1,635 songs; afterwards the same pans held
+59–60 frames a second, and long frames fell from about 125 to 17 a run.
 
 Until 2026-10-31 the phone drew SVG and views, moved as a rasterized snapshot: each settle
 built thousands of native views on the JavaScript thread (about 200–630 ms on the iPhone 17
@@ -171,7 +187,7 @@ the new one, or small steps are a trackpad; and a gesture keeps the source it be
 A mouse's notch glides the zoom about the pointer rather than jumping (closing most of the
 way in about 70 ms, `WHEEL_GLIDE_MS`), and a notch while it glides goes on from where it
 was heading; a trackpad's steps come a frame at a time and zoom as they come. The arrow
-keys slide the map while held (`FieldControl.keys`), getting up to speed and slowing to a
+keys slide the map while held (`slideToward`), getting up to speed and slowing to a
 stop over about 90 ms rather than stepping at each key repeat; two held go diagonally. They
 stand aside while someone types, and with ⌘, Ctrl or ⌥ held.
 
@@ -304,8 +320,17 @@ songs (`flyToPlaces`). Choosing it again shows every tag and flies back to the w
 
 ### Moving the map
 
-`fieldControl.ts` holds where the map is, outside React, so a pinch reads the view the last
-frame left. The map opens with every song in view, fitted to what the page leaves clear of
+Where the map is lives in a shared value on the UI thread, with everything that moves it a
+frame at a time (`fieldMotion.ts`): a drag and a pinch are worklets there, and so are a flick,
+a flight, a mouse wheel's glide and the arrow keys' slide, so the map follows a finger
+whatever the JavaScript thread is doing. `fieldControl.ts` is the page's handle on it: what it
+starts (a fit, a flight, + and −, a double tap) runs there through `onUIThread`
+(`ports/uiThread`, which waits the moment that takes, so the two never come out of order),
+and a tap, a line drawn or the keys read the view from there. A browser has one thread, so
+there it is all just called. Until 2026-11-12 the gestures ran on the JavaScript thread, and
+every stall there (a recording of the sky, covers arriving, 20–70 ms in a development build)
+held the map still under the finger; since, with the JavaScript thread blocked for 150 ms
+every second on purpose, pans on the iPhone simulator held 60 frames a second. The map opens with every song in view, fitted to what the page leaves clear of
 its head and the tray (`fitView`'s `insets`), and stays as it is once a hand has moved it.
 A map wider than it is tall, on a field taller than it is wide (a phone held upright), is
 drawn a quarter turn clockwise so it fills the screen (`MapView.turned`); a flight to a tag
@@ -403,7 +428,7 @@ changes, never one a visit.
 - `packages/client/src/soundMap/soundMap.ts` — nearest songs, songs along a line and inside a
   loop, tag regions, names (tested)
 - `apps/app/src/features/soundMap/` — the page (`SoundMapScreen`), the field and its gestures
-  (`SoundField`, `fieldControl`, `fieldInput`), the keys (`fieldKeys.model`), the wheel
+  (`SoundField`, `fieldControl`, `fieldMotion`, `fieldInput`), the keys (`fieldKeys.model`), the wheel
   (`wheel.model`), the sky (`sky.model`, `SkyLayer` with Skia and `SkyLayer.web` with a
   canvas), the tray (`MapTray`, `tray.model`), the hint (`MapHint`), Home's card (`MapCard`),
   the view's arithmetic (`soundMapView.model`); the pure parts tested

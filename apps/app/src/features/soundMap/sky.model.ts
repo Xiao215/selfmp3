@@ -1,6 +1,6 @@
 import { hueFromString, type MapPlace, type Song } from '@selfmp3/shared'
 import { oklchToHex, type PlacedSong, type TagRegion } from '@selfmp3/client'
-import { tileSide, type FieldSize, type LiveView, type MapView } from './soundMapView.model'
+import { tileSide, type FieldSize, type MapView } from './soundMapView.model'
 
 /**
  * The sound map drawn as a night sky (C2, docs/features/sound-map.md): each
@@ -59,8 +59,6 @@ export function takeTone(takes: readonly MapTake[]): string {
 /** What the sky is drawn from, the same for the phone's layer and the browser's. */
 export interface SkyLayerProps {
   readonly field: FieldSize
-  /** Where the map is this frame, read without a render. */
-  readonly live: LiveView
   /** Where it last held still: what the phone draws its stars for, moving them as a whole between. */
   readonly settled: MapView
   readonly base: number

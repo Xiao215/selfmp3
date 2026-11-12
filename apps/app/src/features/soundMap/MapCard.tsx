@@ -3,13 +3,14 @@ import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import type { View as ViewType } from 'react-native'
 import { useRouter } from 'expo-router'
+import { makeMutable } from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
 import { radius, space, useLibrary, useSoundMap } from '@selfmp3/client'
 import { Press } from '../../ui/components/Press'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { SKY_EDGE, skyPoints } from './sky.model'
 import { SkyLayer } from './SkyLayer'
-import { baseOf, boundsOf, fitView, stillView, type FieldSize } from './soundMapView.model'
+import { baseOf, boundsOf, fitView, type FieldSize } from './soundMapView.model'
 
 /** The most stars the card draws: enough for the shape of the library, cheap on Home. */
 const CARD_STARS = 400
@@ -54,7 +55,8 @@ export function MapCard(): ReactNode {
     () => (field ? fitView(field, boundsOf(places), { turned: false }) : null),
     [field, places],
   )
-  const live = useMemo(() => (view ? stillView(view) : null), [view])
+  // The card never moves: its view is a shared value only because the sky reads one.
+  const live = useMemo(() => (view ? makeMutable(view) : null), [view])
 
   if (places.length === 0) return null
   return (
@@ -81,7 +83,7 @@ export function MapCard(): ReactNode {
           {field && view && live ? (
             <SkyLayer
               field={field}
-              live={live}
+              view={live}
               settled={view}
               base={baseOf(field)}
               points={points}

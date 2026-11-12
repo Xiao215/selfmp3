@@ -70,3 +70,11 @@ jest.mock('expo', () => {
       name === 'SongStream' ? songStream : actual.requireNativeModule(name),
   }
 })
+
+// Worklets in a test run in-process, with no UI thread to wait for: a worklet
+// run there at once (`ports/uiThread.ts`) just runs. Its JavaScript half throws
+// for `runOnUISync`, as a browser has no UI thread either.
+jest.mock('react-native-worklets', () => ({
+  ...jest.requireActual('react-native-worklets'),
+  runOnUISync: (work, ...args) => work(...args),
+}))

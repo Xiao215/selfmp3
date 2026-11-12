@@ -51,11 +51,11 @@ import {
  */
 
 /** The folders inside `self.mp3`, by the first part of the keys they hold. */
-export const DRIVE_FOLDERS = [...HASH_NAMED_FOLDERS, 'snapshots', 'log'] as const
+const DRIVE_FOLDERS = [...HASH_NAMED_FOLDERS, 'snapshots', 'log'] as const
 type DriveFolder = (typeof DRIVE_FOLDERS)[number]
 
 /** What a folder is, to Drive: a file of this type. */
-export const DRIVE_FOLDER_TYPE = 'application/vnd.google-apps.folder'
+const DRIVE_FOLDER_TYPE = 'application/vnd.google-apps.folder'
 
 const FolderIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,200}$/)
 
@@ -97,8 +97,8 @@ export interface DriveDeps {
   readonly found: Map<string, DriveFile>
 }
 
-export const DRIVE_API = 'https://www.googleapis.com/drive/v3'
-export const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
+const DRIVE_API = 'https://www.googleapis.com/drive/v3'
+const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
 
 /** What `#find` asks Drive to say about a file. */
 const FILE_FIELDS = 'id,size,md5Checksum,modifiedTime,mimeType,appProperties'
@@ -673,7 +673,7 @@ function inFolder(id: string): string {
 }
 
 /** A string in Drive's search language: single quotes, with `\` and `'` escaped. */
-export function quoted(text: string): string {
+function quoted(text: string): string {
   return `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 }
 

@@ -96,7 +96,7 @@ const TokenResponseSchema = z.object({
 })
 
 /** What Google gave for the code. */
-export interface GoogleTokenAnswer {
+interface GoogleTokenAnswer {
   readonly idToken: string
   readonly refreshToken: string | null
   readonly scopes: readonly string[]

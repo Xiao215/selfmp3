@@ -1,4 +1,4 @@
-import { bucketUnreachable, classifyBucketRefusal, type BucketRefusalKind } from '@selfmp3/shared'
+import { bucketUnreachable, classifyBucketRefusal } from '@selfmp3/shared'
 import { AwsV4Signer } from 'aws4fetch'
 import { fromUtf8, sha256Hex, utf8 } from './encoding.js'
 import { discard, readBytes } from './http.js'

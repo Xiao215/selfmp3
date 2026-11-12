@@ -89,6 +89,7 @@ export function handleAppScheme(roots: ProtocolRoots): void {
 async function serveWebFile(file: string, known?: Stats): Promise<Response> {
   try {
     const stats = known ?? (await stat(file))
+    // Node's web stream and the DOM's are one object typed twice, and `Response` takes the DOM's.
     return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
       status: 200,
       headers: {

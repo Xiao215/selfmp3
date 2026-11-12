@@ -382,7 +382,7 @@ class Arriving {
         this.#reader = await open(part, 'r')
         opened({ kind: 'ok', size })
 
-        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+        for await (const chunk of response.body) {
           for (let written = 0; written < chunk.byteLength;) {
             written += (await writer.write(chunk, written)).bytesWritten
           }

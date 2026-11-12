@@ -1,53 +1,21 @@
-import {
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import type { ReactNode, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import {
   KeyboardAvoidingView,
   Text,
-  // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the dock is its own field, its send turning into Stop in place, as ChangeField's does
-  TextInput,
   View,
   useWindowDimensions,
   type LayoutChangeEvent,
+  type TextInput,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
+import { useLocalSearchParams, useNavigation } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
-import { useQuery } from '@tanstack/react-query'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import {
-  AI_ERROR,
-  ASK_TEXT_MAX,
-  answerRecap,
-  beforeTurn,
-  joinedArtists,
-  objectsOf,
-  plural,
-  tooLongToAsk,
-  type AskReply,
-  type ShownList,
-} from '@selfmp3/shared'
-import {
-  ApiError,
-  failureText,
-  iconSize,
-  radius,
-  space,
-  textStyle,
-  type,
-  useLibrary,
-} from '@selfmp3/client'
+import { beforeTurn, joinedArtists } from '@selfmp3/shared'
+import { iconSize, radius, space, textStyle, type, useLibrary } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
-import { ASKS_MODEL } from '../../connection/refetchFailed'
-import { reachedConnection, viaKey } from '../../connection/via'
+import { reachedConnection } from '../../connection/via'
 import { usePlayingSongId } from '../../player/PlayerProvider'
 import { fonts } from '../../ports/fonts'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
@@ -55,84 +23,35 @@ import { NarrowerContentWidth, useContentWidth } from '../../shell/contentWidth'
 import { isComposing } from '../../shell/composing'
 import { setPageFoot } from '../../shell/pageFoot'
 import { useLayoutFlags } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
 import { usePageBack } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
-import { Button } from '../../ui/components/Button'
-import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Sparkle, X } from '../../ui/components/Icons'
+import { Sparkle } from '../../ui/components/Icons'
 import { Chip } from '../../ui/components/Chip'
 import { Kbd } from '../../ui/components/Kbd'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
-import { StatusLine } from '../../ui/components/StatusLine'
-import { NO_AUTOFILL } from '../../ui/noAutofill'
-import { floating, pageFrame } from '../../ui/surfaces'
+import { pageFrame } from '../../ui/surfaces'
 import { useSvgId } from '../../ui/useSvgId'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { roomTitle } from '../room/room.model'
 import { useRoom } from '../room/room.store'
 import { AddingToRoom } from '../room/RoomPicks'
-import { AnswerBody, TAKES_KEYS } from './AnswerBody'
-import { AskedLabel, AskedTitle } from './AskedTitle'
-import { AnswerView } from './AnswerScreen'
-import { AnswerActions } from './AnswerParts'
+import { AskField, type DraftHandle } from './AskField'
+import { Stage, TurnStage, type Answered } from './AskTurn'
 import type { AnswerKeys } from './answerKeys'
-import { askKept } from './askKept'
 import { forgetThread, keepThread, keptThread, newThread } from './askThread.store'
-import {
-  keepAnswer,
-  type keptAnswer,
-  shownOnServer,
-  understandingOf,
-  useKeptAnswer,
-  useKeptAnswers,
-} from './answers.store'
-import { afterStop, retried, scrollToShow, type Turn } from './askTurns.model'
-import { askSuggestions, logLine, picksHere } from './smart.model'
+import { type keptAnswer, useKeptAnswer } from './answers.store'
+import { afterStop, fieldWords, retried, scrollToShow, type Turn } from './askTurns.model'
+import { askSuggestions, picksHere } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
-import { StopButton } from './StopButton'
-import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
-import { Working } from './Working'
-
-/**
- * An ask's query key: the server it went to, the turn, every question of the
- * conversation up to this one, the song playing then and the answer on the
- * screen. A turn drawn again
- * (Back from its list) is the same answer, kept for as long as the app is
- * open; the same words in a new turn are asked again, so "pause" said twice
- * pauses twice and a change said again changes the list as it is now. The
- * server remembers what the model said, so asking again costs little.
- */
-function askKey(
-  via: string | null,
-  turn: number,
-  asked: readonly string[],
-  playing: number | null,
-  screen: string | null,
-) {
-  return viaKey(via, 'ai', 'ask', turn, asked, playing, screen)
-}
 
 /** Names each turn, across the app's life: two pages' turns never share one. */
 let nextTurn = 1
-
-/** What a turn's reply came to, as `TurnStage` tells the page. */
-type Answered = Pick<Turn, 'answered' | 'list' | 'listHandle' | 'line' | 'objects'>
-
-/** What a turn that failed was answered with, for the turns after it. */
-const FAILED = '(This could not be answered.)'
-
-/** The steps that stand in until the server says its own. */
-const FIRST_STEPS = [
-  { doing: 'Reading what you asked', done: 'Read what you asked' },
-  { doing: 'Working on the answer', after: 3000 },
-]
 
 /**
  * Ask (docs/features/ai.md, "The Ask page"): `/ask?q=…` from Search's Enter or
@@ -238,7 +157,10 @@ export function AskScreen(): ReactNode {
   const [letGoOf, setLetGoOf] = useState<string | null>(null)
   const target = onLog ? null : (shownTurn?.list ?? null)
   const changing = useKeptAnswer(target !== null && target !== letGoOf ? target : undefined)
-  const changingSongs = changing ? changingCount(changing, server.onDevice) : 0
+  const fieldSays = fieldWords(
+    changing ? changingCount(changing, server.onDevice) : null,
+    turns.length,
+  )
   // The answer on the screen, by its object's handle: the list while it wears
   // the chip, or any other answer that showed songs.
   const screen =
@@ -339,27 +261,15 @@ export function AskScreen(): ReactNode {
         onSend={words => ask(words, true)}
         onStop={working ? stop : null}
         chip={
-          changing
+          changing && fieldSays.chip !== null
             ? {
-                label:
-                  changingSongs === 1
-                    ? 'this song'
-                    : `these ${plural(changingSongs, 'song', 'songs')}`,
+                label: fieldSays.chip,
                 name: changing.result.understanding.name,
                 onLetGo: () => setLetGoOf(changing.id),
               }
             : null
         }
-        placeholder={
-          changing
-            ? // The chip already says which songs.
-              changingSongs === 1
-              ? 'Ask about it…'
-              : 'Ask about them…'
-            : turns.length === 0
-              ? 'Ask anything…'
-              : 'Ask a follow-up…'
-        }
+        placeholder={fieldSays.placeholder}
         autoFocus={turns.length === 0}
       />
       {finePointer && (answerKeys || (changing && !typing)) ? (
@@ -585,40 +495,6 @@ function LogLine({
   )
 }
 
-/** An answer that is not only a list: its way back at the top on a phone, the rest scrolling under it. */
-function Stage({
-  top,
-  hidden = false,
-  testID,
-  children,
-}: {
-  top: ReactNode
-  hidden?: boolean
-  testID?: string
-  children: ReactNode
-}): ReactNode {
-  const { wide } = useLayoutFlags()
-  const insets = useSafeAreaInsets()
-  const frame = pageFrame(wide)
-  return (
-    <View style={[styles.stage, hidden && styles.hidden]} testID={testID}>
-      <ScrollView
-        style={styles.stage}
-        contentContainerStyle={[
-          styles.stageContent,
-          frame,
-          { paddingTop: insets.top + frame.paddingTop },
-        ]}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-      >
-        {top}
-        {children}
-      </ScrollView>
-    </View>
-  )
-}
-
 /** How many songs the field's words would change: the songs its list shows, as the list counts them. */
 function changingCount(
   list: NonNullable<ReturnType<typeof keptAnswer>>,
@@ -677,296 +553,6 @@ function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
   )
 }
 
-/**
- * One turn on the stage: what was asked as the title, and its answer under it
- * — the step running now while it is worked on, a way to try again when it
- * failed, the line it was answered with once it is settled. A list is the
- * list itself, its head carrying the title. Off the stage it stays drawn,
- * hidden, so its request goes on.
- */
-const TurnStage = memo(function TurnStage({
-  turn,
-  number,
-  shown: onStage,
-  latest,
-  top,
-  via,
-  listHeight,
-  onAnswered,
-  onSettle,
-  onRetry,
-  onAsk,
-  onKeys,
-}: {
-  turn: Turn
-  /** Its place on the page, 1 for the first: its objects' handles say it (`objectsOf`). */
-  number: number
-  /** On the stage; otherwise drawn but hidden. */
-  shown: boolean
-  latest: boolean
-  /** On a phone, the way back to the log; on a computer, nothing: the log is beside it. */
-  top: ReactNode
-  via: string | null
-  listHeight: number
-  onAnswered: (id: number, came: Answered) => void
-  onSettle: (id: number, card: number, outcome: string) => void
-  /** Try again, before it is asked again. */
-  onRetry: (id: number) => void
-  onAsk: (words: string) => void
-  onKeys?: (keys: AnswerKeys | null) => void
-}): ReactNode {
-  const server = useSmartServer()
-  const router = useRouter()
-  const { wide } = useLayoutFlags()
-  const room = useContext(AddingToRoom)
-  const said = turn.before
-  // More than the server takes is said here rather than sent to be refused.
-  const tooLong = tooLongToAsk(turn.asked)
-  // Names the request, so how it is going can be asked after while it runs,
-  // and its answer collected if the response is lost (`askKept`). A new one
-  // each time: a Stop meant for one request must not reach the next.
-  const [ticket, setTicket] = useState<string | null>(null)
-  const answer = useQuery<AskReply>({
-    queryKey: askKey(
-      via,
-      turn.id,
-      [...said.map(each => each.asked), turn.asked],
-      turn.playing,
-      turn.screen,
-    ),
-    // Read, so React Query drops the request when nobody watches it any more:
-    // Stop, the page left. The server stops asking the model with it.
-    queryFn: async ({ signal }) => {
-      const named = newTicket()
-      setTicket(named)
-      return askKept(
-        server.api!,
-        {
-          text: turn.asked,
-          context: { playing: turn.playing, screen: turn.screen },
-          ticket: named,
-          before: said,
-        },
-        signal,
-      )
-    },
-    enabled: server.api !== null && !tooLong,
-    ...ASKS_MODEL,
-    staleTime: Infinity,
-  })
-  // Asked again after it failed (Try again) is waiting too.
-  const waiting = !tooLong && (answer.isPending || (answer.isError && answer.isFetching))
-  const live = useAskProgress(ticket, waiting)
-  const data = answer.data
-  // Each songs card is an answer kept on its own (`answers.store`), by its place.
-  const keptIds = useMemo(
-    () =>
-      data?.cards.map(card =>
-        card.kind === 'songs' ? keepAnswer(turn.asked, card.describe) : undefined,
-      ) ?? [],
-    [data, turn.asked],
-  )
-  const keptAnswers = useKeptAnswers()
-  // A list changed in words (Change it) is told as it is now shown, not as it first came.
-  const shown = useMemo(() => {
-    if (!data) return undefined
-    const cards = data.cards.map((card, index) => {
-      const kept = keptIds[index] === undefined ? undefined : keptAnswers.get(keptIds[index])
-      return card.kind === 'songs' && kept ? { ...card, describe: kept.result } : card
-    })
-    return { ...data, cards }
-  }, [data, keptIds, keptAnswers])
-  // Each list as it is shown now, by its card's place: what the follow-ups name.
-  const shownLists = useMemo(() => {
-    const lists = new Map<number, ShownList>()
-    keptIds.forEach((id, index) => {
-      const kept = id === undefined ? undefined : keptAnswers.get(id)
-      if (kept) {
-        lists.set(index, {
-          songIds: shownOnServer(kept, server.onServer),
-          understanding: understandingOf(kept),
-        })
-      }
-    })
-    return lists
-  }, [keptIds, keptAnswers, server.onServer])
-  // A playback card is told as what it came to on this device ("Nothing is playing."), by its place.
-  const [carried, setCarried] = useState<Readonly<Record<number, string>>>({})
-  const carriedOut = useCallback(
-    (index: number, came: string) => setCarried(was => ({ ...was, [index]: came })),
-    [],
-  )
-  // The lists that stand on the stage: one to play or keep, with songs, not for a room.
-  const stageLists = data
-    ? data.cards.flatMap((card, index) => {
-        const id = keptIds[index]
-        return card.kind === 'songs' &&
-          card.lead !== 'next' &&
-          !room &&
-          id !== undefined &&
-          card.describe.picks.length > 0
-          ? [{ id, index, lead: card.lead }]
-          : []
-      })
-    : []
-  // A reply that is one list is the list itself; among other cards, one is opened by pressing it.
-  const alone = data?.cards.length === 1 ? (stageLists[0] ?? null) : null
-  const [opened, setOpened] = useState<string | null>(null)
-  const openedList = stageLists.find(each => each.id === opened) ?? null
-  const onStageList = alone ?? openedList
-  // Its list: the one on the stage, or the reply's first; what the field's chip changes.
-  const listed = onStageList ?? stageLists[0] ?? null
-  const recap = waiting
-    ? null
-    : shown
-      ? answerRecap(shown, carried)
-      : answer.isError || tooLong
-        ? FAILED
-        : null
-  // What the log says under the question: a part per card, what came of each in its place.
-  const line = waiting || !shown ? null : logLine(shown, { ...carried, ...turn.outcomes })
-  // What it showed, for the follow-ups to name by handle: each list as it is shown now.
-  const objects = useMemo(
-    () => (recap === null || !shown ? [] : objectsOf(shown, number, shownLists)),
-    [recap, shown, number, shownLists],
-  )
-  const list = listed?.id ?? null
-  const listHandle = listed ? `t${number}.${listed.index + 1}` : null
-  useEffect(() => {
-    if (
-      recap !== null &&
-      (recap !== turn.answered ||
-        list !== turn.list ||
-        listHandle !== turn.listHandle ||
-        line !== turn.line ||
-        JSON.stringify(objects) !== JSON.stringify(turn.objects))
-    ) {
-      onAnswered(turn.id, { answered: recap, list, listHandle, line, objects })
-    }
-  }, [recap, list, listHandle, line, objects, turn, onAnswered])
-  // Done with when every review in it is: only the newest answer's keys work, and only while one is open.
-  const settled =
-    data !== undefined &&
-    data.cards.every(
-      (card, index) => !TAKES_KEYS.has(card.kind) || turn.outcomes[index] !== undefined,
-    )
-  useEffect(() => {
-    if (!onKeys || settled) return undefined
-    return () => onKeys(null)
-  }, [onKeys, settled])
-  const settleCard = useCallback(
-    (index: number, outcome: string) => onSettle(turn.id, index, outcome),
-    [onSettle, turn.id],
-  )
-
-  // A list on the stage is the list itself: the reply's only card, or one opened from among its cards.
-  if (onStageList !== null && data) {
-    return (
-      <View style={[styles.stage, !onStage && styles.hidden]} testID={`ask-turn-${turn.id}`}>
-        <AnswerView
-          key={onStageList.id}
-          id={onStageList.id}
-          asked={turn.asked}
-          said={alone ? data.say : null}
-          top={
-            alone ? (
-              top
-            ) : (
-              // Back to the reply's cards, on a phone and a computer alike.
-              <BackButton
-                to="/search"
-                always
-                onPress={() => setOpened(null)}
-                testID="ask-to-reply"
-              />
-            )
-          }
-          lead={onStageList.lead}
-          playNow={alone !== null && onStageList.lead === 'play'}
-        />
-      </View>
-    )
-  }
-  return (
-    <Stage top={top} hidden={!onStage} testID={`ask-turn-${turn.id}`}>
-      {waiting && !wide ? (
-        <View style={styles.working}>
-          <AskedLabel label={room ? `Asking for ${room.title}` : 'Asking'} />
-          <AskedTitle asked={turn.asked} center testID="ask-turn-asked" />
-          <Working steps={FIRST_STEPS} live={live} stage testID="ask-waiting" />
-        </View>
-      ) : waiting ? (
-        // On a computer the question and its steps stand where its answer will be.
-        <View style={[styles.answered, styles.answeredWide]}>
-          <View style={styles.asked}>
-            <AskedLabel label={room ? `Asking for ${room.title}` : 'Asking'} />
-            <AskedTitle asked={turn.asked} testID="ask-turn-asked" />
-          </View>
-          <Working steps={FIRST_STEPS} live={live} testID="ask-waiting" />
-        </View>
-      ) : (
-        <View style={[styles.answered, wide && styles.answeredWide]}>
-          <View style={styles.asked}>
-            <AskedLabel label={room ? `Asked for ${room.title}` : 'You asked'} />
-            <AskedTitle asked={turn.asked} testID="ask-turn-asked" />
-          </View>
-          {tooLong ? (
-            <StatusLine testID="ask-too-long">
-              {`That’s too long to ask: Ask takes up to ${ASK_TEXT_MAX} characters.`}
-            </StatusLine>
-          ) : answer.error ? (
-            <View style={styles.failed}>
-              <StatusLine>{failureText('Couldn’t answer that', answer.error)}</StatusLine>
-              {latest ? (
-                <AnswerActions>
-                  {settingsHelp(answer.error) ? (
-                    <Button label="Open Settings" onPress={() => router.navigate('/settings')} />
-                  ) : null}
-                  <Button
-                    label="Try again"
-                    onPress={() => {
-                      onRetry(turn.id)
-                      void answer.refetch()
-                    }}
-                  />
-                </AnswerActions>
-              ) : null}
-            </View>
-          ) : data ? (
-            <AnswerBody
-              reply={data}
-              text={turn.asked}
-              outcomes={turn.outcomes}
-              // A proposal acted on or put aside becomes what came of it; anything
-              // else stays to come back to.
-              onSettle={settleCard}
-              listHeight={listHeight}
-              onKeys={latest && !settled ? onKeys : undefined}
-              onAsk={onAsk}
-              onCarriedOut={carriedOut}
-              onOpenList={setOpened}
-              beside={wide}
-            />
-          ) : null}
-        </View>
-      )}
-    </Stage>
-  )
-})
-
-/**
- * A model's failure Settings can help with: none set up, not reached, or its
- * key refused. A busy or muddled model is only a matter of trying again.
- */
-function settingsHelp(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    (error.code === AI_ERROR.off ||
-      error.code === AI_ERROR.unreachable ||
-      error.code === AI_ERROR.refused)
-  )
-}
-
 /** Whether a key went to a field you type in: the dock's or another (`passToAnswer`). */
 function isTextField(target: unknown): boolean {
   if (typeof target !== 'object' || target === null) return false
@@ -978,127 +564,11 @@ function isTextField(target: unknown): boolean {
   )
 }
 
-/** The field's words, read and written by the page: Stop puts a question back. */
-interface DraftHandle {
-  read: () => string
-  write: (words: string) => void
-}
-
-/**
- * The field at the foot of the page: one line with a send once there are
- * words, and while an answer is worked on, a Stop where the send was. Enter
- * sends; a browser keeps the focus in it, since the next follow-up is likely.
- *
- * After a list it wears the list as a chip, "↳ these 19 songs" (B1,
- * 2026-10-26): what "these" means, the list sent as what is on the screen.
- * Its ×, or ⌫ in the empty field, lets the list go, and the words are asked
- * with nothing on the screen.
- */
-function AskField({
-  inputRef,
-  draftRef,
-  onTyping,
-  onSend,
-  onStop,
-  chip,
-  placeholder,
-  autoFocus,
-}: {
-  inputRef: RefObject<TextInput | null>
-  draftRef: RefObject<DraftHandle | null>
-  /** Whether anything is typed, each time that changes. */
-  onTyping: (typing: boolean) => void
-  onSend: (words: string) => void
-  /** While an answer is worked on: what Stop does. */
-  onStop: (() => void) | null
-  /** The list "these" means, and how to let it go. */
-  chip: { label: string; name: string; onLetGo: () => void } | null
-  placeholder: string
-  autoFocus: boolean
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const accent = useAccent()
-  const [focused, setFocused] = useState(false)
-  const [value, setValue] = useState('')
-  const typed = useRef(value)
-  const change = (next: string): void => {
-    typed.current = next
-    setValue(next)
-    onTyping(next !== '')
-  }
-  useImperativeHandle(draftRef, () => ({ read: () => typed.current, write: change }))
-  const words = value.trim().length > 0
-  return (
-    <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-      {chip ? (
-        <View style={styles.chip} testID="ask-chip" accessibilityLabel={`About ${chip.name}`}>
-          <Text style={styles.chipText} numberOfLines={1}>
-            {`↳ ${chip.label}`}
-          </Text>
-          <IconButton
-            label="Ask something new instead"
-            size={22}
-            onPress={() => {
-              chip.onLetGo()
-              inputRef.current?.focus()
-            }}
-            testID="ask-chip-let-go"
-          >
-            <X size={iconSize.tiny} color={theme.colors.textSecondary} />
-          </IconButton>
-        </View>
-      ) : (
-        <Sparkle size={iconSize.small} />
-      )}
-      <TextInput
-        {...NO_AUTOFILL}
-        ref={inputRef}
-        value={value}
-        onChangeText={change}
-        onSubmitEditing={onStop ? undefined : () => onSend(value)}
-        onKeyPress={event => {
-          if (chip && event.nativeEvent.key === 'Backspace' && typed.current === '') chip.onLetGo()
-        }}
-        maxLength={ASK_TEXT_MAX}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        autoFocus={autoFocus}
-        placeholder={placeholder}
-        placeholderTextColor={theme.colors.textMuted}
-        returnKeyType="send"
-        submitBehavior="submit"
-        blurOnSubmit={false}
-        accessibilityLabel="Ask"
-        testID="ask-follow-up-input"
-        style={styles.input}
-      />
-      {onStop ? (
-        <StopButton onPress={onStop} size={34} testID="ask-stop" />
-      ) : (
-        <View style={!words && styles.sendAway} pointerEvents={words ? 'auto' : 'none'}>
-          <IconButton
-            label="Send"
-            filled="accent"
-            size={34}
-            onPress={() => onSend(value)}
-            testID="ask-follow-up-send"
-          >
-            <ChevronRight size={iconSize.field} color={theme.colors.onPrimary} />
-          </IconButton>
-        </View>
-      )}
-    </View>
-  )
-}
-
 /** The log's width beside the answer on a computer (S1). */
 const LOG_WIDTH = 360
 
 /** A line of the log's picture: its list's covers, or what it is waiting on. */
 const LOG_ART = 40
-
-/** The widest an answer that is not a list is set, on a big window. */
-const ANSWER_MAX = 1100
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
@@ -1107,10 +577,7 @@ const styles = StyleSheet.create(theme => ({
   body: { flex: 1, minHeight: 0 },
   bodyWide: { flexDirection: 'row' },
   answerArea: { flex: 1, minWidth: 0, minHeight: 0 },
-  // Every answer fills the answer side; the ones not shown are drawn and hidden.
-  stage: { ...StyleSheet.absoluteFillObject },
   hidden: { display: 'none' },
-  stageContent: { flexGrow: 1, gap: space.xl, paddingBottom: space.xl },
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: space.xl },
   answerTop: { flexDirection: 'row' },
   log: { flex: 1, minHeight: 0 },
@@ -1156,25 +623,10 @@ const styles = StyleSheet.create(theme => ({
   logText: { flex: 1, minWidth: 0, gap: 2 },
   logAsked: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   logSaid: { color: theme.colors.textMuted, fontSize: type.sub },
-  // While it is worked on, the question and its step in the middle of the page.
-  working: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.lg,
-    paddingHorizontal: space.lg,
-    // Lifted a little off true centre, over the field below.
-    paddingBottom: space.gutterWide,
-  },
-  answered: { gap: space.xl },
-  // Wide enough for words beside their songs, not so wide a line runs on.
-  answeredWide: { maxWidth: ANSWER_MAX },
-  asked: { gap: space.sm },
   // At the foot of the empty thread, just above the field.
   suggestions: { marginTop: 'auto', gap: space.sm },
   suggestionsLabel: { color: theme.colors.textMuted, fontSize: type.small },
   suggestion: { alignItems: 'flex-start' },
-  failed: { gap: space.sm },
   // The field floats over the thread's fading foot (C1), with room under it
   // before the player bar or the phone's edge.
   dock: {
@@ -1185,41 +637,6 @@ const styles = StyleSheet.create(theme => ({
   },
   // On a computer: at the log's foot, under the conversation it continues.
   dockWide: { paddingBottom: space.xl },
-  field: {
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingLeft: 18,
-    paddingRight: space.sm,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    borderWidth: 1,
-    borderColor: theme.colors.surface3,
-    ...floating(theme.colors),
-  },
-  // Never cut short: "these 18 so…" hid the one thing the chip is there to say.
-  chip: {
-    flexShrink: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingLeft: space.snug,
-    paddingRight: space.xs,
-    paddingVertical: space.xs,
-    marginLeft: -space.sm,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.accentPill,
-  },
-  chipText: { color: theme.colors.textPrimary, fontSize: type.small },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    paddingVertical: space.sm,
-  },
-  sendAway: { opacity: 0 },
   keys: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.md },
   keysText: { color: theme.colors.textMuted, fontSize: type.small },
 }))

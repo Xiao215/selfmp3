@@ -313,6 +313,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     if (!needsReport(now.state, now.offset, Date.now(), facts)) return
     reporting.current = true
     void roomAct({ type: 'report', ...facts })
+      // A report that did not land is made again at the next check, while the room still differs.
       .catch(() => undefined)
       .finally(() => {
         reporting.current = false
@@ -375,6 +376,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       })
       for (const id of yours) {
         const song = cloudLibrary.cloudRoomSongNow(id)
+        // One the room would not take is passed over; the next song is still worth asking.
         if (song) await roomAct({ type: 'add', song }).catch(() => undefined)
       }
     })()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { afterStop, retried, scrollToShow, type Turn } from './askTurns.model'
+import { afterStop, fieldWords, retried, scrollToShow, type Turn } from './askTurns.model'
 
 const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   id,
@@ -28,6 +28,18 @@ describe('afterStop', () => {
     expect(afterStop('', 'calm songs')).toBe('calm songs')
     expect(afterStop('  ', 'calm songs')).toBe('calm songs')
     expect(afterStop('and some jazz', 'calm songs')).toBe('and some jazz')
+  })
+})
+
+describe('fieldWords', () => {
+  it('names the songs a chip means, one or several, and asks about them', () => {
+    expect(fieldWords(1, 2)).toEqual({ chip: 'this song', placeholder: 'Ask about it…' })
+    expect(fieldWords(18, 2)).toEqual({ chip: 'these 18 songs', placeholder: 'Ask about them…' })
+  })
+
+  it('asks anything to start, and a follow-up after', () => {
+    expect(fieldWords(null, 0)).toEqual({ chip: null, placeholder: 'Ask anything…' })
+    expect(fieldWords(null, 3)).toEqual({ chip: null, placeholder: 'Ask a follow-up…' })
   })
 })
 

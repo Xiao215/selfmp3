@@ -92,6 +92,12 @@ device's store, because the only data there is is the owner's.
   deleted meanwhile, which is the safe side.
 - **Settings keeps `Row` + `Toggle`** rather than `ToggleRow`: its rows put every kind of
   control at the end (T-428).
+- **Import's review keeps a phone row and a computer row** (`PhoneRow`, `GridRow` in
+  `features/import/ReviewRows.tsx`): a phone's opens into a card and a computer's into
+  fields on the one grid every row shares; the box, the title, the name fields, the bar
+  and the words at the end are already the same parts.
+- **`features/lists/lists.model.ts` keeps Recently played with the sources**: a recent
+  list is keyed by its source (`sourceKey`), and the module's tests read both together.
 - **The desktop shell's IPC handlers do not check `event.senderFrame`**
   (`apps/desktop/src/main/ipc.ts`): the preload runs only in the window's top frame, and
   `window.ts` keeps that frame on the app's own origin (`will-navigate`, and every new

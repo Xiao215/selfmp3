@@ -253,8 +253,7 @@ function SongSky(
   useLayoutEffect(() => {
     latest.current = { props, art, accent, grid, byId }
     record(live.now())
-    // `props` itself is new each render; what is drawn from it is listed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `props` itself is new each render; what is drawn from it is listed.
   }, [
     record,
     live,
@@ -561,7 +560,8 @@ function coverImage(uri: string | null | undefined, arrived: () => void): SkImag
       entry.image = Skia.Image.MakeImageFromEncoded(data)
       if (entry.image) arrived()
     })
-    .catch(() => {})
+    // A cover that does not load leaves its star drawn without one.
+    .catch(() => undefined)
   for (const [oldest, each] of coverCache) {
     if (coverCache.size <= COVERS_KEPT || each.record === coverRecord) break
     coverCache.delete(oldest)

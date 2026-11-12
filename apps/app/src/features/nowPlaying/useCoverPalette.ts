@@ -58,8 +58,7 @@ export function useCoverPalette(song: Song, uri: string | null | undefined): Pal
     return () => {
       cancelled = true
     }
-    // The song is identified by its key; a re-render with the same song is not a new read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the song is identified by its key; a re-render with the same song is not a new read.
   }, [key, uri])
 
   const tone = song.coverTone && hasColour(song.coverTone) ? song.coverTone : null

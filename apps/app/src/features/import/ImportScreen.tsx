@@ -159,8 +159,7 @@ export function ImportScreen({
     sharedOnce.current = true
     lookUp(shared)
     router.setParams({ url: undefined, text: undefined, title: undefined })
-    // Only `shared` matters here; the ref guards against a second run anyway.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only `shared` matters here; the ref guards against a second run anyway.
   }, [shared])
 
   // File › Import… in the Mac app: the field, ready for a paste.

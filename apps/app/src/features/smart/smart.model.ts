@@ -496,6 +496,63 @@ export function keptSongs(here: Reviewed, leftOut: ReadonlySet<string>): number[
   return here.songIds.filter(id => !leftOut.has(leftOutKey(here.change.key, id)))
 }
 
+/** What a review has ticked: the changes taken, and the songs left out of them. */
+export interface Ticks {
+  readonly chosen: ReadonlySet<string>
+  readonly leftOut: ReadonlySet<string>
+}
+
+/** Whether a change is taken. One with no songs (a rename, a merge) is on or off as a whole. */
+export function isTicked(ticks: Ticks, here: Reviewed): boolean {
+  return (
+    ticks.chosen.has(here.change.key) &&
+    (here.songIds.length === 0 || keptSongs(here, ticks.leftOut).length > 0)
+  )
+}
+
+/** Whether a change is taken with every one of its songs. */
+export function isFullyTicked(ticks: Ticks, here: Reviewed): boolean {
+  return (
+    ticks.chosen.has(here.change.key) &&
+    keptSongs(here, ticks.leftOut).length === here.songIds.length
+  )
+}
+
+/** Ticks or unticks whole changes, with every song back in. */
+export function withTicked(ticks: Ticks, list: readonly Reviewed[], on: boolean): Ticks {
+  const chosen = new Set(ticks.chosen)
+  const leftOut = new Set(ticks.leftOut)
+  for (const here of list) {
+    if (on) chosen.add(here.change.key)
+    else chosen.delete(here.change.key)
+    for (const id of here.songIds) leftOut.delete(leftOutKey(here.change.key, id))
+  }
+  return { chosen, leftOut }
+}
+
+/** Leaves one song out of a change, or puts it back; a change with none left is unticked. */
+export function withSongTicked(ticks: Ticks, here: Reviewed, songId: number): Ticks {
+  const key = here.change.key
+  const chosen = new Set(ticks.chosen)
+  const leftOut = new Set(ticks.leftOut)
+  if (!isTicked(ticks, here)) {
+    // Ticking one song of an unticked change takes that song alone.
+    chosen.add(key)
+    for (const id of here.songIds) {
+      if (id === songId) leftOut.delete(leftOutKey(key, id))
+      else leftOut.add(leftOutKey(key, id))
+    }
+  } else if (leftOut.has(leftOutKey(key, songId))) leftOut.delete(leftOutKey(key, songId))
+  else {
+    leftOut.add(leftOutKey(key, songId))
+    if (here.songIds.every(id => leftOut.has(leftOutKey(key, id)))) {
+      chosen.delete(key)
+      for (const id of here.songIds) leftOut.delete(leftOutKey(key, id))
+    }
+  }
+  return { chosen, leftOut }
+}
+
 /**
  * The approved changes as one edit per song, a title and an artist fixed
  * together, a year as the number it is. `undo` writes each field back to what
@@ -634,15 +691,23 @@ export function tickedAtFirst(changes: readonly Reviewed[]): Set<string> {
  * A tag change as this device has it. An add keeps only songs still without
  * the tag and a remove only songs still with it, so an approval never undoes
  * an edit made since; a change to a tag that is gone, or a rename onto a name
- * taken since, is left out.
+ * taken since, is left out. `op` is the change's own, carried beside the tag
+ * so that which tags are there follows from it.
  */
-export interface TagHere extends Reviewed {
+export type TagHere = Reviewed & {
   readonly change: TagChange
-  /** The tag here; null only for an add that makes it. */
-  readonly tag: Tag | null
-  /** The tag a merge goes into. */
+  /** The tag a merge goes into; null for the rest. */
   readonly into: Tag | null
-}
+} & (
+    | {
+        readonly op: 'add' | 'remove'
+        /** The tag here; null for an add that makes it. */
+        readonly tag: Tag | null
+      }
+    | { readonly op: 'rename'; readonly tag: Tag; readonly to: string }
+    | { readonly op: 'merge'; readonly tag: Tag; readonly into: Tag }
+    | { readonly op: 'delete'; readonly tag: Tag }
+  )
 
 export function tagChangesHere(
   changes: readonly TagChange[],
@@ -663,20 +728,21 @@ export function tagChangesHere(
         const has = tag !== null && song.tagIds.includes(tag.id)
         return has === (change.op === 'remove') ? [song.id] : []
       })
-      return songIds.length > 0 ? [{ change, songIds, tag, into: null }] : []
+      return songIds.length > 0 ? [{ op: change.op, change, songIds, tag, into: null }] : []
     }
     if (!tag) return []
     if (change.op === 'merge') {
       const into = named(change.to)
-      return into && into.id !== tag.id ? [{ change, songIds: [], tag, into }] : []
+      return into && into.id !== tag.id ? [{ op: 'merge', change, songIds: [], tag, into }] : []
     }
     if (change.op === 'rename') {
-      const taken = named(change.to)
-      return change.to && (!taken || taken.id === tag.id)
-        ? [{ change, songIds: [], tag, into: null }]
+      const { to } = change
+      const taken = named(to)
+      return to && (!taken || taken.id === tag.id)
+        ? [{ op: 'rename', change, songIds: [], tag, into: null, to }]
         : []
     }
-    return [{ change, songIds: [], tag, into: null }]
+    return [{ op: 'delete', change, songIds: [], tag, into: null }]
   })
 }
 
@@ -763,45 +829,46 @@ export function tagSteps(
   const holding = (tag: Tag): number[] =>
     songs.filter(song => song.tagIds.includes(tag.id)).map(song => song.id)
   for (const here of approved) {
-    const { change, tag } = here
-    switch (change.op) {
+    switch (here.op) {
       case 'add':
       case 'remove': {
+        const { change, tag } = here
         const songIds = keptSongs(here, leftOut)
         if (songIds.length === 0) break
         if (!tag) make.push({ kind: 'make', name: change.tag })
         members.push({
           kind: 'songs',
-          action: change.op,
+          action: here.op,
           tag: tag ? { id: tag.id } : { name: change.tag },
           songIds,
         })
         break
       }
       case 'rename':
-        renames.push({ kind: 'rename', tagId: tag!.id, from: tag!.name, to: change.to! })
+        renames.push({ kind: 'rename', tagId: here.tag.id, from: here.tag.name, to: here.to })
         break
       case 'merge': {
-        const songIds = holding(tag!)
+        const { tag, into } = here
+        const songIds = holding(tag)
         const gaining = songs
-          .filter(song => song.tagIds.includes(tag!.id) && !song.tagIds.includes(here.into!.id))
+          .filter(song => song.tagIds.includes(tag.id) && !song.tagIds.includes(into.id))
           .map(song => song.id)
         merges.push({
           kind: 'merge',
-          from: tag!,
-          into: here.into!,
+          from: tag,
+          into,
           songIds,
           gaining,
-          playlists: followersOf(tag!.id, playlists),
+          playlists: followersOf(tag.id, playlists),
         })
         break
       }
       case 'delete':
         deletes.push({
           kind: 'delete',
-          tag: tag!,
-          songIds: holding(tag!),
-          playlists: followersOf(tag!.id, playlists),
+          tag: here.tag,
+          songIds: holding(here.tag),
+          playlists: followersOf(here.tag.id, playlists),
         })
         break
     }

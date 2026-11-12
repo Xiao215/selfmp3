@@ -127,7 +127,7 @@ Up next — a tag, the source line — take the page down before the page they o
 
 | What | Where |
 |---|---|
-| Page | `apps/app/src/features/nowPlaying/NowPlayingScreen.tsx` (route `apps/app/app/now-playing.tsx`), `NowPlayingStage.tsx` |
+| Page | `apps/app/src/features/nowPlaying/NowPlayingScreen.tsx` (route `apps/app/app/now-playing.tsx`), `NowPlayingStage.tsx`; the phone's breathing cover in `BreathingCover.tsx` |
 | Lyrics, visual, status line | `nowPlaying/StageLyrics.tsx`, `SongVisual.tsx` (+ `.web.tsx`) |
 | Lyrics state, cover colours, Stage ↔ Focus | `nowPlaying/useSongWords.ts`, `useCoverPalette.ts`, `stageMove.model.ts` |
 | Up next | `apps/app/src/features/queue/` (`QueueSheet.tsx`, `QueueRail.tsx`, `queue.model.ts`) |

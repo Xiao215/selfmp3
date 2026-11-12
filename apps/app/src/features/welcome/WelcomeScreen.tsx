@@ -151,8 +151,11 @@ export function WelcomeScreen(): ReactNode {
 
   const begin = useCallback((): void => {
     attempt.current += 1
+    const mine = attempt.current
     setStage({ kind: 'waiting', googleDoneAt: null })
     void cloud.beginSignIn().catch((error: unknown) => {
+      // Cancelled, or begun again since: that attempt says what happened to it.
+      if (attempt.current !== mine) return
       setStage({ kind: 'idle', message: signInFailure(error, pageOrigin()) })
     })
   }, [])

@@ -1,4 +1,5 @@
-import { gzipSync } from 'node:zlib'
+import { promisify } from 'node:util'
+import { gzip } from 'node:zlib'
 import {
   bucketPlace,
   HASH_NAMED_FOLDERS,
@@ -103,6 +104,8 @@ import { pool } from '../util/pool.js'
  * the files of songs removed since the last pass, waiting in `cloud_trash`,
  * are deleted from the bucket once no song names them.
  */
+
+const gzipAsync = promisify(gzip)
 
 /** How long after a change a pass starts, so a burst of changes is one pass. */
 const DEFAULT_DEBOUNCE_MS = 4_000
@@ -2002,7 +2005,10 @@ export class CloudSyncService {
     }
 
     const key = snapshotKey(writtenAt, deviceId)
-    await store.put(key, gzipSync(Buffer.from(JSON.stringify(snapshot))), {
+    // Packed off the event loop: five thousand songs' snapshot takes 40 ms on
+    // a laptop and several times that on a Pi, which every device's requests
+    // would otherwise wait out.
+    await store.put(key, await gzipAsync(Buffer.from(JSON.stringify(snapshot))), {
       contentType: 'application/json',
       contentEncoding: 'gzip',
     })

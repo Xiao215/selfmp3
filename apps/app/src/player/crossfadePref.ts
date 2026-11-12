@@ -43,7 +43,7 @@ export async function moveOldCrossfade(store: DeviceStore): Promise<void> {
     const old = await store.read(OLD_DEVICE_SETTINGS)
     if (old === undefined || old === null) return
     const seconds =
-      typeof old === 'object' ? (old as { crossfadeSeconds?: unknown }).crossfadeSeconds : undefined
+      typeof old === 'object' && 'crossfadeSeconds' in old ? old.crossfadeSeconds : undefined
     if (typeof seconds === 'number' && prefs.get(KEY) === null) setCrossfadeSeconds(seconds)
     await store.remove(OLD_DEVICE_SETTINGS)
   } catch {

@@ -71,7 +71,7 @@ export const Press = forwardRef<View, PressProps>(function Press(
   const seen = (state: PressableStateCallbackType): PressableStateCallbackType =>
     released && state.pressed ? { ...state, pressed: false } : state
   const look = feedback === 'wash' ? styles.wash : feedback === 'dim' ? styles.dim : null
-  const role = (rest.role ?? rest.accessibilityRole) as string | undefined
+  const role: string | undefined = rest.role ?? rest.accessibilityRole
   const web = browserKeys
     ? {
         ...ariaFor(role, rest.accessibilityState ?? undefined, rest.accessibilityValue),

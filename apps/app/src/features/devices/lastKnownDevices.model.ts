@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { DeviceSchema, type Device } from '@selfmp3/shared'
+import { readStored } from '../../state/stored.model'
 
 /**
  * The last device list this device was given, kept so Settings › Devices has
@@ -41,16 +42,8 @@ export function serializeKnownDevices(devices: readonly Device[], savedAt: numbe
 export function parseKnownDevices(
   raw: string | null,
 ): { savedAt: number; devices: readonly KnownDevice[] } | null {
-  if (!raw) return null
-  let stored: unknown
-  try {
-    stored = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  const result = StoredSchema.safeParse(stored)
-  if (!result.success || result.data.devices.length === 0) return null
-  return result.data
+  const stored = readStored(raw, StoredSchema)
+  return stored && stored.devices.length > 0 ? stored : null
 }
 
 /** Nothing playing: what a kept row says about playback, since none of it was kept. */

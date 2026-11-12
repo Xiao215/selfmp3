@@ -19,6 +19,7 @@ import {
 } from '@selfmp3/client'
 import { doormanUrl } from '../../ports/doormanUrl'
 import { prefs } from '../../ports/prefs'
+import { readStored } from '../../state/stored.model'
 import { isHost } from './room.model'
 import { connectionKind } from '../../offline/connectionKind'
 import { showToast } from '../../ui/toast'
@@ -132,14 +133,9 @@ function endOf(error: DoormanError): RoomEnd {
   return error.code === DOORMAN_ERROR.roomLeft ? 'removed' : 'ended'
 }
 
+/** A pass that does not read is no pass. */
 function readPass(): RoomPass | null {
-  try {
-    const read = StoredPassSchema.safeParse(JSON.parse(prefs.get(PASS_KEY) ?? 'null'))
-    if (read.success) return read.data
-  } catch {
-    // A pass that does not read is no pass.
-  }
-  return null
+  return readStored(prefs.get(PASS_KEY), StoredPassSchema)
 }
 
 export function currentRoom(): RoomView {

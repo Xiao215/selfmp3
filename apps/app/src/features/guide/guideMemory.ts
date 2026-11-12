@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { z } from 'zod'
 import { prefs } from '../../ports/prefs'
+import { readStored } from '../../state/stored.model'
 import { hasSeen, parseSeen, withSeen, writeSeen, type GuideName, type Seen } from './guide.model'
 
 /**
@@ -96,13 +97,8 @@ export function useGuideMemory(): number {
  * guide waits for the second, so the first look at a library is left alone.
  */
 export function countVisit(name: GuideName): number {
-  let visits: Record<string, number> = {}
-  try {
-    const read = VisitsSchema.safeParse(JSON.parse(prefs.get(VISITS_KEY) ?? '{}'))
-    if (read.success) visits = read.data
-  } catch {
-    // Counts that do not read are none yet.
-  }
+  // Counts that do not read are none yet.
+  const visits = readStored(prefs.get(VISITS_KEY), VisitsSchema) ?? {}
   const count = (visits[name] ?? 0) + 1
   visits[name] = count
   prefs.set(VISITS_KEY, JSON.stringify(visits))

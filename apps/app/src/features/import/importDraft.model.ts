@@ -7,6 +7,7 @@ import {
   type ImportPreviewItem,
 } from '@selfmp3/shared'
 import type { Review, ServerConnection } from '@selfmp3/client'
+import { readStored } from '../../state/stored.model'
 
 /**
  * What Import holds between a link being looked up and imported: the links
@@ -136,16 +137,9 @@ const StoredDraftSchema = z.object({
  * draft rather than a crash, and the review is simply looked up again.
  */
 export function parseImportDraft(raw: string | null): ImportDraft | null {
-  if (!raw) return null
-  let stored: unknown
-  try {
-    stored = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  const result = StoredDraftSchema.safeParse(stored)
-  if (!result.success) return null
-  const { source, links, review, search, tagIds } = result.data
+  const stored = readStored(raw, StoredDraftSchema)
+  if (!stored) return null
+  const { source, links, review, search, tagIds } = stored
   return {
     source,
     links,

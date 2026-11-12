@@ -9,6 +9,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { prefs } from '../../ports/prefs'
+import { readStored } from '../../state/stored.model'
 
 /**
  * What this device counts for its server owner's admin page
@@ -38,12 +39,7 @@ function usageDay(now = Date.now()): string {
 }
 
 function read(): Counts {
-  try {
-    const parsed = CountsSchema.safeParse(JSON.parse(prefs.get(COUNTS_KEY) ?? '{}'))
-    return parsed.success ? parsed.data : {}
-  } catch {
-    return {}
-  }
+  return readStored(prefs.get(COUNTS_KEY), CountsSchema) ?? {}
 }
 
 function bump(kind: 'uses' | 'errors', name: string): void {

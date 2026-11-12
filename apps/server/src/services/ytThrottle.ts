@@ -52,8 +52,8 @@ export const PAUSE_MS = 15 * 60 * 1000
  * The queue and the person spend from one bucket, and a long queue drained it
  * to the last token: pasting a link while forty songs were downloading was
  * told to try again in a minute, by the very downloads it had asked for. A
- * look-up, a preview or a listen may now borrow — take a token the bucket
- * does not have — and the queue, which has nowhere to be, waits that much
+ * look-up may now borrow — take a token the bucket does not have — and the
+ * queue, which has nowhere to be, waits that much
  * longer for its next. Keeping tokens back for a person instead stalled the
  * queue for minutes after every burst, waiting to be that far above empty.
  * Five is a handful of look-ups in a row before anyone waits.
@@ -242,9 +242,10 @@ const RECHECK_MS = 2_000
 /**
  * The bucket, wired to storage and a clock.
  *
- * Every call that reaches YouTube goes through `take`, so probes, previews and
- * downloads all spend from the same budget — they are the same requests from
- * the same address, whatever asked for them.
+ * Every call that reaches YouTube goes through `take`, so probes and
+ * downloads spend from the same budget — they are the same requests from the
+ * same address, whatever asked for them. Listening before importing is the
+ * one exception: it is never made to wait (`YtDlpService.findAudio`).
  */
 export class YtThrottleService {
   readonly #store: ThrottleStore
@@ -289,7 +290,7 @@ export class YtThrottleService {
    * Wait for a request's worth, then take it.
    *
    * `maxWaitMs` is for the paths a person is sitting in front of — pasting a
-   * link, previewing a track — where waiting out a fifteen minute pause is
+   * link — where waiting out a fifteen minute pause is
    * worse than being told what is happening. The download queue passes none:
    * it has nowhere to be.
    *

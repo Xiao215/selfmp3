@@ -6,7 +6,7 @@ import type { ListenAudio, ListenState, ListenStatus } from './listen.types'
  *
  * An audio element of its own, not the player's, so a preview never touches
  * the queue. The server answers `/api/import/listen` by asking yt-dlp where the
- * track lives on YouTube, so the first second or two is that lookup.
+ * track lives on YouTube, so the first few seconds are that lookup.
  */
 export const canListenHere = true
 

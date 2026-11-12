@@ -1,6 +1,8 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import {
   messageOf,
   isSquareCoverUrl,
@@ -22,7 +24,8 @@ import type { SettingsRepository } from '../repositories/settings.js'
 import type { ScannerService } from './scanner.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
-import { asksYouTube, type YtDlpService } from './ytdlp.js'
+import { asksYouTube, type FoundAudio, type YtDlpService } from './ytdlp.js'
+import type { ListenService } from './listen.js'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { METRIC, failureOf, type ServerMetrics, type TimedStep } from './metrics.js'
 import { isFreeName, songKeyCandidates } from './libraryLayout.js'
@@ -84,6 +87,7 @@ export class ImportQueueService {
   readonly #covers: Pick<CoverService, 'saveFromUrl'>
   readonly #ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
   readonly #throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
+  readonly #listen: Pick<ListenService, 'known' | 'forget'>
   readonly #cloud: ImportUploader
   readonly #keepAwake: KeepAwakeService
   readonly #metrics: Pick<ServerMetrics, 'recordImport' | 'count'>
@@ -124,6 +128,7 @@ export class ImportQueueService {
     covers: Pick<CoverService, 'saveFromUrl'>
     ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
     throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
+    listen: Pick<ListenService, 'known' | 'forget'>
     cloud: ImportUploader
     keepAwake: KeepAwakeService
     metrics: Pick<ServerMetrics, 'recordImport' | 'count'>
@@ -141,6 +146,7 @@ export class ImportQueueService {
     this.#covers = deps.covers
     this.#ytdlp = deps.ytdlp
     this.#throttle = deps.throttle
+    this.#listen = deps.listen
     this.#cloud = deps.cloud
     this.#keepAwake = deps.keepAwake
     this.#metrics = deps.metrics
@@ -269,9 +275,10 @@ export class ImportQueueService {
          * pasting a link while this runs borrows from the same bucket
          * (PERSON_MAY_BORROW), and the queue waits that much longer. A job
          * that only has its upload left asks YouTube nothing, and goes, as
-         * does a song from 网易云.
+         * does a song from 网易云 and one a listen already found (`#fetchFound`).
          */
-        const paced = next.songId === null && asksYouTube(next.url)
+        const paced =
+          next.songId === null && asksYouTube(next.url) && this.#listen.known(next.url) === null
         if (paced && !this.#throttle.tryTake()) {
           // One timer however many times this is asked: everything that kicks
           // the queue during a pause would otherwise start a chain of its own.
@@ -421,6 +428,55 @@ export class ImportQueueService {
     })
   }
 
+  /**
+   * Fetch the file a listen found (ListenService.known) instead of asking
+   * yt-dlp for it again: the lookup is the slow part of a download on a Pi,
+   * and a request against the budget. The link is the same one yt-dlp would
+   * have downloaded from.
+   *
+   * False when it could not, for the caller to download it the usual way: the
+   * link expired early, or YouTube turned it down. A range is asked for, as
+   * the listen route does, since YouTube paces a request for the whole file
+   * to the speed it plays at.
+   */
+  async #fetchFound(
+    trackUrl: string,
+    found: FoundAudio,
+    file: string,
+    options: { signal: AbortSignal; onProgress: (percent: number) => void },
+  ): Promise<boolean> {
+    try {
+      const response = await fetch(found.url, {
+        headers: { Range: 'bytes=0-' },
+        signal: options.signal,
+      })
+      if (!response.ok || !response.body) {
+        await response.body?.cancel()
+        throw new Error(`the link answered ${response.status}`)
+      }
+      const total = Number(response.headers.get('content-length')) || 0
+      let received = 0
+      const counted = new Transform({
+        transform(chunk: Buffer, _encoding, done) {
+          received += chunk.length
+          if (total > 0) options.onProgress((received / total) * 100)
+          done(null, chunk)
+        },
+      })
+      await pipeline(Readable.fromWeb(response.body), counted, fs.createWriteStream(file))
+      return true
+    } catch (error) {
+      await fsp.rm(file, { force: true }).catch(() => undefined)
+      options.signal.throwIfAborted()
+      this.#listen.forget(trackUrl)
+      this.#logger.warn('could not fetch the file a listen found; downloading it instead', {
+        url: trackUrl,
+        message: messageOf(error),
+      })
+      return false
+    }
+  }
+
   async #runJob(
     job: ImportJob,
     settings: Settings,
@@ -505,22 +561,34 @@ export class ImportQueueService {
 
     // yt-dlp reports every chunk; a write per whole percent is plenty.
     let shown = 0
-    await this.#ytdlp.download({
-      paid: turn,
-      url: job.url,
-      // `%` starts a field in an output template, so a title containing one —
-      // "100%(real)" — would name the file something else entirely and the
-      // download would never be found. `%%` is how a template spells a literal.
-      outputTemplate: path.join(staging, `${baseName.replaceAll('%', '%%')}.%(ext)s`),
-      hasFfmpeg: tools.ffmpeg,
-      signal,
-      onProgress: percent => {
-        const whole = Math.floor(percent)
-        if (whole === shown) return
-        shown = whole
-        this.#update(job.id, { progress: whole })
-      },
-    })
+    const onProgress = (percent: number): void => {
+      const whole = Math.floor(percent)
+      if (whole === shown) return
+      shown = whole
+      this.#update(job.id, { progress: whole })
+    }
+    // Heard on the review already: the file is where the listen found it. Its
+    // cover is the listing's, since a fetched file has none embedded.
+    const found = thumbnail ? this.#listen.known(job.url) : null
+    const fetched =
+      found !== null &&
+      (await this.#fetchFound(job.url, found, path.join(staging, `${baseName}.${found.ext}`), {
+        signal,
+        onProgress,
+      }))
+    if (!fetched) {
+      await this.#ytdlp.download({
+        paid: turn,
+        url: job.url,
+        // `%` starts a field in an output template, so a title containing one —
+        // "100%(real)" — would name the file something else entirely and the
+        // download would never be found. `%%` is how a template spells a literal.
+        outputTemplate: path.join(staging, `${baseName.replaceAll('%', '%%')}.%(ext)s`),
+        hasFfmpeg: tools.ffmpeg,
+        signal,
+        onProgress,
+      })
+    }
 
     const after = await safeReaddir(staging)
     const downloaded = after.find(name => !before.has(name) && name.startsWith(baseName))
@@ -587,6 +655,8 @@ export class ImportQueueService {
         title: title.trim(),
         ...(artist.trim() ? { artist: artist.trim() } : {}),
         ...(album.trim() ? { album: album.trim() } : {}),
+        // A fetched file carries no tags; the year is the one yt-dlp would have written.
+        ...(fetched && found.year !== null ? { year: found.year } : {}),
       })
       this.#songs.setSourceUrl(songId, job.url)
       this.#songs.setCameWith(songId, this.#imports.cameWithFor(job.id))

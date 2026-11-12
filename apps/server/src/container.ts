@@ -450,6 +450,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     covers,
     ytdlp,
     throttle,
+    listen,
     cloud: cloudSync,
     keepAwake,
     metrics: shared.metrics,

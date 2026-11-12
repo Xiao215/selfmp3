@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import Database from 'better-sqlite3'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
@@ -11,7 +13,7 @@ import { ThrottleRepository } from '../repositories/throttle.js'
 import { ImportQueueService } from './importQueue.js'
 import { ServerMetrics } from './metrics.js'
 import { MetricsRepository } from '../repositories/metrics.js'
-import { YtDlpService } from './ytdlp.js'
+import { YtDlpService, type FoundAudio } from './ytdlp.js'
 import { YtThrottleService } from './ytThrottle.js'
 
 /**
@@ -79,6 +81,8 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
   let now: number
   let dir: string
   let savedPath: string | undefined
+  /** What a listen on the review found, as ListenService.known answers it. */
+  let heard: FoundAudio | null
 
   /** What the stand-in `yt-dlp` will print to stderr before exiting 1. */
   function ytDlpFailsWith(message: string): void {
@@ -98,6 +102,7 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
 
   beforeEach(() => {
     now = 1_700_000_000_000
+    heard = null
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-queue-'))
 
     // `--version` answers like the real thing so the tool check passes; any
@@ -157,6 +162,12 @@ exit 1
       keepAwake: { hold: () => () => undefined },
       metrics,
       throttle,
+      listen: {
+        known: () => heard,
+        forget: () => {
+          heard = null
+        },
+      },
       logger: createLogger('silent'),
     })
   })
@@ -168,7 +179,10 @@ exit 1
   })
 
   /** One job, already named so the worker does not have to probe for a title. */
-  function enqueueOne(url = 'https://www.youtube.com/watch?v=6I1SNW0tVYk'): string {
+  function enqueueOne(
+    url = 'https://www.youtube.com/watch?v=6I1SNW0tVYk',
+    thumbnail: string | null = null,
+  ): string {
     const [job] = imports.enqueue(
       [
         {
@@ -176,7 +190,7 @@ exit 1
           title: 'Where Mercy Endures',
           artist: 'HOYO-MiX',
           album: '',
-          thumbnail: null,
+          thumbnail,
           duration: 0,
         },
       ],
@@ -346,5 +360,48 @@ exit 1
     expect(throttle.status().budgetPerHour).toBe(before / 2)
     now += 24 * 60 * 60_000
     expect(throttle.status().budgetPerHour).toBe(before / 2)
+  })
+
+  /** A stand-in for YouTube's audio server, answering every request with `status`. */
+  async function audioServer(status: number): Promise<{ url: string; close: () => void }> {
+    const server = http.createServer((_request, response) => {
+      response.writeHead(status, { 'content-type': 'audio/mp4', 'content-length': '4' })
+      response.end('m4a!')
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as AddressInfo
+    return { url: `http://127.0.0.1:${port}/videoplayback`, close: () => server.close() }
+  }
+
+  const COVER = 'https://lh3.googleusercontent.test/cover=w544-h544'
+
+  it('fetches a song heard on the review, without yt-dlp or a turn at YouTube', async () => {
+    const audio = await audioServer(206)
+    heard = { url: audio.url, ext: 'm4a', year: 2024 }
+    while (throttle.tryTake()) {
+      // Spend the bucket: a song that needed a turn would wait.
+    }
+    const id = enqueueOne(undefined, COVER)
+
+    queue.kick()
+    // Past the download and on to saving it, which this harness stops at.
+    await until(() => imports.byId(id)?.status === 'error')
+    audio.close()
+    expect(imports.byId(id)?.error).toMatch(/should not have got this far/)
+    expect(downloads()).toBe(0)
+  })
+
+  it('downloads it the usual way when the link a listen found is turned down', async () => {
+    const audio = await audioServer(403)
+    heard = { url: audio.url, ext: 'm4a', year: 2024 }
+    ytDlpFailsWith('Video unavailable')
+    const id = enqueueOne(undefined, COVER)
+
+    queue.kick()
+    await until(() => imports.byId(id)?.status === 'error')
+    audio.close()
+    expect(downloads()).toBe(1)
+    // And the refused link is not offered again.
+    expect(heard).toBeNull()
   })
 })

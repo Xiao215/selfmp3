@@ -52,8 +52,6 @@ import { isCoverUrl } from '../services/previewCoverTone.js'
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
 
-/** How many of a review's rows have their stream looked up before anyone taps (services/listen.ts). */
-const WARMED_ROWS = 3
 const CoverToneQuery = z.object({ url: z.string().url().max(2_000) })
 
 /**
@@ -131,24 +129,14 @@ export function importRoutes(container: Container): Router {
 
   router.post(
     '/import/preview',
-    route({ body: ImportPreviewRequestSchema }, async ({ body }): Promise<ImportPreview> => {
-      const preview = await buildImportPreview(container, body.url)
-      // The rows about to be shown, minus the ones already in the library,
-      // which say "In library" rather than offering a listen.
-      container.listen.warm(
-        preview.items
-          .filter(item => !item.alreadyHave && item.url !== '')
-          .slice(0, WARMED_ROWS)
-          .map(item => item.url),
-      )
-      return preview
-    }),
+    route({ body: ImportPreviewRequestSchema }, ({ body }): Promise<ImportPreview> =>
+      buildImportPreview(container, body.url),
+    ),
   )
 
   /**
    * Words typed into Import's box, looked for on YouTube Music and 网易云 at
-   * once (services/importSearch.ts). Asked as a person types, so nothing is
-   * warmed for listening: most of what is asked is never looked at.
+   * once (services/importSearch.ts).
    */
   router.post(
     '/import/search',
@@ -230,7 +218,7 @@ export function importRoutes(container: Container): Router {
         const source = await container.listen.source(query.url).catch((error: unknown) => {
           throw HttpError.unprocessable(messageOf(error))
         })
-        return fetch(source, {
+        return fetch(source.url, {
           headers: { Range: asked ?? 'bytes=0-' },
           signal: controller.signal,
         })

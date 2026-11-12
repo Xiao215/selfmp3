@@ -217,3 +217,27 @@ export function isRateLimited(message: string): boolean {
     'status code 429',
   ].some(phrase => lower.includes(phrase))
 }
+
+/**
+ * The address YouTube gave a media link to, out of the link itself (`ip=`):
+ * the address it counts that request against. Null for anything but one of
+ * its media links, or one that names no address.
+ *
+ * A server and a device that YouTube sees at one address share one budget
+ * there, whatever each keeps: two buckets from one address ask twice as fast
+ * as either was meant to (docs/features/client-download.md, "One address").
+ */
+export function youtubeAddressOf(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (!parsed.hostname.endsWith('.googlevideo.com')) return null
+  const address = parsed.searchParams.get('ip')?.toLowerCase() ?? ''
+  return YOUTUBE_ADDRESS.test(address) ? address : null
+}
+
+/** An IPv4 or IPv6 address as YouTube writes one into a link. */
+export const YOUTUBE_ADDRESS = /^[0-9a-f.:]{2,45}$/

@@ -5,7 +5,7 @@
  * initialization". Bundled into one file, there is no circle left to order.
  */
 import { Innertube, Platform } from 'youtubei.js/web.bundle'
-import { isRateLimited, messageOf } from '@selfmp3/shared'
+import { isRateLimited, messageOf, youtubeAddressOf } from '@selfmp3/shared'
 import { createPoMinter, type PoMinter } from './poToken.js'
 import type { VideoFacts } from './keptSongs.js'
 import type { YtFetch } from './transport.js'
@@ -151,6 +151,8 @@ export interface DownloadedAudio {
   readonly description: string
   /** The largest still the player names, or null. */
   readonly thumbnail: string | null
+  /** The address YouTube gave the link to: this device's, as YouTube sees it (`youtubeAddressOf`). */
+  readonly youtubeAddress: string | null
   readonly attempts: readonly Attempt[]
 }
 
@@ -264,6 +266,7 @@ export async function downloadAudio(
           itag: format.itag,
           client,
           ...factsOf(info),
+          youtubeAddress: youtubeAddressOf(url),
           attempts,
         }
       } catch (error) {

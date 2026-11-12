@@ -336,6 +336,40 @@ cat "${dir}/stdout.json"
     })
   })
 
+  it('learns where YouTube sees this server from the links it is given', async () => {
+    expect(service.youtubeAddress(NOW)).toBeNull()
+    // A download's link, printed before it starts, among its progress.
+    fs.writeFileSync(
+      path.join(dir, 'stdout.json'),
+      '[download]  10.0% of 3.29MiB\n' +
+        'selfmp3-link https://rr4---sn-x.googlevideo.com/videoplayback?expire=1&ip=203.0.113.7&id=o\n' +
+        '[download] 100.0% of 3.29MiB\n',
+    )
+    const percents: number[] = []
+    await service.download({
+      paid: true,
+      url: VIDEO,
+      outputTemplate: path.join(dir, 'song.%(ext)s'),
+      hasFfmpeg: false,
+      onProgress: percent => percents.push(percent),
+    })
+    expect(askedArgs()).toEqual(
+      expect.arrayContaining(['--print', 'before_dl:selfmp3-link %(urls)s', '--progress']),
+    )
+    expect(percents).toEqual([10, 100])
+    expect(service.youtubeAddress()).toBe('203.0.113.7')
+    // Six hours on, it is not believed until a link says it again.
+    expect(service.youtubeAddress(Date.now() + 6 * 60 * 60_000)).toBeNull()
+
+    // A listen's link says it too.
+    fs.writeFileSync(
+      path.join(dir, 'stdout.json'),
+      'm4a\t\thttps://rr1---sn-x.googlevideo.com/videoplayback?ip=198.51.100.9\n',
+    )
+    await service.findAudio(VIDEO)
+    expect(service.youtubeAddress()).toBe('198.51.100.9')
+  })
+
   it('still cuts the budget when YouTube refuses a preview', async () => {
     ytDlpFailsWith('Sign in to confirm you’re not a bot. Use --cookies-from-browser')
 

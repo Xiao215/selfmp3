@@ -45,10 +45,12 @@ which is redeployed whenever we like:
 
 1. The app checks that the extension answers (one request to YouTube's empty
    `generate_204` page). If it does not, the import goes to the server as before.
-2. The app sends the import with `fetchOnDevice: true`. The server queues the
-   songs as usual, but **holds the YouTube ones for this device** under a lease
-   that lasts five minutes unless the device renews it. 网易云 songs are still
-   the server's.
+2. The app sends the import with `fetchOnDevice: true`, and where YouTube last
+   saw this device (_One address_, below). The server queues the songs as
+   usual, but **holds the YouTube ones for this device** under a lease that
+   lasts five minutes unless the device renews it — unless YouTube sees the
+   device at the server's own address, and then the server keeps them. 网易云
+   songs are still the server's.
 3. One song at a time, the app tells the server it is starting, downloads the
    m4a through the extension, and uploads it (`PUT /api/import/device/jobs/:id/file`),
    with its SHA-256 and the video's description in two headers.
@@ -181,6 +183,51 @@ server downloads that song itself with yt-dlp:
 
 The app renews its lease every minute. A lease is five minutes because a
 background tab's timers can be slowed to once a minute.
+
+## One address
+
+YouTube counts requests by the address they come from, and the browser's
+budget and the server's are kept apart. A browser at home with the server on
+the same network asks from the same address, so the two together could ask
+twice as fast as either means to.
+
+So the two compare addresses, as YouTube itself writes them: every media link
+YouTube hands out names the address it was given to (`ip=`, read by
+`youtubeAddressOf` in `packages/shared/src/ytBudget.ts`).
+
+- **The server** notes the address in every link yt-dlp is given — a
+  download's (printed before it starts, `--print before_dl:…`) and a listen's —
+  and believes it for six hours (`YtDlpService.youtubeAddress`).
+- **The device** notes the address in each song it downloads, for a listen or
+  an import (`features/import/youtubeAddress.ts`), and believes it for an hour:
+  a phone moves between networks.
+- **An import** carries the device's address. The same as the server's, and
+  nothing is held for the device: the server downloads it all.
+- **A renewal** carries it too, and the device renews at once after a song
+  whose address it had not said yet on that lease. The same as the server's,
+  and the server takes back every song the device has not started
+  (`takeBackWaiting`); the one under way finishes on the device.
+
+Neither side asks YouTube anything to find out. A server that has not
+downloaded or played anything for six hours has nothing to compare with, and
+the device downloads as before — until the server helps with a long import
+(below), and learns its address from that.
+
+The address is the one YouTube sees, so this is right where a guess from the
+network would not be: a browser on IPv6 and a server on IPv4 at the same home
+are two addresses to YouTube, and two budgets is what they are.
+
+## Sharing the work
+
+A device holds every YouTube song of its import, but takes them one at a time
+at its own pace — after its first few, one every 24 seconds. A server with
+nothing of its own to do does not sit idle meanwhile: it takes the song the
+device would come to last (`takeBackLast`), on a turn of its own budget and a
+free place among its downloads, and so on from the back while the device
+works from the front (`#helpDevices` in `importQueue.ts`). A device always
+keeps its next two not started (`DEVICE_KEEPS`): an import of a song or two is
+the device's whole, and its first songs go at once. The device hears at its
+next renewal that a song is no longer its, and leaves it.
 
 ## Pacing
 

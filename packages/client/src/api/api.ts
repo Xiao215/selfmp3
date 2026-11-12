@@ -681,11 +681,14 @@ export function createApi({ context, fetch }: ApiOptions) {
       lease: string,
       progress: readonly { id: string; percent: number }[],
       holding: readonly string[],
+      /** Where YouTube last saw this device (`youtubeAddressOf`), when it has. */
+      youtubeAddress: string | null,
     ) =>
       request('POST', '/api/import/device/renew', ImportDeviceRenewResultSchema, {
         lease,
         progress,
         holding,
+        ...(youtubeAddress ? { youtubeAddress } : {}),
       }),
 
     importDeviceStart: (lease: string, id: string) =>

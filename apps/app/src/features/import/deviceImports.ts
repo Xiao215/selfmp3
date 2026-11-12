@@ -11,6 +11,7 @@ import {
 import { DeviceImports } from './deviceImports.model'
 import { previewOnDevice, refusing, singleVideo } from './devicePreview.model'
 import { deviceDownloadsOn, deviceHandBackOn, watchDeviceDownloads } from './devicePrefs'
+import { youtubeAddress } from './youtubeAddress'
 
 /**
  * The one `DeviceImports` this app runs (deviceImports.model.ts): songs this
@@ -28,6 +29,7 @@ const deviceImports = new DeviceImports({
   },
   handBack: deviceHandBackOn,
   wanted: deviceDownloadsOn,
+  youtubeAddress,
   log: (message, details) => console.warn(`[device import] ${message}`, details ?? ''),
 })
 
@@ -71,9 +73,15 @@ export async function enqueueImport(
   // Refused for rate a moment ago, and told to hand back: the server has these.
   const waiting = deviceHandBackOn() && refusing(deviceBudget, Date.now())
   const onDevice = youtube !== null && !waiting && !api.answersFromCloud()
+  // Where YouTube last saw this device: the server's own address, and the server keeps the songs.
+  const address = youtubeAddress.get()
   let result
   try {
-    result = await api.importEnqueue(onDevice ? { ...request, fetchOnDevice: true } : request)
+    result = await api.importEnqueue(
+      onDevice
+        ? { ...request, fetchOnDevice: true, ...(address ? { youtubeAddress: address } : {}) }
+        : request,
+    )
   } catch (error) {
     // A later part of a big import failed: the parts before it are queued, and their songs are this device's.
     const enqueued = enqueuedBeforeFailing(error)

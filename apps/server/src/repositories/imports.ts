@@ -82,6 +82,13 @@ const HELD_BY = `lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime
 const TO_SERVER = `status = 'queued', step = 'waiting', progress = NULL, lease_id = NULL,
                    lease_until = NULL, fetcher = 'server', updated_at = datetime('now')`
 
+/**
+ * How many songs not started yet a device keeps, however idle the server
+ * (`takeBackLast`): its next few go at once on a device's budget, and an
+ * import of a song or two is the device's whole.
+ */
+const DEVICE_KEEPS = 2
+
 /** How a job's lease end is written: so many seconds from now, as SQLite tells time. */
 const UNTIL = `datetime('now', '+' || @seconds || ' seconds')`
 
@@ -156,6 +163,8 @@ export class ImportRepository {
   readonly #takeFromDevice
   readonly #expire
   readonly #leaseEnd
+  readonly #takeBackWaiting
+  readonly #takeBackLast
 
   constructor(db: Db) {
     this.#db = db
@@ -330,6 +339,22 @@ export class ImportRepository {
               lease_id = NULL, lease_until = NULL, updated_at = datetime('now')
         WHERE id = @id AND ${HELD_BY}
        RETURNING *`,
+    )
+    // Held and not started: the device has only said it would.
+    this.#takeBackWaiting = db.prepare(
+      `UPDATE import_jobs SET ${TO_SERVER} WHERE lease_id = @lease AND status = 'queued' AND ${HELD}`,
+    )
+    // The last in line of a device with more than `DEVICE_KEEPS` not started: the one it would come to last.
+    this.#takeBackLast = db.prepare<[], { id: string }>(
+      `UPDATE import_jobs SET ${TO_SERVER}
+        WHERE id = (SELECT id FROM import_jobs AS job
+                     WHERE status = 'queued' AND ${HELD}
+                       AND (SELECT COUNT(*) FROM import_jobs AS other
+                             WHERE other.lease_id = job.lease_id AND other.status = 'queued'
+                               AND other.lease_until > datetime('now')) > ${DEVICE_KEEPS}
+                     ORDER BY position DESC, created_at DESC
+                     LIMIT 1)
+       RETURNING id`,
     )
     this.#expire = db.prepare(
       `UPDATE import_jobs SET ${TO_SERVER}
@@ -600,26 +625,26 @@ export class ImportRepository {
    * have got, and name the jobs it still holds. A job cancelled, removed or
    * taken back since is not among them, and an expired lease holds nothing.
    *
-   * `holding`, when the device says it, is what it still means to download:
-   * any other job under the lease is one it has let go of without saying so
-   * (a start or a release that did not reach the server), and goes to the
-   * server now rather than when the whole batch is done.
+   * `holding` is what the device still means to download: any other job
+   * under the lease is one it has let go of without saying so (a start or a
+   * release that did not reach the server), and goes to the server now
+   * rather than when the whole batch is done.
    */
   renewLease(
     lease: string,
     seconds: number,
     progress: readonly { id: string; percent: number }[],
-    holding?: readonly string[],
+    holding: readonly string[],
   ): { held: string[]; released: number } {
     const run = this.#db.transaction(() => {
       for (const { id, percent } of progress) {
         this.#progressOnDevice.run({ id, lease, percent: Math.floor(percent) })
       }
-      const kept = holding ? new Set(holding) : null
+      const kept = new Set(holding)
       const held: string[] = []
       let released = 0
       for (const { id } of this.#held.all({ lease })) {
-        if (kept && !kept.has(id)) released += this.#release.run({ id, lease }).changes
+        if (!kept.has(id)) released += this.#release.run({ id, lease }).changes
         else held.push(id)
       }
       this.#renew.run({ lease, seconds })
@@ -647,6 +672,24 @@ export class ImportRepository {
   takeFromDevice(lease: string, id: string): ImportJob | null {
     const row = this.#takeFromDevice.get({ id, lease })
     return row ? toJob(row) : null
+  }
+
+  /**
+   * The server takes the jobs `lease` holds that its device has not started:
+   * how many. The one it is downloading stays its.
+   */
+  takeBackWaiting(lease: string): number {
+    return this.#takeBackWaiting.run({ lease }).changes
+  }
+
+  /**
+   * The server takes the job a device would come to last, of every device
+   * with more than `DEVICE_KEEPS` not started: its id, or null when there is
+   * none. The device works from the front of its line, so the two meet in
+   * the middle.
+   */
+  takeBackLast(): string | null {
+    return this.#takeBackLast.get()?.id ?? null
   }
 
   /**

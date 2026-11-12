@@ -211,6 +211,7 @@ describe.skipIf(!hasFfmpeg())('a song a device downloaded', { timeout: 60_000 },
     const renewed = await post('/import/device/renew', {
       lease,
       progress: [{ id: jobId, percent: 40 }],
+      holding: [jobId],
     })
     expect(await renewed.json()).toEqual({ held: [jobId] })
     expect(await job(jobId)).toMatchObject({ status: 'running', step: 'downloading', progress: 40 })
@@ -226,7 +227,9 @@ describe.skipIf(!hasFfmpeg())('a song a device downloaded', { timeout: 60_000 },
     // Thirty seconds of something is not a three-second song.
     expect((await upload(jobId, lease, tone(root, 30))).status).toBe(422)
     // Each refusal leaves the job the device's.
-    expect(await (await post('/import/device/renew', { lease })).json()).toEqual({ held: [jobId] })
+    expect(await (await post('/import/device/renew', { lease, holding: [jobId] })).json()).toEqual({
+      held: [jobId],
+    })
   })
 
   it('makes the file a song, tagged as the review said, and puts it in the bucket', async () => {
@@ -265,7 +268,9 @@ describe.skipIf(!hasFfmpeg())('a song a device downloaded', { timeout: 60_000 },
       date: '2003-07-29',
     })
     // The job is the server's now: nothing left for the device to hold.
-    expect(await (await post('/import/device/renew', { lease })).json()).toEqual({ held: [] })
+    expect(await (await post('/import/device/renew', { lease, holding: [] })).json()).toEqual({
+      held: [],
+    })
   })
 
   it('downloads a song itself that the device let go', async () => {
@@ -293,5 +298,50 @@ describe.skipIf(!hasFfmpeg())('a song a device downloaded', { timeout: 60_000 },
     expect(await job(id)).toMatchObject({ status: 'queued', step: 'waiting' })
     // Let go once is for good.
     expect((await post('/import/device/release', { lease: held.lease, id })).status).toBe(409)
+  })
+
+  it('keeps the songs of a device YouTube sees at this server’s own address', async () => {
+    // The worker is stopped (above): nothing here is downloaded by anyone.
+    const known = container.ytdlp.youtubeAddress.bind(container.ytdlp)
+    container.ytdlp.youtubeAddress = () => '203.0.113.7'
+    try {
+      const song = (id: string) => ({
+        url: `https://www.youtube.com/watch?v=${id}`,
+        title: id,
+        duration: 3,
+      })
+      const enqueue = async (ids: string[], youtubeAddress: string) =>
+        ImportEnqueueResultSchema.parse(
+          await (
+            await post('/import/enqueue', {
+              items: ids.map(song),
+              fetchOnDevice: true,
+              youtubeAddress,
+            })
+          ).json(),
+        )
+
+      // At the server's address from the start: nothing is held for it.
+      expect((await enqueue(['kJQP7kiw5Fk'], '203.0.113.7')).device).toBeNull()
+
+      // Elsewhere, then found to be at the server's address: it keeps the one it started.
+      const away = await enqueue(['JGwWNGJdvx8', 'RgKAFK5djSk', 'OPf0YbXqDm0'], '198.51.100.9')
+      const [first, ...rest] = away.device!.jobIds
+      expect(rest).toHaveLength(2)
+      expect(
+        (await post('/import/device/start', { lease: away.device!.lease, id: first })).status,
+      ).toBe(200)
+      const renewed = await post('/import/device/renew', {
+        lease: away.device!.lease,
+        holding: away.device!.jobIds,
+        youtubeAddress: '203.0.113.7',
+      })
+      expect(await renewed.json()).toEqual({ held: [first] })
+      for (const id of rest) {
+        expect(container.imports.fetcherOf(id)).toEqual({ fetcher: 'server', lease: null })
+      }
+    } finally {
+      container.ytdlp.youtubeAddress = known
+    }
   })
 })

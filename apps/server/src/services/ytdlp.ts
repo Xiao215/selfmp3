@@ -12,7 +12,7 @@ import {
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
-import { isRateLimited, PERSON_MAY_BORROW } from '@selfmp3/shared'
+import { isRateLimited, PERSON_MAY_BORROW, youtubeAddressOf } from '@selfmp3/shared'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 
 // Named here by everything that reads yt-dlp's tracks; the rules are shared's.
@@ -161,7 +161,10 @@ function summarizeError(stderr: string, fallback: string): string {
   const lines = stderr
     .split(/\r?\n/)
     .map(line => line.trim())
-    .filter(line => line.length > 0 && !line.startsWith('[download]'))
+    // A download's link line is no reason for anything, and its address is not for a person's eyes.
+    .filter(
+      line => line.length > 0 && !line.startsWith('[download]') && !line.startsWith(LINK_LINE),
+    )
 
   const errorLine = lines.reverse().find(line => /^ERROR:/i.test(line))
   const message = errorLine ?? lines[0] ?? fallback
@@ -296,11 +299,22 @@ function onlyMusicSites(url: string): void {
   }
 }
 
+/** The mark a download's line naming its link starts with (`YtDlpService.download`). */
+const LINK_LINE = 'selfmp3-link '
+
+/**
+ * How long the address YouTube last saw this server at is believed. A home
+ * address changes rarely, and the next download or listen says it again.
+ */
+const ADDRESS_FRESH_MS = 6 * 60 * 60_000
+
 export class YtDlpService {
   readonly #logger: Logger
   readonly #cookies: () => YtCookieSettings
   readonly #throttle: YtThrottleService
   #cachedStatus: ToolStatus | null = null
+  /** Where YouTube last saw this server: the address it wrote into a link it gave (`youtubeAddressOf`). */
+  #address: { address: string; at: number } | null = null
 
   /**
    * `cookies` is read on every call rather than once, so changing the cookie
@@ -314,6 +328,22 @@ export class YtDlpService {
     this.#logger = logger.child('yt-dlp')
     this.#cookies = cookies
     this.#throttle = throttle
+  }
+
+  /**
+   * Where YouTube last saw this server, or null when it has not said for a
+   * while. Every link yt-dlp is given names the address it was given to —
+   * `-4`'s, so the IPv4 one — and a device that YouTube sees there too asks
+   * from this server's budget (docs/features/client-download.md, "One address").
+   */
+  youtubeAddress(now = Date.now()): string | null {
+    const known = this.#address
+    return known && now - known.at < ADDRESS_FRESH_MS ? known.address : null
+  }
+
+  #noteLink(link: string): void {
+    const address = youtubeAddressOf(link)
+    if (address) this.#address = { address, at: Date.now() }
   }
 
   /**
@@ -533,6 +563,7 @@ export class YtDlpService {
       .find(([, , link]) => link !== undefined && /^https?:\/\//.test(link))
     if (!found) throw new Error('yt-dlp found no audio for that link')
     const [ext = '', date = '', link = ''] = found
+    this.#noteLink(link)
     const year = /^\d{4}/.exec(date)?.[0]
     return { url: link, ext: ext || 'm4a', year: year ? Number(year) : null }
   }
@@ -569,6 +600,11 @@ export class YtDlpService {
       '3',
       '--fragment-retries',
       '3',
+      // The link it downloads from, for the address in it (`youtubeAddress`).
+      // Printing quiets the rest, so the progress is asked for by name.
+      '--print',
+      `before_dl:${LINK_LINE}%(urls)s`,
+      '--progress',
       '--output',
       input.outputTemplate,
     ]
@@ -583,14 +619,14 @@ export class YtDlpService {
     const result = await run('yt-dlp', args, {
       timeoutMs: 20 * 60 * 1000,
       ...(input.signal ? { signal: input.signal } : {}),
-      ...(input.onProgress
-        ? {
-            onLine: (line: string) => {
-              const percent = parseProgress(line)
-              if (percent !== null) input.onProgress?.(percent)
-            },
-          }
-        : {}),
+      onLine: (line: string) => {
+        if (line.startsWith(LINK_LINE)) {
+          this.#noteLink(line.slice(LINK_LINE.length).trim())
+          return
+        }
+        const percent = parseProgress(line)
+        if (percent !== null) input.onProgress?.(percent)
+      },
     })
 
     if (result.timedOut) throw new Error('download timed out')

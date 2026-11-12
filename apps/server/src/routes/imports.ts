@@ -302,10 +302,12 @@ export function importRoutes(container: Container): Router {
       // Asked first: nothing may come between what is fresh and its queueing,
       // or an Import pressed twice queues its songs twice.
       const measures = body.fetchOnDevice ? (await container.ytdlp.status()).ffmpeg : false
+      // A device YouTube sees at this server's own address asks from its budget: the server keeps the songs.
+      const sameAddress = container.importQueue.atServerAddress(body.youtubeAddress)
       const fresh = freshOf(body.items)
       return enqueue(body.items, fresh, container.tags.exists(body.tagIds), {
         ...body,
-        fetchOnDevice: body.fetchOnDevice === true && measures,
+        fetchOnDevice: body.fetchOnDevice === true && measures && !sameAddress,
       })
     }),
   )

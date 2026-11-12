@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { IdSchema } from './common.js'
 import { CameWithSchema, CoverToneSchema } from './song.js'
+import { YOUTUBE_ADDRESS } from '../ytBudget.js'
 
 /**
  * The import pipeline: a URL goes in, a tagged song with lyrics comes out.
@@ -253,6 +254,9 @@ export type ImportEnqueueItem = z.infer<typeof ImportEnqueueItemSchema>
  */
 export const IMPORT_ENQUEUE_MAX = 500
 
+/** An address YouTube wrote into a media link (`youtubeAddressOf`). */
+const YouTubeAddressSchema = z.string().regex(YOUTUBE_ADDRESS)
+
 export const ImportEnqueueSchema = z.object({
   items: z.array(ImportEnqueueItemSchema).min(1).max(IMPORT_ENQUEUE_MAX),
   tagIds: z.array(IdSchema).max(50).default([]),
@@ -270,6 +274,12 @@ export const ImportEnqueueSchema = z.object({
    * for it, and takes back any the device lets go or stops answering for.
    */
   fetchOnDevice: z.boolean().optional(),
+  /**
+   * The address YouTube last saw the asking device at (`youtubeAddressOf`).
+   * The same as the server's, and the server keeps the songs: two budgets
+   * from one address ask YouTube twice as fast as either means to.
+   */
+  youtubeAddress: YouTubeAddressSchema.optional(),
 })
 export type ImportEnqueue = z.infer<typeof ImportEnqueueSchema>
 
@@ -309,10 +319,14 @@ export const ImportDeviceRenewSchema = z.object({
     .default([]),
   /**
    * Every job the device still means to download, the one under way among
-   * them. Any other the lease holds goes to the server. Left out by a device
-   * that predates it, and nothing is let go.
+   * them. Any other the lease holds goes to the server.
    */
-  holding: z.array(z.string()).max(2000).optional(),
+  holding: z.array(z.string()).max(2000),
+  /**
+   * Where YouTube last saw the device, as on `ImportEnqueue`: the server's
+   * own address, and what the device has not started goes to the server.
+   */
+  youtubeAddress: YouTubeAddressSchema.optional(),
 })
 export type ImportDeviceRenew = z.infer<typeof ImportDeviceRenewSchema>
 
@@ -350,6 +364,8 @@ export const ImportDeviceFileMetaSchema = z.object({
   durationSeconds: z.number().nonnegative().default(0),
   /** The largest still the player names: the cover, for a job that came with none. */
   thumbnail: z.string().url().max(2000).nullable().default(null),
+  /** The address YouTube gave the song's link to: the device's, as YouTube sees it. */
+  youtubeAddress: YouTubeAddressSchema.nullable().default(null),
 })
 export type ImportDeviceFileMeta = z.infer<typeof ImportDeviceFileMetaSchema>
 

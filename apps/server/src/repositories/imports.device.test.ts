@@ -66,8 +66,8 @@ describe('ImportRepository, jobs a device holds', () => {
 
   it('names what the lease holds, and follows a download’s progress', () => {
     const { held } = enqueueForDevice()
-    expect(imports.renewLease('lease-1', 300, []).held).toEqual([held])
-    expect(imports.renewLease('another', 300, []).held).toEqual([])
+    expect(imports.renewLease('lease-1', 300, [], [held]).held).toEqual([held])
+    expect(imports.renewLease('another', 300, [], [held]).held).toEqual([])
 
     expect(imports.startOnDevice('lease-1', held, 300)).toBe(true)
     expect(imports.byId(held)).toMatchObject({
@@ -79,7 +79,9 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(imports.startOnDevice('lease-1', held, 300)).toBe(true)
     expect(imports.byId(held)?.attempts).toBe(2)
 
-    expect(imports.renewLease('lease-1', 300, [{ id: held, percent: 42.7 }]).held).toEqual([held])
+    expect(imports.renewLease('lease-1', 300, [{ id: held, percent: 42.7 }], [held]).held).toEqual([
+      held,
+    ])
     expect(imports.byId(held)?.progress).toBe(42)
   })
 
@@ -87,7 +89,7 @@ describe('ImportRepository, jobs a device holds', () => {
     const { held } = enqueueForDevice()
     imports.startOnDevice('lease-1', held, 300)
     expect(imports.cancel(held)).toBe(true)
-    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
+    expect(imports.renewLease('lease-1', 300, [], [held]).held).toEqual([])
     expect(imports.takeFromDevice('lease-1', held)).toBeNull()
   })
 
@@ -113,7 +115,7 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(taken).toMatchObject({ id: held, status: 'running', step: 'waiting', attempts: 1 })
     expect(imports.fetcherOf(held)).toEqual({ fetcher: 'device', lease: null })
     // Nothing more for the device to do with it.
-    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
+    expect(imports.renewLease('lease-1', 300, [], [held]).held).toEqual([])
   })
 
   it('lets a file waiting for its turn be called off, and not once it is being added', () => {
@@ -143,7 +145,7 @@ describe('ImportRepository, jobs a device holds', () => {
 
   it('does not renew a lease that has run out', () => {
     const { held } = enqueueForDevice(0)
-    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
+    expect(imports.renewLease('lease-1', 300, [], [held]).held).toEqual([])
     expect(imports.startOnDevice('lease-1', held, 300)).toBe(false)
     expect(imports.takeFromDevice('lease-1', held)).toBeNull()
   })
@@ -173,19 +175,56 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(imports.claimNext()?.id).toBe(first!.id)
   })
 
-  it('lets go of nothing for a device that does not say what it holds', () => {
-    const { held } = enqueueForDevice()
-    expect(imports.renewLease('lease-1', 300, []).held).toEqual([held])
-  })
-
   it('puts a song resumed after it was called off on a device back with the server', () => {
     const { held } = enqueueForDevice()
     expect(imports.cancel(held)).toBe(true)
     expect(imports.retry(held)).toBe(true)
     expect(imports.fetcherOf(held)).toEqual({ fetcher: 'server', lease: null })
     // The device that held it renews, and it is not among what it holds.
-    expect(imports.renewLease('lease-1', 300, []).held).toEqual([])
+    expect(imports.renewLease('lease-1', 300, [], [held]).held).toEqual([])
     expect(imports.claimNext()?.id).toBe(held)
+  })
+
+  /** Four YouTube songs held for one device, in the order it downloads them. */
+  function fourForDevice(): string[] {
+    return imports
+      .enqueue(
+        ['a', 'b', 'c', 'd'].map(letter =>
+          item(`https://www.youtube.com/watch?v=${letter.repeat(11)}`),
+        ),
+        [],
+        null,
+        { lease: 'lease-1', seconds: 300, fetcherFor: () => 'device' },
+      )
+      .map(job => job.id)
+  }
+
+  it('lets an idle server take a device’s last song, down to the two it keeps', () => {
+    const [a, b, c, d] = fourForDevice()
+    expect(imports.takeBackLast()).toBe(d)
+    expect(imports.fetcherOf(d!)).toEqual({ fetcher: 'server', lease: null })
+    expect(imports.takeBackLast()).toBe(c)
+    // Two left: an import's first songs are the device's, however idle the server.
+    expect(imports.takeBackLast()).toBeNull()
+    expect(imports.renewLease('lease-1', 300, [], [a!, b!, c!, d!]).held).toEqual([a, b])
+  })
+
+  it('counts only what a device has not started as what it keeps', () => {
+    const [a, , , d] = fourForDevice()
+    expect(imports.startOnDevice('lease-1', a!, 300)).toBe(true)
+    // Three not started: one more than it keeps.
+    expect(imports.takeBackLast()).toBe(d)
+    expect(imports.takeBackLast()).toBeNull()
+    expect(imports.byId(a!)).toMatchObject({ status: 'running', step: 'downloading' })
+  })
+
+  it('takes back what a device has not started, and leaves the one it has', () => {
+    const [a, b, c, d] = fourForDevice()
+    expect(imports.startOnDevice('lease-1', a!, 300)).toBe(true)
+    expect(imports.takeBackWaiting('another')).toBe(0)
+    expect(imports.takeBackWaiting('lease-1')).toBe(3)
+    expect(imports.renewLease('lease-1', 300, [], [a!, b!, c!, d!]).held).toEqual([a])
+    expect(imports.claimNext()?.id).toBe(b)
   })
 
   it('does not wake for a lease that has run out already', () => {

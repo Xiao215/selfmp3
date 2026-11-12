@@ -74,6 +74,7 @@ async function until(done: () => boolean, timeoutMs = 30_000): Promise<void> {
 // them, so `until`'s message is what a stuck test reports.
 describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () => {
   let imports: ImportRepository
+  let settings: SettingsRepository
   let throttle: YtThrottleService
   let queue: ImportQueueService
   let metrics: ServerMetrics
@@ -129,7 +130,7 @@ exit 1
     migrate(db, createLogger('silent'))
     imports = new ImportRepository(db)
     metrics = new ServerMetrics(new MetricsRepository(null))
-    const settings = new SettingsRepository(db)
+    settings = new SettingsRepository(db)
     throttle = new YtThrottleService(
       new ThrottleRepository(db),
       () => false,
@@ -213,6 +214,38 @@ exit 1
     await until(() => imports.byId(id)?.status !== 'running')
     // Nobody cancelled it: the next boot's `resetOrphaned` finds it waiting.
     expect(imports.byId(id)).toMatchObject({ status: 'queued', step: 'waiting', error: null })
+  })
+
+  it('takes the songs a device has not come to when it has nothing of its own, and leaves it two', async () => {
+    ytDlpHangs()
+    // Room for every song, so only what a device keeps holds the server back.
+    settings.update({ importConcurrency: 4 })
+    const ids = imports
+      .enqueue(
+        ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc', 'ddddddddddd'].map(video => ({
+          url: `https://www.youtube.com/watch?v=${video}`,
+          title: video,
+          artist: 'Aurora Lane',
+          album: '',
+          thumbnail: null,
+          duration: 0,
+        })),
+        [],
+        null,
+        { lease: 'lease-1', seconds: 300, fetcherFor: () => 'device' },
+      )
+      .map(job => job.id)
+
+    queue.kick()
+    // The last in the device's line first: it works from the front.
+    await until(() => imports.byId(ids[3]!)?.status === 'running')
+    expect(imports.fetcherOf(ids[3]!)).toEqual({ fetcher: 'server', lease: null })
+    // However many places the server has, the device's next two stay the device's.
+    await new Promise(resolve => setTimeout(resolve, 200))
+    for (const id of ids.slice(0, 2)) {
+      expect(imports.byId(id)).toMatchObject({ status: 'queued', step: 'waiting' })
+      expect(imports.fetcherOf(id)).toEqual({ fetcher: 'device', lease: 'lease-1' })
+    }
   })
 
   it('takes a job off the queue for good, stopping it first if it was downloading', async () => {

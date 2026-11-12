@@ -93,7 +93,10 @@ export class ImportQueueService {
   readonly #scanner: Pick<ScannerService, 'ingest'>
   readonly #lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
   readonly #covers: Pick<CoverService, 'saveFromUrl' | 'fetchFromUrl' | 'saveFetched'>
-  readonly #ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
+  readonly #ytdlp: Pick<
+    YtDlpService,
+    'status' | 'download' | 'probe' | 'probeDuration' | 'youtubeAddress'
+  >
   readonly #throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
   readonly #listen: Pick<ListenService, 'known' | 'forget'>
   readonly #cloud: ImportUploader
@@ -153,7 +156,7 @@ export class ImportQueueService {
     scanner: Pick<ScannerService, 'ingest'>
     lyrics: Pick<LyricsService, 'fetchRemote' | 'writeSidecar'>
     covers: Pick<CoverService, 'saveFromUrl' | 'fetchFromUrl' | 'saveFetched'>
-    ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration'>
+    ytdlp: Pick<YtDlpService, 'status' | 'download' | 'probe' | 'probeDuration' | 'youtubeAddress'>
     throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
     listen: Pick<ListenService, 'known' | 'forget'>
     cloud: ImportUploader
@@ -291,12 +294,33 @@ export class ImportQueueService {
 
   // --- Jobs a device downloads (docs/features/client-download.md) -------------
 
-  /** Keep a device's lease, with how far its downloads have got; the jobs it still holds. */
+  /**
+   * Whether YouTube sees a device at the address it sees this server at
+   * (docs/features/client-download.md, "One address"). Then the two share one
+   * budget there, and the device downloading too would ask twice as fast as
+   * either means to: the server keeps the songs.
+   */
+  atServerAddress(youtubeAddress: string | undefined): boolean {
+    return youtubeAddress !== undefined && youtubeAddress === this.#ytdlp.youtubeAddress()
+  }
+
+  /**
+   * Keep a device's lease, with how far its downloads have got; the jobs it
+   * still holds. A device at this server's own address keeps only the song
+   * it has started (`atServerAddress`).
+   */
   deviceRenew(
     lease: string,
     progress: readonly { id: string; percent: number }[],
-    holding?: readonly string[],
+    holding: readonly string[],
+    youtubeAddress?: string,
   ): string[] {
+    const taken = this.atServerAddress(youtubeAddress) ? this.#imports.takeBackWaiting(lease) : 0
+    if (taken > 0) {
+      this.#logger.info('a device is at this server’s address; the server takes its songs', {
+        jobs: taken,
+      })
+    }
     const { held, released } = this.#imports.renewLease(
       lease,
       DEVICE_LEASE_SECONDS,
@@ -304,7 +328,7 @@ export class ImportQueueService {
       holding,
     )
     // A job the device has let go of (`holding`) is the queue's now, and it may be idle.
-    if (released > 0) this.kick()
+    if (released + taken > 0) this.kick()
     return held
   }
 
@@ -457,10 +481,32 @@ export class ImportQueueService {
 
         this.#start(job, (signal, settings) => this.#runJob(job, settings, signal, paced))
       }
+      this.#helpDevices(limit)
       this.#watchLeases()
     } finally {
       this.#draining = false
     }
+  }
+
+  /**
+   * Nothing of the server's own to do, and a turn at YouTube to spare: it
+   * takes the song a device would come to last, rather than sit idle while a
+   * device works through a long import one song every 24 seconds
+   * (docs/features/client-download.md, "Sharing the work"). Each takes a
+   * turn of the server's own and a free place among its downloads, so a
+   * server that is busy or slower than the device takes few. The device
+   * hears at its next renewal, and leaves it.
+   */
+  #helpDevices(limit: number): void {
+    if (this.#activeCount >= limit || this.#stopped || this.#imports.nextQueued() !== null) return
+    if (this.#throttle.waitMs() > 0) return
+    const id = this.#imports.takeBackLast()
+    if (id === null) return
+    this.#logger.info('the server is idle, and takes a song a device has not started', {
+      jobId: id,
+    })
+    // Its own drain now: this one is still running, and would not look again.
+    queueMicrotask(() => this.kick())
   }
 
   /**

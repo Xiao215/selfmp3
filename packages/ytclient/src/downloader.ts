@@ -58,6 +58,7 @@ export function createYouTubeCore(
           author: audio.author.slice(0, 300),
           durationSeconds: audio.durationSeconds,
           thumbnail: audio.thumbnail && audio.thumbnail.length <= 2000 ? audio.thumbnail : null,
+          youtubeAddress: audio.youtubeAddress,
         },
       }
     },

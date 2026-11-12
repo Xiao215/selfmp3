@@ -37,8 +37,12 @@ const FILE: DeviceFile = {
     author: 'Aurora Lane',
     durationSeconds: 180,
     thumbnail: null,
+    youtubeAddress: null,
   },
 }
+
+/** Where YouTube saw the device, in the files of a test that says. */
+const HOME = '203.0.113.7'
 
 /**
  * A server that holds what it was told to, a downloader that does what each
@@ -60,6 +64,8 @@ function harness(options: {
   onSleep?: () => void
   /** When a song's download has itself finished, whoever stopped waiting for it. */
   settled?: (url: string) => Promise<void>
+  /** Where YouTube sees the server: a device there has what it has not started taken back. */
+  serverAddress?: string
 }) {
   const calls: string[] = []
   let held = new Set(options.ids)
@@ -68,6 +74,8 @@ function harness(options: {
   let tick: () => void = () => undefined
   const slept: number[] = []
   const renewedHolding: string[][] = []
+  const started = new Set<string>()
+  let address: string | null = null
   /** The order the server names what it holds in, when a test has changed it. */
   let order: string[] | null = null
   /** Whether the lease was still being renewed as each file went to the server. */
@@ -75,9 +83,20 @@ function harness(options: {
   let renewing = false
 
   const api: DeviceImportsApi = {
-    importDeviceRenew: (lease, progress, holding) => {
-      calls.push(`renew ${progress.map(each => `${each.id}@${each.percent}`).join(',')}`)
+    importDeviceRenew: (lease, progress, holding, youtubeAddress) => {
+      calls.push(
+        `renew ${progress.map(each => `${each.id}@${each.percent}`).join(',')}` +
+          (youtubeAddress ? ` from ${youtubeAddress}` : ''),
+      )
       renewedHolding.push([...holding])
+      // At the server's own address: the server takes what the device has not started.
+      if (youtubeAddress && youtubeAddress === options.serverAddress) {
+        for (const id of [...held]) {
+          if (started.has(id)) continue
+          held.delete(id)
+          calls.push(`take back ${id}`)
+        }
+      }
       // As the server does: what the device no longer names is the server's.
       for (const id of [...held]) {
         if (holding.includes(id)) continue
@@ -88,6 +107,7 @@ function harness(options: {
     },
     importDeviceStart: (lease, id) => {
       calls.push(`start ${id}`)
+      if (held.has(id)) started.add(id)
       return held.has(id) ? Promise.resolve({ ok: true }) : Promise.reject(new Error('409'))
     },
     importDeviceRelease: (lease, id, reason) => {
@@ -134,6 +154,12 @@ function harness(options: {
     log: () => undefined,
     handBack: () => options.handBack ?? true,
     wanted: () => options.wanted?.() ?? true,
+    youtubeAddress: {
+      note: noted => {
+        if (noted) address = noted
+      },
+      get: () => address,
+    },
   })
 
   return {
@@ -170,6 +196,43 @@ describe('DeviceImports', () => {
       'upload b',
     ])
     expect(h.imports.busy).toBe(false)
+  })
+
+  it('tells the server where YouTube saw it at once, and leaves the rest to a server there', async () => {
+    const h = harness({
+      ids: ['a', 'b', 'c'],
+      serverAddress: HOME,
+      download: () => Promise.resolve({ ...FILE, meta: { ...FILE.meta, youtubeAddress: HOME } }),
+    })
+    h.take()
+    await h.imports.settled()
+    expect(h.calls).toEqual([
+      'start a',
+      'download a',
+      'upload a',
+      `renew a@50 from ${HOME}`,
+      'take back b',
+      'take back c',
+    ])
+  })
+
+  it('says where YouTube saw it once, while that does not change', async () => {
+    const h = harness({
+      ids: ['a', 'b'],
+      serverAddress: '198.51.100.9',
+      download: () => Promise.resolve({ ...FILE, meta: { ...FILE.meta, youtubeAddress: HOME } }),
+    })
+    h.take()
+    await h.imports.settled()
+    expect(h.calls).toEqual([
+      'start a',
+      'download a',
+      'upload a',
+      `renew a@50 from ${HOME}`,
+      'start b',
+      'download b',
+      'upload b',
+    ])
   })
 
   it('lets the server have a song it could not download, and goes on', async () => {

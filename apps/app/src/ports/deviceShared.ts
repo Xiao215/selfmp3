@@ -9,6 +9,7 @@ import {
 } from '@selfmp3/shared'
 import type { DeviceFile } from '@/features/import/deviceImports.model'
 import { noteRefusal, takeTurn, type DeviceYouTube } from '@/features/import/devicePreview.model'
+import { youtubeAddress } from '@/features/import/youtubeAddress'
 import { prefs } from './prefs'
 
 /**
@@ -124,6 +125,7 @@ export function listenFromDevice<Kept>(
     try {
       // Nobody stops a listen's download: an import may be waiting on the same song.
       const song = await youtube.download(url)
+      youtubeAddress.note(song.meta.youtubeAddress)
       const made = store.keep(videoId, song.bytes)
       heard.set(videoId, made)
       while (heard.size > KEPT_LISTENS) {

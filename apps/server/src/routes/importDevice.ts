@@ -54,7 +54,12 @@ export function importDeviceRoutes(container: Container): Router {
   router.post(
     '/import/device/renew',
     route({ body: ImportDeviceRenewSchema }, ({ body }): ImportDeviceRenewResult => ({
-      held: container.importQueue.deviceRenew(body.lease, body.progress, body.holding),
+      held: container.importQueue.deviceRenew(
+        body.lease,
+        body.progress,
+        body.holding,
+        body.youtubeAddress,
+      ),
     })),
   )
 

@@ -51,6 +51,8 @@ export interface DeviceImportsApi {
     progress: readonly { id: string; percent: number }[],
     /** Every job this device still means to download; the server takes the rest. */
     holding: readonly string[],
+    /** Where YouTube last saw this device; the server's own address, and it takes the rest too. */
+    youtubeAddress: string | null,
   ): Promise<{ held: string[] }>
   importDeviceStart(lease: string, id: string): Promise<unknown>
   importDeviceRelease(lease: string, id: string, reason: string): Promise<unknown>
@@ -87,6 +89,12 @@ interface DeviceImportsDeps {
    * the server (`letGo`); the song already downloading finishes here.
    */
   readonly wanted: () => boolean
+  /**
+   * Where YouTube sees this device (youtubeAddress.ts): noted from each file,
+   * and told to the server, which takes back what this device has not
+   * started when that is its own address.
+   */
+  readonly youtubeAddress: { note(address: string | null): void; get(): string | null }
 }
 
 /** How often a lease is renewed: well inside the server's five minutes, even in a background tab. */
@@ -111,6 +119,8 @@ interface Batch {
    */
   current: { id: string; started: boolean; percent: number; stop: AbortController } | null
   stopRenewing: () => void
+  /** The address the server was last told this device is at, on this lease. */
+  toldAddress: string | null
 }
 
 export class DeviceImports {
@@ -138,6 +148,7 @@ export class DeviceImports {
       waiting: lease.jobIds.filter(id => mine.has(id)),
       current: null,
       stopRenewing: () => undefined,
+      toldAddress: null,
     }
     if (batch.waiting.length === 0) return
     batch.stopRenewing = this.#deps.every(RENEW_MS, () => void this.#renew(batch))
@@ -228,6 +239,10 @@ export class DeviceImports {
         throw new Error(`the server did not take the file (${answer.status}): ${answer.message}`)
       }
       this.#deps.log('downloaded on this device', { id, title: job.title })
+      // Where YouTube saw this device, told at once rather than at the next
+      // renewal: the server's own address, and it takes the rest now.
+      this.#deps.youtubeAddress.note(file.meta.youtubeAddress)
+      if (this.#deps.youtubeAddress.get() !== batch.toldAddress) await this.#renew(batch)
     } catch (error) {
       // Taken from this device mid-download: the server has it, or nobody wants it.
       if (stop.signal.aborted) {
@@ -295,11 +310,14 @@ export class DeviceImports {
       // What this device still means to download: a job it let go of and the
       // server did not hear about (a start or a release lost) goes to the server now.
       const holding = current ? [current.id, ...batch.waiting] : [...batch.waiting]
+      const address = this.#deps.youtubeAddress.get()
       const answer = await batch.api.importDeviceRenew(
         batch.lease,
         current?.started ? [{ id: current.id, percent: Math.min(99, current.percent) }] : [],
         holding,
+        address,
       )
+      batch.toldAddress = address
       held = new Set(answer.held)
       order = answer.held
     } catch {
@@ -335,7 +353,9 @@ export class DeviceImports {
     for (const batch of this.#batches) {
       batch.waiting.splice(0)
       const keep = batch.current ? [batch.current.id] : []
-      await batch.api.importDeviceRenew(batch.lease, [], keep).catch(() => undefined)
+      await batch.api
+        .importDeviceRenew(batch.lease, [], keep, this.#deps.youtubeAddress.get())
+        .catch(() => undefined)
     }
   }
 

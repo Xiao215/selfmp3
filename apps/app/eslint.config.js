@@ -35,6 +35,9 @@ module.exports = [
       'dist/**',
       // The bundled service worker; sw/sw.ts is its source and is linted.
       'public/sw.js',
+      // packages/ytclient bundled for the sandbox frame and the phone's page; linted there.
+      'public/yt-sandbox.js',
+      'public/yt-webview.js',
     ],
   },
   {

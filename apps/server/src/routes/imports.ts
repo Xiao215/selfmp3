@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { Router } from 'express'
@@ -48,6 +49,7 @@ import { alreadyHave, libraryIndex } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
 import { searchSongs } from '../services/importSearch.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
+import { DEVICE_LEASE_SECONDS } from '../services/importQueue.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
@@ -117,14 +119,40 @@ export function importRoutes(container: Container): Router {
     items: readonly ImportEnqueueItem[],
     fresh: readonly ImportEnqueueItem[],
     tagIds: readonly number[],
-    target: { playlistId: number | null; createPlaylistName: string | null },
+    target: {
+      playlistId: number | null
+      createPlaylistName: string | null
+      fetchOnDevice?: boolean
+    },
   ): ImportEnqueueResult => {
     const playlist = resolveImportPlaylist(container.playlists, target)
     if (playlist && target.playlistId === null) container.bumpLibraryVersion()
     const playlistId = playlist?.id ?? null
-    const jobs = container.imports.enqueue(fresh, tagIds, playlistId)
+    /*
+     * A device that asked downloads the YouTube songs itself
+     * (docs/features/client-download.md); a 网易云 one is still the server's,
+     * since the device only knows how to ask YouTube.
+     */
+    const fetcherFor = (item: ImportEnqueueItem) =>
+      isYouTubeUrl(item.url) ? ('device' as const) : ('server' as const)
+    const lease = target.fetchOnDevice ? randomUUID() : null
+    const jobs = container.imports.enqueue(
+      fresh,
+      tagIds,
+      playlistId,
+      lease ? { lease, seconds: DEVICE_LEASE_SECONDS, fetcherFor } : undefined,
+    )
     container.importQueue.kick()
-    return { jobs, skipped: items.length - fresh.length, playlistId }
+    const held = lease ? jobs.filter(job => fetcherFor(job) === 'device') : []
+    return {
+      jobs,
+      skipped: items.length - fresh.length,
+      playlistId,
+      device:
+        lease && held.length > 0
+          ? { lease, jobIds: held.map(job => job.id), seconds: DEVICE_LEASE_SECONDS }
+          : null,
+    }
   }
 
   router.post(
@@ -268,9 +296,19 @@ export function importRoutes(container: Container): Router {
 
   router.post(
     '/import/enqueue',
-    route({ body: ImportEnqueueSchema }, ({ body }): ImportEnqueueResult => {
+    route({ body: ImportEnqueueSchema }, async ({ body }): Promise<ImportEnqueueResult> => {
+      // A device's file is measured with ffprobe before it is taken; without
+      // ffmpeg here every one would be refused, so the server downloads them.
+      // Asked first: nothing may come between what is fresh and its queueing,
+      // or an Import pressed twice queues its songs twice.
+      const measures = body.fetchOnDevice ? (await container.ytdlp.status()).ffmpeg : false
+      // A device YouTube sees at this server's own address asks from its budget: the server keeps the songs.
+      const sameAddress = container.importQueue.atServerAddress(body.youtubeAddress)
       const fresh = freshOf(body.items)
-      return enqueue(body.items, fresh, container.tags.exists(body.tagIds), body)
+      return enqueue(body.items, fresh, container.tags.exists(body.tagIds), {
+        ...body,
+        fetchOnDevice: body.fetchOnDevice === true && measures && !sameAddress,
+      })
     }),
   )
 

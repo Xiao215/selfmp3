@@ -140,7 +140,12 @@ export async function startFakeServer(): Promise<FakeServer> {
           updatedAt: now(),
         }))
         jobs.unshift(...created)
-        return send(res, 200, { jobs: created, skipped: 0, playlistId: body.playlistId })
+        return send(res, 200, {
+          jobs: created,
+          skipped: 0,
+          playlistId: body.playlistId,
+          device: null,
+        })
       }
       case 'GET /api/import/queue': {
         jobs.forEach(advance)

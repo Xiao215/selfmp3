@@ -98,7 +98,10 @@ export function jobAction(job: Pick<ImportJob, 'status' | 'step'>): JobAction {
   // Past the download the song is on its way into the library, and the server
   // no longer takes a cancel for it.
   if (job.status === 'running') {
-    return job.step === 'resolving' || job.step === 'downloading' ? 'cancel' : null
+    // `waiting`: a device's file, waiting for its turn to be added (client-download.md).
+    return job.step === 'waiting' || job.step === 'resolving' || job.step === 'downloading'
+      ? 'cancel'
+      : null
   }
   if (job.status === 'cancelled') return 'resume'
   if (job.status === 'error') return waitingToUpload(job) ? 'try-now' : 'retry'
@@ -120,7 +123,9 @@ export function dismissable(job: Pick<ImportJob, 'status' | 'step'>): boolean {
 type JobTone = 'running' | 'done' | 'error' | 'waiting' | 'cancelled' | 'queued'
 
 export function jobTone(job: Pick<ImportJob, 'status' | 'step'>): JobTone {
-  return waitingToUpload(job) ? 'waiting' : job.status
+  if (waitingToUpload(job)) return 'waiting'
+  // A device's file waiting for its turn: in line, as a queued song is.
+  return job.status === 'running' && job.step === 'waiting' ? 'queued' : job.status
 }
 
 /** A review, as the screen holds it between fetching and importing. */

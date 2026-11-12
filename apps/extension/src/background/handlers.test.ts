@@ -78,7 +78,12 @@ function fakeServer(token: string | null) {
         const request = JSON.parse(String(init.body)) as { tagIds: number[] }
         const job = { ...failedJob, id: 'job-2', status: 'queued', step: 'waiting', error: null }
         return Promise.resolve(
-          json(200, { jobs: [{ ...job, tagIds: request.tagIds }], skipped: 0, playlistId: null }),
+          json(200, {
+            jobs: [{ ...job, tagIds: request.tagIds }],
+            skipped: 0,
+            playlistId: null,
+            device: null,
+          }),
         )
       }
       case 'POST /api/tags': {

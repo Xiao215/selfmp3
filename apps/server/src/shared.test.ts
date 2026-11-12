@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLogger } from './logger.js'
 import { FileThrottleStore } from './shared.js'
-import { freshState } from './services/ytThrottle.js'
+import { freshState } from '@selfmp3/shared'
 
 describe('YouTube’s pace in a file', () => {
   let dir: string

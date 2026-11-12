@@ -18,6 +18,7 @@ import { failureText } from '@selfmp3/client'
 import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
+import { YouTubePage } from '../src/ports/youtubePage'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { keepEditsAsLeaving, useKeepWaitingEdits } from '../src/offline/waitingEdits'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
@@ -227,6 +228,8 @@ export default function RootLayout(): ReactNode {
                             <BucketHoldNotice />
                             {/* Yesterday's feature counts, sent to the server once. */}
                             <UsageReporter />
+                            {/* The phone's hidden YouTube page, once an import wants it. */}
+                            <YouTubePage />
                           </LibraryFilterProvider>
                         </CarProvider>
                       </DevicesProvider>

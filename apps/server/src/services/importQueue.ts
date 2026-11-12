@@ -251,6 +251,22 @@ export class ImportQueueService {
     return this.#activeCount
   }
 
+  /**
+   * How many waiting songs still need a turn at YouTube before they can go
+   * (`#paced`): what the queue's time left waits on (services/importRun.ts).
+   */
+  get turnsWaiting(): number {
+    return this.#imports.queuedOwn().filter(job => this.#paced(job)).length
+  }
+
+  /**
+   * Whether a job waits for a turn at YouTube: not one that only has its
+   * upload left, a song from 网易云, or one a listen already found.
+   */
+  #paced(job: { url: string; songId: number | null }): boolean {
+    return job.songId === null && asksYouTube(job.url) && this.#listen.known(job.url) === null
+  }
+
   /** Ask the worker to look for work. Safe to call as often as you like. */
   kick(): void {
     if (this.#stopped) return
@@ -505,8 +521,7 @@ export class ImportQueueService {
          * that only has its upload left asks YouTube nothing, and goes, as
          * does a song from 网易云 and one a listen already found (`#fetchFound`).
          */
-        const paced =
-          next.songId === null && asksYouTube(next.url) && this.#listen.known(next.url) === null
+        const paced = this.#paced(next)
         if (paced && !this.#throttle.tryTake()) {
           // One timer however many times this is asked: everything that kicks
           // the queue during a pause would otherwise start a chain of its own.

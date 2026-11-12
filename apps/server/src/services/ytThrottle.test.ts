@@ -8,6 +8,7 @@ import {
   refill,
   resetRatchet,
   spend,
+  turnsWaitMs,
   waitMs,
   PERSON_MAY_BORROW,
   PAUSE_MS,
@@ -98,6 +99,28 @@ describe('what a person may borrow', () => {
     expect(waitMs(state, false, T0, PERSON_MAY_BORROW)).toBeCloseTo(24_000, -3)
     // The debt is paid down by the refill like any other token.
     expect(spend(state, false, T0 + 25_000, PERSON_MAY_BORROW)).not.toBeNull()
+  })
+})
+
+describe('how long a queue waits for its turns', () => {
+  it('waits for nothing the bucket already holds', () => {
+    // An idle bucket holds thirty: a 26-song album goes at once, however low the budget.
+    const floor = { ...full(false), ratchet: 1 / 16 }
+    expect(turnsWaitMs(floor, false, T0, 26)).toBe(0)
+  })
+
+  it('waits on the pacing only for the turns past what the bucket holds', () => {
+    // Thirty go at once; the ten past them come one every 24 seconds.
+    expect(turnsWaitMs(full(false), false, T0, 40)).toBeCloseTo(10 * 24_000, -3)
+  })
+
+  it('counts the turns that come in through a pause', () => {
+    // One turn waits out the whole pause; a hundred take longer than it, and
+    // the turns that came in during it count towards them.
+    const paused = penalize(full(false), T0)
+    const perTurn = HOUR / budgetPerHour(paused, false)
+    expect(turnsWaitMs(paused, false, T0, 1)).toBe(PAUSE_MS)
+    expect(turnsWaitMs(paused, false, T0, 100)).toBeCloseTo(100 * perTurn, -3)
   })
 })
 

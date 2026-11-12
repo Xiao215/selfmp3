@@ -139,9 +139,23 @@ export function refill(state: ThrottleState, signedIn: boolean, now: number): Th
  * still stops everything.
  */
 export function waitMs(state: ThrottleState, signedIn: boolean, now: number, borrow = 0): number {
+  return turnsWaitMs(state, signedIn, now, 1 - borrow)
+}
+
+/**
+ * How long until `needed` requests' worth will have come in, spending each as
+ * it arrives: what a queue of that many songs waits for its turns at YouTube
+ * (the import queue's time left, services/importRun.ts). Tokens keep coming in
+ * through a pause, so a pause only adds what outlasts them.
+ */
+export function turnsWaitMs(
+  state: ThrottleState,
+  signedIn: boolean,
+  now: number,
+  needed: number,
+): number {
   const paused = Math.max(0, state.pausedUntil - now)
   const filled = refill(state, signedIn, now)
-  const needed = 1 - borrow
   if (filled.tokens >= needed) return paused
   const perMs = budgetPerHour(filled, signedIn) / 3_600_000
   const untilToken =

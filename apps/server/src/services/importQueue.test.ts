@@ -383,6 +383,33 @@ exit 1
     expect(throttle.tryTake()).toBe(false)
   })
 
+  it('counts only the waiting songs that need a turn at YouTube', () => {
+    enqueueOne()
+    enqueueOne('https://www.youtube.com/watch?v=aaaaaaaaaaa')
+    enqueueOne('https://music.163.com/song?id=1973665667')
+    // A device's song waits on the device's own bucket.
+    imports.enqueue(
+      [
+        {
+          url: 'https://www.youtube.com/watch?v=bbbbbbbbbbb',
+          title: 'Held',
+          artist: 'Aurora Lane',
+          album: '',
+          thumbnail: null,
+          duration: 0,
+        },
+      ],
+      [],
+      null,
+      { lease: 'lease-1', seconds: 300, fetcherFor: () => 'device' },
+    )
+    expect(queue.turnsWaiting).toBe(2)
+
+    // A song a listen already found goes without one.
+    heard = { url: 'https://audio.example/found', ext: 'm4a', year: null }
+    expect(queue.turnsWaiting).toBe(0)
+  })
+
   it('asks the video who sings a song its listing did not name, before downloading it', async () => {
     fs.writeFileSync(
       path.join(dir, 'probe.json'),

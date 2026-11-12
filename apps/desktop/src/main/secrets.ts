@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { app, safeStorage } from 'electron'
+import { z } from 'zod'
 
 import { writeFileAtomicSync } from './writeAtomic.js'
 
@@ -41,9 +42,10 @@ export function parseSecrets(text: string): SealedSecrets {
     // token, and signing in again is the recovery.
     return {}
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+  const document = z.record(z.unknown()).safeParse(parsed)
+  if (!document.success) return {}
   const out: SealedSecrets = {}
-  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(document.data)) {
     if (typeof value === 'string') out[key] = value
   }
   return out

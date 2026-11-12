@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 /**
  * Songs kept because they were played: the budget, with nothing to store them in.
  *
@@ -80,21 +82,24 @@ export interface KeptFile {
   readonly bytes: number
 }
 
+const KeptFileSchema = z.object({
+  playedAt: z.number(),
+  // A name is joined to a folder and deleted: nothing with a separator in it.
+  fileName: z.string().regex(/^[\w.-]+$/),
+  bytes: z.number(),
+}) satisfies z.ZodType<KeptFile>
+
 /** The file-backed kept list as stored. Anything malformed is dropped, as above. */
 export function parseKeptFiles(raw: string | null): Map<number, KeptFile> {
   const kept = new Map<number, KeptFile>()
   if (!raw) return kept
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return kept
-    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+    const parsed = z.record(z.unknown()).safeParse(JSON.parse(raw))
+    if (!parsed.success) return kept
+    for (const [id, value] of Object.entries(parsed.data)) {
       const songId = Number(id)
-      if (!Number.isInteger(songId) || typeof value !== 'object' || value === null) continue
-      const { playedAt, fileName, bytes } = value as Record<string, unknown>
-      if (typeof playedAt !== 'number' || typeof bytes !== 'number') continue
-      // A name is joined to a folder and deleted: nothing with a separator in it.
-      if (typeof fileName !== 'string' || !/^[\w.-]+$/.test(fileName)) continue
-      kept.set(songId, { playedAt, fileName, bytes })
+      const file = KeptFileSchema.safeParse(value)
+      if (Number.isInteger(songId) && file.success) kept.set(songId, file.data)
     }
   } catch {
     // Half-written or foreign: start again.

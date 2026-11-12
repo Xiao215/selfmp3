@@ -11,6 +11,8 @@
  * change. Keys are sorted, so the same map is always the same file.
  */
 
+import { z } from 'zod'
+
 /** A song's place on the map, 0–1 across and down. */
 export interface MapPlace {
   readonly x: number
@@ -26,6 +28,11 @@ export function encodeSoundMap(places: ReadonlyMap<string, MapPlace>): string {
   return JSON.stringify({ places: rows })
 }
 
+const StepSchema = z.number().int().min(0).max(STEPS)
+const SoundMapFileSchema = z.object({
+  places: z.array(z.tuple([z.string(), StepSchema, StepSchema])),
+})
+
 /** The file read back, by audio key; null when it is not one this build reads. */
 export function parseSoundMap(text: string): Map<string, MapPlace> | null {
   let parsed: unknown
@@ -34,18 +41,7 @@ export function parseSoundMap(text: string): Map<string, MapPlace> | null {
   } catch {
     return null
   }
-  const rows = (parsed as { places?: unknown } | null)?.places
-  if (!Array.isArray(rows)) return null
-  const places = new Map<string, MapPlace>()
-  for (const row of rows) {
-    if (!Array.isArray(row) || row.length !== 3) return null
-    const [key, x, y] = row as unknown[]
-    if (typeof key !== 'string' || !isStep(x) || !isStep(y)) return null
-    places.set(key, { x: x / STEPS, y: y / STEPS })
-  }
-  return places
-}
-
-function isStep(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= STEPS
+  const file = SoundMapFileSchema.safeParse(parsed)
+  if (!file.success) return null
+  return new Map(file.data.places.map(([key, x, y]) => [key, { x: x / STEPS, y: y / STEPS }]))
 }

@@ -1,4 +1,4 @@
-import type { AskObject, AskObjectKind, AskTurn } from '@selfmp3/shared'
+import type { AskCard, AskObject, AskObjectKind, AskTurn } from '@selfmp3/shared'
 
 /** One thing asked on the Ask page, and what came of it once it has come. */
 export interface Turn {
@@ -37,6 +37,8 @@ export interface Turn {
    * with. The page's newest is what opens by itself.
    */
   readonly lists: readonly TurnList[]
+  /** Its reply's cards, by kind in their places; empty until it is answered. */
+  readonly kinds: readonly AskCard['kind'][]
 }
 
 /** A list a turn's reply shows, as the page opens it. */
@@ -51,8 +53,44 @@ export interface TurnList {
 /** A turn asked again (Try again): waiting for its answer, as a new one is. */
 export function retried(turns: readonly Turn[], id: number): readonly Turn[] {
   return turns.map(turn =>
-    turn.id === id ? { ...turn, answered: null, outcomes: {}, objects: [] } : turn,
+    turn.id === id ? { ...turn, answered: null, outcomes: {}, objects: [], kinds: [] } : turn,
   )
+}
+
+/**
+ * Cards that are a proposal: once acted on or put aside (Apply, Close, Not
+ * now), the card folds to the line it was answered with. The rest stay as
+ * they are, since playing a song from an answer is not the end of it.
+ */
+export const PROPOSALS: ReadonlySet<AskCard['kind']> = new Set([
+  'tags',
+  'tidy',
+  'copies',
+  'remember',
+  'playlists',
+  'playlistSongs',
+  'deleteSongs',
+])
+
+/**
+ * The proposals a later one of the same kind took the place of, by turn and
+ * the card's place: a second plan for the names after "and these too" is the
+ * one to apply, and the first stays only to read, its buttons greyed. One put
+ * aside or acted on already is left as it came to; lists are not proposals,
+ * each a version of its own to play.
+ */
+export function outdatedCards(turns: readonly Turn[]): ReadonlyMap<number, ReadonlySet<number>> {
+  const outdated = new Map<number, Set<number>>()
+  const later = new Set<AskCard['kind']>()
+  for (const turn of [...turns].reverse()) {
+    turn.kinds.forEach((kind, place) => {
+      if (!PROPOSALS.has(kind) || !later.has(kind) || turn.outcomes[place] !== undefined) return
+      const cards = outdated.get(turn.id) ?? new Set<number>()
+      outdated.set(turn.id, cards.add(place))
+    })
+    for (const kind of turn.kinds) later.add(kind)
+  }
+  return outdated
 }
 
 /**

@@ -51,7 +51,7 @@ function askKey(
 }
 
 /** What a turn's reply came to, as `ThreadTurn` tells the page. */
-export type Answered = Pick<Turn, 'answered' | 'lists' | 'objects'>
+export type Answered = Pick<Turn, 'answered' | 'lists' | 'objects' | 'kinds'>
 
 /** What a turn that failed was answered with, for the turns after it. */
 const FAILED = '(This could not be answered.)'
@@ -81,6 +81,7 @@ export const ThreadTurn = memo(function ThreadTurn({
   listHeight,
   named,
   openId,
+  outdated,
   flash,
   onOpen,
   onShowFrom,
@@ -101,6 +102,8 @@ export const ThreadTurn = memo(function ThreadTurn({
   named: ReadonlyMap<string, Named>
   /** The list open beside the conversation, by its kept id: its card is lit. */
   openId: string | null
+  /** Its proposals a later one of the same kind took the place of, by place (`outdatedCards`). */
+  outdated: ReadonlySet<number> | undefined
   /** Just brought back into view by a later "From" line: lit for a moment. */
   flash: boolean
   onOpen: (list: TurnList) => void
@@ -230,16 +233,21 @@ export const ThreadTurn = memo(function ThreadTurn({
     () => (recap === null || !shown ? [] : objectsOf(shown, number, shownLists)),
     [recap, shown, number, shownLists],
   )
+  const kinds = useMemo(
+    () => (recap === null || !data ? [] : data.cards.map(card => card.kind)),
+    [recap, data],
+  )
   useEffect(() => {
     if (
       recap !== null &&
       (recap !== turn.answered ||
         JSON.stringify(lists) !== JSON.stringify(turn.lists) ||
-        JSON.stringify(objects) !== JSON.stringify(turn.objects))
+        JSON.stringify(objects) !== JSON.stringify(turn.objects) ||
+        kinds.join() !== turn.kinds.join())
     ) {
-      onAnswered(turn.id, { answered: recap, lists, objects })
+      onAnswered(turn.id, { answered: recap, lists, objects, kinds })
     }
-  }, [recap, lists, objects, turn, onAnswered])
+  }, [recap, lists, objects, kinds, turn, onAnswered])
   // Done with when every review in it is: only the newest answer's keys work, and only while one is open.
   const settled =
     data !== undefined &&
@@ -346,6 +354,7 @@ export const ThreadTurn = memo(function ThreadTurn({
                 onOpenList={openHere}
                 openList={openId}
                 changedFrom={changedFrom}
+                outdated={outdated}
               />
             ) : null}
           </Reanimated.View>

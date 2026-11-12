@@ -12,6 +12,7 @@ import {
   type TextInput,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import Reanimated, { Easing, FadeInRight } from 'react-native-reanimated'
 import { useLocalSearchParams, useNavigation } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -24,11 +25,15 @@ import { fonts } from '../../ports/fonts'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { NarrowerContentWidth, useContentWidth } from '../../shell/contentWidth'
 import { isComposing } from '../../shell/composing'
+import { useEscape } from '../../shell/useEscape'
 import { setPageFoot } from '../../shell/pageFoot'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { usePageBack } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
-import { Sparkle } from '../../ui/components/Icons'
+import { X } from '../../ui/components/Icons'
+import { IconButton } from '../../ui/components/IconButton'
+import { EASE_OUT_POINTS, MOVE_MS } from '../../ui/motion.model'
+import { useMotionReduced } from '../../ui/motion'
 import { Chip } from '../../ui/components/Chip'
 import { Kbd } from '../../ui/components/Kbd'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -47,6 +52,7 @@ import { forgetThread, keepThread, keptThread, newThread } from './askThread.sto
 import {
   afterStop,
   namedObjects,
+  outdatedCards,
   retried,
   scrollToShow,
   type Turn,
@@ -68,11 +74,14 @@ let nextTurn = 1
  * left a follow-up leaning on words nobody could see any more). Every turn
  * stays on the page in full: what was asked, Ask's own words, and its cards,
  * each acted on where it stands, a proposal done with folding to what came of
- * it. On a computer the conversation is a pane with the field at its foot,
- * and beside it the list you're on, at full size: the newest list opens there
- * by itself, a list's card opens that one, lit while it is. On a phone the
- * conversation is the page, and a list's card opens it as a page of its own
- * whose ‹ comes back to the same place in the conversation.
+ * it. On a computer the conversation is the whole page, a column in the
+ * middle, its field at the foot, an empty one starting with the field in the
+ * middle (A1 + A2, 2026-11-12). A reply with a list brings it in beside, at
+ * full size, the conversation narrowing to a pane (B1): the newest list opens
+ * by itself, a list's card opens that one, lit while it is, and its ✕ gives
+ * the conversation the page back until a newer list comes (C1). On a phone
+ * the conversation is the page, and a list's card opens it as a page of its
+ * own whose ‹ comes back to the same place in the conversation.
  *
  * The field asks the next question, after everything before it (F1: the
  * server hears each earlier question with what was shown for it, the songs
@@ -110,6 +119,7 @@ export function AskScreen(): ReactNode {
     outcomes: {},
     objects: [],
     lists: [],
+    kinds: [],
   })
   const opened = typeof params.q === 'string' ? params.q.trim() : ''
   // A visit's conversation is its thread, named in the address: a page drawn
@@ -143,20 +153,25 @@ export function AskScreen(): ReactNode {
   const latestId = latest?.id ?? null
   const working = latest !== undefined && latest.answered === null
   const named = useMemo(() => namedObjects(turns), [turns])
+  const outdated = useMemo(() => outdatedCards(turns), [turns])
   // The newest list of the conversation: what opens by itself beside it.
   const newest = useMemo(
     () => [...turns].reverse().find(turn => turn.lists.length > 0)?.lists[0] ?? null,
     [turns],
   )
-  // The list open: on a computer the newest, until a card opens another; a
-  // new list opens itself again. On a phone none, until a card opens one; a
-  // new question comes back to the conversation.
+  // The list open: on a computer the newest, until a card opens another or
+  // its ✕ closes it; a new list opens itself again. On a phone none, until a
+  // card opens one; a new question comes back to the conversation.
   const [picked, setPicked] = useState<{ since: number | null; list: TurnList | null }>({
     since: latestId,
     list: null,
   })
+  // The newest list when ✕ closed it: closed until a newer one comes.
+  const [closedOn, setClosedOn] = useState<string | null>(null)
   const pickedNow = picked.since === latestId ? picked.list : null
-  const openList = wide ? (pickedNow ?? newest) : pickedNow
+  const openList = wide
+    ? (pickedNow ?? (newest && newest.id !== closedOn ? newest : null))
+    : pickedNow
   const openId = openList?.id ?? null
   // What is on the screen as the words are asked: the list open, or on a
   // phone the newest list, the one just above the field.
@@ -213,9 +228,17 @@ export function AskScreen(): ReactNode {
   // Try again: the turn is worked on again, with its Stop, and the next question waits for it.
   const retry = useCallback((id: number) => setTurns(was => retried(was, id)), [])
   const open = useCallback(
-    (list: TurnList | null) => setPicked({ since: latestId, list }),
+    (list: TurnList | null) => {
+      setPicked({ since: latestId, list })
+      setClosedOn(null)
+    },
     [latestId],
   )
+  // ✕ on the list beside: the conversation has the page again.
+  const closeBeside = useCallback(() => {
+    setPicked({ since: latestId, list: null })
+    setClosedOn(newest?.id ?? null)
+  }, [latestId, newest])
 
   const toFoot = useCallback(() => {
     if (following.current) scroller.current?.scrollToEnd({ animated: true })
@@ -272,7 +295,21 @@ export function AskScreen(): ReactNode {
     event.stopPropagation()
   }
 
+  const reachable = server.reach.state === 'reachable'
   const listHeight = Math.max(240, window.height * 0.55)
+  // On a computer with no list beside: the conversation is the page (A1), and
+  // before anything is asked its field waits in the middle (A2).
+  const alone = wide && openList === null
+  const starting = alone && turns.length === 0 && reachable
+  useEscape(wide && openList !== null, closeBeside)
+  const reduced = useMotionReduced()
+  const besideIn = useMemo(
+    () =>
+      reduced
+        ? undefined
+        : FadeInRight.duration(MOVE_MS.sheetUp).easing(Easing.bezier(...EASE_OUT_POINTS)),
+    [reduced],
+  )
   useEffect(() => () => setPageFoot(0), [])
   const pageWidth = useContentWidth()
   const { top } = useSafeAreaInsets()
@@ -282,12 +319,11 @@ export function AskScreen(): ReactNode {
     forgetThread(thread)
     back()
   }, [thread, back])
-  const reachable = server.reach.state === 'reachable'
   const via = reachedConnection(server.reach)?.baseUrl ?? null
 
   const dock = (
     <View
-      style={[styles.dock, wide && styles.dockWide]}
+      style={[styles.dock, wide && styles.dockWide, alone && styles.column]}
       // The toasts rise above the field rather than cover it.
       onLayout={event => setPageFoot(wide ? 0 : event.nativeEvent.layout.height)}
     >
@@ -320,7 +356,11 @@ export function AskScreen(): ReactNode {
 
   const conversation = (
     <View
-      style={[styles.thread, wide && styles.threadWide, listPage && styles.hidden]}
+      style={[
+        styles.thread,
+        wide && (alone ? styles.threadAlone : styles.threadWide),
+        listPage && styles.hidden,
+      ]}
       testID="ask-thread"
     >
       <View style={[styles.threadHead, { paddingTop: top + frame.paddingTop }]}>
@@ -329,46 +369,61 @@ export function AskScreen(): ReactNode {
           Ask
         </Text>
       </View>
-      <ScrollView
-        ref={scroller}
-        style={styles.turns}
-        contentContainerStyle={styles.turnsContent}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-        scrollEventThrottle={64}
-        onScroll={scrolled}
-        onContentSizeChange={toFoot}
-      >
-        {!reachable ? (
-          <ServerAway reach={server.reach} need="ai" testID="ask-server" />
-        ) : (
-          turns.map((turn, index) => (
-            <ThreadTurn
-              key={turn.id}
-              turn={turn}
-              number={index + 1}
-              latest={turn.id === latestId}
-              via={via}
-              listHeight={listHeight}
-              named={named}
-              openId={wide ? openId : null}
-              flash={flash === turn.id}
-              onOpen={open}
-              onShowFrom={showFrom}
-              onLayout={laidOut}
-              onAnswered={answered}
-              onSettle={settle}
-              onRetry={retry}
-              // A dead end's suggestions, and Tidy up's "ask about the rest": the next turn.
-              onAsk={askFromAnswer}
-              onKeys={turn.id === latestId ? setKeys : undefined}
-            />
-          ))
-        )}
-        {turns.length === 0 && reachable ? <Suggestions onAsk={ask} /> : null}
-      </ScrollView>
+      {starting ? (
+        // A2: nothing asked yet, the field waits in the middle of the page under a line.
+        <View style={styles.startTop}>
+          <Text style={styles.startLine} accessibilityRole="header">
+            What should we listen to?
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          ref={scroller}
+          style={styles.turns}
+          contentContainerStyle={[styles.turnsContent, alone && styles.column]}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={64}
+          onScroll={scrolled}
+          onContentSizeChange={toFoot}
+        >
+          {!reachable ? (
+            <ServerAway reach={server.reach} need="ai" testID="ask-server" />
+          ) : (
+            turns.map((turn, index) => (
+              <ThreadTurn
+                key={turn.id}
+                turn={turn}
+                number={index + 1}
+                latest={turn.id === latestId}
+                via={via}
+                listHeight={listHeight}
+                named={named}
+                openId={wide ? openId : null}
+                outdated={outdated.get(turn.id)}
+                flash={flash === turn.id}
+                onOpen={open}
+                onShowFrom={showFrom}
+                onLayout={laidOut}
+                onAnswered={answered}
+                onSettle={settle}
+                onRetry={retry}
+                // A dead end's suggestions, and Tidy up's "ask about the rest": the next turn.
+                onAsk={askFromAnswer}
+                onKeys={turn.id === latestId ? setKeys : undefined}
+              />
+            ))
+          )}
+          {turns.length === 0 && reachable ? <Suggestions onAsk={ask} /> : null}
+        </ScrollView>
+      )}
       {/* The conversation goes under the field rather than stopping at a line (C1). */}
       {wide ? dock : <FootFade color={theme.colors.surface0} />}
+      {starting ? (
+        <View style={styles.startFoot}>
+          <Suggestions onAsk={ask} centred />
+        </View>
+      ) : null}
     </View>
   )
 
@@ -385,21 +440,31 @@ export function AskScreen(): ReactNode {
           <View style={[styles.body, wide && styles.bodyWide]}>
             {conversation}
             {wide ? (
-              <NarrowerContentWidth max={Math.max(0, (pageWidth ?? 0) - THREAD_WIDTH)}>
-                <View style={styles.beside} testID="ask-beside">
-                  {openList ? (
+              openList ? (
+                <NarrowerContentWidth max={Math.max(0, (pageWidth ?? 0) - THREAD_WIDTH)}>
+                  {/* B1: comes in from the right when a list first opens; another one swaps in place. */}
+                  <Reanimated.View style={styles.beside} entering={besideIn} testID="ask-beside">
                     <AnswerView
                       key={openList.id}
                       id={openList.id}
                       inAsk
-                      top={null}
+                      top={
+                        <View style={styles.closeRow}>
+                          <IconButton
+                            label="Close the list"
+                            size={36}
+                            onPress={closeBeside}
+                            testID="ask-beside-close"
+                          >
+                            <X size={iconSize.field} tone="textSecondary" />
+                          </IconButton>
+                        </View>
+                      }
                       lead={openList.lead}
                     />
-                  ) : (
-                    <NothingBeside />
-                  )}
-                </View>
-              </NarrowerContentWidth>
+                  </Reanimated.View>
+                </NarrowerContentWidth>
+              ) : null
             ) : openList ? (
               <View style={styles.beside} testID="ask-list-page">
                 <AnswerView
@@ -426,17 +491,6 @@ export function AskScreen(): ReactNode {
   )
 }
 
-/** Beside the conversation before any list: where one will open. */
-function NothingBeside(): ReactNode {
-  const { theme } = useUnistyles()
-  return (
-    <View style={styles.nothing} testID="ask-beside-empty">
-      <Sparkle size={iconSize.item} color={theme.colors.textMuted} />
-      <Text style={styles.nothingText}>The songs Ask picks open here.</Text>
-    </View>
-  )
-}
-
 /** The conversation's foot fading into the ground the field floats over. */
 function FootFade({ color }: { color: string }): ReactNode {
   const id = useSvgId('ask-foot')
@@ -458,9 +512,17 @@ function FootFade({ color }: { color: string }): ReactNode {
 /**
  * Before the first question, three things to ask, made from this library
  * (`askSuggestions`), at the foot of the empty conversation just above the
- * field (L1, 2026-10-25). A press asks it.
+ * field (L1, 2026-10-25), or on a computer under the field in the middle of
+ * the page (A2). A press asks it.
  */
-function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
+function Suggestions({
+  onAsk,
+  centred = false,
+}: {
+  onAsk: (words: string) => void
+  /** Under the field in the middle of an empty page (A2): in a row, no label. */
+  centred?: boolean
+}): ReactNode {
   const { data: library } = useLibrary()
   const lines = useMemo(() => {
     if (!library) return []
@@ -470,6 +532,15 @@ function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
     return askSuggestions(tags, untagged, top)
   }, [library])
   if (lines.length === 0) return null
+  if (centred) {
+    return (
+      <View style={styles.suggestionsCentred} testID="ask-suggestions">
+        {lines.map(line => (
+          <Chip key={line} label={line} selected={false} onPress={() => onAsk(line)} />
+        ))}
+      </View>
+    )
+  }
   return (
     <View style={styles.suggestions} testID="ask-suggestions">
       <Text style={styles.suggestionsLabel}>Try</Text>
@@ -499,6 +570,9 @@ function isTextField(target: unknown): boolean {
  */
 const THREAD_WIDTH = 440
 
+/** The conversation's column on a computer with nothing beside it: a reading width (A1). */
+const COLUMN_WIDTH = 720
+
 /** How near its foot the conversation still counts as followed. */
 const FOLLOW_SLACK = 64
 
@@ -513,7 +587,21 @@ const styles = StyleSheet.create(theme => ({
   bodyWide: { flexDirection: 'row' },
   hidden: { display: 'none' },
   thread: { flex: 1, minHeight: 0 },
-  // On a computer, a pane a step up from the ground, its field at the foot.
+  // On a computer with nothing beside it, the whole page on the ground (A1).
+  threadAlone: { flex: 1 },
+  // A column in the middle of it, the turns and the field alike.
+  column: { width: '100%', maxWidth: COLUMN_WIDTH, alignSelf: 'center' },
+  // A2: the line above the field in the middle of the page, and the suggestions under it.
+  startTop: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', padding: space.lg },
+  startLine: {
+    ...textStyle('page'),
+    fontFamily: fonts.display,
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
+  },
+  startFoot: { flex: 1, paddingHorizontal: space.lg },
+  closeRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  // On a computer beside a list, a pane a step up from the ground, its field at the foot.
   threadWide: {
     flex: 0,
     flexBasis: THREAD_WIDTH,
@@ -541,14 +629,6 @@ const styles = StyleSheet.create(theme => ({
     gap: space.xl,
   },
   beside: { flex: 1, minWidth: 0, minHeight: 0 },
-  nothing: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.md,
-    padding: space.xl,
-  },
-  nothingText: { color: theme.colors.textMuted, ...textStyle('body') },
   fade: {
     position: 'absolute',
     left: 0,
@@ -560,6 +640,14 @@ const styles = StyleSheet.create(theme => ({
   suggestions: { marginTop: 'auto', gap: space.sm },
   suggestionsLabel: { color: theme.colors.textMuted, fontSize: type.small },
   suggestion: { alignItems: 'flex-start' },
+  suggestionsCentred: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space.sm,
+    maxWidth: COLUMN_WIDTH,
+    alignSelf: 'center',
+  },
   // The field floats over the conversation's fading foot (C1), with room
   // under it before the player bar or the phone's edge.
   dock: {

@@ -38,23 +38,9 @@ import { useSmartServer } from './useSmartServer'
 import { AnswerSongLine } from './AnswerSongLine'
 import { AnswerActions, AnswerHead, AnswerLine, CLOSED } from './AnswerParts'
 import { ClarifyAnswer } from './ClarifyAnswer'
+import { PROPOSALS } from './askTurns.model'
 import { label } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
-
-/**
- * Answers that are a proposal: once acted on or put aside (Apply, Close, Not
- * now), the card folds to the line it was answered with. The rest stay as
- * they are, since playing a song from an answer is not the end of it.
- */
-const SETTLES: ReadonlySet<Answer['kind']> = new Set([
-  'tags',
-  'tidy',
-  'copies',
-  'remember',
-  'playlists',
-  'playlistSongs',
-  'deleteSongs',
-])
 
 /** Cards a computer's keys work on while the field is empty: the reviews. */
 export const TAKES_KEYS: ReadonlySet<Answer['kind']> = new Set([
@@ -75,7 +61,8 @@ export const TAKES_KEYS: ReadonlySet<Answer['kind']> = new Set([
  * the cards always are. A proposal done with folds to what came of it
  * (`outcomes`, by the card's place), its siblings left as they are. Only the
  * first list asked to play plays as it comes, and only the first review
- * still open takes the computer's keys.
+ * still open takes the computer's keys. A proposal a later one took the place
+ * of (`outdated`) stays to read, greyed, its buttons out of reach.
  */
 export function AnswerBody({
   reply,
@@ -89,6 +76,7 @@ export function AnswerBody({
   onOpenList,
   openList = null,
   changedFrom = null,
+  outdated,
   beside = false,
 }: {
   reply: AskReply
@@ -108,13 +96,16 @@ export function AnswerBody({
   openList?: string | null
   /** The earlier list a list of this reply was made from: its card says what changed. */
   changedFrom?: ChangedFrom | null
+  /** Its proposals a later one of the same kind took the place of, by place (`outdatedCards`). */
+  outdated?: ReadonlySet<number>
   /** Room to the side (Ask on a computer): words with the songs they name beside them. */
   beside?: boolean
 }): ReactNode {
   const several = reply.cards.length > 1
   const playsNow = reply.cards.findIndex(card => card.kind === 'songs' && card.lead === 'play')
   const takesKeys = reply.cards.findIndex(
-    (card, index) => TAKES_KEYS.has(card.kind) && outcomes[index] === undefined,
+    (card, index) =>
+      TAKES_KEYS.has(card.kind) && outcomes[index] === undefined && !outdated?.has(index),
   )
   return (
     <View style={styles.reply}>
@@ -136,12 +127,25 @@ export function AnswerBody({
             ) : null}
             {outcome !== undefined ? (
               <Outcome answer={card} outcome={outcome} />
+            ) : outdated?.has(index) ? (
+              <Outdated>
+                <AnswerCard
+                  answer={card}
+                  text={text}
+                  onDone={() => undefined}
+                  listHeight={listHeight}
+                  playNow={false}
+                  openList={null}
+                  changedFrom={null}
+                  beside={beside}
+                />
+              </Outdated>
             ) : (
               <AnswerCard
                 answer={card}
                 text={text}
                 onDone={done =>
-                  SETTLES.has(card.kind) && done ? onSettle(index, done) : undefined
+                  PROPOSALS.has(card.kind) && done ? onSettle(index, done) : undefined
                 }
                 listHeight={listHeight}
                 onKeys={index === takesKeys ? onKeys : undefined}
@@ -157,6 +161,27 @@ export function AnswerBody({
           </View>
         )
       })}
+    </View>
+  )
+}
+
+/**
+ * A proposal a later one took the place of: there to read, greyed, nothing in
+ * it pressable, so only the newest plan can be applied.
+ */
+function Outdated({ children }: { children: ReactNode }): ReactNode {
+  return (
+    <View style={styles.outdated} testID="ask-card-outdated">
+      <Text style={styles.outdatedNote}>A newer one is below.</Text>
+      <View
+        style={styles.outdatedCard}
+        pointerEvents="none"
+        aria-disabled
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        {children}
+      </View>
     </View>
   )
 }
@@ -500,6 +525,9 @@ const styles = StyleSheet.create(theme => ({
   part: { gap: space.sm },
   heading: label(theme.colors),
   outcome: { gap: space.md },
+  outdated: { gap: space.xs },
+  outdatedNote: { color: theme.colors.textMuted, fontSize: type.small },
+  outdatedCard: { opacity: 0.45 },
   outcomeLine: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   tick: {
     width: 20,

@@ -4,6 +4,7 @@ import {
   fromLine,
   listChange,
   namedObjects,
+  outdatedCards,
   retried,
   scrollToShow,
   type Turn,
@@ -19,6 +20,7 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   outcomes: {},
   objects: [],
   lists: [],
+  kinds: [],
   ...patch,
 })
 
@@ -26,6 +28,34 @@ describe('retried', () => {
   it('waits again for the turn asked again, and only that one', () => {
     const turns = [turn(1), turn(2, { answered: '(This could not be answered.)' })]
     expect(retried(turns, 2).map(each => each.answered)).toEqual(['answer 1', null])
+  })
+})
+
+describe('outdatedCards', () => {
+  const places = (turns: readonly Turn[]) =>
+    Object.fromEntries([...outdatedCards(turns)].map(([id, cards]) => [id, [...cards]]))
+
+  it('greys a plan once a later one of the same kind comes', () => {
+    const turns = [turn(1, { kinds: ['tidy'] }), turn(2, { kinds: ['tidy'] })]
+    expect(places(turns)).toEqual({ 1: [0] })
+  })
+
+  it('leaves a plan alone after a plan of another kind, or a list', () => {
+    const turns = [turn(1, { kinds: ['tidy', 'tags'] }), turn(2, { kinds: ['tags', 'songs'] })]
+    expect(places(turns)).toEqual({ 1: [1] })
+  })
+
+  it('never greys a list, nor a plan already acted on or put aside', () => {
+    const turns = [
+      turn(1, { kinds: ['songs'] }),
+      turn(2, { kinds: ['tidy'], outcomes: { 0: 'Fixed 14 songs' } }),
+      turn(3, { kinds: ['songs', 'tidy'] }),
+    ]
+    expect(places(turns)).toEqual({})
+  })
+
+  it('counts a turn still being answered as nothing yet', () => {
+    expect(places([turn(1, { kinds: ['tidy'] }), turn(2, { answered: null })])).toEqual({})
   })
 })
 

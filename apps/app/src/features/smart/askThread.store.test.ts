@@ -26,6 +26,7 @@ const turn = (id: number, asked: string): Turn => ({
   outcomes: {},
   objects: [],
   lists: [],
+  kinds: [],
 })
 
 beforeEach(() => tab.clear())

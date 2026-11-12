@@ -121,7 +121,8 @@ export interface ReviewRowState {
  * In Ask it is a `card` (R3, Xiao 2026-10-24): nothing in it scrolls on its
  * own. Up to five changes show whole; a longer review shows its first three
  * and "Review all", which opens the whole list on a sheet with the buttons at
- * its foot. Card and sheet are one review, ticked alike. The small print
+ * its foot, Back among them: leaving the sheet goes back to the card, which
+ * is still to be answered. Card and sheet are one review, ticked alike. The small print
  * comes under the rows, after what the review is.
  *
  * Five or fewer, given `short`, are not a review in bands at all (AD1): one
@@ -567,9 +568,14 @@ export function Review<T extends Reviewed>({
       {bandsDrawn}
     </ScrollView>
   )
-  const buttons = (
+  // On the sheet, the left button goes back to the card: closing the review is the card's to do.
+  const buttons = (onSheet: boolean): ReactNode => (
     <>
-      {onClose ? <Button label="Close" onPress={() => onClose(CLOSED)} /> : null}
+      {onSheet ? (
+        <Button label="Back" onPress={() => setWhole(false)} testID={`${testID}-sheet-back`} />
+      ) : onClose ? (
+        <Button label="Close" onPress={() => onClose(CLOSED)} />
+      ) : null}
       <Button
         label={applyLabel(approved, leftOut)}
         variant="primary"
@@ -683,7 +689,7 @@ export function Review<T extends Reviewed>({
           ) : (
             <View />
           )}
-          <View style={styles.cardButtons}>{buttons}</View>
+          <View style={styles.cardButtons}>{buttons(false)}</View>
         </View>
         {first ? (
           <Sheet
@@ -697,7 +703,7 @@ export function Review<T extends Reviewed>({
               {ticks}
               {scrolling}
               {small}
-              <AnswerActions>{buttons}</AnswerActions>
+              <AnswerActions>{buttons(true)}</AnswerActions>
             </View>
           </Sheet>
         ) : null}
@@ -714,7 +720,7 @@ export function Review<T extends Reviewed>({
       </View>
       {scrolling}
       {foot}
-      <AnswerActions>{buttons}</AnswerActions>
+      <AnswerActions>{buttons(false)}</AnswerActions>
     </View>
   )
 }

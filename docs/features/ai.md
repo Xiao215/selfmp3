@@ -331,11 +331,17 @@ and under it the reply — its steps while it is worked on, then Ask's own words
 The conversation follows its foot while you are there (a new question, an answer coming in),
 and is left alone once you scroll back up.
 
-On a computer the conversation is a 440 pane a step up from the ground, the field at its
-foot, and beside it the list you're on at full size (`AnswerView` with `inAsk`: titled by
-the list's name, no Change it, the conversation carrying the question). The newest list
-opens there by itself; a list's card opens that one and is lit while it is; a newer list
-opens itself again. Before any list the side says where one will open. On a phone the
+On a computer the conversation is the whole page until a reply has a list (Xiao picked
+A1 + A2 + B1 + C1, 2026-11-12, canvas https://claude.ai/artifact/UbxAT37chUxqtGXyeEpS2q):
+its turns and field in a column up to 720 wide in the middle of the ground, and an empty one
+starts with the field in the middle under "What should we listen to?", the suggestions under
+it, dropping to the foot once something is asked. A reply with a list brings it in from the
+right at full size (`AnswerView` with `inAsk`: titled by the list's name, no Change it, the
+conversation carrying the question), the conversation narrowing to a 440 pane a step up from
+the ground. The newest list opens there by itself; a list's card opens that one and is lit
+while it is. Its ✕ (or Esc) gives the conversation the page back, closed through replies
+that only talk, until a newer list comes or a card opens one. Until then the page was always
+split, and before any list two thirds of it said where one would open. On a phone the
 conversation is the page; a list's card opens the list as a page of its own over it, whose
 ‹ comes back to the same place in the conversation, and a new question comes back too.
 
@@ -379,12 +385,16 @@ work from the field while it is empty.
 Reviews in an answer (Xiao picked R3 T1 S1, 2026-10-24): nothing in an answer scrolls
 on its own. A review is a card (`Review` with `card`): up to five changes whole, a
 longer one its first three and "Review all", which opens the whole list on a sheet with
-the buttons at its foot, ticked as one with the card. The model's own words are drawn as
+the buttons at its foot, ticked as one with the card; the sheet's Back (or its ✕) goes back
+to the card, still to be answered (its Close used to close the proposal itself). The model's own words are drawn as
 the answer above it (T1; tidy's `reply` used to sit among the grey notes); grey is only
 the app's small print, under the rows. Done with (Fix, Close, Not now), a proposal says
 what came of it ("Fixed 31 songs", "Closed. Nothing changed."), and the turn keeps the
 model's words and that line (S1), which the next follow-up is told too. An answer you play
-from stays as it is.
+from stays as it is. A proposal a later one of the same kind took the place of ("and the
+albums too" bringing a second name plan) stays to read, greyed under "A newer one is below.",
+nothing in it pressable, so only the newest plan can be applied (`outdatedCards`); lists are
+not proposals, and each stays a version you can play.
 
 **A reply holds several cards** (AGENT-DESIGN 2.4, `AskReply`): `say`, a few words of its
 own or null, and `cards`, one to four in the order the request asked for them ("10 calm

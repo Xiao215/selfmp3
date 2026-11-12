@@ -4,5 +4,5 @@
  * here loads youtubei.js or runs anything YouTube sends; that is the page's.
  */
 export * from './webview/app.js'
-export { WEBVIEW_RECEIVE } from './webview/protocol.js'
+export { WEBVIEW_PROTOCOL, WEBVIEW_RECEIVE } from './webview/protocol.js'
 export { withKeptSongs, type DeviceFile, type VideoFacts } from './keptSongs.js'

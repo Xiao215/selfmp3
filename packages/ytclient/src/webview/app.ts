@@ -1,6 +1,6 @@
 import { base64ToBytes } from '@selfmp3/shared'
 import type { DeviceFile, VideoFacts, YouTubeCore } from '../keptSongs.js'
-import type { AppMessage, PageMessage } from './protocol.js'
+import { WEBVIEW_PROTOCOL, type AppMessage, type PageMessage } from './protocol.js'
 
 /**
  * The phone app's side of its YouTube page (protocol.ts): what the app asks
@@ -77,7 +77,14 @@ export function createWebViewCore(post: (message: AppMessage) => void): WebViewC
         return
       }
       if (message.kind === 'ready') {
-        markReady()
+        // A page from another version of the web app than this build speaks to: not used.
+        if (message.protocol === WEBVIEW_PROTOCOL) markReady()
+        else
+          failReady(
+            new Error(
+              `the YouTube page speaks protocol ${String(message.protocol)}, not ${WEBVIEW_PROTOCOL}`,
+            ),
+          )
         return
       }
       const waiting = pending.get(message.id)
@@ -96,15 +103,17 @@ export function createWebViewCore(post: (message: AppMessage) => void): WebViewC
         case 'downloaded': {
           settle(message.id)
           if (waiting.kind !== 'download') return
+          // Counted before anything is copied: too many bytes would not fit, and throwing here settles nothing.
+          const sent = waiting.chunks.reduce((total, chunk) => total + chunk.length, 0)
+          if (sent !== message.size) {
+            waiting.reject(new Error(`the page sent ${sent} bytes of a ${message.size}-byte song`))
+            return
+          }
           const bytes = new Uint8Array(new ArrayBuffer(message.size))
           let at = 0
           for (const chunk of waiting.chunks) {
             bytes.set(chunk, at)
             at += chunk.length
-          }
-          if (at !== message.size) {
-            waiting.reject(new Error(`the page sent ${at} of the song's ${message.size} bytes`))
-            return
           }
           waiting.resolve({
             bytes,

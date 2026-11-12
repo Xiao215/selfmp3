@@ -2,6 +2,7 @@ import { bytesToBase64, messageOf } from '@selfmp3/shared'
 import { createYouTubeCore } from '../downloader.js'
 import {
   WEBVIEW_CHUNK_BYTES,
+  WEBVIEW_PROTOCOL,
   WEBVIEW_RECEIVE,
   type AppMessage,
   type PageMessage,
@@ -60,4 +61,4 @@ window[WEBVIEW_RECEIVE] = message => {
   if (message.kind === 'describe' || message.kind === 'download') void answer(message)
 }
 
-send({ kind: 'ready' })
+send({ kind: 'ready', protocol: WEBVIEW_PROTOCOL })

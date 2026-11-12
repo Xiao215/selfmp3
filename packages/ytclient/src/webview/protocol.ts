@@ -19,6 +19,14 @@ import type { VideoFacts } from '../keptSongs.js'
 /** Bytes per chunk of a file: a few hundred kilobytes a message, a song in a dozen or so. */
 export const WEBVIEW_CHUNK_BYTES = 256 * 1024
 
+/**
+ * Which messages these are. The page comes from the web app's address and the
+ * app half from a phone build, and the two are updated apart: a page that says
+ * another number in its `ready` is not used, and the server downloads instead.
+ * Raised with any change to a message below.
+ */
+export const WEBVIEW_PROTOCOL = 1
+
 /** The app to the page. */
 export type AppMessage =
   | { readonly kind: 'describe'; readonly id: number; readonly url: string }
@@ -26,7 +34,7 @@ export type AppMessage =
 
 /** The page to the app. */
 export type PageMessage =
-  | { readonly kind: 'ready' }
+  | { readonly kind: 'ready'; readonly protocol: number }
   | { readonly kind: 'progress'; readonly id: number; readonly percent: number }
   | { readonly kind: 'described'; readonly id: number; readonly facts: VideoFacts }
   | { readonly kind: 'chunk'; readonly id: number; readonly data: string }

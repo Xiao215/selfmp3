@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bytesToBase64 } from '@selfmp3/shared'
 import { createWebViewCore } from './app.js'
-import type { AppMessage, PageMessage } from './protocol.js'
+import { WEBVIEW_PROTOCOL, type AppMessage, type PageMessage } from './protocol.js'
 
 const META = {
   description: '',
@@ -21,8 +21,14 @@ function page() {
 describe('the phone’s side of its YouTube page', () => {
   it('is ready once the page says so', async () => {
     const { core, say } = page()
-    say({ kind: 'ready' })
+    say({ kind: 'ready', protocol: WEBVIEW_PROTOCOL })
     await expect(core.ready).resolves.toBeUndefined()
+  })
+
+  it('is never ready with a page that speaks another protocol', async () => {
+    const { core, say } = page()
+    say({ kind: 'ready', protocol: WEBVIEW_PROTOCOL + 1 })
+    await expect(core.ready).rejects.toThrow(/protocol/)
   })
 
   it('puts a file back together from its chunks, and follows its progress', async () => {
@@ -47,7 +53,17 @@ describe('the phone’s side of its YouTube page', () => {
     const coming = core.download('https://www.youtube.com/watch?v=aaaaaaaaaaa', () => undefined)
     say({ kind: 'chunk', id: 0, data: bytesToBase64(new Uint8Array([1])) })
     say({ kind: 'downloaded', id: 0, size: 5, sha256: 'abc', meta: META })
-    await expect(coming).rejects.toThrow(/1 of the song's 5 bytes/)
+    await expect(coming).rejects.toThrow(/sent 1 bytes of a 5-byte song/)
+  })
+
+  it('refuses a file that came long, rather than throwing and leaving it waiting', async () => {
+    const { core, say } = page()
+    const coming = core.download('https://www.youtube.com/watch?v=aaaaaaaaaaa', () => undefined)
+    say({ kind: 'chunk', id: 0, data: bytesToBase64(new Uint8Array([1, 2, 3, 4, 5, 6])) })
+    expect(() =>
+      say({ kind: 'downloaded', id: 0, size: 5, sha256: 'abc', meta: META }),
+    ).not.toThrow()
+    await expect(coming).rejects.toThrow(/sent 6 bytes of a 5-byte song/)
   })
 
   it('answers a description, and a failure, each to its own question', async () => {

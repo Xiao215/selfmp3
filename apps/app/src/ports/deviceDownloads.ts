@@ -1,6 +1,6 @@
 import { Platform } from 'react-native'
 import { File, Paths } from 'expo-file-system'
-import { DEFAULT_APP_URL } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, messageOf } from '@selfmp3/shared'
 import {
   createWebViewCore,
   WEBVIEW_RECEIVE,
@@ -110,7 +110,10 @@ export function warmDeviceDownloads(): void {
       missedAt = 0
       downloader = withKeptSongs(core)
     },
-    () => undefined,
+    // Said it was a page this build cannot use (another protocol): lost now, not when the wait runs out.
+    (error: unknown) => {
+      if (current === core) youtubePage.lost(messageOf(error))
+    },
   )
   youtubePageWanted.set(true)
 }

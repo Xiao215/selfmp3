@@ -1,6 +1,7 @@
 import { act, render } from '@testing-library/react-native'
 import { deviceDownloader, warmDeviceDownloads, youtubePageWanted } from './deviceDownloads'
 import { YouTubePage } from './youtubePage'
+import { WEBVIEW_PROTOCOL } from '@selfmp3/ytclient/phone'
 
 /** What the WebView was drawn with, and what its page was told to run. */
 const mockWebView: { props: Record<string, unknown> | null; injected: string[] } = {
@@ -39,7 +40,7 @@ describe('the phone’s YouTube page', () => {
 
     await act(() => {
       call('onLoadStart')
-      call('onMessage', { data: JSON.stringify({ kind: 'ready' }) })
+      call('onMessage', { data: JSON.stringify({ kind: 'ready', protocol: WEBVIEW_PROTOCOL }) })
     })
     await act(async () => undefined)
     const youtube = await deviceDownloader()

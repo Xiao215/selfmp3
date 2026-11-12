@@ -50,6 +50,8 @@ export const MOVE_MS = {
   nowPlaying: 380,
   /** A tag's or an artist's page coming in over the page that opened it (`M2`, 2). */
   place: 340,
+  /** Home's search field rising into Search's on a phone, and going back down (A, 2026-11-11). */
+  searchDoor: 320,
   /** The cover shrinking while paused (`M1`, 5); it grows back on the spring. */
   breath: 400,
   /** A paused cover's slow breath once it has shrunk, each way, in and out (I2). */

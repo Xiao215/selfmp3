@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
+import Reanimated from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
@@ -24,6 +25,8 @@ import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
+import { DOOR_HINT } from '../search/searchDoor'
+import { useSearchDoor } from '../search/useSearchDoor'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { DISPLAY_SCALE } from '../../ui/textScale'
 import { FromFriends, ShareAsks } from '../share/FromFriends'
@@ -173,106 +176,117 @@ function HomePage({
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch()
+  // On a phone the field rises into Search's as it opens (`useSearchDoor`).
+  const { doorRef, doorStyle, pageStyle, open: openDoor, flight } = useSearchDoor(openSearch, wide)
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView
-        testID="home-screen"
-        contentContainerStyle={[
-          styles.content,
-          wide ? styles.contentWide : styles.contentNarrow,
-          { paddingBottom: bottom + 24 },
-        ]}
-      >
-        {wide ? null : <PhoneHeader />}
-
-        <View style={[styles.greetingBlock, wide && styles.greetingBlockWide]}>
-          <Text
-            style={styles.greeting}
-            accessibilityRole="header"
-            maxFontSizeMultiplier={DISPLAY_SCALE}
+    <View style={styles.screen}>
+      <SafeAreaView style={styles.screen} edges={['top']}>
+        <Reanimated.View style={[styles.page, pageStyle]}>
+          <ScrollView
+            testID="home-screen"
+            contentContainerStyle={[
+              styles.content,
+              wide ? styles.contentWide : styles.contentNarrow,
+              { paddingBottom: bottom + 24 },
+            ]}
           >
-            {greeting(now.getHours())}
-            <Text style={styles.greetingDot}>.</Text>
-          </Text>
-          {/* A computer's This week card says the streak already, beside the tiles. */}
-          {line === null || wide ? null : <Text style={styles.subline}>{line}</Text>}
-        </View>
+            {wide ? null : <PhoneHeader />}
 
-        {/* A computer says it in This week instead, beside the tiles, where the
+            <View style={[styles.greetingBlock, wide && styles.greetingBlockWide]}>
+              <Text
+                style={styles.greeting}
+                accessibilityRole="header"
+                maxFontSizeMultiplier={DISPLAY_SCALE}
+              >
+                {greeting(now.getHours())}
+                <Text style={styles.greetingDot}>.</Text>
+              </Text>
+              {/* A computer's This week card says the streak already, beside the tiles. */}
+              {line === null || wide ? null : <Text style={styles.subline}>{line}</Text>}
+            </View>
+
+            {/* A computer says it in This week instead, beside the tiles, where the
             same numbers already were (`F`, Xiao 2026-10-04). */}
-        {sunday && !wide ? <SundayLead card={sunday} song={sundaySong} onOpen={openWeek} /> : null}
+            {sunday && !wide ? (
+              <SundayLead card={sunday} song={sundaySong} onOpen={openWeek} />
+            ) : null}
 
-        {/* A door to the one Search, not a second place to type. A computer's
+            {/* A door to the one Search, not a second place to type. A computer's
             is the sidebar's row, right beside this page. */}
-        {empty || wide ? null : (
-          <SearchField
-            testID="home-search"
-            onPress={openSearch}
-            accessibilityLabel="Search"
-            placeholder="One song, an artist, a lyric…"
-          />
-        )}
-
-        <View style={beside ? styles.columns : styles.stack}>
-          <View style={beside ? styles.mainColumn : styles.stack}>
-            {empty ? (
-              <>
-                <FirstSong onPress={() => router.navigate('/import')} />
-                <Text style={styles.weekLater} testID="home-week-later">
-                  Your week shows here once you’ve played something.
-                </Text>
-              </>
-            ) : (
-              <>
-                {/* The head's own action, as Recently played's is, rather than a
-                    link under the tiles (Xiao, 2026-09-20). */}
-                <SectionHead
-                  testID="home-all-tags"
-                  title="Your tags"
-                  action={
-                    library && library.tags.length > 0
-                      ? {
-                          label: 'See all',
-                          onPress: () => router.navigate('/tags'),
-                        }
-                      : null
-                  }
+            {empty || wide ? null : (
+              <Reanimated.View ref={doorRef} style={doorStyle} collapsable={false}>
+                <SearchField
+                  testID="home-search"
+                  onPress={openDoor}
+                  accessibilityLabel="Search"
+                  placeholder={DOOR_HINT}
                 />
-                {/* No library and no copy of one: say why, as Library does, not an empty space. */}
-                {library === undefined && failure !== null ? (
-                  <CantReach error={failure} onRetry={() => void libraryQuery.refetch()} />
-                ) : (
-                  <Tiles
-                    tiles={tiles}
-                    usual={usual}
-                    loading={library === undefined}
-                    beside={beside}
-                  />
-                )}
-                {/* Under the tags: the same songs, drawn by how they sound (A1). */}
-                <MapCard />
-              </>
+              </Reanimated.View>
             )}
-          </View>
-          {/* A new library has no week to show: no card of zeros, no second
-              Import beside the first (Z1). */}
-          {wide && !empty ? (
-            <ThisWeek
-              stats={stats}
-              style={beside ? styles.sideColumn : styles.stack}
-              sunday={sunday}
-              sundaySong={sundaySong}
-              onOpenWeek={openWeek}
-            />
-          ) : null}
-        </View>
 
-        <ShareAsks />
-        <FromFriends wide={wide} />
-        <RecentlyPlayed wide={wide} />
-      </ScrollView>
-    </SafeAreaView>
+            <View style={beside ? styles.columns : styles.stack}>
+              <View style={beside ? styles.mainColumn : styles.stack}>
+                {empty ? (
+                  <>
+                    <FirstSong onPress={() => router.navigate('/import')} />
+                    <Text style={styles.weekLater} testID="home-week-later">
+                      Your week shows here once you’ve played something.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    {/* The head's own action, as Recently played's is, rather than a
+                    link under the tiles (Xiao, 2026-09-20). */}
+                    <SectionHead
+                      testID="home-all-tags"
+                      title="Your tags"
+                      action={
+                        library && library.tags.length > 0
+                          ? {
+                              label: 'See all',
+                              onPress: () => router.navigate('/tags'),
+                            }
+                          : null
+                      }
+                    />
+                    {/* No library and no copy of one: say why, as Library does, not an empty space. */}
+                    {library === undefined && failure !== null ? (
+                      <CantReach error={failure} onRetry={() => void libraryQuery.refetch()} />
+                    ) : (
+                      <Tiles
+                        tiles={tiles}
+                        usual={usual}
+                        loading={library === undefined}
+                        beside={beside}
+                      />
+                    )}
+                    {/* Under the tags: the same songs, drawn by how they sound (A1). */}
+                    <MapCard />
+                  </>
+                )}
+              </View>
+              {/* A new library has no week to show: no card of zeros, no second
+              Import beside the first (Z1). */}
+              {wide && !empty ? (
+                <ThisWeek
+                  stats={stats}
+                  style={beside ? styles.sideColumn : styles.stack}
+                  sunday={sunday}
+                  sundaySong={sundaySong}
+                  onOpenWeek={openWeek}
+                />
+              ) : null}
+            </View>
+
+            <ShareAsks />
+            <FromFriends wide={wide} />
+            <RecentlyPlayed wide={wide} />
+          </ScrollView>
+        </Reanimated.View>
+      </SafeAreaView>
+      {flight}
+    </View>
   )
 }
 
@@ -646,6 +660,7 @@ function useCardsBeside(wide: boolean): boolean {
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  page: { flex: 1 },
   content: { gap: 22 },
   contentNarrow: pageFrame(false),
   contentWide: pageFrame(true),

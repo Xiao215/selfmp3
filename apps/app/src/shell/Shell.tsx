@@ -36,7 +36,14 @@ import { ease, timing, useFade, usePresence } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
 import { useFadeMotion } from '../ui/rowMotion'
 import { motion, space } from '@selfmp3/client'
-import { pageKey, pageStepped, stepSide, type PageShown } from './pageStep'
+import {
+  clearQuietStep,
+  pageKey,
+  pageStepped,
+  stepIsQuiet,
+  stepSide,
+  type PageShown,
+} from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { useSongLoaded } from '../player/PlayerProvider'
 import { QueueRail, useQueueRailCover, useQueueRailRoom } from '../features/queue/QueueRail'
@@ -376,10 +383,12 @@ function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): R
   if (key !== null && (key !== shown?.key || wide !== shown.wide)) {
     const now = { key, wide }
     setShown(now)
-    if (shown !== null && pageStepped(shown, now)) {
+    if (shown !== null && pageStepped(shown, now) && !stepIsQuiet(key)) {
       setStep({ count: step.count + 1, side: stepSide(shown.key, key), wide })
     }
   }
+  // A quiet step is for the one change it was asked for, not a later one.
+  useEffect(() => clearQuietStep(), [shown])
   const [value] = useState(() => new Animated.Value(1))
   // How far, and which way: a number sent to a node, so the step's nodes are
   // built once and not again for every page (the rule `StageMove` writes down).

@@ -1,7 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
-import Reanimated from 'react-native-reanimated'
+import Reanimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
+import { scheduleOnRN } from 'react-native-worklets'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
@@ -80,6 +86,16 @@ import {
   type RoomAdds,
 } from '../room/RoomPicks'
 import { useGoBack } from '../../ui/useBackTo'
+import { quietNextStepTo } from '../../shell/pageStep'
+import { useMotionReduced } from '../../ui/motion'
+import { EASE_IN_POINTS, MOVE_MS } from '../../ui/motion.model'
+import {
+  returnToDoor,
+  SEARCH_HINT,
+  SEARCH_KEYBOARD,
+  settleDoor,
+  takeDoorArrival,
+} from './searchDoor'
 import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle, rowTitle, textColumn } from '../../ui/surfaces'
 import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -198,7 +214,40 @@ export function SearchScreen(): ReactNode {
     [router],
   )
 
-  const close = useGoBack('/')
+  // Opened by Home's field rising into this one, it goes back down into
+  // Home's when closed (`searchDoor.ts`): what is under the field fades,
+  // the keyboard goes, and Home plays the rise backwards.
+  const [fromDoor] = useState(takeDoorArrival)
+  useEffect(() => {
+    if (fromDoor) settleDoor()
+  }, [fromDoor])
+  const reduced = useMotionReduced()
+  const [leaving, setLeaving] = useState(false)
+  const shownBelow = useSharedValue(1)
+  const belowStyle = useAnimatedStyle(() => ({ opacity: shownBelow.value }))
+  const goBack = useGoBack('/')
+  const downIntoHome = useCallback(() => {
+    quietNextStepTo('/')
+    router.back()
+  }, [router])
+  const close = (): void => {
+    if (leaving) return
+    if (fromDoor && !wide && !reduced && router.canGoBack() && returnToDoor()) {
+      setLeaving(true)
+      field.current?.blur()
+      shownBelow.set(
+        withTiming(
+          0,
+          { duration: MOVE_MS.rowOut, easing: Easing.bezier(...EASE_IN_POINTS) },
+          finished => {
+            if (finished) scheduleOnRN(downIntoHome)
+          },
+        ),
+      )
+      return
+    }
+    goBack()
+  }
 
   // The song rows on the page now, which are what selecting runs over: the
   // recent few before typing, every match once Songs is opened, All's best few.
@@ -251,7 +300,9 @@ export function SearchScreen(): ReactNode {
                   inputRef={field}
                   // A See all page is for reading what was found: no keyboard over it.
                   autoFocus={opened === null}
-                  value={query}
+                  {...SEARCH_KEYBOARD}
+                  // Empty as it goes back down, as Home's field is.
+                  value={leaving ? '' : query}
                   // A cleared field is a fresh search, back on All.
                   onChangeText={text => {
                     setQuery(text)
@@ -268,12 +319,8 @@ export function SearchScreen(): ReactNode {
                       ? forGuest.placeholder
                       : adding
                         ? 'Songs, a link, or ask for some'
-                        : 'Songs, tags, artists, lyrics'
+                        : SEARCH_HINT
                   }
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  spellCheck={false}
-                  returnKeyType="search"
                   // ↓ goes from the field down into the results, as the
                   // palette's does: Tab past Cancel was the only way in.
                   onKeyPress={event => {
@@ -306,98 +353,100 @@ export function SearchScreen(): ReactNode {
                   </Press>
                 )}
               </View>
-              {adding ? (
-                <View style={styles.adding} testID="search-adding">
-                  <Text style={styles.addingText} numberOfLines={1}>
-                    Adding to {roomTitle(adding)}
-                  </Text>
-                </View>
-              ) : null}
+              <Reanimated.View style={[styles.view, belowStyle]}>
+                {adding ? (
+                  <View style={styles.adding} testID="search-adding">
+                    <Text style={styles.addingText} numberOfLines={1}>
+                      Adding to {roomTitle(adding)}
+                    </Text>
+                  </View>
+                ) : null}
 
-              {typed && section !== null ? (
-                <Press
-                  feedback="wash"
-                  onPress={backToAll}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
-                  style={styles.back}
-                  hitSlop={hitSlopFor(leading.body + space.sm * 2)}
-                  testID="search-back"
-                >
-                  <ChevronLeft size={iconSize.medium} tone="textSecondary" />
-                  <Text style={styles.backTitle} numberOfLines={1}>
-                    {SECTION_TITLES[section]}
-                  </Text>
-                  <Text style={styles.backCount}>{counts[section]}</Text>
-                </Press>
-              ) : (
-                <View style={styles.headGap} />
-              )}
+                {typed && section !== null ? (
+                  <Press
+                    feedback="wash"
+                    onPress={backToAll}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
+                    style={styles.back}
+                    hitSlop={hitSlopFor(leading.body + space.sm * 2)}
+                    testID="search-back"
+                  >
+                    <ChevronLeft size={iconSize.medium} tone="textSecondary" />
+                    <Text style={styles.backTitle} numberOfLines={1}>
+                      {SECTION_TITLES[section]}
+                    </Text>
+                    <Text style={styles.backCount}>{counts[section]}</Text>
+                  </Press>
+                ) : (
+                  <View style={styles.headGap} />
+                )}
 
-              {bar.beforeList}
+                {bar.beforeList}
 
-              <Reanimated.View key={view} entering={viewIn} style={styles.view}>
-                {!typed ? (
-                  adding ? (
-                    <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
-                  ) : (
-                    <BeforeTyping
-                      tags={empty.tags}
-                      recent={empty.recent}
+                <Reanimated.View key={view} entering={viewIn} style={styles.view}>
+                  {!typed ? (
+                    adding ? (
+                      <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+                    ) : (
+                      <BeforeTyping
+                        tags={empty.tags}
+                        recent={empty.recent}
+                        selection={selection}
+                        listPadding={bar.listPadding}
+                      />
+                    )
+                  ) : section === 'songs' ? (
+                    <SongResults
+                      songs={found.songs}
+                      query={shown}
                       selection={selection}
                       listPadding={bar.listPadding}
+                      adds={adding ? adds : null}
                     />
-                  )
-                ) : section === 'songs' ? (
-                  <SongResults
-                    songs={found.songs}
-                    query={shown}
-                    selection={selection}
-                    listPadding={bar.listPadding}
-                    adds={adding ? adds : null}
-                  />
-                ) : (
-                  <ScrollView
-                    nativeID={RESULTS_ID}
-                    contentContainerStyle={[styles.results, bar.listPadding]}
-                  >
-                    {!link && offerAsk && matched === 0 ? (
-                      <AskCard words={words} first onAsk={() => ask(words)} />
-                    ) : null}
-                    {adding && link ? <LinkPick state={adding} url={link} /> : null}
-                    {link ? null : section === null ? (
-                      <AllResults
-                        found={found}
-                        lyricHits={lyricHits}
-                        selection={selection}
-                        onSeeAll={seeAll}
-                        onArtist={openArtist}
-                        adds={adding ? adds : null}
-                      />
-                    ) : section === 'places' ? (
-                      <View style={styles.section}>
-                        <Places places={placesOf(found)} onArtist={openArtist} />
-                      </View>
-                    ) : (
-                      <LyricResults
-                        hits={lyricHits}
-                        away={lyricsAway}
-                        adds={adding ? adds : null}
-                      />
-                    )}
-                    {!link && offerAsk && matched > 0 ? (
-                      <AskCard words={words} first={false} onAsk={() => ask(words)} />
-                    ) : null}
-                    {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
-                    {!link &&
-                    !offerAsk &&
-                    counts[section ?? 'all'] === 0 &&
-                    !(section === 'lyrics' && lyricsAway) ? (
-                      <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
-                    ) : null}
-                    <ChromeSpacer />
-                  </ScrollView>
-                )}
+                  ) : (
+                    <ScrollView
+                      nativeID={RESULTS_ID}
+                      contentContainerStyle={[styles.results, bar.listPadding]}
+                    >
+                      {!link && offerAsk && matched === 0 ? (
+                        <AskCard words={words} first onAsk={() => ask(words)} />
+                      ) : null}
+                      {adding && link ? <LinkPick state={adding} url={link} /> : null}
+                      {link ? null : section === null ? (
+                        <AllResults
+                          found={found}
+                          lyricHits={lyricHits}
+                          selection={selection}
+                          onSeeAll={seeAll}
+                          onArtist={openArtist}
+                          adds={adding ? adds : null}
+                        />
+                      ) : section === 'places' ? (
+                        <View style={styles.section}>
+                          <Places places={placesOf(found)} onArtist={openArtist} />
+                        </View>
+                      ) : (
+                        <LyricResults
+                          hits={lyricHits}
+                          away={lyricsAway}
+                          adds={adding ? adds : null}
+                        />
+                      )}
+                      {!link && offerAsk && matched > 0 ? (
+                        <AskCard words={words} first={false} onAsk={() => ask(words)} />
+                      ) : null}
+                      {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
+                      {!link &&
+                      !offerAsk &&
+                      counts[section ?? 'all'] === 0 &&
+                      !(section === 'lyrics' && lyricsAway) ? (
+                        <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
+                      ) : null}
+                      <ChromeSpacer />
+                    </ScrollView>
+                  )}
+                </Reanimated.View>
               </Reanimated.View>
             </View>
           </SafeAreaView>

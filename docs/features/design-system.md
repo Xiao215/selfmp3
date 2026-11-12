@@ -401,6 +401,12 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   it has arrived it takes the slide for its way out, so Back and the swipe both slide it off
   as any pushed page (`ui/useHeroGrow.ts`): a crossfade back read as the page being
   dismissed.
+- Home's search field on a phone rises into Search's place at the top and narrows while
+  Cancel slides in and Home fades and drifts up from under it, 320 ms. It takes the focus as
+  it starts, so the keyboard comes up with the move. Search arrives on the move's last frame
+  with no page step. Cancel fades what Search found, and Home plays the same move back down
+  (`features/search/useSearchDoor.tsx`, `searchDoor.ts`). Search can't be a transparent page
+  over Home, the way Now Playing is: pages opened from it would land under it.
 - Now Playing rises from the foot on the spring on a phone and in a browser, its cover
   travelling from where the mini player's or the bar's was (`ui/coverHandoff.ts`), and sinks
   back before the route changes; an iPad's stack slides it, 380 ms. The cover shrinks to

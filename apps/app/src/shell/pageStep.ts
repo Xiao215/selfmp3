@@ -31,6 +31,28 @@ export function pageKey(pathname: string, wide: boolean, stackMoves = true): str
   return activeTab(pathname) ?? (pathname === '/search' ? '/search' : null)
 }
 
+/**
+ * A phone's next step to this page that plays nothing, because the pages play
+ * the change themselves: Search rising out of Home's field and going back
+ * down into it (`features/search/useSearchDoor.tsx`). Stepped in from the
+ * side as well, Search would fade in from nothing over the field that had
+ * just landed. Kept by the page's key until `PageStep` next changes page,
+ * whichever page that is.
+ */
+let quietTo: string | null = null
+
+export function quietNextStepTo(pathname: string): void {
+  quietTo = pageKey(pathname, false)
+}
+
+export function stepIsQuiet(key: string): boolean {
+  return quietTo === key
+}
+
+export function clearQuietStep(): void {
+  quietTo = null
+}
+
 /** The page `PageStep` last showed: what it was counted by, and under which layout. */
 export interface PageShown {
   readonly key: string

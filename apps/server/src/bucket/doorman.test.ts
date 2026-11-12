@@ -67,7 +67,7 @@ describe('DoormanClient', () => {
 
   it('turns each way of failing into an error that says what to do', async () => {
     const answers: Array<[Response, string, RegExp]> = [
-      [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /Sign in again/],
+      [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /taken back/],
       [
         json({ error: 'connect your bucket first', code: 'no_storage' }, 409),
         'missing',

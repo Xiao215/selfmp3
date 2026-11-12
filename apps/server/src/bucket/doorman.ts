@@ -63,12 +63,11 @@ const KIND_OF: Partial<Record<DoormanErrorCode, CloudError['kind']>> = {
 
 /** The few refusals said here in words of this server's, because what to do is done here. */
 const WORDS: Partial<Record<DoormanErrorCode, string>> = {
-  [DOORMAN_ERROR.unauthorized]:
-    'Your Google sign-in has expired or was signed out. Sign in again in Settings → Cloud.',
+  [DOORMAN_ERROR.unauthorized]: 'This server’s access to your bucket was taken back.',
   [DOORMAN_ERROR.noStorage]: 'No bucket is connected to this Google account yet.',
   [DOORMAN_ERROR.tooManyGrants]:
     'This Google account already lets as many servers in as it can. Remove one under ' +
-    'Settings → Cloud on one of your devices, then try again.',
+    'Settings › Account › Computers on one of your devices, then try again.',
 }
 
 export class DoormanClient {

@@ -4,12 +4,14 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { z } from 'zod'
 import {
   messageOf,
   isSquareCoverUrl,
   musicCredits,
   releaseOf,
   sanitizeFilename,
+  ImportDeviceFileMetaSchema,
   type ImportDeviceFileMeta,
   type ImportFailure,
   type ImportJob,
@@ -187,9 +189,11 @@ export class ImportQueueService {
 
   /** Called once at boot: requeue anything a crash left mid-flight. */
   start(): void {
-    // A device's file still waiting when the server last stopped: its job is the server's again.
-    void sweepDeviceFiles(stagingDir(this.#config))
-    const orphaned = this.#imports.resetOrphaned()
+    // A device's file still waiting its turn when the server last stopped: added now, not fetched again.
+    const kept = this.#keepDeviceFiles()
+    if (kept.length > 0)
+      this.#logger.info('kept devices’ files from before', { count: kept.length })
+    const orphaned = this.#imports.resetOrphaned(kept)
     if (orphaned > 0) this.#logger.info('requeued interrupted jobs', { count: orphaned })
     this.#imports.pruneOlderThanDays(KEEP_FINISHED_JOBS_DAYS)
     this.kick()
@@ -203,11 +207,43 @@ export class ImportQueueService {
     this.#leaseTimer = null
     for (const controller of this.#inFlight.values()) controller.abort()
     this.#inFlight.clear()
-    // A device's file still waiting its turn: the song goes back in the queue, as one stopped mid-way does.
-    for (const { job, file } of this.#deviceFiles.splice(0)) {
-      this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: null })
-      void fsp.rm(file, { force: true }).catch(() => undefined)
+    // A device's file still waiting its turn stays in staging with its note, for the next start (`#keepDeviceFiles`).
+    this.#deviceFiles.splice(0)
+  }
+
+  /**
+   * Devices' files left waiting their turn by the last run: each one whose
+   * note is whole and whose job still waits for it goes back in line, and
+   * everything else a device left in staging goes. The kept jobs' ids, which
+   * `resetOrphaned` leaves as they are. Read at boot, once.
+   */
+  #keepDeviceFiles(): string[] {
+    const staging = stagingDir(this.#config)
+    let names: string[]
+    try {
+      names = fs.readdirSync(staging)
+    } catch {
+      return []
     }
+    const keep = new Set<string>()
+    for (const name of names) {
+      if (!name.startsWith('device-') || !name.endsWith(NOTE)) continue
+      const file = path.join(staging, name.slice(0, -NOTE.length))
+      const note = readNote(path.join(staging, name))
+      const job = note ? this.#imports.byId(note.jobId) : null
+      if (!note || job?.status !== 'running' || job.step !== 'waiting' || !fs.existsSync(file)) {
+        continue
+      }
+      this.#deviceFiles.push({ job, file, meta: note.meta, seconds: note.seconds })
+      keep.add(name).add(path.basename(file))
+    }
+    // A file never taken, a note without its file, what tagging left: nothing will add these.
+    for (const name of names) {
+      if (name.startsWith('device-') && !keep.has(name)) {
+        fs.rmSync(path.join(staging, name), { recursive: true, force: true })
+      }
+    }
+    return this.#deviceFiles.map(({ job }) => job.id)
   }
 
   /** Downloads in flight right now; other background work yields to them. */
@@ -408,6 +444,13 @@ export class ImportQueueService {
         return { ok: false, status: 409, message: 'that job is no longer this device’s' }
       }
       taken = true
+      // What a restart needs to add it rather than fetch it again (`#keepDeviceFiles`).
+      await writeNote(stagedPath, { jobId: claimed.id, meta: input.meta, seconds }).catch(
+        (error: unknown) => {
+          // It still waits its turn here; only a restart before then would fetch it again.
+          this.#logger.warn('could not note a device’s file', { message: messageOf(error) })
+        },
+      )
       this.#deviceFiles.push({ job: claimed, file: stagedPath, meta: input.meta, seconds })
       this.kick()
       return { ok: true }
@@ -438,7 +481,9 @@ export class ImportQueueService {
         const staged = this.#deviceFiles.shift()
         if (!staged) break
         // Its turn: from here it is being added, and no longer called off (CANCELLABLE).
+        // A restart now is one mid-import, as for any other job: its note goes.
         this.#imports.update(staged.job.id, { step: 'converting' })
+        void fsp.rm(`${staged.file}${NOTE}`, { force: true }).catch(() => undefined)
         const { job, file, meta, seconds } = staged
         this.#start({ ...job, step: 'converting' }, (signal, settings) =>
           this.#fromDevice(job, settings, signal, file, meta, seconds),
@@ -539,7 +584,9 @@ export class ImportQueueService {
       const now = this.#imports.byId(staged.job.id)
       if (now?.status === 'running' && now.step === 'waiting') continue
       this.#deviceFiles.splice(index, 1)
-      void fsp.rm(staged.file, { force: true }).catch(() => undefined)
+      for (const file of [staged.file, `${staged.file}${NOTE}`]) {
+        void fsp.rm(file, { force: true }).catch(() => undefined)
+      }
     }
   }
 
@@ -1180,14 +1227,29 @@ function uniqueBaseName(base: string, jobId: string): string {
 }
 
 /**
- * Remove what devices left in staging (`device-…`): kept only in memory while
- * they wait (`#deviceFiles`), so after a restart nothing will add them.
+ * The note beside a device's file waiting its turn (`<file>.json`): what
+ * `receiveDeviceFile` was told and measured, which a restart cannot ask again.
  */
-async function sweepDeviceFiles(staging: string): Promise<void> {
-  for (const name of await safeReaddir(staging)) {
-    if (name.startsWith('device-')) {
-      await fsp.rm(path.join(staging, name), { force: true }).catch(() => undefined)
-    }
+const NOTE = '.json'
+
+const DeviceFileNoteSchema = z.object({
+  jobId: z.string(),
+  meta: ImportDeviceFileMetaSchema,
+  seconds: z.number().positive(),
+})
+type DeviceFileNote = z.infer<typeof DeviceFileNoteSchema>
+
+async function writeNote(file: string, note: DeviceFileNote): Promise<void> {
+  await fsp.writeFile(`${file}${NOTE}`, JSON.stringify(note))
+}
+
+/** A note as written, or null for one cut short or not one at all. */
+function readNote(file: string): DeviceFileNote | null {
+  try {
+    const parsed = DeviceFileNoteSchema.safeParse(JSON.parse(fs.readFileSync(file, 'utf8')))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
   }
 }
 

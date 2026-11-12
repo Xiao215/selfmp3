@@ -244,7 +244,9 @@ export class ImportRepository {
     // device is downloading is not this server's to have lost: it stays the
     // device's, and goes back to the queue only if its lease runs out.
     this.#resetRunning = db.prepare(
-      "UPDATE import_jobs SET status = 'queued', step = 'waiting', progress = NULL WHERE status = 'running' AND lease_id IS NULL",
+      `UPDATE import_jobs SET status = 'queued', step = 'waiting', progress = NULL
+        WHERE status = 'running' AND lease_id IS NULL
+          AND id NOT IN (SELECT value FROM json_each(@kept))`,
     )
 
     this.#deleteFinished = db.prepare(
@@ -593,9 +595,13 @@ export class ImportRepository {
     return this.#dismiss.run(id).changes > 0
   }
 
-  /** Called at boot: nothing can still be running if the process just started. */
-  resetOrphaned(): number {
-    return this.#resetRunning.run().changes
+  /**
+   * Called at boot: nothing can still be running if the process just started
+   * — but for `kept`, devices' files still waiting their turn, which the queue
+   * found in staging and adds as it would have.
+   */
+  resetOrphaned(kept: readonly string[] = []): number {
+    return this.#resetRunning.run({ kept: JSON.stringify(kept) }).changes
   }
 
   /** Housekeeping so the table cannot grow without bound. */

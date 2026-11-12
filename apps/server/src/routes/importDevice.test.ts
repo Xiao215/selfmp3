@@ -344,4 +344,39 @@ describe.skipIf(!hasFfmpeg())('a song a device downloaded', { timeout: 60_000 },
       container.ytdlp.youtubeAddress = known
     }
   })
+
+  it('adds a device’s file left waiting by a restart, rather than fetching it again', async () => {
+    // Nothing earlier is left to download once the server starts again.
+    container.importQueue.pause()
+    // The worker is stopped (above): the file waits its turn, as it would behind other imports.
+    const result = ImportEnqueueResultSchema.parse(
+      await (
+        await post('/import/enqueue', {
+          items: [
+            { url: 'https://www.youtube.com/watch?v=fJ9rUzIMcZQ', title: 'Bohemian', duration: 3 },
+          ],
+          fetchOnDevice: true,
+        })
+      ).json(),
+    )
+    const held = result.device!
+    const id = held.jobIds[0]!
+    expect((await upload(id, held.lease, tone(root, 3))).status).toBe(202)
+    expect(await job(id)).toMatchObject({ status: 'running', step: 'waiting' })
+
+    // The server stops and starts again.
+    await new Promise<void>(resolve => server.close(() => resolve()))
+    container.close()
+    container = createContainer(loadConfig())
+    container.ytdlp.download = () => Promise.reject(new Error('fetched again'))
+    server = http.createServer(createApp(container))
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    container.importQueue.start()
+
+    await until(async () => (await job(id))?.status === 'done')
+    expect((await job(id))?.title).toBe('Bohemian')
+    const staging = path.join(root, 'data', 'incoming')
+    expect(fs.readdirSync(staging).filter(name => name.startsWith('device-'))).toEqual([])
+  })
 })

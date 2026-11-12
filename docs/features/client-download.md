@@ -141,7 +141,9 @@ frame is not.
   `yt-webview.js`, loaded from its address, so a change YouTube makes is met
   by publishing the web app, not by a new build of the phone's. Until the web
   app with that file is published, the phone finds no page and the server
-  downloads, as before.
+  downloads, as before. The page says which messages it speaks
+  (`WEBVIEW_PROTOCOL`) as it says it is ready; a phone build that speaks
+  another does not use it, and the server downloads until the two agree again.
 - **Opened as Import opens**, not when the app starts: loading the script and
   BotGuard's first run are a few seconds of a phone's time, and most launches
   import nothing. A look-up, a listen or an import never waits for it: until
@@ -179,7 +181,7 @@ server downloads that song itself with yt-dlp:
 | YouTube refused this browser for rate ("not a bot", 429) | Hands back **every** song still waiting, and stays away from YouTube for 15 minutes — or, with the second switch off, waits the 15 minutes out and goes on |
 | You closed the tab, or the computer slept                | Nothing: the lease runs out and the server takes the songs                                                                                                 |
 | You cancelled or removed the song                        | The next renewal says the server no longer holds it, and the app stops                                                                                     |
-| The server restarted                                     | A download in progress stays the device's; nothing is lost                                                                                                 |
+| The server restarted                                     | A download in progress stays the device's, and a file sent but not yet added is added after the restart (it waits in staging with a note); nothing is lost |
 
 The app renews its lease every minute. A lease is five minutes because a
 background tab's timers can be slowed to once a minute.

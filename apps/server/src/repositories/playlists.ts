@@ -14,6 +14,7 @@ import {
   type SmartRules,
   type UpdatePlaylist,
 } from '@selfmp3/shared'
+import { z } from 'zod'
 import type { Db } from '../db/index.js'
 import { readStored, type PlaylistRow } from '../db/rows.js'
 import { libraryChanges } from './libraryChanges.js'
@@ -45,6 +46,9 @@ interface EmptiedPlaylistRow {
   song_stamps: string
 }
 
+/** A playlist's field stamps, or its songs', as its row keeps them. */
+const StoredStampsSchema = z.record(z.string(), z.string())
+
 function emptiedPlaylist(row: EmptiedPlaylistRow): EmptiedPlaylist {
   return {
     uid: row.uid,
@@ -54,8 +58,8 @@ function emptiedPlaylist(row: EmptiedPlaylistRow): EmptiedPlaylist {
     pinned: row.pinned === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    stamps: JSON.parse(row.stamps) as Record<string, string>,
-    songStamps: JSON.parse(row.song_stamps) as Record<string, string>,
+    stamps: readStored(StoredStampsSchema, row.stamps) ?? {},
+    songStamps: readStored(StoredStampsSchema, row.song_stamps) ?? {},
   }
 }
 

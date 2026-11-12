@@ -408,6 +408,9 @@ function songsCard(context: Responding, card: CardArg, label: string): Made {
   }
 }
 
+/** A set with nothing said about it: the whole library, as no scope narrowed it. */
+const NO_META: SetMeta = {}
+
 /** A card that could not be made: what is wrong, for the model, and the words shown instead. */
 function failed(label: string, problem: string, fallback: string): Made {
   return { card: instead(fallback), problems: [`${label}: ${problem}`], notes: [] }
@@ -451,7 +454,7 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
     case 'library': {
       const { songs, meta } = card.from
         ? scopeSongs(context, card.from)
-        : { songs: deps.songs(), meta: {} as SetMeta }
+        : { songs: deps.songs(), meta: NO_META }
       const question = {
         show: card.show ?? 'count',
         sortBy: card.sort ?? null,
@@ -810,8 +813,8 @@ export async function respond(
   let words = (strange.length > 0 ? kept : say) || null
   // A words card with none of its own says the reply's words, which are then not said twice.
   const bare = cards.findIndex(card => card.kind === 'explore' && !card.say)
-  if (bare >= 0) {
-    const card = cards[bare] as Extract<AskCard, { kind: 'explore' }>
+  const card = cards[bare]
+  if (card?.kind === 'explore') {
     cards[bare] = { ...card, say: words ?? '' }
     words = null
   }

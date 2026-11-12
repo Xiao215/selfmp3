@@ -1,15 +1,19 @@
 # The doorman
 
-A small Cloudflare Worker that stands between every self.mp3 device and your
-Backblaze B2 bucket. It does three things:
+A small Cloudflare Worker that stands between every self.mp3 device and where
+your library is kept: a folder in your own Google Drive, or a bucket of your
+own (Backblaze B2, or any S3 service). It does three things:
 
 1. **Signs you in with Google.** Only its owners and the accounts they let in may sign
    in (*Who may sign in*, below).
-2. **Keeps the one bucket that belongs to your Google account.** Its key is
-   sealed (AES-256-GCM) before it is stored, and it is never sent back to any
-   device.
-3. **Passes a signed-in device's reads and writes through to that bucket**,
-   so no phone or browser ever holds the bucket's key.
+2. **Keeps the one storage that belongs to your Google account.** The way in
+   to it — a bucket's key, or Google's token for your Drive — is sealed
+   (AES-256-GCM) before it is stored, and it is never sent back to any device.
+3. **Passes a signed-in device's reads and writes through to that storage**,
+   so no phone or browser ever holds the bucket's key or Google's token.
+   Which kind an account has, only the doorman knows: `src/store.ts` is the
+   one interface, with `src/bucket.ts` and `src/drive.ts` behind it
+   ([docs/features/storage-providers.md](../../docs/features/storage-providers.md)).
 
 It also hands out **grants**: a session an account gives a server, so that the
 server can work in the account's bucket while none of its devices is open
@@ -123,8 +127,9 @@ The doorman signs people in with an OAuth client that you own, in the
    test users, add your own Google address and the address of anyone else
    who will use this self.mp3. While the app is in Testing, only the test
    users can sign in at all, which suits a personal app. The doorman keeps
-   its own sessions and never uses Google's refresh tokens, so Testing's
-   seven-day limit on those does not affect it. Google may warn, at sign-in,
+   its own sessions and uses none of Google's refresh tokens to sign anyone
+   in, so Testing's seven-day limit on those does not affect signing in. (It
+   does affect a library kept in Google Drive: step 7.) Google may warn, at sign-in,
    that it has not verified the app; that is expected for an app in Testing.
 
    To let *anyone* with a Google account in, press **Publish app** here
@@ -142,8 +147,28 @@ The doorman signs people in with an OAuth client that you own, in the
 
    exactly, with your subdomain. Create it, and copy the **client ID** and the
    **client secret**. Copy the secret now: Google may not show it again.
-6. **Scopes**: nothing to do. The doorman asks only for `openid`, `email` and
-   `profile`, which need no verification by Google.
+6. **Scopes**: nothing to do for signing in. The doorman asks only for
+   `openid`, `email` and `profile`, which need no verification by Google.
+7. **Google Drive**, so that an account can keep its library in its own Drive
+   with one press (**Use Google Drive**, on the page after the first
+   sign-in). Without these three, that button ends on "Google Drive could not
+   be connected" and only a bucket works:
+
+   - **Enable the Google Drive API** for the project: **APIs & Services ›
+     Library**, search for it, **Enable**.
+   - **Data access**: **Add or remove scopes**, and add
+     `https://www.googleapis.com/auth/drive.file` ("See, edit, create, and
+     delete only the specific Google Drive files you use with this app").
+     Google lists it as non-sensitive, so it asks for no verification either.
+     The doorman asks for it only when someone presses the button, never at
+     sign-in.
+   - **Be In production** (step 4). Connecting Drive is the one place the
+     doorman keeps a refresh token of Google's, and for an app in Testing
+     Google ends those after seven days: every library in a Drive would have
+     to be connected again each week.
+
+   No second redirect URI is needed: Google comes back from this to the same
+   `/v1/auth/callback`.
 
 ### 3. Settings and secrets
 
@@ -282,6 +307,13 @@ redirect URI in step 2).
   lyrics file — which the server does once no song names it, after a removal
   (docs/SYNC.md). It can never replace or delete `format.json` (the doorman
   writes that when a bucket is connected).
+- **A library in Google Drive** is a folder called `self.mp3` in the
+  account's own Drive, with a folder inside for each of the library's own.
+  The doorman can see only the files it made there (`drive.file`). A person
+  may rename or move the folder; deleting it, or anything in it, deletes that
+  part of their library. Disconnecting storage, or connecting a bucket
+  instead, hands Google its token back and leaves the folder as it is, and
+  connecting Drive again finds the same folder.
 - **Old versions in a Backblaze bucket**: B2 keeps a deleted or replaced
   file's old version, billed as stored, unless the bucket's Lifecycle Settings
   say "Keep only the last version of the file" (docs/SYNC.md, *Setting up*).

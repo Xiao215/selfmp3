@@ -16,9 +16,9 @@ your devices read it from there, so they keep working, and keep their edits, whi
 server is out of reach.
 
 ```
-  your devices                         Cloudflare                       Backblaze B2
+  your devices                         Cloudflare                  Google Drive, or a bucket
 ┌──────────────────────┐   sign in,  ┌──────────────────────┐        ┌──────────────────────┐
-│ the web app (Pages)  │   read and  │ the doorman          │        │ your bucket          │
+│ the web app (Pages)  │   read and  │ the doorman          │        │ your storage         │
 │ iPhone / Android app │◄───────────►│ Google sign-in,      │◄──────►│ audio, covers,       │
 │ desktop app          │   write     │ bucket access, rooms,│        │ lyrics, the snapshot,│
 └──────────────────────┘             │ share links, grants  │        │ change log and plays │
@@ -96,7 +96,8 @@ Five pieces, each in its own place:
   account's own bucket through a revocable grant. A device joins the shared server by itself
   the first time its bucket names none. See
   [shared-server.md](docs/features/shared-server.md).
-- **The bucket** (Backblaze B2, one per account) holds the library: audio, covers, lyrics,
+- **The bucket** (a folder in the account's own Google Drive, or a bucket of its own on
+  Backblaze B2; one per account) holds the library: audio, covers, lyrics,
   the snapshot every device reads, the change log every device writes, and the play history,
   a file a month. See [SYNC.md](docs/SYNC.md).
 - **The doorman** (`apps/doorman`, a Cloudflare Worker) signs devices in with Google, hands
@@ -287,7 +288,8 @@ Tailscale addresses. To reach it away from home, or after it moves, put Tailscal
 (`tailscale funnel --bg 4600`) and set `SELFMP3_PUBLIC_URL` to that `https://` address in a
 `.env` beside `docker-compose.yml` (copy `.env.example`). Then sign in with Google in
 the [web app](https://xiao215.github.io/selfmp3), the desktop app or the phone app, and
-connect your bucket on the page that follows. Making one on Backblaze is
+choose where your library lives on the page that follows: your own Google Drive, in one
+press, or a bucket of your own. Making one on Backblaze is
 **[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)**, step by step.
 
 The whole walkthrough — the Raspberry Pi, Tailscale, the bucket, the AI helper, the desktop

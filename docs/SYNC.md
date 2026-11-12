@@ -26,19 +26,29 @@ storage — no code runs there — so every rule about how changes combine lives
 
 | Piece | Where | Cost |
 |---|---|---|
-| Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB. $6.95/TB-month past that |
+| Music, covers, lyrics, snapshots, the change log | The account's own Google Drive, or a bucket of its own on [Backblaze B2](https://www.backblaze.com/cloud-storage) ([features/storage-providers.md](features/storage-providers.md)) | Drive: the 15 GB a Google account comes with, shared with Gmail and Photos. B2: free up to 10 GB, $6.95/TB-month past that |
 | Signing in, and the bucket's key | The doorman, a [Cloudflare Worker](https://workers.cloudflare.com/) (`apps/doorman`) | Free |
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
 | Fetching YouTube links (yt-dlp), Stats, the smart features | The server, one that works for anyone signed in ([features/shared-server.md](features/shared-server.md)), on a computer at home | The computer's electricity |
 
-**Why B2.** It speaks the S3 API, so the doorman reaches it like any other bucket. Its
+**"The bucket"**, all through this document, is wherever an account's library is kept: a
+folder called `self.mp3` in its own Google Drive, which is what a new account is offered
+first because it takes one more yes on Google's page and nothing to copy, or a bucket of its
+own. The files, their names and every rule below are the same in either; only the doorman
+knows which an account has, and [features/storage-providers.md](features/storage-providers.md)
+says how it makes a Drive behave like a bucket. One library is in one or the other, never
+both.
+
+**Why B2, for a bucket.** It speaks the S3 API, so the doorman reaches it like any other bucket. Its
 first 10 GB are free, and since 1 May 2026 it charges nothing for API calls (uploads, reads,
 listings) — though the daily caps below still apply. Downloads are free up to
 three times what you store each month — 30 GB for a full 10 GB library, which is a great deal
 more listening than one person does. And it is not tied to your Google account, so nothing that
 happens to the bucket can touch your email.
 
-**Caps.** Backblaze stops the account for the rest of the day (until midnight GMT, 5 pm Pacific)
+**Caps** are a bucket's. (A Google Drive has no count of calls a day, so none of this
+paragraph or the next happens to a library kept there; what it has instead is running out of
+space, which refuses writes and nothing else, as `storage_full`.) Backblaze stops the account for the rest of the day (until midnight GMT, 5 pm Pacific)
 when a day's count passes the cap set under *Caps & Alerts*, which starts at the free amount.
 It refuses everything with the same 403 a wrong key gets, saying "Transaction cap exceeded" or
 "Download cap exceeded" only in its message; the doorman passes those words on as
@@ -100,10 +110,14 @@ words it has read from the bucket on its own disk (`bucket/kept.ts`; a start use
 song's). Analysis and the listening model together download at most a thousand songs a day,
 counted in the database so a restart does not start the day over.
 
-Google Drive was considered: more free space (15 GB, shared with Gmail and Photos), but a
-proprietary API, an OAuth app that must be moved to "production" or it signs you out every
-seven days, and your whole Google account on the line if a file is ever flagged. The bucket
-is behind an interface, so a Drive driver can still be added later.
+**Why Google Drive first.** Setting up a bucket — an account, a private bucket, a lifecycle
+rule, a key for that one bucket, two strings to paste, caps to raise — was the main thing
+between a new person and their first song. Everyone already signs in with Google, so their
+Drive is one more yes away, with more free space (15 GB, shared with Gmail and Photos). What
+it costs: the doorman asks only for the files it creates itself (`drive.file`), but they sit
+in the same Google account as a person's email, so a file Google ever objected to would be
+that account's problem; and the OAuth app has to be In production, or Google ends Drive's
+token every seven days. A bucket is tied to nothing else, which is why it stays a choice.
 
 **Why not keep the library on the server.** The server is a computer at home: it can be
 switched off, lose its network or lose its disk, and while it is away the bucket and the
@@ -292,9 +306,10 @@ to it. No device ever holds the key. Its owners (the `OWNER_EMAILS` secret) may 
 in; anyone else only if the owner has put their address on the list in *Settings › Who can
 sign in*, or let in anyone with a Google account (`apps/doorman/src/access.ts`).
 
-**One Google account, one bucket.** You connect the bucket once, from any device; every
-device you sign in on afterwards gets the same library. Someone else — a friend — signs in
-with their own Google account and connects a bucket of their own; nothing is shared. A
+**One Google account, one bucket.** You connect your storage once, from any device — your
+Google Drive, or a bucket of your own — and every device you sign in on afterwards gets the
+same library. Someone else — a friend — signs in with their own Google account and connects
+storage of their own; nothing is shared. A
 server can work for both of them, each in their own bucket, through a **grant** each
 account gives it ([features/shared-server.md](features/shared-server.md)).
 
@@ -473,7 +488,7 @@ privacy policy Google's OAuth consent screen points at, and `bucket.html` the gu
 bucket, both written at export (`apps/app/scripts/pages.mjs`) from
 `packages/shared/src/privacy.ts` and `bucketGuide.ts` (the one place their words live); `index.html` is the page's template (Expo's own, plus a link to that policy
 for the crawler that checks the home page for one); and a Search Console verification file
-dropped there is served at the site's root too. It signs in with Google, connects the account's bucket if no device has yet, and shows the
+dropped there is served at the site's root too. It signs in with Google, connects the account's storage if no device has yet, and shows the
 library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the
 player and the bucket: a song already on the device is served from there, ranges and all, and
 one that is not is fetched from the bucket through the doorman once per play, its ranges cut
@@ -800,7 +815,9 @@ libraries that deliberately number different songs the same.
   [youtubedl-android](https://github.com/yausername/youtubedl-android) — the library the Seal
   app is built on. It comes after the native app has been built at all, and only once it is
   confirmed to handle YouTube's JavaScript challenge.
-- **A Google Drive driver**, if it is ever wanted.
+- **Running out of Google Drive.** A banner at about 80% of the space, or when an upload is
+  refused, offering more Google storage or a move to a bucket; and the move itself, from any
+  store to any store ([features/storage-providers.md](features/storage-providers.md), "Later").
 
 ## What this gives up
 
@@ -822,15 +839,22 @@ libraries that deliberately number different songs the same.
   takes it the next time it is running — rule 6, and the reason a device never has to be
   anywhere in particular to add a song. What is lost while away is the looking, not the
   importing.
-- **Space.** 10 GB free is roughly 2,000–2,500 songs.
+- **Space.** 10 GB free in a B2 bucket is roughly 2,000–2,500 songs; a Google Drive's 15 GB
+  is shared with the account's email and photos.
 
 ---
 
 ## Setting up
 
-### 1. The bucket
+### 1. The storage
 
-Each account makes its own. For someone who has never seen a bucket, the steps are
+Each account has its own, and most need to set up nothing: on the page after the first
+sign-in, **Use Google Drive** asks Google for leave to keep the library's files in a folder
+called `self.mp3` in the account's own Drive, and that is all (step 5; what the doorman's
+owner turns on for it once is in [apps/doorman/README.md](../apps/doorman/README.md),
+"Google"). The rest of this step is for someone who would rather have a bucket.
+
+For someone who has never seen a bucket, the steps are
 **[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)**, published beside the web app from
 `packages/shared/src/bucketGuide.ts`, which the app's *Don't have a bucket yet?* on Where it
 lives reads too: one place for the words. What they come to, and why:
@@ -878,13 +902,16 @@ Every push to `main` builds it and publishes it to GitHub Pages
 
 ### 5. Each device
 
-Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's key
-ID and application key on the page that follows, *Where it lives* (`POST /v1/storage/backblaze`).
-The doorman asks Backblaze which bucket the key opens, where, and whether it keeps old versions
+Open self.mp3, sign in with Google, and — the first time, on any device — say where the library
+should live on the page that follows, *Where it lives*. **Use Google Drive** leaves for Google's
+page and comes back with the folder made (`POST /v1/storage/drive`, then Google's return to
+`/v1/auth/callback`); the doorman keeps Google's token sealed, and no device ever holds it.
+*Use your own bucket instead* takes the bucket's key ID and application key
+(`POST /v1/storage/backblaze`). The doorman asks Backblaze which bucket the key opens, where, and whether it keeps old versions
 (step 3); for another provider, *Not
 Backblaze?* takes the endpoint, name and region instead (`PUT /v1/storage`). The key goes to the
 doorman, sealed; no device keeps it. A second device signed in to the same account skips the
-page: the bucket is already the account's. Afterwards it is *Settings › Account › Storage*, to
+page: the storage is already the account's. Afterwards it is *Settings › Account › Storage*, to
 change or disconnect, and *Settings › Account › Computers* lists the servers the account has
 given a grant to, with *Remove* on each.
 
@@ -898,10 +925,10 @@ given a grant to, with *Remove* on each.
 | When a change was made | `packages/shared/src/hlc.ts` |
 | How changes combine, for every device | `packages/shared/src/sync.ts` |
 | Live playlists on a device | `packages/shared/src/smartRules.ts` |
-| The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`, `src/changes.ts` the change counter, `src/access.ts` who may sign in, `src/grants.ts`), `apps/doorman/README.md` |
+| The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/store.ts` with its two drivers `src/bucket.ts` and `src/drive.ts`, `src/driveConnect.ts`, `src/changes.ts` the change counter, `src/access.ts` who may sign in, `src/grants.ts`), `apps/doorman/README.md` |
 | The doorman's contract | `packages/shared/src/schemas/doorman.ts`, `packages/shared/src/doormanWire.ts` |
 | A day past the bucket's cap | `packages/replica/src/hold.ts`, `BUCKET_HOLD_MS` in `packages/shared/src/doormanWire.ts`, `apps/app/sw/bucket.ts` |
-| Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` and `s3.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes), `apps/server/src/bucket/kept.ts` (words read from the bucket, kept on disk) |
+| Talking to the bucket, from the server | `apps/server/src/bucket/store.ts`, `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes), `apps/server/src/bucket/kept.ts` (words read from the bucket, kept on disk) |
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSongFiles.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
 | Plays, sound vectors and the sound map in the bucket | `apps/server/src/services/cloudLibraryFiles.ts` (sending them, and reading them back), `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |

@@ -391,10 +391,12 @@ export class Drive implements Store {
     const sent = found.file === file ? headers : describe(found.file, etagOf(found.file))
     const contentRange = response.headers.get('content-range')
     if (contentRange !== null) sent.set('content-range', contentRange)
+    // Worked out, not Drive's own: were Google to compress the bytes on their
+    // way here, the runtime would hand them on inflated under a length that
+    // was the compressed one's.
     sent.set(
       'content-length',
-      response.headers.get('content-length') ??
-        String(response.status === 206 ? rangeLength(contentRange) : found.file.size),
+      String(response.status === 206 ? rangeLength(contentRange) : found.file.size),
     )
     return new Response(response.body, { status: response.status, headers: sent })
   }

@@ -10,7 +10,7 @@ touches this next — most likely you, six months from now.
 | Piece | Runs on | Holds |
 |---|---|---|
 | The server (`apps/server`) | An always-on computer, in Docker (`ghcr.io/xiao215/selfmp3`, arm64 and amd64). Xiao's is a Raspberry Pi 4 | A working copy of each library it works for, and `hub.json` |
-| The bucket | Backblaze B2, one per Google account | The library: audio, covers, lyrics, the snapshot, the change log, the plays |
+| The bucket | The account's own Google Drive, or a bucket of its own on Backblaze B2: one per Google account ([features/storage-providers.md](features/storage-providers.md)) | The library: audio, covers, lyrics, the snapshot, the change log, the plays |
 | The doorman (`apps/doorman`) | A Cloudflare Worker, with KV and Durable Objects | Sign-in sessions, grants, who may sign in, rooms, shared playlists, share links |
 | The AI helper | Any OpenAI-compatible endpoint. Xiao's is [cli-bridge](https://github.com/Xiao215/cli-bridge), beside the server on `127.0.0.1:8787` | Nothing of the library |
 | The app (`apps/app`) | GitHub Pages, the phone, the desktop app (`apps/desktop`) | Its own copy of the bucket's library, and the songs it downloaded |
@@ -46,7 +46,7 @@ apps/server
   admin/                 the owner's admin page's listener and API (docs/features/admin.md)
   db/                    connection, migrations, row types
   storage/               StorageDriver interface + the local inbox folder
-  bucket/                CloudStore: Backblaze through the doorman, S3 with a key, a folder
+  bucket/                CloudStore: the account's storage through the doorman, or a folder
   repositories/          all SQL lives here, nowhere else
   services/              behaviour: scanning, metadata, lyrics, imports, publishing
   ai/                    the smart features, against an OpenAI-compatible endpoint

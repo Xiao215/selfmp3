@@ -240,7 +240,7 @@ states, and the flows that assert them. Sentence case, plain words.
 | The stale sign-ins a browser leaves in Devices | **N old sign-ins** · Clear | older sessions, Remove all |
 | A song's page | **Song details** (Now Playing's tab on a computer: **Details**) | About this song, About |
 | The weekly page | **Report**; "Open the report" ("Your week" may head a card) | Wrapped, View Report |
-| Where songs are stored | **your storage** (Backblaze only in its setup steps) | bucket, cloud, cloud library |
+| Where songs are stored | **your storage** (Google Drive and Backblaze by name only where one is chosen or set up) | bucket, cloud, cloud library |
 | The server, where a cloud library needs it | **your library's computer** | server |
 | Correcting a song's names | **Fix song info…** (Tidy up stays its own feature) | Fix metadata |
 | Lyrics with times | **Timed** | Synced |

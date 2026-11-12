@@ -44,12 +44,27 @@ function row(videoId: string, flex: object[][], length: string, cover?: string) 
   }
 }
 
-const header = (title: string, options: { artist?: string; count?: string; cover?: string }) => ({
+const header = (
+  title: string,
+  options: { artist?: string; count?: string; cover?: string; plays?: string },
+) => ({
   musicResponsiveHeaderRenderer: {
     title: text(title),
     ...(options.artist ? { straplineTextOne: { runs: [artist(options.artist)] } } : {}),
     ...(options.count ? { secondSubtitle: text(options.count) } : {}),
     ...(options.cover ? { thumbnail: thumbnails(options.cover) } : {}),
+    // An album's play button, naming the album's own playlist.
+    ...(options.plays
+      ? {
+          buttons: [
+            {
+              musicPlayButtonRenderer: {
+                playNavigationEndpoint: { watchPlaylistEndpoint: { playlistId: options.plays } },
+              },
+            },
+          ],
+        }
+      : {}),
   },
 })
 
@@ -126,26 +141,67 @@ describe('YouTubeMusicLists', () => {
   })
 
   it("reads an album: its title as every song's album, its artist and cover as theirs", async () => {
-    const lists = new YouTubeMusicLists(
-      logger,
-      answer({
+    const asked: string[] = []
+    const lists = new YouTubeMusicLists(logger, (_url, init) => {
+      const { browseId } = JSON.parse(String(init?.body)) as { browseId: string }
+      asked.push(browseId)
+      if (browseId.startsWith('VL')) {
+        return answer({
+          contents: [
+            row('k_Z', [[{ text: 'Epilogue' }], [artist('YOASOBI')], [album('THE BOOK')]], '0:51'),
+            row(
+              'qFe',
+              [[{ text: 'アンコール' }], [artist('YOASOBI')], [album('THE BOOK')]],
+              '4:32',
+            ),
+          ],
+        })()
+      }
+      return answer({
         header: header('THE BOOK', {
           artist: 'YOASOBI',
           count: '2 songs • 5 minutes',
           cover: 'book',
+          plays: 'OLAK5uy_book',
         }),
         contents: [
           row('k_Z', [[{ text: 'Epilogue' }], [], [{ text: '5.1M plays' }]], '0:51'),
           row('qFe', [[{ text: 'アンコール' }], [], [{ text: '90M plays' }]], '4:32'),
         ],
-      }),
-    )
+      })()
+    })
     const result = await lists.album('MPREb_hqiB0KumHYT')
+    expect(asked).toEqual(['MPREb_hqiB0KumHYT', 'VLOLAK5uy_book'])
     expect(result?.title).toBe('THE BOOK')
     expect(result?.tracks.map(t => [t.title, t.artist, t.album, t.duration, t.thumbnail])).toEqual([
       ['Epilogue', 'YOASOBI', 'THE BOOK', 51, 'https://yt3.test/book=w544-h544-l90-rj'],
       ['アンコール', 'YOASOBI', 'THE BOOK', 272, 'https://yt3.test/book=w544-h544-l90-rj'],
     ])
+  })
+
+  it("takes an album's tracks from its playlist, not the music videos its page plays", async () => {
+    const lists = new YouTubeMusicLists(logger, (_url, init) => {
+      const { browseId } = JSON.parse(String(init?.body)) as { browseId: string }
+      if (browseId.startsWith('VL')) {
+        return answer({
+          contents: [
+            row(
+              'track',
+              [[{ text: 'セブンティーン' }], [artist('YOASOBI')], [album('超現実')]],
+              '3:38',
+            ),
+          ],
+        })()
+      }
+      // The live album's page plays the concert video, the Opening before the song.
+      return answer({
+        header: header('超現実', { artist: 'YOASOBI', count: '1 song', plays: 'OLAK5uy_live' }),
+        contents: [row('video', [[{ text: 'セブンティーン' }], [], []], '3:38')],
+      })()
+    })
+    for (const result of [await lists.album('MPREb_1'), await lists.playlist('OLAK5uy_live')]) {
+      expect(result?.tracks.map(t => t.url)).toEqual(['https://music.youtube.com/watch?v=track'])
+    }
   })
 
   it('reads a playlist, each row naming its own artist, album and cover', async () => {
@@ -192,7 +248,7 @@ describe('YouTubeMusicLists', () => {
       }
       return answer({
         header: header('THE BOOK', { artist: 'YOASOBI', count: '1 song • 1 minute' }),
-        contents: [row('k_Z', [[{ text: 'Epilogue' }], [], [{ text: '5.1M plays' }]], '0:51')],
+        contents: [],
       })()
     })
     const result = await lists.playlist('OLAK5uy_kMq7')

@@ -10,7 +10,7 @@ import {
   type RoomState,
   type Song,
 } from '@selfmp3/shared'
-import { space, useLibrary } from '@selfmp3/client'
+import { failureText, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { library as cloudLibrary } from '../../replica'
@@ -210,7 +210,11 @@ function ShelfPicker({ state }: { state: RoomState }): ReactNode {
             key={`playlist-${playlist.id}`}
             label={playlist.name}
             onPress={() =>
-              void cloudLibrary.cloudPlaylistSongs(playlist.id).then(ids => put(playlist.name, ids))
+              void cloudLibrary.cloudPlaylistSongs(playlist.id).then(
+                ids => put(playlist.name, ids),
+                (error: unknown) =>
+                  showToast(failureText('Couldn’t read that playlist', error), 'error'),
+              )
             }
           />
         ))}

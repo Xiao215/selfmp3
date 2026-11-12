@@ -18,8 +18,19 @@ import type { ServerConnection } from './connection.js'
  * (`CloudServerSchema`), so nothing has to be typed.
  */
 
-/** How long one address gets to answer. A server that is on answers in a few ms. */
-export const PROBE_TIMEOUT_MS = 3_000
+/**
+ * How long one address gets to answer.
+ *
+ * A server on the same Wi-Fi answers in a few ms, but its public address is a
+ * Tailscale Funnel, and a fresh connection there is a TLS handshake carried
+ * through a relay: 3–7 s from a device away from home (measured 2026-11-11),
+ * against half a second once the connection is
+ * warm. At 3 s every cold look missed, so Import said the computer was away
+ * until a later look happened to find the connection still open. The addresses
+ * are asked at once, so a longer wait only delays saying a server is away,
+ * never finding one that answers.
+ */
+export const PROBE_TIMEOUT_MS = 10_000
 
 /**
  * How long an ordinary request waits before the server is called asleep: a

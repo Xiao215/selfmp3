@@ -337,8 +337,10 @@ its turns and field in a column up to 720 wide in the middle of the ground, and 
 starts with the field in the middle under "What should we listen to?", the suggestions under
 it, dropping to the foot once something is asked. A reply with a list brings it in from the
 right at full size (`AnswerView` with `inAsk`: titled by the list's name, no Change it, the
-conversation carrying the question), the conversation narrowing to a 440 pane a step up from
-the ground. The newest list opens there by itself; a list's card opens that one and is lit
+conversation carrying the question), the conversation narrowing to a pane a step up from
+the ground. The list takes only what its rows use (`SONG_LIST_MAX_WIDTH`, the 1280 row and
+its insets), so they reach the right edge; the conversation keeps at least 440 and has the
+rest, its turns in the 720 column. The newest list opens there by itself; a list's card opens that one and is lit
 while it is. Its ✕ (or Esc) gives the conversation the page back, closed through replies
 that only talk, until a newer list comes or a card opens one. Until then the page was always
 split, and before any list two thirds of it said where one would open. On a phone the

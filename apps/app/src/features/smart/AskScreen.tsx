@@ -51,6 +51,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { roomTitle } from '../room/room.model'
 import { useRoom } from '../room/room.store'
 import { AddingToRoom } from '../room/RoomPicks'
+import { SONG_LIST_MAX_WIDTH } from '../../ui/components/SongRow'
 import { AnswerView } from './AnswerScreen'
 import { AskField, type DraftHandle } from './AskField'
 import { ThreadTurn, type Answered } from './AskTurn'
@@ -309,6 +310,12 @@ export function AskScreen(): ReactNode {
   const alone = wide && openList === null
   const starting = alone && turns.length === 0 && reachable
   useEscape(wide && openList !== null, closeBeside)
+  const pageWidth = useContentWidth()
+  // The rows' context beside: the page less the conversation, and never past what rows use.
+  const besideMax = Math.max(
+    0,
+    Math.min((pageWidth ?? Infinity) - THREAD_WIDTH, SONG_LIST_MAX_WIDTH),
+  )
   const reduced = useMotionReduced()
   const besideIn = useMemo(
     () =>
@@ -320,7 +327,6 @@ export function AskScreen(): ReactNode {
   const pushed = usePushedPage(wide ? null : openList, window.width, reduced)
 
   useEffect(() => () => setPageFoot(0), [])
-  const pageWidth = useContentWidth()
   const { top } = useSafeAreaInsets()
   const frame = pageFrame(wide)
   // ‹ lets the conversation go: the same question asked again starts afresh.
@@ -332,7 +338,7 @@ export function AskScreen(): ReactNode {
 
   const dock = (
     <View
-      style={[styles.dock, wide && styles.dockWide, alone && styles.column]}
+      style={[styles.dock, wide && styles.dockWide, wide && styles.column]}
       // The toasts rise above the field rather than cover it.
       onLayout={event => setPageFoot(wide ? 0 : event.nativeEvent.layout.height)}
     >
@@ -393,7 +399,7 @@ export function AskScreen(): ReactNode {
         <ScrollView
           ref={scroller}
           style={styles.turns}
-          contentContainerStyle={[styles.turnsContent, alone && styles.column]}
+          contentContainerStyle={[styles.turnsContent, wide && styles.column]}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           scrollEventThrottle={64}
@@ -454,9 +460,13 @@ export function AskScreen(): ReactNode {
             {conversation}
             {wide ? (
               openList ? (
-                <NarrowerContentWidth max={Math.max(0, (pageWidth ?? 0) - THREAD_WIDTH)}>
+                <NarrowerContentWidth max={besideMax}>
                   {/* B1: comes in from the right when a list first opens; another one swaps in place. */}
-                  <Reanimated.View style={styles.beside} entering={besideIn} testID="ask-beside">
+                  <Reanimated.View
+                    style={[styles.beside, styles.besideWide]}
+                    entering={besideIn}
+                    testID="ask-beside"
+                  >
                     <AnswerView
                       key={openList.id}
                       id={openList.id}
@@ -622,8 +632,9 @@ function isTextField(target: unknown): boolean {
 }
 
 /**
- * The conversation's width beside the list on a computer: room for a review's
- * rows and a list's card, the list keeping the rest.
+ * The conversation's narrowest beside the list on a computer: room for a
+ * review's rows and a list's card. On a wide screen it has whatever the list's
+ * rows leave (`SONG_LIST_MAX_WIDTH`), its turns held to `COLUMN_WIDTH`.
  */
 const THREAD_WIDTH = 440
 
@@ -656,7 +667,7 @@ const styles = StyleSheet.create(theme => ({
   thread: { flex: 1, minHeight: 0 },
   // On a computer with nothing beside it, the whole page on the ground (A1).
   threadAlone: { flex: 1 },
-  // A column in the middle of it, the turns and the field alike.
+  // A column in the middle of the conversation, the turns and the field alike, on a computer.
   column: { width: '100%', maxWidth: COLUMN_WIDTH, alignSelf: 'center' },
   // A2: the line above the field in the middle of the page, and the suggestions under it.
   startTop: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', padding: space.lg },
@@ -669,10 +680,11 @@ const styles = StyleSheet.create(theme => ({
   startFoot: { flex: 1, paddingHorizontal: space.lg },
   closeRow: { flexDirection: 'row', justifyContent: 'flex-end' },
   // On a computer beside a list, a pane a step up from the ground, its field at the foot.
+  // It keeps 440 and takes only what the list beside can't use (`besideWide`).
   threadWide: {
-    flex: 0,
+    flexGrow: 1,
+    flexShrink: 0,
     flexBasis: THREAD_WIDTH,
-    width: THREAD_WIDTH,
     backgroundColor: theme.colors.surface1,
   },
   threadHead: {
@@ -696,6 +708,8 @@ const styles = StyleSheet.create(theme => ({
     gap: space.xl,
   },
   beside: { flex: 1, minWidth: 0, minHeight: 0 },
+  // The list grows first, up to what its rows use; past that the conversation has the rest.
+  besideWide: { flexGrow: 1000, flexShrink: 1, flexBasis: 0, maxWidth: SONG_LIST_MAX_WIDTH },
   fade: {
     position: 'absolute',
     left: 0,

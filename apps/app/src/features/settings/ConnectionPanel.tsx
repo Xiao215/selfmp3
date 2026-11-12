@@ -39,9 +39,9 @@ const AVATAR = 36
  * (`ServerAddress`) can still point the app at a server so the simulator flows
  * have a library without a Google account.
  *
- * Storage is the account's bucket, as the doorman last said: a cloud device
- * has no Settings → Cloud, and this is where the bucket connected on Where it
- * lives can be changed or forgotten afterwards. A bucket refusing for the day
+ * Storage is the account's bucket, as the doorman last said: this is where
+ * the bucket connected on Where it lives can be changed or forgotten
+ * afterwards. A bucket refusing for the day
  * says so there too, with the way to raise its cap.
  *
  * Computers are the servers the account has let into its bucket

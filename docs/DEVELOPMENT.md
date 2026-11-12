@@ -22,7 +22,7 @@ working on the code never touches a real collection.
 | `npm run dev:api` | The server with reload, on the `dev` profile with a folder for a bucket, letting the web dev server's origin (`:4601`) call it |
 | `npm run dev:web` | Builds the packages, then the app's web dev server on `:4601` |
 | `npm run dev:desktop` | The desktop app against a dev build |
-| `npm run build:packages` | The four shared packages, in dependency order — every other build starts here |
+| `npm run build:packages` | The five shared packages, in dependency order — every other build starts here |
 | `npm run build` | The packages and the server — what `npm start` runs |
 | `npm run build:desktop` | The app's web export, packaged as a `.dmg` in `apps/desktop/release/` |
 | `npm run build:extension` | The packages and the browser extension, into `apps/extension/dist/` |
@@ -31,7 +31,7 @@ working on the code never touches a real collection.
 | `npm run cli -- <command>` | The `selfmp3` CLI: `start`, `scan`, `import`, `backup`, `doctor` |
 | `npm run typecheck` | TypeScript across the root project |
 | `npm run typecheck:clean` | The same, from scratch — for when a stale `tsconfig.tsbuildinfo` makes it lie |
-| `npm run typecheck:verify` | The three Playwright suites, which no other project checks |
+| `npm run typecheck:verify` | The Playwright suites and the ytclient harness, which no other project checks |
 | `npm run typecheck:app` | Builds the packages, then type-checks the app and its service worker |
 | `npm run lint` / `npm run lint:fix` | ESLint, or ESLint with fixes |
 | `npm run lint:app` | ESLint for the app |
@@ -45,6 +45,7 @@ working on the code never touches a real collection.
 | `npm run verify:flows` | Playwright flows at computer and phone width, against `npm run dev` ([verify/README.md](../verify/README.md)) |
 | `npm run verify:desktop` | Playwright against the built desktop app |
 | `npm run verify:extension` | Playwright against the built browser extension |
+| `npm run verify:ytclient` | Playwright for the in-browser YouTube download ([client-download.md](features/client-download.md)) |
 | `npm run clean` | Remove every build output |
 
 Inside `apps/app`, `npx expo run:ios` or `npx expo run:android` builds the phone app; see

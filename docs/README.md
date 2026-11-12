@@ -27,6 +27,7 @@ Each page says what the feature does, how it works and where the code is.
 | [ai.md](features/ai.md) | The smart features: Ask, Describe it, tidying names and tags, and the model behind them |
 | [audio-intelligence.md](features/audio-intelligence.md) | Tempo, key, energy and loudness; the listening model; similar songs; auto-mix |
 | [browser-extension.md](features/browser-extension.md) | The Chrome extension: the button, the popup, and what it asks Chrome for |
+| [client-download.md](features/client-download.md) | Downloading YouTube songs in the browser, with the extension, or on the phone instead of on the server |
 | [design-system.md](features/design-system.md) | Dropdowns, popovers, hover captions, tokens and focus |
 | [desktop-app.md](features/desktop-app.md) | The desktop app: why it exists and how the shell is built |
 | [devices-and-handoff.md](features/devices-and-handoff.md) | Presence, handoff, continue where you left off |

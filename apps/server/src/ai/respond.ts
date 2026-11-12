@@ -10,7 +10,6 @@ import {
   CJK,
   NO_JOINS,
   type AskCard,
-  type AskPlaybackOp,
   type AskReply,
   type DescribeResult,
   type Song,
@@ -508,23 +507,21 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
           'I couldn’t put that proposal together.',
         )
       }
-      if (proposal.kind === 'tags') return made({ kind: 'tags', review: proposal.value as never })
-      if (proposal.kind === 'tidy') return made({ kind: 'tidy', tidy: proposal.value as never })
-      return made({ kind: 'copies', copies: proposal.value as never })
+      if (proposal.kind === 'tags') return made({ kind: 'tags', review: proposal.value })
+      if (proposal.kind === 'tidy') return made({ kind: 'tidy', tidy: proposal.value })
+      return made({ kind: 'copies', copies: proposal.value })
     }
     case 'playlist':
       return playlistCard(context, card, label)
     case 'playback': {
-      const op = card.op
-      if (!op || !(AskPlaybackOpSchema.options as readonly string[]).includes(op)) {
+      const op = AskPlaybackOpSchema.safeParse(card.op)
+      if (!op.success) {
         return fail(
           `op is one of ${AskPlaybackOpSchema.options.join(', ')}.`,
           'I couldn’t tell what to do with the music.',
         )
       }
-      if (op !== 'upNext') {
-        return made({ kind: 'playback', op: op as AskPlaybackOp, place: null })
-      }
+      if (op.data !== 'upNext') return made({ kind: 'playback', op: op.data, place: null })
       if (!card.at)
         return fail('upNext needs at: the place in Up next.', 'Say which song in Up next to play.')
       return made({ kind: 'playback', op: 'upNext', place: card.at })

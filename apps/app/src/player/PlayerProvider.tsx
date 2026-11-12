@@ -36,7 +36,6 @@ import {
   type EngineState,
   type FrequencyAnalyser,
   type LoadOptions,
-  type ServerConnection,
   listenedDelta,
   peekPlayable,
   recoverPlayback,
@@ -45,12 +44,7 @@ import {
 } from '@selfmp3/client'
 import { sourceAfterAdding, type ListSource } from '../features/lists/lists.model'
 import { withOnlyPlaying, withRestRestored } from '../features/queue/queue.model'
-import {
-  artAddress,
-  streamAddress,
-  streamHeaders,
-  type MediaSources,
-} from '../api/mediaAddress.model'
+import { streamAddress, streamHeaders, type MediaSources } from '../api/mediaAddress.model'
 import { mediaSourcesFor } from '../api/mediaSources'
 import { isLenderCap } from '../ports/bucketRefusal'
 import { isStorageBusy, isUnreachable, stoppedOn } from '../ports/streamFailure.model'
@@ -58,7 +52,7 @@ import { configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
 import { forgetRecent, recentUri } from '../ports/recentCopies'
 import { session as cloudSession } from '../replica'
-import { coverFor, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
+import { coverFor, KEPT_COVER_SIZE } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { createEngine } from '../ports/engine'
 import { useCrossfadeSeconds } from './crossfadePref'
@@ -67,10 +61,10 @@ import { useSleepTimer } from './useSleepTimer'
 import { usePlayReporting } from './usePlayReporting'
 import { useConnection } from '../connection/ConnectionProvider'
 import { currentToasts, dismissToast, showToast, type ToastWords } from '../ui/toast'
-import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
+import { nowPlayingArtwork } from './nowPlayingArt.model'
 import { handleRemoteCommands } from './remoteCommands'
 import { passOverResting, type ListStart } from './resting.model'
-import { useNowPlaying } from './useNowPlaying'
+import { artSources, useNowPlaying } from './useNowPlaying'
 import {
   createProgressStore,
   differsBesidesClock,
@@ -687,7 +681,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // The lock screen's cover: a room's own, or the copy on this device,
         // read now rather than from a render, since this is asked when the
         // player takes the song. One kept later reaches the card through
-        // `refreshNowPlaying`, below.
+        // `refreshNowPlaying` (`useNowPlaying`).
         const artwork = track
           ? track.cover
           : nowPlayingArtwork(
@@ -1506,43 +1500,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     stores.playback.set({ songId: currentId, playing: engineState.playing })
   }, [stores, currentId, engineState.playing])
 
-  /*
-   * What the operating system is shown: Control Center and the Dock in the
-   * installed app through the media session, the lock screen and Control
-   * Center on a phone through the engine, nothing in a tab that has no media
-   * session. The artwork is chosen the same way for both (`nowPlayingArtwork`).
-   *
-   * The playing song's kept cover is read when the covers change, not on
-   * every render, and one song's rather than a map of every cover on the
-   * device to look one up in.
-   */
-  // Read again whenever a cover arrives. The covers already on disk are read in
-  // at launch and announced once, and a subscription made in an effect could
-  // miss that — then every song was shown with the server's address all
-  // session. `useSyncExternalStore` checks the version again once subscribed.
-  const coversSeen = useSyncExternalStore(subscribeCovers, coversVersion, coversVersion)
-  // `coversSeen` is not read, but it is why the cover is looked up again.
-  const keptCover = useMemo(
-    () => (currentSong ? coverFor(currentSong.id) : undefined),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentSong, coversSeen],
-  )
-  const nowPlayingArt = useMemo(
-    () =>
-      currentSong
-        ? nowPlayingArtwork(currentSong, artSources(keptCover, connection, fromCloud))
-        : null,
-    [currentSong, keptCover, connection, fromCloud],
-  )
-  useNowPlaying(value, stores.progress, nowPlayingArt)
-  // The phone's card is the engine's: it hears here when the playing song's
-  // cover arrives or its words change, and sends only what did.
-  const currentTitle = currentSong?.title
-  const currentArtist = currentSong?.artist
-  const currentAlbum = currentSong?.album
-  useEffect(() => {
-    if (currentId !== null) engine.refreshNowPlaying?.(currentId)
-  }, [engine, currentId, currentTitle, currentArtist, currentAlbum, nowPlayingArt])
+  // What the operating system shows for the playing song: the lock screen, Control Center.
+  useNowPlaying(value, stores.progress, engine)
 
   return (
     <PlayerCommandsContext.Provider value={commands}>
@@ -1561,16 +1520,6 @@ function playingFrom(at: number): LoadOptions {
 /** The engine's level, as the volume control draws it. */
 function volumeOf(state: EngineState): VolumeState {
   return { volume: state.volume, muted: state.muted }
-}
-
-/** Where the Now Playing card may take a cover from: a copy here, or this library's address. */
-function artSources(
-  kept: string | undefined,
-  connection: ServerConnection | null,
-  fromCloud: boolean,
-): ArtSources {
-  const sources = mediaSourcesFor(connection, fromCloud, KEPT_COVER_SIZE)
-  return { kept, remoteArt: (songId, rev) => artAddress(songId, rev, sources) }
 }
 
 function useStores(): PlayerStores {

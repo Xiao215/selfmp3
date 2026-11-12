@@ -108,7 +108,7 @@ export function FocusStyle(): ReactNode {
   const { accent } = useAccent()
 
   useEffect(() => {
-    let style = document.getElementById(ID) as HTMLStyleElement | null
+    let style = document.getElementById(ID)
     if (!style) {
       style = document.createElement('style')
       style.id = ID

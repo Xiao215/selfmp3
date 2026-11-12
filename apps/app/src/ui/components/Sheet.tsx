@@ -8,7 +8,7 @@ import Reanimated, {
   withTiming,
   type EntryAnimationsValues,
 } from 'react-native-reanimated'
-import type { StyleProp, ViewStyle } from 'react-native'
+import type { StyleProp, ViewProps, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -96,7 +96,7 @@ export type LayerRole = 'dialog' | 'menu' | 'listbox'
  * it is about, holding a menu or a list of choices when it is one. On iOS
  * VoiceOver's scrub gesture closes it.
  */
-export function panelA11y(label: string | undefined, onClose: () => void): object {
+export function panelA11y(label: string | undefined, onClose: () => void): ViewProps {
   return {
     role: 'dialog',
     'aria-modal': true,
@@ -108,7 +108,10 @@ export function panelA11y(label: string | undefined, onClose: () => void): objec
   }
 }
 
-/** The items' own role inside the panel: a menu's actions or a list's choices. */
+/**
+ * The items' own role inside the panel: a menu's actions or a list's choices.
+ * `listbox` is a web role React Native's own list does not name.
+ */
 export function contentA11y(role: LayerRole): object | null {
   return role === 'dialog' ? null : { role }
 }

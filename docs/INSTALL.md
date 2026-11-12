@@ -23,6 +23,7 @@ This guide is for running the server.
 | The Smart features (Ask, tidy, describing songs) | [Smart features](#smart-features-cli-bridge-beside-the-server) |
 | Your own bucket and doorman | [The bucket and the doorman](#the-bucket-and-the-doorman) |
 | The server on a Mac or Linux box without Docker | [Without Docker](#without-docker) |
+| Every setting the server reads | [Configuration](#configuration) |
 | The app on your phone, or on a Mac | [On your phone](#on-your-phone), [The desktop app](#the-desktop-app) |
 
 ---
@@ -417,6 +418,54 @@ npm run cli -- --url https://pi.tail1a2b.ts.net --token <token> scan
 
 ---
 
+## Configuration
+
+Everything is optional; the defaults work. Set these in a `.env` beside
+`docker-compose.yml`, which the container is handed, or in the environment; outside Docker,
+in a `.env` at the top of the checkout. Copy `.env.example` to start; git ignores `.env`.
+They are read in `apps/server/src/config.ts`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SELFMP3_PORT` | `4600` | Port to listen on |
+| `SELFMP3_HOST` | `0.0.0.0` | Bind address. The addresses the server finds on its network interfaces are how a device at home reaches it; `127.0.0.1` keeps it to this machine |
+| `SELFMP3_PUBLIC_URL` | none | The one address to publish, in place of the ones on the network interfaces: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
+| `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: with a public address its origin may call the server |
+| `SELFMP3_ADMIN_PORT` | `4610` | The owner's admin page, on `127.0.0.1` only whatever `SELFMP3_HOST` says; `0` turns it off |
+| `SELFMP3_ADMIN_URL` | none | The address `tailscale serve` gives the admin page, such as `https://pi.tail3d8516.ts.net:4443`: the page answers only to it and to this machine |
+| `SELFMP3_DOORMAN_ADMIN_TOKEN` | none | The doorman's `ADMIN_TOKEN`, the same value: what the admin page changes who can sign in and reads the doorman's counts with |
+| `SELFMP3_LIBRARY_DIR` | `/app/library` in Docker; `~/Music/selfmp3` otherwise | The inbox: where an import lands until it is in the bucket. Each workspace has a folder of its own inside it |
+| `SELFMP3_DATA_DIR` | `/app/data` in Docker; `~/Library/Application Support/selfmp3` on macOS, `~/.local/share/selfmp3` elsewhere | `hub.json`, each workspace's database and caches, and the listening model's files |
+| `SELFMP3_PROFILE` | none | A separate installation outside Docker: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
+| `SELFMP3_AUTH_TOKEN` | one the server makes | The token of a server whose bucket is a folder. A server working for accounts gives each library its own, kept in `hub.json` |
+| `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman the server reaches each account's bucket through. Empty for none |
+| `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API, beyond the desktop app, the extension and (with a public address) the web app. `npm run dev` adds the web dev server's, `http://localhost:4601` |
+| `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features, such as cli-bridge's `http://127.0.0.1:8787/v1` ([ai.md](features/ai.md)). Also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART` (both `sonnet`), `SELFMP3_AI_TIMEOUT_SECONDS` (240), and `SELFMP3_AI_CONCURRENCY` (2, requests in flight to it at once). Unset, the smart features are off and say so |
+| `SELFMP3_SOUND` | `true` | The listening model, which hears each song for "Sounds like" and for Ask. Its files, about 750 MB, are downloaded to the data folder the first time they are wanted. `false` turns it off |
+| `SELFMP3_SOUND_MODELS` | the `sound-models-v1` release | Where the model's files come from: an address, or a folder that already holds them ([scripts/sound-models](../scripts/sound-models/README.md)) |
+| `SELFMP3_SOUND_THREADS` | `2` | CPU threads the model may use while it listens |
+| `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
+| `SELFMP3_SCAN_ON_BOOT` | `true` | Sweep the inbox at startup, so a file dropped in while the server was off is imported |
+| `SELFMP3_CLOUD_DIR` | unset | A folder to use as the bucket instead of an account — the dev profile and the verify lanes run with one. Relative to the data folder unless absolute |
+| `SELFMP3_PUBLISH_ANYWAY` | `false` | Publish this server's library to the bucket as it stands, without taking on the bucket's first or refusing to replace a bigger one. An escape hatch ([SYNC.md](SYNC.md)) |
+
+The bucket each account syncs with is connected in the app's Settings, and who may sign in
+at all is kept by the doorman's owner on the admin page's People tab. Day-to-day behaviour —
+crossfade, the watched folder, romanization, the smart features — lives in the app's
+Settings rather than in the environment.
+
+Where yt-dlp gets YouTube cookies from (a browser or a cookies file) has no screen, so it
+stays off unless it is set with `PATCH /api/settings`
+([youtube-music-library.md](features/youtube-music-library.md)).
+
+**About the token.** Each library on the server has a token of its own, kept in
+`<data>/hub.json`. You never type it: it goes into that account's bucket with the server's
+addresses, and every device signed in to the account is handed it with the sync. A request
+with no token from the server's own machine (the `selfmp3` command, say) goes to the only
+library when there is just one, because anyone at that keyboard could read the token anyway.
+
+---
+
 ## Where things live
 
 | | In Docker | Without Docker |
@@ -500,8 +549,13 @@ to Home Screen** in Safari, or **Install app** in Chrome, gives it an icon and a
 Open it from the icon: that is what keeps playback going on a locked iPhone.
 
 A tab streams and keeps no songs. For music with no signal, the iPhone and Android app
-downloads the audio to the device. You build it yourself from this repository:
-**[MOBILE.md](MOBILE.md)**. That needs a Mac with Xcode for iOS, or the Android SDK.
+downloads the audio to the device. Install it from
+**[the install page](https://xiao215.github.io/selfmp3/install/)**, opened on the phone: an
+Android phone downloads the app straight away, and an iPhone asks for its ID once, which the
+server's owner adds on the admin page before a build carries it
+([MOBILE.md, "Sharing the iPhone app"](MOBILE.md#sharing-the-iphone-app)). To build it
+yourself instead, see **[MOBILE.md](MOBILE.md)**; that needs a Mac with Xcode for iOS, or the
+Android SDK.
 
 ---
 

@@ -137,7 +137,8 @@ export const REPLIES = {
   createTag: TagSchema,
   songFor: SongHitSchema.nullable(),
   owned: OwnedSchema,
-  enqueue: ImportEnqueueResultSchema,
+  // As the client gives it back (`EnqueuedImport`): a device lease is no page's, and this extension asks for none.
+  enqueue: ImportEnqueueResultSchema.omit({ device: true }),
   queue: ImportQueueSchema,
   cancel: OkSchema,
   retry: OkSchema,

@@ -185,7 +185,12 @@ describe('an import bigger than one enqueue may be', () => {
         cloudRequest: (_method, _path, body) => {
           const part = body as ImportEnqueue
           sent.push(part)
-          return Promise.resolve({ jobs: [], skipped: part.items.length, playlistId: 4 })
+          return Promise.resolve({
+            jobs: [],
+            skipped: part.items.length,
+            playlistId: 4,
+            device: null,
+          })
         },
       }),
       fetch: () => Promise.reject(new Error('no server in a cloud library')),
@@ -197,7 +202,7 @@ describe('an import bigger than one enqueue may be', () => {
       playlistId: null,
       createPlaylistName: 'From Mia',
     })
-    expect(answer).toEqual({ jobs: [], skipped: 1200, playlistId: 4, device: null, leases: [] })
+    expect(answer).toEqual({ jobs: [], skipped: 1200, playlistId: 4, leases: [] })
     expect(sent.map(part => part.items.length)).toEqual([
       IMPORT_ENQUEUE_MAX,
       IMPORT_ENQUEUE_MAX,

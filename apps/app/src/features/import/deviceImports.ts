@@ -1,5 +1,5 @@
-import { enqueuedBeforeFailing, type Api } from '@selfmp3/client'
-import type { ImportEnqueue, ImportEnqueueResult, ImportPreview } from '@selfmp3/shared'
+import { enqueuedBeforeFailing, type Api, type EnqueuedImport } from '@selfmp3/client'
+import type { ImportEnqueue, ImportPreview } from '@selfmp3/shared'
 import {
   deviceBudget,
   deviceDownloader,
@@ -64,10 +64,7 @@ function deviceDownloaderSoon(): ReturnType<typeof deviceDownloader> {
  * file has to go to one — and the extension carries this tab's requests to
  * YouTube. Anything else is imported as it always was, by the server.
  */
-export async function enqueueImport(
-  api: Api,
-  request: ImportEnqueue,
-): Promise<ImportEnqueueResult> {
+export async function enqueueImport(api: Api, request: ImportEnqueue): Promise<EnqueuedImport> {
   // Whether this device can download at all first: on a phone it cannot, and nothing else is asked.
   const youtube = deviceDownloadsOn() ? await deviceDownloaderSoon() : null
   // Refused for rate a moment ago, and told to hand back: the server has these.

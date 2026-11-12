@@ -12,7 +12,7 @@
     "doctor": "npx --yes expo-doctor",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json",
     "lint": "eslint .",
-    "clean": "rm -rf .expo ios android dist public/sw.js public/privacy.html public/bucket.html",
+    "clean": "rm -rf .expo ios android dist public/sw.js public/privacy.html public/bucket.html public/yt-sandbox.js public/yt-webview.js",
     "web": "npm run build:pages && npm run build:ytsandbox && expo start --web",
     "build:sw": "esbuild sw/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=public/sw.js",
     "build:pages": "node scripts/pages.mjs",

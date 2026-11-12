@@ -303,10 +303,9 @@ export const ImportEnqueueResultSchema = z.object({
   playlistId: IdSchema.nullable(),
   /**
    * The jobs held for the device that asked (`fetchOnDevice`), or null when
-   * it did not ask, or none of the songs were YouTube's — or the server
-   * predates holding jobs for devices.
+   * it did not ask, or none of the songs were YouTube's.
    */
-  device: ImportDeviceLeaseSchema.nullable().default(null),
+  device: ImportDeviceLeaseSchema.nullable(),
 })
 export type ImportEnqueueResult = z.infer<typeof ImportEnqueueResultSchema>
 

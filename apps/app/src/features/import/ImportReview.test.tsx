@@ -173,7 +173,7 @@ describe('Import review, on a phone', () => {
     // What the server answers an enqueue with, so what reads the answer has one.
     mockEnqueue
       .mockReset()
-      .mockResolvedValue({ jobs: [], skipped: 0, playlistId: null, device: null, leases: [] })
+      .mockResolvedValue({ jobs: [], skipped: 0, playlistId: null, leases: [] })
     mockAlreadyHave.mockReset().mockResolvedValue({ have: [] })
     mockCreateTag.mockClear()
     mockClose.mockClear()

@@ -272,6 +272,14 @@ interface EnqueuedBeforeFailing {
   readonly leases: readonly NonNullable<ImportEnqueueResult['device']>[]
 }
 
+/**
+ * An import queued, in however many parts it took: each part's lease is in
+ * `leases`, and no part's own `device` is kept, which would name only one.
+ */
+export interface EnqueuedImport extends Omit<ImportEnqueueResult, 'device'> {
+  readonly leases: readonly NonNullable<ImportEnqueueResult['device']>[]
+}
+
 /** What `importEnqueue` had queued before the error it threw, if it had. */
 export function enqueuedBeforeFailing(error: unknown): EnqueuedBeforeFailing | null {
   if (typeof error !== 'object' || error === null || !('enqueued' in error)) return null
@@ -644,11 +652,12 @@ export function createApi({ context, fetch }: ApiOptions) {
      * lease of its own (docs/features/client-download.md): `leases` has them
      * all, in order.
      */
-    importEnqueue: async (input: ImportEnqueue) => {
+    importEnqueue: async (input: ImportEnqueue): Promise<EnqueuedImport> => {
       const enqueue = (part: ImportEnqueue) =>
         request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, part)
-      let answer = await enqueue({ ...input, items: input.items.slice(0, IMPORT_ENQUEUE_MAX) })
-      const leases = answer.device ? [answer.device] : []
+      const first = await enqueue({ ...input, items: input.items.slice(0, IMPORT_ENQUEUE_MAX) })
+      const leases = first.device ? [first.device] : []
+      let answer: Omit<ImportEnqueueResult, 'device'> = first
       for (let at = IMPORT_ENQUEUE_MAX; at < input.items.length; at += IMPORT_ENQUEUE_MAX) {
         const items = input.items.slice(at, at + IMPORT_ENQUEUE_MAX)
         const into = answer.playlistId
@@ -668,10 +677,9 @@ export function createApi({ context, fetch }: ApiOptions) {
           jobs: [...answer.jobs, ...next.jobs],
           skipped: answer.skipped + next.skipped,
           playlistId: answer.playlistId ?? next.playlistId,
-          device: answer.device ?? next.device,
         }
       }
-      return { ...answer, leases }
+      return { jobs: answer.jobs, skipped: answer.skipped, playlistId: answer.playlistId, leases }
     },
 
     // --- songs this device downloads itself (docs/features/client-download.md)

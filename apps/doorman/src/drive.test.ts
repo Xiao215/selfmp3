@@ -73,6 +73,8 @@ describe('a file in Google Drive', () => {
     const stored = h.drive.find(root, SONG)
     expect(stored?.name).toBe(`${SHA}.m4a`)
     expect(stored?.mimeType).toBe('audio/mp4')
+    // Nothing is said of an encoding the file does not have.
+    expect(stored?.appProperties).toEqual({})
 
     const response = await h.call(`/v1/files/${SONG}`, { token })
     expect(response.status).toBe(200)

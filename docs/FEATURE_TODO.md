@@ -5,8 +5,8 @@ not stay in `docs/`; what they left open is here so it is not re-derived. The re
 went with each item is kept, because it was the expensive part.
 
 [SYNC.md](SYNC.md), "Still to come", holds the rest of the open work on the bucket (adding a
-file from a device, Android fetching links itself, a Google Drive driver) and is not
-repeated here.
+file from a device, Android fetching links itself, running out of Google Drive and moving a
+library between stores) and is not repeated here.
 
 Nothing here is scheduled. When something is built, delete its entry and say what it does
 in the feature's own document under `docs/features/`.

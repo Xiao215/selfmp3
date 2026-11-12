@@ -271,11 +271,17 @@ export class Drive implements Store {
   async write(key: string, body: Upload, options: WriteOptions): Promise<void> {
     const place = this.#place(key)
     const [existing] = await this.#findAll(place)
+    const encoding = options.contentEncoding ?? null
     const details = {
       mimeType: options.contentType,
-      // Null clears what an earlier upload of the key said.
-      appProperties: { encoding: options.contentEncoding ?? null },
-      ...(existing ? {} : { name: place.name, parents: [place.folder] }),
+      ...(existing
+        ? // Null clears what an earlier upload of the key said.
+          { appProperties: { encoding } }
+        : {
+            name: place.name,
+            parents: [place.folder],
+            ...(encoding === null ? {} : { appProperties: { encoding } }),
+          }),
     }
     const method = existing ? 'PATCH' : 'POST'
     const path = existing ? `/files/${encodeURIComponent(existing.id)}` : '/files'

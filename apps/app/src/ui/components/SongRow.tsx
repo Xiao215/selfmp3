@@ -653,6 +653,13 @@ const TITLE_SHARE = '46%'
 /** The widest a desktop row is drawn (E). */
 const ROW_MAX_WIDTH = 1280
 
+/**
+ * The widest a list of desktop rows has a use for: the row and the 8 it sits
+ * in from each side (its margin and the list's own). A pane beside it (Ask's
+ * conversation) takes the rest rather than leave it empty past the rows.
+ */
+export const SONG_LIST_MAX_WIDTH = ROW_MAX_WIDTH + 4 * space.xs
+
 /** The page has room for the album column. */
 const ROOM_FOR_ALBUM = 1
 /** The page has room for the tag chips. */

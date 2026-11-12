@@ -265,13 +265,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     downloadQueue.setManifest(manifest.data ?? null)
   }, [manifest.data])
 
-  // The mobile data answer lasts until Wi-Fi comes back.
+  // The mobile data answer lasts until Wi-Fi comes back. Let go during render.
+  if (dataAllowedAnswer && onWifi(network)) setDataAllowed(false)
   const dataAllowed = dataAnswer(dataAllowedAnswer, network)
-  useEffect(() => {
-    if (!dataAllowedAnswer || !onWifi(network)) return undefined
-    const timer = setTimeout(() => setDataAllowed(false), 0)
-    return () => clearTimeout(timer)
-  }, [dataAllowedAnswer, network])
 
   // A failure stops automatic downloads while it stands. Wi-Fi coming back is
   // a fresh start, and what is still missing is tried again.

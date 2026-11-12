@@ -39,7 +39,7 @@ import { forgetDoormanTrouble, noteDoormanAnswer } from './reach.js'
 
 /**
  * Where an attempt is kept while Google has the browser. The session's own key
- * is shared's `CLOUD_SESSION_KEY`, because apps/app/sw/sw.ts reads it too,
+ * is shared's `CLOUD_SESSION_KEY`, because apps/app/sw/bucket.ts reads it too,
  * straight out of IndexedDB.
  */
 const PENDING_KEY = 'cloud-pending-sign-in'

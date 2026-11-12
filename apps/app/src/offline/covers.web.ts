@@ -33,7 +33,7 @@ import {
  * Where a tab puts the pictures of a pack of covers: the service worker's
  * covers cache, under the `api/bucket/<key>` address it answers a bucket
  * picture at, which is where it looks for a song's cover before the bucket
- * (sw/sw.ts). A tab keeps no files, but with this a cloud library's covers
+ * (sw/bucket.ts, `bucketPicture`). A tab keeps no files, but with this a cloud library's covers
  * are a few reads for the whole library rather than one a row. Null where no
  * worker answers those addresses.
  *

@@ -27,7 +27,7 @@ import { contentTypeFor } from './paths.js'
  *
  * The doorman reads a bearer header and nothing else, and the window's
  * `<audio>` element cannot send one. A tab has its service worker attach it
- * (apps/app/sw/sw.ts, `playFromBucket`) and a phone's player sends it with
+ * (apps/app/sw/audio.ts, `playFromBucket`) and a phone's player sends it with
  * each track; here the main process does, which is the worker's `cloud`
  * branch in Node. The page points the element at this address
  * (apps/app/src/ports/desktop/bucketMedia.desktop.ts).

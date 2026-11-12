@@ -36,6 +36,8 @@ export interface ClientResponse {
  */
 export interface ClientSignal {
   readonly aborted: boolean
+  addEventListener(type: 'abort', listener: () => void): void
+  removeEventListener(type: 'abort', listener: () => void): void
 }
 
 export interface ClientRequestInit {

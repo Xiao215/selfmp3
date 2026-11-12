@@ -343,7 +343,10 @@ while it is. Its ✕ (or Esc) gives the conversation the page back, closed throu
 that only talk, until a newer list comes or a card opens one. Until then the page was always
 split, and before any list two thirds of it said where one would open. On a phone the
 conversation is the page; a list's card opens the list as a page of its own over it, whose
-‹ comes back to the same place in the conversation, and a new question comes back too.
+‹ comes back to the same place in the conversation, and a new question comes back too. It
+moves as the stack's pushed pages do (`usePushedPage`): the list slides in from the right
+while the conversation eases a little left under it, starting once the list has laid out,
+and ‹ runs the same move back.
 
 A reply made from earlier answers says so above its words (B1): "From “Calm study night”",
 or "From “A” and 2 more". It is the server's own account (`AskReply.from`: every earlier

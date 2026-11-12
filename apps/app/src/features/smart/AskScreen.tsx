@@ -12,7 +12,14 @@ import {
   type TextInput,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import Reanimated, { Easing, FadeInRight } from 'react-native-reanimated'
+import Reanimated, {
+  Easing,
+  FadeInRight,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
 import { useLocalSearchParams, useNavigation } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -310,6 +317,8 @@ export function AskScreen(): ReactNode {
         : FadeInRight.duration(MOVE_MS.sheetUp).easing(Easing.bezier(...EASE_OUT_POINTS)),
     [reduced],
   )
+  const pushed = usePushedPage(wide ? null : openList, window.width, reduced)
+
   useEffect(() => () => setPageFoot(0), [])
   const pageWidth = useContentWidth()
   const { top } = useSafeAreaInsets()
@@ -355,12 +364,16 @@ export function AskScreen(): ReactNode {
   )
 
   const conversation = (
-    <View
+    <Reanimated.View
       style={[
         styles.thread,
         wide && (alone ? styles.threadAlone : styles.threadWide),
-        listPage && styles.hidden,
+        !wide && pushed.underStyle,
       ]}
+      // Under a phone's list page: there to slide back to, not to press or read.
+      pointerEvents={listPage ? 'none' : 'auto'}
+      accessibilityElementsHidden={listPage}
+      importantForAccessibility={listPage ? 'no-hide-descendants' : 'auto'}
       testID="ask-thread"
     >
       <View style={[styles.threadHead, { paddingTop: top + frame.paddingTop }]}>
@@ -424,7 +437,7 @@ export function AskScreen(): ReactNode {
           <Suggestions onAsk={ask} centred />
         </View>
       ) : null}
-    </View>
+    </Reanimated.View>
   )
 
   return (
@@ -465,11 +478,16 @@ export function AskScreen(): ReactNode {
                   </Reanimated.View>
                 </NarrowerContentWidth>
               ) : null
-            ) : openList ? (
-              <View style={styles.beside} testID="ask-list-page">
+            ) : pushed.page ? (
+              <Reanimated.View
+                key={pushed.page.id}
+                style={[styles.listPage, pushed.pageStyle]}
+                onLayout={pushed.arrived}
+                testID="ask-list-page"
+              >
                 <AnswerView
-                  key={openList.id}
-                  id={openList.id}
+                  key={pushed.page.id}
+                  id={pushed.page.id}
                   inAsk
                   top={
                     <BackButton
@@ -479,9 +497,9 @@ export function AskScreen(): ReactNode {
                       testID="ask-to-thread"
                     />
                   }
-                  lead={openList.lead}
+                  lead={pushed.page.lead}
                 />
-              </View>
+              </Reanimated.View>
             ) : null}
           </View>
           {wide ? null : dock}
@@ -489,6 +507,45 @@ export function AskScreen(): ReactNode {
       </SafeAreaView>
     </AddingToRoom.Provider>
   )
+}
+
+/**
+ * A phone's list as a page pushed over the conversation, the way the stack
+ * pushes every other page: it slides in from the right while the conversation
+ * eases a little to the left under it, and Back runs the same move the other
+ * way. The slide starts once the page has laid out, not as it mounts: a list's
+ * first frame can take longer than the slide, which would arrive all but done.
+ * A list let go stays drawn until it has slid off.
+ */
+function usePushedPage(list: TurnList | null, width: number, reduced: boolean) {
+  const pushed = useSharedValue(0)
+  // The list last open, drawn while it slides off once let go.
+  const [shown, setShown] = useState(list)
+  if (list && list !== shown) setShown(list)
+  useEffect(() => {
+    if (list) {
+      // Opened again while still sliding off: it is laid out already, so back it comes.
+      if (pushed.get() > 0) pushed.set(withTiming(1, PAGE_TIMING))
+      return
+    }
+    pushed.set(
+      reduced
+        ? 0
+        : withTiming(0, PAGE_TIMING, done => {
+            if (done) runOnJS(setShown)(null)
+          }),
+    )
+  }, [list, reduced, pushed])
+  const arrived = useCallback(() => {
+    if (list) pushed.set(reduced ? 1 : withTiming(1, PAGE_TIMING))
+  }, [list, reduced, pushed])
+  const pageStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: (1 - pushed.get()) * width }],
+  }))
+  const underStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -pushed.get() * width * UNDER_SHIFT }],
+  }))
+  return { page: list ?? (reduced ? null : shown), arrived, pageStyle, underStyle }
 }
 
 /** The conversation's foot fading into the ground the field floats over. */
@@ -573,6 +630,12 @@ const THREAD_WIDTH = 440
 /** The conversation's column on a computer with nothing beside it: a reading width (A1). */
 const COLUMN_WIDTH = 720
 
+/** How a phone's list page comes in and goes out. */
+const PAGE_TIMING = { duration: MOVE_MS.place, easing: Easing.bezier(...EASE_OUT_POINTS) }
+
+/** How far the conversation eases left under a phone's list page, of the page's width: the stack's push. */
+const UNDER_SHIFT = 0.3
+
 /** How near its foot the conversation still counts as followed. */
 const FOLLOW_SLACK = 64
 
@@ -585,7 +648,11 @@ const styles = StyleSheet.create(theme => ({
   // A phone's page is the conversation or a list; a computer's is both, side by side.
   body: { flex: 1, minHeight: 0 },
   bodyWide: { flexDirection: 'row' },
-  hidden: { display: 'none' },
+  // A phone's list, a page over the conversation.
+  listPage: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.surface0,
+  },
   thread: { flex: 1, minHeight: 0 },
   // On a computer with nothing beside it, the whole page on the ground (A1).
   threadAlone: { flex: 1 },

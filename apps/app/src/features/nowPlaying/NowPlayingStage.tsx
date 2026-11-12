@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Image, Text, useWindowDimensions, View } from 'react-native'
+import Reanimated from 'react-native-reanimated'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
@@ -82,6 +83,8 @@ import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
 import { MoreButton } from '../../ui/components/MoreMenu'
 import { countUse } from '../usage/usage'
+import { useFadeMotion } from '../../ui/rowMotion'
+import { Fold } from '../../ui/components/Fold'
 
 /**
  * The page for the song that is playing, on a computer.
@@ -603,7 +606,9 @@ function Stage({
             editing={tagEditor.shown}
             editRef={tagsButtonRef}
           />
-          {tagging.on ? <TaggingLine line={tagging.line} onStop={tagging.stop} /> : null}
+          <Fold open={tagging.on}>
+            <TaggingLine line={tagging.line} onStop={tagging.stop} />
+          </Fold>
         </View>
       )}
 
@@ -836,6 +841,8 @@ function StageUpNext({
   const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
   const progress = usePlayerProgress()
+  // It fades in near a song's end and out as the next one starts.
+  const fade = useFadeMotion()
   const [lowered] = useState(() => ({
     transform: [
       {
@@ -852,34 +859,36 @@ function StageUpNext({
     duration: progress.duration,
     position: progress.position,
   })
-  if (!upNext || nextIn === null) return null
-
   return (
     // The ride down is the place's and the sink the card's: two transforms, two views.
-    <Animated.View style={[styles.upNextAt, { right, bottom }, lowered]}>
-      <Press
-        depth="row"
-        onPress={() => pressed('next', player.next)}
-        accessibilityRole="button"
-        accessibilityLabel={`Skip to the next song: ${upNext.title}`}
-        style={styles.upNext}
-      >
-        <Cover
-          uri={artFor(upNext)}
-          title={upNext.album || upNext.title}
-          size={coverSize.rowDense}
-        />
-        <View style={styles.upNextText}>
-          <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
-          <Text style={styles.upNextTitle} numberOfLines={1}>
-            {upNext.title}
-          </Text>
-          <Text style={styles.upNextArtist} numberOfLines={1}>
-            {artistOr(upNext.artist)}
-          </Text>
-        </View>
-        <Next size={iconSize.item} color={theme.colors.textSecondary} />
-      </Press>
+    <Animated.View style={[styles.upNextAt, { right, bottom }, lowered]} pointerEvents="box-none">
+      {upNext && nextIn !== null ? (
+        <Reanimated.View {...fade}>
+          <Press
+            depth="row"
+            onPress={() => pressed('next', player.next)}
+            accessibilityRole="button"
+            accessibilityLabel={`Skip to the next song: ${upNext.title}`}
+            style={styles.upNext}
+          >
+            <Cover
+              uri={artFor(upNext)}
+              title={upNext.album || upNext.title}
+              size={coverSize.rowDense}
+            />
+            <View style={styles.upNextText}>
+              <Text style={styles.upNextLabel}>NEXT · IN {nextIn} S</Text>
+              <Text style={styles.upNextTitle} numberOfLines={1}>
+                {upNext.title}
+              </Text>
+              <Text style={styles.upNextArtist} numberOfLines={1}>
+                {artistOr(upNext.artist)}
+              </Text>
+            </View>
+            <Next size={iconSize.item} color={theme.colors.textSecondary} />
+          </Press>
+        </Reanimated.View>
+      ) : null}
     </Animated.View>
   )
 }

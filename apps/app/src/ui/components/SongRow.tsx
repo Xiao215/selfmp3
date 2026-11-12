@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
+import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { plural, artistOr, formatDuration, isResting, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, type, iconSize, coverSize } from '@selfmp3/client'
@@ -39,6 +40,7 @@ import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
 import { Downloaded, Moon, More, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
+import { useRowMotion } from '../rowMotion'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 import { CONTROL_SCALE } from '../textScale'
 import { textScale } from '../../ports/textScale'
@@ -206,6 +208,9 @@ export const SongRow = memo(function SongRow({
   // scrolls into view already playing starts at rest, since a presence begins
   // where it is asked to be.
   const wash = usePresence(active, MOVE_MS.wash, motion.base)
+  // On a phone the choosing circle fades in as a hold starts choosing, and the
+  // cover and words glide over to make room rather than jump (and back).
+  const choosing = useRowMotion()
   // The playing row wears its cover's colour, and keeps it while its wash
   // draws back: asked for nothing the moment it stopped, the leaving wash
   // would turn the accent's blue. Every other row asks for nothing, and so does
@@ -370,27 +375,33 @@ export const SongRow = memo(function SongRow({
 
   if (!wide) {
     return (
-      <Animated.View style={press.style}>
-        {/*
+      // A row scrolled into view while choosing is drawn with its circle, not fading one in.
+      <LayoutAnimationConfig skipEntering>
+        <Animated.View style={press.style}>
+          {/*
           The row is a container, and the thing you press is inside it. In a
           browser only this shape works: react-native-web renders a button as a
           real <button>, and a row that was one would nest the ⋯ inside it, so
           the row is a role="row" with its buttons as siblings.
         */}
-        <View
-          testID={testID}
-          role="row"
-          style={[styles.row, ...states]}
-          {...keys}
-          {...onRightClick}
-        >
-          {washLayer}
-          {/* Over the row's ground and its wash, under its words: the ink's own
+          <View
+            testID={testID}
+            role="row"
+            style={[styles.row, ...states]}
+            {...keys}
+            {...onRightClick}
+          >
+            {washLayer}
+            {/* Over the row's ground and its wash, under its words: the ink's own
               veil, as a pressed menu row has, so it reads on a song's colour. */}
-          <Animated.View style={[styles.held, heldVeil]} pointerEvents="none" />
-          {picking ? selectBox(true) : null}
+            <Animated.View style={[styles.held, heldVeil]} pointerEvents="none" />
+            {picking ? (
+              <Reanimated.View entering={choosing.entering} exiting={choosing.exiting}>
+                {selectBox(true)}
+              </Reanimated.View>
+            ) : null}
 
-          {/*
+            {/*
             The press target lies under the cover and the words rather than
             around them. The tag chips sit among the words, on the second line
             (E1), and are buttons of their own — and a button inside the row's
@@ -399,42 +410,43 @@ export const SongRow = memo(function SongRow({
             words are hidden from a screen reader, which hears the target's
             label instead, as it did when the words were inside it.
           */}
-          <View style={styles.body}>
-            {target(StyleSheet.absoluteFill)}
-            <View style={styles.main} pointerEvents="box-none">
-              <View style={styles.art} pointerEvents="none" {...UNREAD}>
-                <Cover uri={artUri} title={song.album || song.title} size={coverSize.row} />
-                {equalizer(12, styles.playingOverlay)}
-              </View>
-
-              <View style={styles.text} pointerEvents="box-none">
-                <View pointerEvents="none" {...UNREAD}>
-                  {title}
+            <Reanimated.View style={styles.body} layout={choosing.layout}>
+              {target(StyleSheet.absoluteFill)}
+              <View style={styles.main} pointerEvents="box-none">
+                <View style={styles.art} pointerEvents="none" {...UNREAD}>
+                  <Cover uri={artUri} title={song.album || song.title} size={coverSize.row} />
+                  {equalizer(12, styles.playingOverlay)}
                 </View>
-                <View style={styles.subtitleRow} pointerEvents="box-none">
-                  <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
-                    {hereMark}
-                    {restMark}
-                    <Text style={styles.subtitle} numberOfLines={1}>
-                      {artistOr(song.artist)}
-                    </Text>
-                    {/* Its own words, so a long artist is cut before the length is. */}
-                    <Text style={styles.subtitleLength} numberOfLines={1}>
-                      · {formatDuration(song.duration)}
-                    </Text>
+
+                <View style={styles.text} pointerEvents="box-none">
+                  <View pointerEvents="none" {...UNREAD}>
+                    {title}
                   </View>
-                  {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
-                  {tags && tags.length > 0 ? (
-                    <View style={styles.tagsUnder}>{chips(underLane)}</View>
-                  ) : null}
+                  <View style={styles.subtitleRow} pointerEvents="box-none">
+                    <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
+                      {hereMark}
+                      {restMark}
+                      <Text style={styles.subtitle} numberOfLines={1}>
+                        {artistOr(song.artist)}
+                      </Text>
+                      {/* Its own words, so a long artist is cut before the length is. */}
+                      <Text style={styles.subtitleLength} numberOfLines={1}>
+                        · {formatDuration(song.duration)}
+                      </Text>
+                    </View>
+                    {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
+                    {tags && tags.length > 0 ? (
+                      <View style={styles.tagsUnder}>{chips(underLane)}</View>
+                    ) : null}
+                  </View>
                 </View>
               </View>
-            </View>
-          </View>
+            </Reanimated.View>
 
-          {more(styles.control)}
-        </View>
-      </Animated.View>
+            {more(styles.control)}
+          </View>
+        </Animated.View>
+      </LayoutAnimationConfig>
     )
   }
 

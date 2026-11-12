@@ -5,7 +5,7 @@ import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { LayoutAnimationConfig } from 'react-native-reanimated'
+import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import { artistOr, plural, type ImportJob, type Song } from '@selfmp3/shared'
 import {
   canImportNext,
@@ -46,6 +46,7 @@ import { textBoxGrows } from '../../ports/textBoxGrows'
 import { FoldAction, Finished, JobGroup, JobRow, RunProgress } from './ImportQueue'
 import { Fold } from '../../ui/components/Fold'
 import { useKeptWhileClosing } from '../../ui/motion'
+import { useFadeMotion } from '../../ui/rowMotion'
 import { nextLine } from './importQueue.model'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
@@ -209,6 +210,11 @@ export function ImportScreen({
    * are a list of names, looked up as before.
    */
   const query = searchQuery(links)
+  // The line under the box folds in and out, keeping what it said as it goes.
+  const hint = query !== null ? 'search' : pasted || null
+  const shownHint = useKeptWhileClosing(hint !== null, hint)
+  // What arrived and what is arriving swap with a fade.
+  const { entering: belowIn } = useFadeMotion()
   const search = draft.search
   const picked = search ? comingIn(search.review) : 0
   const openSearch = (words: string): void => {
@@ -306,19 +312,21 @@ export function ImportScreen({
             )}
           </IconButton>
         </View>
-        {query !== null ? (
-          <View style={styles.pasted} testID="import-pasted">
-            <Search size={iconSize.sub} tone="accent" />
-            <Text style={[styles.pastedText, styles.searchText]}>
-              Search YouTube Music and 网易云
-            </Text>
-          </View>
-        ) : pasted ? (
-          <View style={styles.pasted} testID="import-pasted">
-            <Check size={iconSize.sub} tone="good" />
-            <Text style={styles.pastedText}>{pasted}</Text>
-          </View>
-        ) : null}
+        <Fold open={hint !== null}>
+          {shownHint === 'search' ? (
+            <View style={styles.pasted} testID="import-pasted">
+              <Search size={iconSize.sub} tone="accent" />
+              <Text style={[styles.pastedText, styles.searchText]}>
+                Search YouTube Music and 网易云
+              </Text>
+            </View>
+          ) : shownHint ? (
+            <View style={styles.pasted} testID="import-pasted">
+              <Check size={iconSize.sub} tone="good" />
+              <Text style={styles.pastedText}>{shownHint}</Text>
+            </View>
+          ) : null}
+        </Fold>
       </View>
       {/* What the box takes, named once and quietly: words, not buttons. */}
       <Text style={styles.sources} testID="import-sources">
@@ -526,7 +534,9 @@ export function ImportScreen({
         <View style={styles.stack}>
           {form}
           {notices}
-          {jobs ?? <RecentlyImported />}
+          <Reanimated.View key={jobs ? 'jobs' : 'recent'} entering={belowIn}>
+            {jobs ?? <RecentlyImported />}
+          </Reanimated.View>
         </View>
         <ChromeSpacer />
       </ScrollView>

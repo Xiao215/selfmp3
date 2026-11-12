@@ -20,6 +20,8 @@ import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
 import { Spinner } from '../../ui/components/Spinner'
+import Reanimated from 'react-native-reanimated'
+import { useFadeMotion } from '../../ui/rowMotion'
 
 /** How many of a search's songs show before "Show more", under the songs picked before it. */
 const FOUND_SHOWN = 12
@@ -61,6 +63,7 @@ export function ImportSearch({
   const finder = useFindSongs(source.lookUp, key, search?.review ?? null, 'search')
   /** "Show more" pressed for these words; new words start short again. */
   const [moreFor, setMoreFor] = useState<string | null>(null)
+  const { entering: moreIn } = useFadeMotion()
 
   const found = useReviewRows({
     draft: key,
@@ -155,7 +158,13 @@ export function ImportSearch({
                   style={[styles.group, kept > 0 && styles.apart]}
                 />
               ) : null}
-              {rows.slice(kept, moreFor === shownFor ? undefined : kept + FOUND_SHOWN)}
+              {rows.slice(kept, kept + FOUND_SHOWN)}
+              {/* Show more's rows fade in under the ones there, rather than simply being there. */}
+              {moreFor === shownFor && rows.length > kept + FOUND_SHOWN ? (
+                <Reanimated.View entering={moreIn}>
+                  {rows.slice(kept + FOUND_SHOWN)}
+                </Reanimated.View>
+              ) : null}
               {moreFor !== shownFor && rows.length > kept + FOUND_SHOWN ? (
                 <View style={styles.more}>
                   <Button

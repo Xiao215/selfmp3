@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Image, PanResponder, Text, useWindowDimensions, View } from 'react-native'
+import Reanimated from 'react-native-reanimated'
 import { Guide } from '../guide/Guide'
 import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -65,6 +66,7 @@ import { countUse } from '../usage/usage'
 import { useViewPresence, VIEW_TRAVEL } from './useViewPresence'
 import { LYRICS_GUIDE_STEPS, PhoneWordsBody, PhoneWordsHead } from './PhoneWords'
 import { TouchFlag } from '../../ui/touchFlag'
+import { useFadeMotion } from '../../ui/rowMotion'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -521,6 +523,9 @@ function CoverView({
   // timer has it; then its faces stand in for Together on the right.
   const inRoom = useRoom().state !== null
   const middleTaken = tagging !== null || sleep.line !== null
+  // Whatever holds the head's middle crossfades with what held it before.
+  const middleFade = useFadeMotion()
+  const middle = tagging ? 'tagging' : sleep.line !== null ? 'sleep' : inRoom ? 'room' : 'from'
 
   return (
     <>
@@ -531,25 +536,27 @@ function CoverView({
           </IconButton>
         </View>
         {/* Play-and-tag takes the head's line: at the top, it stays clear of the editor's sheet. */}
-        {tagging ? (
-          <TaggingLine line={tagging.line} onStop={tagging.stop} center />
-        ) : sleep.line !== null ? (
-          <View style={styles.headMiddle}>
-            <HeadPill
-              lead={<Moon size={iconSize.field} color={theme.colors.accent} />}
-              text={sleep.line}
-              label={`Sleep timer: ${sleep.line}`}
-              onPress={onSleep}
-              testID="now-playing-sleep"
-            />
-          </View>
-        ) : inRoom ? (
-          <View style={styles.headMiddle}>
-            <RoomPill />
-          </View>
-        ) : (
-          <PlayingFrom />
-        )}
+        <Reanimated.View key={middle} {...middleFade} style={styles.headSwap}>
+          {tagging ? (
+            <TaggingLine line={tagging.line} onStop={tagging.stop} center />
+          ) : sleep.line !== null ? (
+            <View style={styles.headMiddle}>
+              <HeadPill
+                lead={<Moon size={iconSize.field} color={theme.colors.accent} />}
+                text={sleep.line}
+                label={`Sleep timer: ${sleep.line}`}
+                onPress={onSleep}
+                testID="now-playing-sleep"
+              />
+            </View>
+          ) : inRoom ? (
+            <View style={styles.headMiddle}>
+              <RoomPill />
+            </View>
+          ) : (
+            <PlayingFrom />
+          )}
+        </Reanimated.View>
         {/* Both sides as wide, so whatever is in the middle sits in the middle. */}
         <View style={[styles.headSide, styles.headSideEnd]}>
           {inRoom && !middleTaken ? null : <TogetherButton filled />}
@@ -741,6 +748,8 @@ const styles = StyleSheet.create(theme => ({
   titles: { flex: 1, minWidth: 0, gap: 3 },
   titleButtons: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   headMiddle: { flex: 1, alignItems: 'center' },
+  // The middle's holder, laid out as the head's row lays out what it holds.
+  headSwap: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
   // Two of the head's round buttons and the gap between them.
   headSide: { width: 40 * 2 + space.sm, flexDirection: 'row', gap: space.sm },
   headSideEnd: { justifyContent: 'flex-end' },

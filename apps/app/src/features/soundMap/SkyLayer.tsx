@@ -560,7 +560,8 @@ function coverImage(uri: string | null | undefined, arrived: () => void): SkImag
       entry.image = Skia.Image.MakeImageFromEncoded(data)
       if (entry.image) arrived()
     })
-    .catch(() => {})
+    // A cover that does not load leaves its star drawn without one.
+    .catch(() => undefined)
   for (const [oldest, each] of coverCache) {
     if (coverCache.size <= COVERS_KEPT || each.record === coverRecord) break
     coverCache.delete(oldest)

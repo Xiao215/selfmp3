@@ -279,6 +279,7 @@ function leadRoom(code: string): void {
         .request(name, { signal: waiting.signal }, () => (leading === held ? hold() : undefined))
         .catch(() => undefined)
     })
+    // A wait called off by `letGo` rejects, and holds nothing: there is nothing to undo.
     .catch(() => undefined)
 }
 

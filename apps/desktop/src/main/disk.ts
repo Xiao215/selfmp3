@@ -34,6 +34,7 @@ export function answerFromDisk(request: Request, path: string, stats: Stats): Re
   if (request.method === 'HEAD' || answer.status === 416 || answer.length === 0) {
     return new Response(null, { status: answer.status, headers })
   }
+  // Node's web stream and the DOM's are one object typed twice, and `Response` takes the DOM's.
   return new Response(
     Readable.toWeb(
       createReadStream(path, { start: answer.start, end: answer.end }),

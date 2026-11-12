@@ -7,7 +7,8 @@ import {
   type RoomState,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import { APP_ORIGIN, BUCKET, ME, harness, type Harness } from './fakes.js'
+import { BUCKET } from './fakeBucket.js'
+import { APP_ORIGIN, ME, harness, type Harness } from './fakes.js'
 import { newRoomCode } from './rooms.js'
 
 /**

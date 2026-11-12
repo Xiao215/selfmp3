@@ -124,18 +124,18 @@ export interface SignInRefusal {
   readonly email: string | null
 }
 
-const REASONS: ReadonlySet<string> = new Set(Object.values(SIGN_IN_REFUSAL))
+const SignInRefusalReasonSchema = z.nativeEnum(SIGN_IN_REFUSAL)
 
 /** Why the doorman sent the browser back without a code, or null when it did not say. */
 export function signInRefusalFromUrl(url: string): SignInRefusal | null {
   const hash = url.indexOf('#')
   if (hash < 0) return null
   const params = new URLSearchParams(url.slice(hash + 1))
-  const reason = params.get(SIGN_IN_REFUSED_FRAGMENT)
-  if (reason === null || !REASONS.has(reason)) return null
+  const reason = SignInRefusalReasonSchema.safeParse(params.get(SIGN_IN_REFUSED_FRAGMENT))
+  if (!reason.success) return null
   const email = params.get(SIGN_IN_EMAIL_FRAGMENT)
   return {
-    reason: reason as SignInRefusalReason,
+    reason: reason.data,
     email: email !== null && email.length <= 320 ? email : null,
   }
 }

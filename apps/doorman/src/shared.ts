@@ -347,8 +347,13 @@ export class Shared {
     const secrets = await this.#secrets()
     if (!doc || !secrets) return answer(404, DOORMAN_ERROR.sharedMissing, 'no such playlist')
     const token = url.searchParams.get('t') ?? ''
-    const member = Object.entries(secrets.tokens).find(([, held]) => held === token)?.[0]
-    if (!member || !/^[0-9a-f]{32}$/.test(token)) {
+    let member: string | undefined
+    if (/^[0-9a-f]{32}$/.test(token)) {
+      for (const [id, held] of Object.entries(secrets.tokens)) {
+        if (await sameSecret(token, held)) member = id
+      }
+    }
+    if (!member) {
       return answer(401, DOORMAN_ERROR.sharedUnauthorized, 'that is not a way into this playlist')
     }
     const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))

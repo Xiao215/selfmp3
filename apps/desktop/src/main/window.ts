@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { BrowserWindow, screen, shell } from 'electron'
 import { APP_ORIGIN } from '@selfmp3/desktop-bridge'
-import { DEFAULT_APP_URL, plainPageAt } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, messageOf, plainPageAt } from '@selfmp3/shared'
 
 import { MINIMUM_SIZE, openingBounds, rememberBounds } from './bounds.js'
 import { openingGround } from './ground.js'
@@ -92,7 +92,10 @@ export function createWindow({
     }
   })
 
-  void window_.loadURL(devUrl ?? `${APP_ORIGIN}/`)
+  // Nobody waits on the load, so a failure is the log's to say.
+  window_.loadURL(devUrl ?? `${APP_ORIGIN}/`).catch((error: unknown) => {
+    console.warn('the app page did not load', messageOf(error))
+  })
   return window_
 }
 
@@ -118,7 +121,10 @@ export function outsideAddress(url: string, ownOrigins: readonly string[]): stri
  * would be the page asking the system to open a file or another app.
  */
 export function openOutside(url: string): void {
-  if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)
+  if (!url.startsWith('https://') && !url.startsWith('http://')) return
+  shell.openExternal(url).catch((error: unknown) => {
+    console.warn('a link could not be opened in the browser', messageOf(error))
+  })
 }
 
 /** Where the preload ends up next to the built main process. */

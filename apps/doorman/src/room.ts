@@ -636,6 +636,15 @@ function send(socket: RoomSocket, message: RoomServerMessage): void {
   }
 }
 
+/** A hibernating socket as the room sees it: its member is the tag it was accepted with. */
+function socketOf(state: DurableObjectState, ws: WebSocket): RoomSocket {
+  return {
+    member: state.getTags(ws)[0] ?? '',
+    send: text => ws.send(text),
+    close: (code, reason) => ws.close(code, reason),
+  }
+}
+
 /** `WebSocket.READY_STATE_OPEN`, which only the Workers runtime defines. */
 const SOCKET_OPEN = 1
 
@@ -651,11 +660,6 @@ export class RoomObject {
 
   constructor(state: DurableObjectState) {
     this.#state = state
-    const socketOf = (ws: WebSocket): RoomSocket => ({
-      member: state.getTags(ws)[0] ?? '',
-      send: text => ws.send(text),
-      close: (code, reason) => ws.close(code, reason),
-    })
     this.#room = new Room({
       storage: {
         get: key => state.storage.get(key),
@@ -674,7 +678,7 @@ export class RoomObject {
         state
           .getWebSockets()
           .filter(ws => ws.readyState === SOCKET_OPEN)
-          .map(socketOf),
+          .map(ws => socketOf(state, ws)),
       now: () => Date.now(),
     })
   }
@@ -685,14 +689,7 @@ export class RoomObject {
 
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
     if (typeof message !== 'string') return
-    this.#room.message(
-      {
-        member: this.#state.getTags(ws)[0] ?? '',
-        send: text => ws.send(text),
-        close: (code, reason) => ws.close(code, reason),
-      },
-      message,
-    )
+    this.#room.message(socketOf(this.#state, ws), message)
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {

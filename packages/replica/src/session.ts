@@ -82,11 +82,6 @@ type ClaimOutcome =
   | { readonly status: 'code' }
   | { readonly status: 'signed-in'; readonly session: CloudSession }
 
-/**
- * Written as properties rather than methods on purpose: these are closures
- * over one platform, and callers are meant to be free to take them apart. A
- * method type would promise a `this` that none of them has.
- */
 interface DoormanFetchOptions {
   method?: string
   json?: unknown
@@ -99,6 +94,11 @@ interface DoormanFetchOptions {
   asking?: boolean
 }
 
+/**
+ * Written as properties rather than methods on purpose: these are closures
+ * over one platform, and callers are meant to be free to take them apart. A
+ * method type would promise a `this` that none of them has.
+ */
 export interface CloudSessionApi {
   loadSession: () => Promise<CloudSession | null>
   saveSession: (session: CloudSession) => Promise<void>

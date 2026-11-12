@@ -15,10 +15,18 @@
  * songs the same way to within a rounding.
  */
 
+import { z } from 'zod'
 import { shuffleArray } from './queue.js'
 
 /** Dimensions of the listening model's vectors: what a pack and a packed vector must have. */
 export const SOUND_DIMENSIONS = 768
+
+/** As much of a pack's header as a device reads. */
+const PackHeaderSchema = z.object({
+  model: z.string(),
+  dimensions: z.literal(SOUND_DIMENSIONS),
+  heard: z.array(z.unknown()),
+})
 
 /** A pack's vectors, by each song's audio key; null for a pack this cannot read. */
 export function decodeSoundPack(
@@ -39,11 +47,9 @@ export function decodeSoundPack(
   } catch {
     return null
   }
-  if (typeof header !== 'object' || header === null) return null
-  const { model, dimensions, heard } = header as Record<string, unknown>
-  if (typeof model !== 'string' || dimensions !== SOUND_DIMENSIONS || !Array.isArray(heard)) {
-    return null
-  }
+  const read = PackHeaderSchema.safeParse(header)
+  if (!read.success) return null
+  const { model, heard } = read.data
   const keys = heard.filter((key): key is string => typeof key === 'string')
   const start = 4 + headerLength
   if (bytes.length !== start + keys.length * SOUND_DIMENSIONS * 4) return null

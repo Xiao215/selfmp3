@@ -124,3 +124,11 @@ device's store, because the only data there is is the owner's.
   and the synced lyrics render again for a queue edit. The playback store is told after the
   commit, so taking the length from there would draw the last song's length under the new
   one for a frame.
+- **`packages/replica/src/library.ts` stays one file**: its closures share the replica, the
+  sign-out `generation`, the outbox's `exclusive` lock and what has been written, so a split
+  would hand all of that across. What the library points at in the bucket (words, covers,
+  the sound map) needed none of it and is already `libraryFiles.ts`.
+  `packages/shared/src/sync.ts` stays one file too: `applyChange` is one case per kind of
+  change, and a list reads best whole.
+- **`parseDoormanRefusal` reads without zod** (`packages/shared/src/doormanWire.ts`): the
+  service worker imports `@selfmp3/shared/wire`, which stays free of zod to keep it small.

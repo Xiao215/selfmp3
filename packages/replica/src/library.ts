@@ -15,6 +15,7 @@ import {
   applyChanges,
   logFile,
   logKey,
+  messageOf,
   newCloudDeviceId,
   newestSnapshotKey,
   parseChangesHeader,
@@ -695,7 +696,7 @@ export function createCloudLibrary(
         // Signed out elsewhere, say. Nobody was waiting to hear it, so the
         // next read waits for a look of its own, and says so the way it
         // always did — and the app is told to make that read.
-        warn(`the bucket could not be read: ${String(error)}`)
+        warn(`the bucket could not be read: ${messageOf(error)}`)
         r.mustCheck = true
         announce()
       }
@@ -709,7 +710,7 @@ export function createCloudLibrary(
       try {
         listener()
       } catch (error) {
-        warn(`a library listener threw: ${String(error)}`)
+        warn(`a library listener threw: ${messageOf(error)}`)
       }
     }
   }
@@ -854,7 +855,7 @@ export function createCloudLibrary(
       changed => {
         if (changed) announce()
       },
-      (error: unknown) => warn(`another tab’s edit could not be read: ${String(error)}`),
+      (error: unknown) => warn(`another tab’s edit could not be read: ${messageOf(error)}`),
     )
     if (!flushTimer) scheduleFlush(OTHERS_FLUSH_DELAY_MS)
   }

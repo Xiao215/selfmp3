@@ -1,15 +1,7 @@
 import { CLOUD_FORMAT, DoormanMeSchema, ErrorBodySchema } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import {
-  APPLICATION_KEY,
-  B2_HOST,
-  BUCKET,
-  KEY_ID,
-  ME,
-  SEAL_KEY,
-  harness,
-  type Harness,
-} from './fakes.js'
+import { APPLICATION_KEY, B2_HOST, BUCKET, KEY_ID } from './fakeBucket.js'
+import { ME, SEAL_KEY, harness, type Harness } from './fakes.js'
 
 /**
  * Connecting a bucket: the key is tried against the bucket — an S3 look-alike

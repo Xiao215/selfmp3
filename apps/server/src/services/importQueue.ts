@@ -59,6 +59,9 @@ interface ImportUploader {
   kick(): void
 }
 
+/** What a job's song is called and how long it is: the listing's, or the video's. */
+type JobNames = Pick<ImportJob, 'title' | 'artist' | 'album' | 'duration' | 'thumbnail'>
+
 /**
  * The song is in the library on this server, but not yet in the bucket. Kept
  * apart from other failures because retrying it must not download the song
@@ -483,8 +486,6 @@ export class ImportQueueService {
     signal: AbortSignal,
     paid: boolean,
   ): Promise<number> {
-    // The turn taken at the claim pays for the first request, and only that one.
-    let turn = paid
     // A job that already added its song and only failed to upload it picks
     // up where it stopped: downloading the song again would be a second copy.
     if (job.songId !== null && this.#songs.byId(job.songId)) {
@@ -497,39 +498,13 @@ export class ImportQueueService {
       throw new Error('yt-dlp is not installed — run: brew install yt-dlp ffmpeg')
     }
 
-    // Fill in any metadata the client did not already provide.
-    let { title, artist, album, duration } = job
-    let thumbnail = job.thumbnail
-
-    /*
-     * A search page's listing names its songs but not who sings them, so a
-     * job from one arrives with a title and no artist. Asked about on its
-     * own, the video says: `artist`, `album`, and a thumbnail, for the file's
-     * name, the lyrics lookup and the tags the download embeds.
-     */
-    if (!title.trim() || !artist.trim()) {
-      this.#update(job.id, { step: 'resolving' })
-      const probed = await this.#ytdlp.probe(job.url, signal, turn ? 'paid' : 'patient')
-      turn = false
-      if (probed.kind === 'playlist') {
-        // `--no-playlist` means nothing to an album or playlist address: every
-        // song in it would be downloaded, each over the last, into one file.
-        throw new Error(
-          'that link is a playlist, not one song — paste it on the Import screen to choose its songs',
-        )
-      }
-      const track = probed.tracks[0]
-      if (track) {
-        title = track.title || title
-        artist = artist || track.artist
-        album = album || track.album
-        duration = duration || track.duration
-        thumbnail ??= track.thumbnail
-        this.#update(job.id, { title, artist, album, duration })
-      }
-    }
-
+    const probing = !job.title.trim() || !job.artist.trim()
+    const { title, artist, album, duration, thumbnail } = probing
+      ? await this.#probeNames(job, signal, paid)
+      : job
     if (!title.trim()) throw new Error('could not work out a title for this track')
+    // The turn taken at the claim pays for the first request, and only that one.
+    const turn = paid && !probing
 
     // --- download -----------------------------------------------------------
 
@@ -613,34 +588,11 @@ export class ImportQueueService {
 
       const realDuration = duration || (await this.#ytdlp.probeDuration(stagedPath))
 
-      // --- lyrics -----------------------------------------------------------
-
       // There is no song row yet, so an instrumental answer is held until
       // there is one to write it to.
-      let instrumental = false
-      if (settings.autoFetchLyrics) {
-        this.#update(job.id, { step: 'lyrics' })
-        const remote = await this.#lyrics.fetchRemote({
-          artist,
-          title,
-          album,
-          duration: realDuration,
-          sourceUrl: job.url,
-        })
-        if (remote === 'instrumental') {
-          instrumental = true
-        } else if (remote) {
-          // Words are worth having, not worth the import: the song goes in without.
-          await this.#lyrics
-            .writeSidecar(libraryKey, remote.text, remote.synced)
-            .catch((error: unknown) => {
-              this.#logger.warn('could not keep the words found for an import', {
-                key: libraryKey,
-                message: messageOf(error),
-              })
-            })
-        }
-      }
+      const instrumental =
+        settings.autoFetchLyrics &&
+        (await this.#findLyrics(job, libraryKey, { artist, title, album, duration: realDuration }))
 
       // --- save -------------------------------------------------------------
 
@@ -691,6 +643,60 @@ export class ImportQueueService {
       // Written by now, or given up on: either way the disk has the last word.
       if (libraryKey) this.#claimedFolders.delete(path.posix.dirname(libraryKey))
     }
+  }
+
+  /**
+   * A search page's listing names its songs but not who sings them, so a
+   * job from one arrives with a title and no artist. Asked about on its
+   * own, the video says: `artist`, `album`, and a thumbnail, for the file's
+   * name, the lyrics lookup and the tags the download embeds. What the job
+   * already had stands.
+   */
+  async #probeNames(job: ImportJob, signal: AbortSignal, paid: boolean): Promise<JobNames> {
+    this.#update(job.id, { step: 'resolving' })
+    const probed = await this.#ytdlp.probe(job.url, signal, paid ? 'paid' : 'patient')
+    if (probed.kind === 'playlist') {
+      // `--no-playlist` means nothing to an album or playlist address: every
+      // song in it would be downloaded, each over the last, into one file.
+      throw new Error(
+        'that link is a playlist, not one song — paste it on the Import screen to choose its songs',
+      )
+    }
+    const track = probed.tracks[0]
+    if (!track) return job
+    const names = {
+      title: track.title || job.title,
+      artist: job.artist || track.artist,
+      album: job.album || track.album,
+      duration: job.duration || track.duration,
+    }
+    this.#update(job.id, names)
+    return { ...names, thumbnail: job.thumbnail ?? track.thumbnail }
+  }
+
+  /**
+   * Look the song's words up and keep them beside its file; true when the
+   * song is instrumental instead. Words are worth having, not worth the
+   * import: when they cannot be kept, the song goes in without.
+   */
+  async #findLyrics(
+    job: ImportJob,
+    libraryKey: string,
+    song: { artist: string; title: string; album: string; duration: number },
+  ): Promise<boolean> {
+    this.#update(job.id, { step: 'lyrics' })
+    const remote = await this.#lyrics.fetchRemote({ ...song, sourceUrl: job.url })
+    if (remote === 'instrumental') return true
+    if (!remote) return false
+    await this.#lyrics
+      .writeSidecar(libraryKey, remote.text, remote.synced)
+      .catch((error: unknown) => {
+        this.#logger.warn('could not keep the words found for an import', {
+          key: libraryKey,
+          message: messageOf(error),
+        })
+      })
+    return false
   }
 
   /**

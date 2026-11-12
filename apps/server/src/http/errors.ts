@@ -74,9 +74,7 @@ export function errorHandler(logger: Logger) {
     }
 
     if (error instanceof HttpError) {
-      // 4xx is the client's problem and is not worth an error-level log line.
-      const log = error.status >= 500 ? logger.error : logger.warn
-      log(error.message, { path: req.path, status: error.status })
+      levelOf(logger, error.status)(error.message, { path: req.path, status: error.status })
       res.status(error.status).json({
         error: error.message,
         code: error.code,
@@ -126,6 +124,19 @@ export function errorHandler(logger: Logger) {
   }
 }
 
+/**
+ * The level an `HttpError`'s line goes at, beside the request line that
+ * already has its status. 4xx is the client's problem and is not worth an
+ * error-level line; a 404 is a miss that comes on every play — no lyrics for
+ * an instrumental, a song not analysed yet, no cover — and only worth one when
+ * chasing something.
+ */
+function levelOf(logger: Logger, status: number): Logger['warn'] {
+  if (status >= 500) return logger.error
+  if (status === 404) return logger.debug
+  return logger.warn
+}
+
 const DISK_FULL_MESSAGE = 'the server’s disk is full'
 const DATABASE_BUSY_MESSAGE = 'the server is busy, try again in a moment'
 const BUSY_RETRY_AFTER_S = 2
@@ -146,8 +157,7 @@ function databaseTrouble(error: unknown): 'full' | 'busy' | null {
 /** The status an error carries, for the middleware that sets one (body-parser does). */
 function statusOf(error: unknown): number | null {
   if (typeof error !== 'object' || error === null) return null
-  const status = (error as { status?: unknown; statusCode?: unknown }).status
-  if (typeof status === 'number') return status
-  const statusCode = (error as { statusCode?: unknown }).statusCode
-  return typeof statusCode === 'number' ? statusCode : null
+  if ('status' in error && typeof error.status === 'number') return error.status
+  if ('statusCode' in error && typeof error.statusCode === 'number') return error.statusCode
+  return null
 }

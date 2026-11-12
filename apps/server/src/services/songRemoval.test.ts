@@ -5,9 +5,11 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
 import { CloudRepository } from '../repositories/cloud.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
+import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
 import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
@@ -33,6 +35,7 @@ describe('SongRemovalService', () => {
   let db: Database.Database
   let songs: SongRepository
   let tags: TagRepository
+  let playlists: PlaylistRepository
   let search: LyricsSearchRepository
   let cloud: CloudRepository
   let lyricsCache: LyricsCache
@@ -48,6 +51,7 @@ describe('SongRemovalService', () => {
     migrate(db, logger)
     songs = new SongRepository(db)
     tags = new TagRepository(db)
+    playlists = new PlaylistRepository(db)
     search = new LyricsSearchRepository(db)
     cloud = new CloudRepository(db)
     const storage = new LocalStorageDriver(path.join(root, 'library'))
@@ -60,6 +64,7 @@ describe('SongRemovalService', () => {
       storage,
       songs,
       tags,
+      playlists,
       cloud,
       lyrics,
       covers,
@@ -84,21 +89,7 @@ describe('SongRemovalService', () => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  const row = {
-    artist: '',
-    album: '',
-    albumArtist: '',
-    trackNo: null,
-    year: null,
-    duration: 180,
-    sizeBytes: 5,
-    mime: 'audio/mp4',
-    mtimeMs: 1_700_000_000_000,
-    hasArt: false,
-    artExt: null,
-    lyricsKind: 'synced' as const,
-    sourceUrl: null,
-  }
+  const row = { duration: 180, sizeBytes: 5, mtimeMs: 1_700_000_000_000, lyricsKind: 'synced' }
 
   /** A song in its own folder, with a sidecar beside it, as an import lays one out. */
   const addSong = (name: string): { id: number; key: string } => {
@@ -107,7 +98,7 @@ describe('SongRemovalService', () => {
     fs.mkdirSync(folder, { recursive: true })
     fs.writeFileSync(path.join(folder, `${name}.m4a`), 'audio')
     fs.writeFileSync(path.join(folder, `${name}.lrc`), '[00:01.00] la')
-    const id = songs.insert({ ...row, path: key, title: name })
+    const id = songs.insert(newSong({ ...row, path: key, title: name }))
     return { id, key }
   }
 
@@ -156,6 +147,38 @@ describe('SongRemovalService', () => {
       expect(tags.all().map(tag => tag.name)).toEqual(['loud', 'new'])
       expect(songs.byId(two.id)).not.toBeNull()
       expect(changes).toBe(1)
+    })
+
+    it('takes a kept playlist out with the last song it had, for good', async () => {
+      const one = addSong('A - One')
+      const two = addSong('B - Two')
+      const only = playlists.create({ name: 'Only one', description: '', kind: 'manual' }, [one.id])
+      const both = playlists.create({ name: 'Both', description: '', kind: 'manual' }, [
+        one.id,
+        two.id,
+      ])
+      // Made a moment ago and not filled yet: not the removal's to take.
+      playlists.create({ name: 'New', description: '', kind: 'manual' })
+      // Emptied, but an import is on its way to fill it.
+      const waiting = playlists.create({ name: 'Waiting', description: '', kind: 'manual' }, [
+        one.id,
+      ])
+      db.prepare(
+        "INSERT INTO import_jobs (id, url, status, playlist_id) VALUES ('j', 'https://x', 'queued', ?)",
+      ).run(waiting.id)
+      const onlyUid = (
+        db.prepare('SELECT uid FROM playlists WHERE id = ?').get(only.id) as { uid: string }
+      ).uid
+
+      await removal.remove([one.id])
+
+      expect(playlists.byId(only.id)).toBeNull()
+      expect(playlists.all().map(playlist => playlist.name)).toEqual(['Both', 'New', 'Waiting'])
+      expect(playlists.songIds(both)).toEqual([two.id])
+      // Noted, so the bucket's older snapshot does not bring it back (migration 58).
+      expect(cloud.wasPlaylistRemoved(onlyUid)).toBe(true)
+      // And kept aside, as one another device empties is: a song put in it brings it back.
+      expect(playlists.emptied(onlyUid)?.name).toBe('Only one')
     })
 
     it('deletes the copy on disk, its sidecar and the folder they were in', async () => {
@@ -245,7 +268,7 @@ describe('SongRemovalService', () => {
     it('lets the event loop run between batches of a big removal', async () => {
       // Rows only, already uploaded: what matters here is the database.
       const ids = Array.from({ length: 101 }, (_, i) =>
-        songs.insert({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` }),
+        songs.insert(newSong({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` })),
       )
       // Each batch leaves a callback for the loop's next turn; by the next
       // batch it must have run.
@@ -296,6 +319,7 @@ describe('SongRemovalService', () => {
         storage,
         songs,
         tags,
+        playlists,
         cloud,
         lyrics,
         covers: new CoverService(config, songs, logger),
@@ -315,8 +339,7 @@ describe('SongRemovalService', () => {
       const metadata = {
         read: (key: string) =>
           Promise.resolve({
-            ...row,
-            title: key,
+            ...newSong({ ...row, title: key }),
             picture: null,
             embeddedLyrics: null,
           }),
@@ -362,7 +385,7 @@ describe('SongRemovalService', () => {
     it('leaves a file a new song has taken the name of since', async () => {
       const one = addSong('A - One')
       removal.take([one.id])
-      const again = songs.insert({ ...row, path: one.key, title: 'A - One' })
+      const again = songs.insert(newSong({ ...row, path: one.key, title: 'A - One' }))
 
       await restart().removal.finishLeaving()
 

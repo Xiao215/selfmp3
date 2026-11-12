@@ -46,9 +46,10 @@ const RECHECK_MS = 2_000
 /**
  * The bucket, wired to storage and a clock.
  *
- * Every call that reaches YouTube goes through `take`, so probes, previews and
- * downloads all spend from the same budget — they are the same requests from
- * the same address, whatever asked for them.
+ * Every call that reaches YouTube goes through `take`, so probes and
+ * downloads spend from the same budget — they are the same requests from the
+ * same address, whatever asked for them. Listening before importing is the
+ * one exception: it is never made to wait (`YtDlpService.findAudio`).
  */
 export class YtThrottleService {
   readonly #store: ThrottleStore
@@ -93,7 +94,7 @@ export class YtThrottleService {
    * Wait for a request's worth, then take it.
    *
    * `maxWaitMs` is for the paths a person is sitting in front of — pasting a
-   * link, previewing a track — where waiting out a fifteen minute pause is
+   * link — where waiting out a fifteen minute pause is
    * worse than being told what is happening. The download queue passes none:
    * it has nowhere to be.
    *

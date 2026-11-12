@@ -27,9 +27,9 @@ function around(a: number, b: number): number {
 }
 
 export function hueName(hue: number): string {
-  let best = NAMES[0] as readonly [number, string]
-  for (const entry of NAMES) if (around(hue, entry[0]) < around(hue, best[0])) best = entry
-  return best[1]
+  return NAMES.reduce((best, entry) =>
+    around(hue, entry[0]) < around(hue, best[0]) ? entry : best,
+  )[1]
 }
 
 /**

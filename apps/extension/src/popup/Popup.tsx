@@ -23,6 +23,7 @@ import {
 import {
   Added,
   Away,
+  SignedOut,
   BucketFooter,
   Checking,
   Connect,
@@ -30,16 +31,13 @@ import {
   Have,
   Header,
   Importing,
-  ListReview,
   Looking,
   Paste,
   QueueFooter,
-  RequestForm,
   Requested,
-  SongForm,
   Waiting,
-  type Tagging,
 } from './views.js'
+import { ListReview, RequestForm, SongForm, type Tagging } from './forms.js'
 
 /** How often the queue is read while something for this popup is importing. */
 const BUSY_POLL_MS = 1_000
@@ -264,6 +262,14 @@ export function Popup(): ReactNode {
         return <Checking />
       case 'connect':
         return <Connect onOptions={openOptions} />
+      case 'signedOut':
+        return (
+          <SignedOut
+            baseUrl={server?.baseUrl ?? null}
+            onSignIn={openOptions}
+            onRetry={() => void status.refetch()}
+          />
+        )
       case 'away':
         return <Away onRetry={() => void status.refetch()} onOptions={openOptions} />
       case 'paste':

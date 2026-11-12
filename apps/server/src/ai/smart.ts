@@ -204,7 +204,8 @@ export function smartFeaturesFor(sources: {
   /** False for the eval, so a question asked again is answered again (`Remembered`). */
   readonly remember?: boolean
 }): SmartFeatures {
-  const { config, logger, songs, tags, stats, wrapped, playlists, settings, netease } = sources
+  const { config, logger, songs, tags, stats, wrapped, playlists, settings, netease, names } =
+    sources
   const lookup: MetadataLookup = query => sources.lookup.lookup(query)
   const catalogue = (words: string) => netease.search(words)
   const llm = sources.llm ?? llmFor(config, logger)
@@ -214,8 +215,8 @@ export function smartFeaturesFor(sources: {
     setup: setupFor(config),
     songs: () => songs.all(),
     tags: () => tags.all(),
-    artistNames: sources.names ? () => sources.names!.joinNames() : undefined,
-    spellings: sources.names ? () => sources.names!.spellings() : undefined,
+    artistNames: names ? () => names.joinNames() : undefined,
+    spellings: names ? () => names.spellings() : undefined,
     sound: sources.sound,
     stats: (range, top) => stats.build(range, undefined, top ?? null),
     lyrics: query =>

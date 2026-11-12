@@ -1,12 +1,9 @@
-import fs from 'node:fs'
 import http from 'node:http'
-import type { AddressInfo } from 'node:net'
 import os from 'node:os'
-import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createApp } from '../app.js'
 import { loadConfig, type ServingConfig } from '../config.js'
-import { createContainer, type Container } from '../container.js'
+import { createContainer } from '../container.js'
+import { startLibrary, type TestLibrary } from '../fixtures/library.js'
 
 /**
  * Who the server lets in, asked over a real socket.
@@ -27,50 +24,23 @@ import { createContainer, type Container } from '../container.js'
  * header of its own choosing and `fetch` will not send one.
  */
 describe('reaching the API', () => {
-  const variables = [
-    'SELFMP3_DATA_DIR',
-    'SELFMP3_LIBRARY_DIR',
-    'SELFMP3_LOG_LEVEL',
-    'SELFMP3_AUTH_TOKEN',
-    'SELFMP3_CLOUD_DIR',
-  ] as const
-  const saved = new Map<string, string | undefined>()
-  let root = ''
+  let library: TestLibrary
   let config: ServingConfig
-  let container: Container
-  let server: http.Server
   let port = 0
 
   beforeAll(async () => {
-    for (const name of variables) saved.set(name, process.env[name])
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-auth-'))
-    // Set in the shell, so they win over whatever a `.env` on this machine says.
-    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
-    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
-    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
-    // The API answers nothing without a bucket; a folder stands in for one.
-    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
-    // Nothing chosen by hand: the first-boot path every installation takes.
-    delete process.env['SELFMP3_AUTH_TOKEN']
-
-    container = createContainer(loadConfig())
-    config = container.config
-    server = http.createServer(createApp(container))
-    // Every interface, so a request can arrive from somewhere that is not
-    // loopback without the test having to invent an address.
-    await new Promise<void>(resolve => server.listen(0, '0.0.0.0', resolve))
-    port = (server.address() as AddressInfo).port
+    library = await startLibrary({
+      // Nothing chosen by hand: the first-boot path every installation takes.
+      env: () => ({ SELFMP3_AUTH_TOKEN: undefined }),
+      // Every interface, so a request can arrive from somewhere that is not
+      // loopback without the test having to invent an address.
+      host: '0.0.0.0',
+    })
+    config = library.container.config
+    port = library.port
   })
 
-  afterAll(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()))
-    container.close()
-    fs.rmSync(root, { recursive: true, force: true })
-    for (const [name, value] of saved) {
-      if (value === undefined) delete process.env[name]
-      else process.env[name] = value
-    }
-  })
+  afterAll(() => library.close())
 
   /** One GET, with the connection and the headers said separately. */
   function get(options: {

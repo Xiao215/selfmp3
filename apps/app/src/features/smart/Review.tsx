@@ -25,7 +25,18 @@ import { TagDot } from '../../ui/components/TagDot'
 import { useSongsById } from '../../ui/songsById'
 import { label as labelText, textColumn, rowTitle, hint } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
-import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
+import {
+  isFullyTicked,
+  isTicked,
+  keptSongs,
+  leftOutKey,
+  reviewBands,
+  tickedAtFirst,
+  withSongTicked,
+  withTicked,
+  type Reviewed,
+  type Ticks,
+} from './smart.model'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions, AnswerNote, CLOSED } from './AnswerParts'
@@ -208,52 +219,19 @@ export function Review<T extends Reviewed>({
   /** The card's whole list, on its sheet. */
   const [whole, setWhole] = useState(false)
 
-  const chosen = ticked ?? tickedAtFirst(changes)
+  const picked: Ticks = { chosen: ticked ?? tickedAtFirst(changes), leftOut }
   const bands = reviewBands(changes, sectionOf)
-  // A change with no songs (a rename, a merge) is on or off as a whole.
-  const isOn = (each: T): boolean =>
-    chosen.has(each.change.key) &&
-    (each.songIds.length === 0 || keptSongs(each, leftOut).length > 0)
-  const fullyOn = (each: T): boolean =>
-    chosen.has(each.change.key) && keptSongs(each, leftOut).length === each.songIds.length
+  const isOn = (each: T): boolean => isTicked(picked, each)
+  const fullyOn = (each: T): boolean => isFullyTicked(picked, each)
   const approved = changes.filter(isOn)
   const waiting = changes.some(each => each.change.by === 'model' && !isOn(each))
 
-  /** Ticks or unticks whole changes, with every song back in. */
-  const flip = (list: readonly T[], on: boolean): void => {
-    const next = new Set(chosen)
-    const out = new Set(leftOut)
-    for (const each of list) {
-      if (on) next.add(each.change.key)
-      else next.delete(each.change.key)
-      for (const id of each.songIds) out.delete(leftOutKey(each.change.key, id))
-    }
-    setTicked(next)
-    setLeftOut(out)
+  const take = (next: Ticks): void => {
+    setTicked(next.chosen)
+    setLeftOut(next.leftOut)
   }
-  /** Leaves one song out of a change, or puts it back; a change with none left is unticked. */
-  const flipSong = (each: T, songId: number): void => {
-    const key = each.change.key
-    const out = new Set(leftOut)
-    const next = new Set(chosen)
-    if (!isOn(each)) {
-      // Ticking one song of an unticked change takes that song alone.
-      next.add(key)
-      for (const id of each.songIds) {
-        if (id === songId) out.delete(leftOutKey(key, id))
-        else out.add(leftOutKey(key, id))
-      }
-    } else if (out.has(leftOutKey(key, songId))) out.delete(leftOutKey(key, songId))
-    else {
-      out.add(leftOutKey(key, songId))
-      if (each.songIds.every(id => out.has(leftOutKey(key, id)))) {
-        next.delete(key)
-        for (const id of each.songIds) out.delete(leftOutKey(key, id))
-      }
-    }
-    setTicked(next)
-    setLeftOut(out)
-  }
+  const flip = (list: readonly T[], on: boolean): void => take(withTicked(picked, list, on))
+  const flipSong = (each: T, songId: number): void => take(withSongTicked(picked, each, songId))
   const toggle = (set: ReadonlySet<string>, key: string): Set<string> => {
     const next = new Set(set)
     if (next.has(key)) next.delete(key)

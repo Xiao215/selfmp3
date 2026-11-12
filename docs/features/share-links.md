@@ -134,7 +134,9 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
   move the cue). The wash and the words follow the song.
   - **Opening on a song.** The address can name one of its songs, `?s=<entry>`, and the
     page opens on it instead of the first. The address follows the page's song (as Now
-    Playing's names its song), so in a browser a copied address opens where it was. Shared
+    Playing's names its song), so in a browser a copied address opens where it was. A song
+    its sender has since removed opens the list on its first, saying _“<song>” was removed
+    from this list_. Shared
     while one of the list's songs plays, the sheet offers _Open on <song>_, on by default;
     the doorman carries the `s` on to the app, and a chat's card shows that song's cover.
   - **On a computer** the songs are a rail of covers down the window's left edge, 76 points
@@ -220,6 +222,10 @@ after the link ends (`SHARE_KEPT_MS`), then forgets the link entirely. A forgott
 page says _This link is gone_ and asks the reader to have it shared again. Nothing of the link
 is left to draw, so the page shows an empty sleeve, its record half out, in the middle of the
 page (`GoneLink`). A link cut short when it was copied gets the same page with a torn sleeve.
+Only the doorman's own answer that there is no such link (404, 410) says so: with no network,
+or the doorman failing or busy, the same page has its sleeve whole and says _Can't reach this
+link_ (in a browser with no network, _You're offline_) with Try again, and asks again by itself
+once the network is back or the app comes back to the front.
 Agreed with Xiao on 2026-10-24
 ([proposal](https://claude.ai/artifact/6nN1BsomzspYT3CWTUuhW9), picks A1 B1 D, no extra
 way on).
@@ -268,7 +274,7 @@ I1 J2 K1):
   (_1 of them is still playing and stops for everyone_). **More** holds **Share again**, **End**
   and **Copy links**.
 
-You reach it from Profile, under Report. A playing link has a copy button beside its ⋯ that
+You reach it from Profile, in the row after Stats. A playing link has a copy button beside its ⋯ that
 puts the link on the clipboard: with a mouse it waits for the pointer, as the ⋯ does. Each
 link's ⋯ holds:
 
@@ -277,9 +283,15 @@ link's ⋯ holds:
 
 ## At the edges
 
-- **You remove the song.** The first play that finds its file gone from your bucket marks it
-  gone. When all of a link's songs are gone, the link ends: _Xiao removed this song_, with no
-  Ask again.
+- **You remove the song.** Once your server has deleted its audio from your bucket (the pass
+  after the snapshot without it goes up, docs/SYNC.md), it tells the doorman which files went
+  (`POST /v1/share/gone`), and every link you sent that lends one marks that song gone at once.
+  When all of a link's songs are gone, the link ends: _Xiao removed this song_, with no Ask
+  again. Its page says so before anyone presses Play, so a copy of the song a browser or phone
+  kept from an earlier play never plays again: the page asks the doorman first. A page already
+  open finds out when it next asks, within five minutes. A file another song still names is not
+  deleted, so its links play on. Should the word not get through, or the link be past the newest
+  200 you sent, the first play that finds the file gone from your bucket marks it gone instead.
 - **Your bucket hits its daily cap.** The audio read is refused for the day, as any read is.
   The link does not end because of it. Whoever opens it is told _Whoever sent it has run out
   of their daily quota_ (`lender_cap_exceeded`, not `bucket_cap_exceeded`, so their own bucket
@@ -329,6 +341,7 @@ GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics
 GET  /l/<id>/<key>[?s=<entry>][&t=0:42]        a chat app: its card; anyone else: on to the app
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget
+POST /v1/share/gone                  ShareGone   → 204            files deleted from your bucket
 ```
 
 **Deploying.** The `SHARES` binding and the `v4` migration are in

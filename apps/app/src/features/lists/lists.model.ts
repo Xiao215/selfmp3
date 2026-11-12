@@ -1,6 +1,7 @@
+import { z } from 'zod'
 import { uniqueName } from '@selfmp3/client'
 import { placeSongs, type Place } from '../tag/tag.model'
-import { artistLink, tagLink } from '../tag/placeLinks'
+import { artistLink, playlistLink, tagLink } from '../tag/placeLinks'
 import {
   DescribeResultSchema,
   fromSqliteTime,
@@ -89,7 +90,7 @@ export type ListSource =
       readonly name: string
     }
 
-/** What Up next is called while Forgotten gems play, from Library's row or the playlists grid. */
+/** What Up next is called while Forgotten gems play, from the playlists grid. */
 export const GEMS_SOURCE: ListSource = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' }
 
 /** What Up next is called once songs are added to one song or the whole library. */
@@ -261,7 +262,6 @@ export function combinedPlaces(
   songs: readonly Song[],
   names: ArtistJoinNames,
 ): Place[] {
-  const byId = new Map(tags.map(tag => [tag.id, tag]))
   // By any key an artist goes by: a list kept from before two artists were
   // joined finds the one they are now, once.
   const artists = new Map<string, Artist>()
@@ -270,10 +270,7 @@ export function combinedPlaces(
   }
   const found = new Set<Artist>()
   return [
-    ...source.tagIds.flatMap(id => {
-      const tag = byId.get(id)
-      return tag ? [{ kind: 'tag' as const, tag }] : []
-    }),
+    ...tagsWithIds(source.tagIds, tags).map(tag => ({ kind: 'tag' as const, tag })),
     ...source.artistKeys.flatMap(key => {
       const artist = artists.get(key)
       if (!artist || found.has(artist)) return []
@@ -414,10 +411,7 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
       const playlist = known.playlists.find(each => each.id === source.playlistId)
       if (!playlist) return plain(`${source.name} (deleted)`, null)
       return {
-        ...plain(playlist.name, {
-          pathname: '/playlists/[id]',
-          params: { id: String(playlist.id) },
-        }),
+        ...plain(playlist.name, playlistLink(playlist.id)),
         saved: source.saved === true,
       }
     }
@@ -532,71 +526,32 @@ export function savePlan(
   }
 }
 
+/**
+ * A source as it is kept: a playlist's `saved` and an answer's `answerId` last
+ * only while the app is open, and are left off.
+ */
+const StoredSourceSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('library') }),
+  z.object({ kind: z.literal('liked') }),
+  z.object({ kind: z.literal('tag'), tagId: z.number().int(), name: z.string() }),
+  z.object({ kind: z.literal('artist'), key: z.string(), name: z.string() }),
+  z.object({ kind: z.literal('playlist'), playlistId: z.number().int(), name: z.string() }),
+  z.object({
+    kind: z.literal('combined'),
+    tagIds: z.array(z.number().int()),
+    artistKeys: z.array(z.string()),
+    match: z.literal('all').optional(),
+    name: z.string(),
+  }),
+  z.object({ kind: z.literal('answer'), text: z.string(), name: z.string() }),
+  z.object({ kind: z.literal('songs'), origin: z.enum(SONGS_ORIGINS), name: z.string() }),
+  z.object({ kind: z.literal('room'), code: z.string(), name: z.string() }),
+])
+
 /** A source read back from storage, or null for anything that is not one. */
 export function parseListSource(value: unknown): ListSource | null {
-  if (typeof value !== 'object' || value === null) return null
-  const v = value as Record<string, unknown>
-  const text = (key: string): string | null =>
-    typeof v[key] === 'string' ? (v[key] as string) : null
-  const id = (key: string): number | null =>
-    typeof v[key] === 'number' && Number.isInteger(v[key]) ? (v[key] as number) : null
-  switch (v['kind']) {
-    case 'library':
-      return { kind: 'library' }
-    case 'liked':
-      return { kind: 'liked' }
-    case 'tag': {
-      const tagId = id('tagId')
-      const name = text('name')
-      return tagId !== null && name !== null ? { kind: 'tag', tagId, name } : null
-    }
-    case 'artist': {
-      const key = text('key')
-      const name = text('name')
-      return key !== null && name !== null ? { kind: 'artist', key, name } : null
-    }
-    case 'playlist': {
-      const playlistId = id('playlistId')
-      const name = text('name')
-      return playlistId !== null && name !== null ? { kind: 'playlist', playlistId, name } : null
-    }
-    case 'combined': {
-      const name = text('name')
-      const tagIds = Array.isArray(v['tagIds'])
-        ? (v['tagIds'] as unknown[]).filter(Number.isInteger)
-        : null
-      const artistKeys = Array.isArray(v['artistKeys'])
-        ? (v['artistKeys'] as unknown[]).filter((key): key is string => typeof key === 'string')
-        : null
-      return name !== null && tagIds && artistKeys
-        ? {
-            kind: 'combined',
-            tagIds: tagIds as number[],
-            artistKeys,
-            name,
-            ...(v['match'] === 'all' ? { match: 'all' as const } : {}),
-          }
-        : null
-    }
-    case 'answer': {
-      const asked = text('text')
-      const name = text('name')
-      return asked !== null && name !== null ? { kind: 'answer', text: asked, name } : null
-    }
-    case 'songs': {
-      const name = text('name')
-      const origin = text('origin')
-      const known = SONGS_ORIGINS.find(each => each === origin)
-      return name !== null && known !== undefined ? { kind: 'songs', origin: known, name } : null
-    }
-    case 'room': {
-      const code = text('code')
-      const name = text('name')
-      return code !== null && name !== null ? { kind: 'room', code, name } : null
-    }
-    default:
-      return null
-  }
+  const read = StoredSourceSchema.safeParse(value)
+  return read.success ? read.data : null
 }
 
 // --- Recently played -------------------------------------------------------
@@ -725,37 +680,29 @@ export function withListRenamed(
   )
 }
 
+/** A remembered list as it is kept: one whose answer no longer reads keeps the rest. */
+const StoredRecentSchema = z.object({
+  key: z.string(),
+  source: StoredSourceSchema,
+  songIds: z.array(z.number().int()).catch([]),
+  played: z.array(z.number().int()).catch([]),
+  at: z.number(),
+  answer: DescribeResultSchema.optional().catch(undefined),
+})
+
 export function parseRecentLists(raw: string | null): readonly RecentList[] {
   if (!raw) return []
   try {
     const value: unknown = JSON.parse(raw)
     if (!Array.isArray(value)) return []
     return value.flatMap((item: unknown): RecentList[] => {
-      if (typeof item !== 'object' || item === null) return []
-      const v = item as Record<string, unknown>
-      const source = parseListSource(v['source'])
-      const ids = (key: string): number[] =>
-        Array.isArray(v[key])
-          ? (v[key] as unknown[]).filter((id): id is number => Number.isInteger(id))
-          : []
-      const key = v['key']
-      const at = v['at']
-      const songIds = ids('songIds')
+      const read = StoredRecentSchema.safeParse(item)
       // Kept under another key than its source has now — a search kept by its
       // songs before searches were kept by their words — it is not this list.
-      if (!source || typeof key !== 'string' || typeof at !== 'number') return []
-      if (key !== sourceKey(source, songIds)) return []
-      const answer = DescribeResultSchema.safeParse(v['answer'])
-      return [
-        {
-          key,
-          source,
-          songIds,
-          played: ids('played'),
-          at,
-          ...(answer.success ? { answer: answer.data } : {}),
-        },
-      ]
+      if (!read.success || read.data.key !== sourceKey(read.data.source, read.data.songIds)) {
+        return []
+      }
+      return [read.data]
     })
   } catch {
     return []

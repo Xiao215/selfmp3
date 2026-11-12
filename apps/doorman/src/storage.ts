@@ -17,16 +17,15 @@ import { Bucket, BucketError, type BucketTarget } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import type { Session } from './sessions.js'
 import { fromUtf8, toBase64, utf8 } from './encoding.js'
-import { badRequest, isLoopbackHost, json, readJson, unprocessable } from './http.js'
+import { badRequest, isLoopbackHost, json, mayReach, readJson, unprocessable } from './http.js'
 
 /**
  * Who is signed in, and connecting the one bucket that belongs to them.
  *
- * Connecting tries the key before anything is kept, the way the server's
- * `CloudSyncService.connect` does: list, then read `format.json` — or, in a
- * new bucket, write one and read it back, which proves the key can read as
- * well as write. A mistake comes back while the form is still open, as the
- * same message the server gives: whether it was the key, the address or the
+ * Connecting tries the key before anything is kept: list, then read
+ * `format.json` — or, in a new bucket, write one and read it back, which
+ * proves the key can read as well as write. A mistake comes back while the
+ * form is still open, saying whether it was the key, the address or the
  * bucket. Only a key that passes is sealed and saved.
  */
 
@@ -303,11 +302,15 @@ function targetFrom(input: CloudConnect, dev: boolean): BucketTarget {
     throw unprocessable('That endpoint is not an address, like s3.us-west-004.backblazeb2.com.')
   }
   // The doorman is on the public internet: songs must not cross it in the
-  // clear. A bucket on this computer is the one exception, and only in
-  // `wrangler dev --env dev`, whose settings say DEV.
-  const local = isLoopbackHost(new URL(endpoint.url).hostname)
-  if (endpoint.url.startsWith('http:') && !(dev && local)) {
+  // clear, and it knocks on no address off it. A bucket on this computer is
+  // the one exception, and only in `wrangler dev --env dev`, whose settings
+  // say DEV.
+  const { hostname } = new URL(endpoint.url)
+  if (endpoint.url.startsWith('http:') && !(dev && isLoopbackHost(hostname))) {
     throw unprocessable('The endpoint has to be an https:// address.')
+  }
+  if (!mayReach(hostname, dev)) {
+    throw unprocessable('The endpoint has to be an address on the internet.')
   }
   const region = givenRegion || endpoint.region
   if (!region) {

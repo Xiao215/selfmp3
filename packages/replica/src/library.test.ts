@@ -1390,3 +1390,62 @@ describe('keeping the library on the device', () => {
     expect(after.library.version).toBe(view.library.version + 1)
   })
 })
+
+describe('a log file tidied away while a look reads the logs', () => {
+  /*
+   * The server deletes a log file once a snapshot has it, and may do so
+   * between this device's listing and its reads. The look lists again; a
+   * file it has already read is not read a second time, since each read is
+   * one of the bucket's day of reads.
+   */
+  it('lists again, and reads again only what it has not read', async () => {
+    const PHONE = 'iphone-0b7d44a1'
+    const TAB = 'browser-5c2e9a10'
+    const at = new Date('2026-09-11T09:00:00Z')
+    const tag = (device: string, name: string): Change => ({
+      type: 'tagCreated',
+      hlc: formatHlc({ ms: at.getTime(), counter: 0, device }),
+      uid: name.padEnd(32, '0'),
+      name,
+      hue: 40,
+    })
+    const bucket = fakeBucket()
+    bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    const kept = logKey(PHONE, 1)
+    const tidied = logKey(TAB, 1)
+    bucket.files.set(kept, logFile(PHONE, 1, [tag(PHONE, 'a')], at))
+    bucket.files.set(tidied, logFile(TAB, 1, [tag(TAB, 'b')], at))
+    const list = bucket.fetch
+    bucket.fetch = (url, init) => {
+      const answer = list(url, init)
+      // Gone the moment after it was listed.
+      if (bucket.lists.length === 1) bucket.files.delete(tidied)
+      return answer
+    }
+    const made = build(memoryStore(), bucket)
+    await signedIn(made)
+
+    const view = await made.library.loadCloudLibrary(SESSION)
+
+    expect(view.library.tags.map(t => t.name)).toEqual(['a'])
+    expect(made.bucket.reads.filter(key => key === kept)).toHaveLength(1)
+  })
+})
+
+describe('a song as a room carries it', () => {
+  it('is named by its uid, from the library held, and is null for a song not in it', async () => {
+    const made = build()
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    expect(made.library.cloudRoomSongNow(1)).toBeNull()
+
+    const view = await made.library.loadCloudLibrary(SESSION)
+    const songId = view.library.songs[0]?.id ?? 0
+    expect(made.library.cloudRoomSongNow(songId)).toMatchObject({
+      uid: 'a'.repeat(32),
+      title: 'Song a',
+      audio: { key: `audio/${'a'.repeat(64)}.m4a`, size: 4_000_000 },
+    })
+    expect(made.library.cloudRoomSongNow(songId + 1)).toBeNull()
+  })
+})

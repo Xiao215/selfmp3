@@ -5,7 +5,10 @@ popup in the toolbar, and a right-click item anywhere — each of them hands a
 link to your server, which does the fetching. When the server is not answering,
 the link waits in your bucket until it is.
 
-Chrome, Edge, Brave and Arc. Firefox and Safari are not built.
+**Where:** a computer's Chromium browser: Chrome, Edge, Brave and Arc. Firefox and
+Safari are not built (see [What it does not do yet](#what-it-does-not-do-yet)), and a
+phone has the share sheet instead ([share-to-import.md](share-to-import.md)). The code is
+`apps/extension`, laid out in [How it is put together](#how-it-is-put-together).
 
 ---
 
@@ -88,6 +91,16 @@ counts it and a notification says when it is in. Left in your bucket it says
 you from video to video without a reload, and it is not drawn where there is no
 song.
 
+**A mark on the songs you have.** The app's note on a small accent coin sits on
+every song row that is already in your library: YouTube Music's Up next, its playlists,
+albums and search results, and the playlist beside a YouTube watch page. It
+goes before the duration, or after the title where a row has no duration.
+A row is yours when its video is the one you imported, so the album track and
+the music video of one song are two different rows. In Up next, a row with a
+Song/Video switch counts as yours when either half is. A song you import from
+the pill gets its mark at once. One imported or removed in the app shows
+within five minutes.
+
 **The popup, from the toolbar.** The same song, with everything to decide first:
 the title tidied out of the video's own (see the importing section of the
 [README](../../README.md)) and the artist, both fields you can change before it
@@ -153,7 +166,7 @@ the badge is only ever about what you did here.
 |---|---|
 | `activeTab` | the address of the tab when you open the popup |
 | `identity` | the Google sign-in window, and the address it comes back to |
-| youtube.com, m.youtube.com, music.youtube.com | the pill in the page |
+| youtube.com, m.youtube.com, music.youtube.com | the pill and the checks in the page |
 | `contextMenus` | the two right-click items |
 | `notifications` | one notice when a batch of imports finishes |
 | `alarms` | keeping the badge right when Chrome has stopped the worker |
@@ -171,8 +184,9 @@ the badge is only ever about what you did here.
 | Which way in wins — the server, or the bucket | `apps/extension/src/background/connection.ts` |
 | Your copy of the library, and the session behind it | `apps/extension/src/background/cloud.ts`, `cloudPlatform.ts` |
 | The typed door between the pages and that worker | `apps/extension/src/bridge.ts` |
-| The popup: what it shows, and what draws it | `apps/extension/src/popup/popup.model.ts`, `views.tsx` |
+| The popup: what it shows, and what draws it | `apps/extension/src/popup/popup.model.ts`, `views.tsx`, `forms.tsx` |
 | The pill: where it goes, what it is, when to look again | `apps/extension/src/content/` |
+| The checks on song rows: which rows, where the check goes, and the script that reads Up next's videos | `apps/extension/src/content/rows.ts`, `checks.ts`, `videoIds.ts` |
 | The badge and the notification | `apps/extension/src/background/jobs.model.ts`, `watcher.ts` |
 | Options | `apps/extension/src/options/` |
 | The look: the app's tokens, written into CSS by every build, and the parts both pages share | `apps/extension/scripts/theme.mjs`, `apps/extension/src/ui/` |
@@ -188,9 +202,9 @@ Two rules the code keeps, and the reasons:
   your copy of the library lives: two copies would hand out the same log
   sequence number twice, which is the one thing the bucket cannot survive.
 - **A content script is treated as the page it runs in.** It has a channel of its
-  own that can do exactly one thing — hand over a link, and be told what the pill
-  should say. It is never told your tags, your playlists, your server's address
-  or its token.
+  own that can do two things: hand over a link and be told what the pill should
+  say, or name some videos and be told which of them are yours. It is never
+  told your tags, your playlists, your server's address or its token.
 
 What is not built yet is in [`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
 
@@ -202,6 +216,21 @@ turns white when chosen, the accent only on the button that commits something,
 Bricolage Grotesque for the name and a list's title, and Instrument Serif for the
 options page's headline. Dark first, and Paper when the system is light. The
 popup stays 360 wide.
+
+**The options page** is one centred column (A1 on the Oct 31 canvas): the
+name and **Open self.mp3**, the headline, then one card for the connection
+(B1). Signed in, the card names the account and draws where an import goes —
+*This browser → Your server → Your library* in green while the server answers,
+*This browser → Your bucket* then a dashed line to the server while it sleeps,
+or the amber *No computer works for your library yet* with **Open self.mp3**.
+Signed out, the card is one step, **Sign in with Google**, and an address that
+stopped answering is named under it with **Forget it**. Then *Three ways to
+save* (C1), each with a small drawing — the pill beside Like, the right-click
+item, the toolbar popup — faded until you sign in. The address is a row at the
+foot (D1), *Connect by address instead*, that opens in place; a token field
+appears only once the server has asked for one, and a connected address
+becomes a row of its own with **Forget**. Nothing about buckets, servers or
+sync shows on the page as it first opens.
 
 **The tokens are not copied.** `apps/extension/scripts/theme.mjs` reads the
 compiled tokens from `packages/client` (`darkPalette`, `lightPalette`, `radius`,
@@ -337,6 +366,7 @@ sends — tags, and never a playlist.
 
 | State | Shown when | Drawn as |
 |---|---|---|
+| Sign in to find your server | Not signed in, and the address typed into the options does not answer | Sign in with Google first, Try again, and the address that did not answer under them; the header says *Not signed in*. Signing in finds the server, so a dead address is not put forward as the server being down |
 | Not a music page | No YouTube link, or no page kind | Paste box (one link or twenty) and the last five imports |
 | Looking up | Preview running (yt-dlp, ~2–3 s) | The song card as a skeleton, with the page title |
 | Song (`E1`) | Single, not in the library | Card with the title and artist as fields, "Tidied from …" when `tidyVideoTitle` changed it, tag chips with the last import's tags on, "+ new", Import to your library |
@@ -415,12 +445,41 @@ which the Import page understands from the share target.
   `background/menus.ts`), the popup with a link given instead of a tab, because a context-menu click cannot open the
   action popup reliably.
 
+## The checks on song rows (D1)
+
+- **Which rows** live in `rows.ts`, per site: `ytmusic-player-queue-item` (Up
+  next), `ytmusic-responsive-list-item-renderer` (playlists, albums, search;
+  an artist's or an album's row links elsewhere and is skipped) and
+  `ytd-playlist-panel-video-renderer` (the playlist beside a www watch page).
+  Video cards on YouTube's home, search and sidebar are not rows and get
+  nothing yet. m.youtube.com has no rows here.
+- **Up next has no links.** A queue row's video is only in the data Polymer
+  hands it, a property the page's own JavaScript sets, which a content script
+  cannot see from its own world. So a second, tiny script runs in the page's
+  world (`"world": "MAIN"` in the manifest, YouTube Music only):
+  `videoIds.ts` reads `data.videoId`, plus both halves under a Song/Video
+  wrapper, and writes them on the row as `data-selfmp3-videos`. It asks
+  nothing of the extension. Polymer reuses rows as the queue moves, so it
+  writes again after every change, and the content script watches that
+  attribute and `href`s as well as added nodes.
+- **Asking.** `checks.ts` sends the videos it has not seen as one `owned`
+  request on the page channel: at most 500 at a time, valid video ids only.
+  The worker answers from the same link index as `songFor`, reading the library
+  version once per question. Answers are kept for five minutes, and the old
+  answer keeps drawing while the new one is asked, so checks do not blink. A
+  question the worker could not answer counts as "not yours" for the same time.
+- The mark is a `selfmp3-check` element with a closed shadow root, like the
+  pill: the pill's note mark in `--on-accent` on a 20 px `--accent` coin. A
+  plain green check came first and read as one of YouTube's own marks.
+
 ## The watcher (F1)
 
-- Every import the extension starts is a **batch**: the job ids (or request
-  uids) one click created, kept in `chrome.storage.local`. These are not secret.
-- While a batch is open the background polls `importQueue()` (or
-  `cloudImports()`) every 2 seconds while it is awake. A `chrome.alarms` alarm
+- Every import the extension starts on the server is a **batch**: the job ids
+  one click created, kept in the worker's IndexedDB with everything else. A
+  link left in the bucket is not one: there is no job to follow until the
+  server takes it, and the popup's footer counts what is still waiting.
+- While a batch is open the background polls `importQueue()` every 2 seconds
+  while it is awake. A `chrome.alarms` alarm
   every 30 seconds, Chrome's floor, wakes it if it was suspended. The alarm's
   reads slow down while nothing changes — every alarm at first, then a minute,
   two, five, ten, twenty between them — and start over when something does.
@@ -434,7 +493,8 @@ which the Import page understands from the share target.
 - **One notification per batch**, with copy from `jobs.model.ts`: "Idol added",
   or "18 songs added · City pop night drive · 1 couldn't be downloaded". A click
   opens the app's Import page.
-- The **link index** (`videoId → song`) is rebuilt when `GET /api/library/version`
+- The **link index** (`linkIdentity → song`, so every form of a video's link
+  is one song) is rebuilt when `GET /api/library/version`
   (direct) or the cloud library (bucket) changes, and stored in IndexedDB so the
   popup's "already have" answer is instant.
 

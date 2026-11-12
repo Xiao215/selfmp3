@@ -82,9 +82,9 @@ appear on a restart of a server that has been running all along: it means the bu
 library this server did not know, so something else has been writing to it. Stop and find
 out what before going further.
 
-**5. A development server on 4600 is passed over, not taken.** The server publishes
-`http://localhost:4600` among its addresses, and a device races all of them; on the Mac a
-development server answers there first. A device keeps only an address whose `/api/health`
+**5. A development server on 4600 is passed over, not taken.** A server without a public
+address publishes `http://localhost:4600` among its addresses, and a device races all of
+them; on the Mac a development server answers there first. A device keeps only an address whose `/api/health`
 names the server the snapshot named (docs/SYNC.md, "An answer has to be from the right
 server"), so the real app goes on to the Pi. If the real app on a computer says its
 library's computer is away while the Pi is up, check that: `curl -s localhost:4600/api/health`
@@ -482,9 +482,10 @@ minutes. It is the quickest end-to-end check that plays recorded offline are del
 
 ## Testing as a device away from home
 
-At home every app finds the server on the LAN or over Tailscale first, because addresses
-are raced and the nearest wins. That is correct, and it means a preprod run from home
-**never touches the public address** unless it is made to. Two ways, no product changes:
+A server with a public address publishes only that one, so every app takes the public
+address from anywhere. A server without one publishes its LAN and Tailscale addresses,
+which are raced and the nearest wins: a preprod run from home against such a server
+**never touches a public address** unless it is made to. Two ways, no product changes:
 
 **The desktop app** takes Chromium's flags. Launch the built binary with a debugging port
 and with the server's public name pinned to Tailscale's public ingress (the address from

@@ -73,8 +73,6 @@ interface LibraryModel {
   /** The current field's two ways round, named for it: Newest first, Oldest first. */
   sortOrders: readonly SortOrder[]
   loading: boolean
-  /** The server did not answer; what is shown is the kept copy. */
-  unreachable: boolean
   /** Why the library did not answer, for the card that says so; null while it has. */
   failure: unknown
   emptyReason: LibraryEmptyReason
@@ -83,7 +81,8 @@ interface LibraryModel {
   setDescending: (descending: boolean) => void
   /** Turn a tag on or off. Every chosen tag adds its songs to the list. */
   toggleTag: (tagId: number) => void
-  clearTags: () => void
+  /** Every song: no tags, not only the liked ones, not only those on this device. */
+  showAll: () => void
   toggleDownloadedOnly: () => void
   /** The strip's Liked chip: only the songs you like. */
   toggleLikedOnly: () => void
@@ -183,7 +182,15 @@ export function useLibraryModel(
     (tagId: number) => setFilter(current => toggleTag(current, tagId)),
     [setFilter],
   )
-  const clearTags = useCallback(() => setFilter(clearTagFilter), [setFilter])
+  const showAll = useCallback(
+    () =>
+      setFilter(current => ({
+        ...clearTagFilter(current),
+        downloadedOnly: false,
+        likedOnly: false,
+      })),
+    [setFilter],
+  )
   const toggleDownloadedOnly = useCallback(
     () => setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly })),
     [setFilter],
@@ -224,13 +231,12 @@ export function useLibraryModel(
       sortOptions: SORT_OPTIONS,
       sortOrders: sortOption?.orders ?? [],
       loading: isPending,
-      unreachable: isError,
       failure: error,
       emptyReason: emptyReason({ isError, total: songs.length, shown: visible.length }),
       setSort,
       setDescending,
       toggleTag: toggleTagId,
-      clearTags,
+      showAll,
       toggleDownloadedOnly,
       toggleLikedOnly,
       likedCount,
@@ -253,7 +259,7 @@ export function useLibraryModel(
       setDescending,
       sortOption,
       toggleTagId,
-      clearTags,
+      showAll,
       toggleDownloadedOnly,
       toggleLikedOnly,
       likedCount,
@@ -277,11 +283,6 @@ export function orderLabel(
 }
 
 /**
- * Whether the library failed because the bucket's daily allowance is used up.
- * Everything answered then — the doorman, the server — so nothing should say
- * it cannot be reached.
- */
-/**
  * The doorman's trouble (packages/replica/src/reach.ts) as the error the
  * screens already know how to say: nothing answering as offline, an error of
  * its own as a problem, a write refused for the day as the allowance.
@@ -293,6 +294,11 @@ export function troubleAsError(trouble: DoormanTrouble | null): ApiError | null 
   return new ApiError(502, trouble.message)
 }
 
+/**
+ * Whether the library failed because the bucket's daily allowance is used up.
+ * Everything answered then — the doorman, the server — so nothing should say
+ * it cannot be reached.
+ */
 export function bucketCapped(error: unknown): boolean {
   return error instanceof ApiError && error.isBucketCapped
 }

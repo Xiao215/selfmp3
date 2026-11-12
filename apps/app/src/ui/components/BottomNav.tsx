@@ -51,7 +51,13 @@ function BottomNavInner(): ReactNode {
   // Kept as the page changes, the way React asks a value derived from the
   // last render to be kept: set during render, only when it has moved.
   if (own !== null && own !== lastTab) setLastTab(own)
-  const current = own ?? (pathname === '/search' ? lastTab : null)
+  // The tab just pressed, lit from the press rather than from the address:
+  // the address changes only once the new page has been built, and the pill
+  // waited for that before it moved, which made every tab feel slow. Let go
+  // of as soon as the address moves, wherever it went.
+  const [going, setGoing] = useState<{ to: TabHref; from: string } | null>(null)
+  if (going !== null && going.from !== pathname) setGoing(null)
+  const current = going?.to ?? own ?? (pathname === '/search' ? lastTab : null)
   const pill = useSlidingHighlight(current, styles.pill)
 
   return (
@@ -91,8 +97,15 @@ function BottomNavInner(): ReactNode {
                 // navigation walking all of them. A browser keeps one of each place
                 // already (`ports/singularPlaces`), and its history is the
                 // pile the back button walks.
-                if (singularPlaces) router.navigate(tab.href)
-                else router.dismissTo(tab.href)
+                //
+                // A frame after the pill is told, so its spring is already
+                // running on the UI thread when the new page takes the JS
+                // thread to build itself.
+                setGoing({ to: tab.href, from: pathname })
+                requestAnimationFrame(() => {
+                  if (singularPlaces) router.navigate(tab.href)
+                  else router.dismissTo(tab.href)
+                })
               }}
               testID={`tab-${tab.id}`}
               accessibilityLabel={tab.label}

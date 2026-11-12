@@ -2,7 +2,7 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 import { describe, expect, it } from 'vitest'
-import type { DoormanMe } from '@selfmp3/shared'
+import { SHARE_GONE_MOST, type DoormanMe } from '@selfmp3/shared'
 import { DOORMAN_ORIGIN, harness } from '../../../doorman/src/fakes.js'
 import { speakHttp1 } from '../http/outgoing.js'
 import { DoormanClient } from './doorman.js'
@@ -59,39 +59,6 @@ const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } })
 
 describe('DoormanClient', () => {
-  it('claims a sign-in: pending, then signed in with the account', async () => {
-    let answered = false
-    const { client, calls } = stand(() => {
-      if (!answered) {
-        answered = true
-        return json({ status: 'pending' })
-      }
-      return json({ status: 'signed-in', token: 't'.repeat(43), me: ME })
-    })
-    expect(await client.claim('b'.repeat(32))).toEqual({ status: 'pending' })
-    const second = await client.claim('b'.repeat(32))
-    expect(second.status === 'signed-in' && second.me.email).toBe('me@example.com')
-    expect(calls[0]).toMatchObject({
-      method: 'POST',
-      url: 'https://doorman.test/v1/auth/claim',
-      body: JSON.stringify({ attempt: 'b'.repeat(32) }),
-    })
-  })
-
-  it('claims with the code Google’s sign-in ended with, and passes a refusal on', async () => {
-    let tries = 0
-    const { client, calls } = stand(() => {
-      tries++
-      if (tries === 1) return json({ status: 'code' })
-      if (tries === 2) return json({ status: 'signed-in', token: 't'.repeat(43), me: ME })
-      return json({ error: 'That isn’t the code shown after signing in.', code: 'wrong_code' }, 403)
-    })
-    expect(await client.claim('b'.repeat(32))).toEqual({ status: 'code' })
-    expect((await client.claim('b'.repeat(32), '4F7K2QXM')).status).toBe('signed-in')
-    expect(calls[1]?.body).toBe(JSON.stringify({ attempt: 'b'.repeat(32), code: '4F7K2QXM' }))
-    await expect(client.claim('b'.repeat(32), 'AAAAAAAA')).rejects.toThrow(/isn’t the code/)
-  })
-
   it('sends the session with every signed-in request', async () => {
     const { client, calls } = stand(() => json(ME))
     await client.me('session-token')
@@ -100,7 +67,7 @@ describe('DoormanClient', () => {
 
   it('turns each way of failing into an error that says what to do', async () => {
     const answers: Array<[Response, string, RegExp]> = [
-      [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /Sign in again/],
+      [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /taken back/],
       [
         json({ error: 'connect your bucket first', code: 'no_storage' }, 409),
         'missing',
@@ -263,6 +230,21 @@ describe('DoormanClient', () => {
         { key: 'audio/b.m4a', size: 2 },
       ])
       expect(calls[1]?.url).toBe('https://doorman.test/v1/list?prefix=audio%2F&cursor=next')
+    })
+
+    it('tells the share links which files went, a few hundred at a time', async () => {
+      const { client, calls } = stand(() => new Response(null, { status: 204 }))
+      const keys = Array.from({ length: SHARE_GONE_MOST + 1 }, (_, n) => `audio/${n}.m4a`)
+      await client.store('t', 'test').unlend?.(keys)
+      expect(calls.map(call => [call.method, call.url])).toEqual([
+        ['POST', 'https://doorman.test/v1/share/gone'],
+        ['POST', 'https://doorman.test/v1/share/gone'],
+      ])
+      expect(calls.map(call => JSON.parse(call.body ?? '{}'))).toEqual([
+        { keys: keys.slice(0, SHARE_GONE_MOST) },
+        { keys: keys.slice(SHARE_GONE_MOST) },
+      ])
+      expect(calls[0]?.headers['content-type']).toBe('application/json')
     })
 
     it('does not mind deleting what is already gone', async () => {

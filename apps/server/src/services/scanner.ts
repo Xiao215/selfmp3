@@ -1,6 +1,7 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { audioKey, messageOf, mimeForExtension, type ScanResult } from '@selfmp3/shared'
+import { isDiskFull } from '../db/fullDisk.js'
 import { sha256 } from '../util/hash.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -23,8 +24,11 @@ interface Picture {
  */
 const SETTLE_MS = 10_000
 
-/** How soon to try again to keep a cover that could not be written: a full disk takes a while to clear. */
-const COVER_RETRY_MS = 60_000
+/**
+ * How soon to try again what a full disk stopped — a cover that could not be
+ * written, a song that could not be added: a full disk takes a while to clear.
+ */
+const ROOM_RETRY_MS = 60_000
 
 /** A file that changed while it was being read: it is still being written. */
 class StillArriving extends Error {
@@ -249,7 +253,7 @@ export class ScannerService {
     const saved = await this.#covers.save(songId, picture.data, picture.extension)
     if (saved === 'failed') {
       this.#songs.coverToRead(songId)
-      this.#comeBack(COVER_RETRY_MS)
+      this.#comeBack(ROOM_RETRY_MS)
       return false
     }
     // Kept, it is read; refused for good, there is nothing more to read.
@@ -297,7 +301,12 @@ export class ScannerService {
             this.#storage.localPath(sidecar.key),
             this.#storage.localPath(`${stem} (${n})${sidecar.extension}`),
           )
-          .catch(() => undefined)
+          .catch((error: unknown) => {
+            this.#logger.warn('could not move a file’s words aside with it', {
+              key: sidecar.key,
+              message: messageOf(error),
+            })
+          })
       }
       return candidate
     }
@@ -322,6 +331,8 @@ export class ScannerService {
     let updated = 0
     let skipped = 0
     let arriving = 0
+    /** Files that could not be added for a full disk: unchanged, so no watch event comes for them. */
+    let waiting = 0
     /** How long until the newest file still arriving has been still for long enough. */
     let settledIn = 0
 
@@ -379,6 +390,14 @@ export class ScannerService {
             settledIn = Math.max(settledIn, this.#settleMs)
             continue
           }
+          if (isDiskFull(error)) {
+            waiting++
+            this.#logger.warn('no room on the disk to add a file, coming back for it', {
+              path: key,
+              message: messageOf(error),
+            })
+            continue
+          }
           skipped++
           this.#logger.warn('could not read a file, skipping it', {
             path: key,
@@ -391,6 +410,7 @@ export class ScannerService {
       this.#running = false
     }
     if (arriving > 0) this.#comeBack(settledIn)
+    if (waiting > 0) this.#comeBack(ROOM_RETRY_MS)
 
     const result: ScanResult = {
       added,
@@ -404,6 +424,7 @@ export class ScannerService {
       updated,
       ...(skipped > 0 ? { skipped } : {}),
       ...(arriving > 0 ? { arriving } : {}),
+      ...(waiting > 0 ? { waiting } : {}),
       total: result.total,
       ms: result.durationMs,
     })

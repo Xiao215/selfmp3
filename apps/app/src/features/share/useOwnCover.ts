@@ -1,7 +1,9 @@
 import { useCallback } from 'react'
 import { yoursOf } from '@selfmp3/client'
-import type { RoomSong } from '@selfmp3/shared'
+import type { RoomSong, ShareSummary } from '@selfmp3/shared'
 import { KEPT_COVER_SIZE } from '../../offline/covers'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
+import { shareApi } from './shareLinks'
 import { useArt } from '../../offline/useArt'
 import { useLibraryIndex, useSongsById } from '../../ui/songsById'
 
@@ -27,5 +29,15 @@ export function useOwnCover(
       return own?.hasArt ? artFor(own) : lent
     },
     [index, byId, artFor],
+  )
+}
+
+/** A link's cover in a row of links (Links you shared, From friends): its cover song's, as above. */
+export function useSummaryCover(): (link: ShareSummary) => string | null | undefined {
+  const coverOf = useOwnCover(ROW_COVER_SIZE)
+  return useCallback(
+    link =>
+      coverOf(link.coverSong, link.cover ? shareApi.fileUrl(link, link.cover, 'cover') : null),
+    [coverOf],
   )
 }

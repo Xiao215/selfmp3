@@ -7,7 +7,8 @@ import {
   type RoomState,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import { APP_ORIGIN, BUCKET, ME, harness, type Harness } from './fakes.js'
+import { BUCKET } from './fakeBucket.js'
+import { APP_ORIGIN, ME, harness, type Harness } from './fakes.js'
 import { newRoomCode } from './rooms.js'
 
 /**
@@ -239,6 +240,63 @@ describe('songs a friend brings', () => {
     expect((await act(s, mia, { type: 'skip' })).status).toBe(410)
   })
 
+  it('lend nothing new once the friend left: what waits finishes, nothing played comes again', async () => {
+    const s = await setup()
+    s.h.bucket.put(`mia/audio/${'cd'.repeat(32)}.m4a`, 'abcdefghij', { contentType: 'audio/mp4' })
+    const mia = await join(s, 'Mia', s.friend)
+    const ana = await join(s, 'Ana')
+    await act(s, mia, { type: 'add', song: song('played') }, s.friend)
+    const added = await state(
+      await act(
+        s,
+        mia,
+        { type: 'add', song: song('waiting', `audio/${'cd'.repeat(32)}.m4a`) },
+        s.friend,
+      ),
+    )
+    const [played, waiting] = added.entries.map(entry => entry.id)
+    await act(s, s.room, { type: 'report', entryId: played, position: 0, playing: true })
+    await act(s, s.room, { type: 'report', entryId: null, position: 0, playing: false })
+    expect((await act(s, mia, { type: 'leave' })).status).toBe(200)
+
+    const again = await act(s, s.room, { type: 'again', entryId: played })
+    // Refused as not allowed: a device takes 404 as the room being over.
+    expect(again.status).toBe(403)
+    expect(await again.text()).toContain('has left the room')
+    const back = await act(s, s.room, {
+      type: 'report',
+      entryId: played,
+      position: 0,
+      playing: true,
+    })
+    expect(back.status).toBe(403)
+    expect((await file(s, ana, played ?? '')).status).toBe(404)
+    expect(await (await file(s, ana, waiting ?? '')).text()).toBe('abcdefghij')
+  })
+
+  it('keeps a played song’s cover for someone who came after its friend left', async () => {
+    const s = await setup()
+    const COVER = `covers/${SHA}.jpg`
+    s.h.bucket.put(`mia/${COVER}`, 'picture', { contentType: 'image/jpeg' })
+    const mia = await join(s, 'Mia', s.friend)
+    const added = await state(
+      await act(
+        s,
+        mia,
+        { type: 'add', song: { ...song('played'), cover: { key: COVER, size: 7 } } },
+        s.friend,
+      ),
+    )
+    const played = added.entries[0]?.id ?? ''
+    await act(s, s.room, { type: 'report', entryId: played, position: 0, playing: true })
+    await act(s, s.room, { type: 'report', entryId: null, position: 0, playing: false })
+    expect((await act(s, mia, { type: 'leave' })).status).toBe(200)
+
+    const ken = await join(s, 'Ken')
+    expect(await (await file(s, ken, played, 'cover')).text()).toBe('picture')
+    expect((await file(s, ken, played)).status).toBe(404)
+  })
+
   it('stop being lent to someone the host removed', async () => {
     const s = await setup()
     const mia = await join(s, 'Mia', s.friend)
@@ -312,6 +370,38 @@ describe('a link a guest pastes', () => {
       json: { base: 'https://evil.example', token: null },
     })
     expect(refused.status).toBe(403)
+  })
+
+  it('is fetched only from a public address, never by following a redirect', async () => {
+    const s = await setup()
+    const ana = await join(s, 'Ana')
+    const entry = (await state(await act(s, ana, { type: 'addLink', song: LINK }))).entries[0]?.id
+    const asked: string[] = []
+    for (const host of ['192.168.1.20', 'pi.example.ts.net']) {
+      s.h.elsewhere.set(host, request => {
+        asked.push(request.url)
+        return new Response('<script>1</script>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      })
+    }
+    const linkServer = (base: string) =>
+      s.h.call(`/v1/rooms/${s.room.code}/link-server?t=${s.room.token}`, {
+        method: 'PUT',
+        json: { base, token: null },
+      })
+
+    await linkServer('https://192.168.1.20')
+    expect((await file(s, ana, entry ?? '')).status).toBe(502)
+    expect(asked).toEqual([])
+
+    await linkServer('https://pi.example.ts.net')
+    const played = await file(s, ana, entry ?? '')
+    expect(played.status).toBe(200)
+    expect(s.h.outside.at(-1)?.init.redirect).toBe('manual')
+    // Whatever the host's server answers is never a page on the doorman's address.
+    expect(played.headers.get('content-security-policy')).toBe('sandbox')
   })
 
   it('takes only an https address with nothing after the host', async () => {

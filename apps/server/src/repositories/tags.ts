@@ -14,6 +14,7 @@ export class TagRepository {
   readonly #linkSongTag
   readonly #unlinkSongTag
   readonly #insertSynced
+  readonly #ofSong
 
   constructor(db: Db) {
     this.#db = db
@@ -44,6 +45,9 @@ export class TagRepository {
     )
     this.#unlinkSongTag = db.prepare('DELETE FROM song_tags WHERE song_id = ? AND tag_id = ?')
     this.#insertSynced = db.prepare('INSERT INTO tags (uid, name, hue) VALUES (?, ?, ?)')
+    this.#ofSong = db.prepare<[number], { id: number; uid: string }>(
+      'SELECT t.id, t.uid FROM song_tags st JOIN tags t ON t.id = st.tag_id WHERE st.song_id = ?',
+    )
   }
 
   all(): Tag[] {
@@ -115,6 +119,11 @@ export class TagRepository {
 
   addToSong(songId: number, tagId: number): void {
     this.#linkSongTag.run(songId, tagId)
+  }
+
+  /** A song's tags, by id and uid. */
+  ofSong(songId: number): { id: number; uid: string }[] {
+    return this.#ofSong.all(songId)
   }
 
   removeFromSong(songId: number, tagId: number): void {

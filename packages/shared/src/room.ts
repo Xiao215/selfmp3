@@ -3,6 +3,7 @@ import type {
   RoomAction,
   RoomDoc,
   RoomEntry,
+  RoomFilePart,
   RoomMember,
   RoomMemberKind,
   RoomMode,
@@ -246,7 +247,11 @@ export function applyRoomAction(
   const entryById = (id: string): RoomEntry | undefined =>
     doc.entries.find(entry => entry.id === id)
 
-  const add = (song: RoomSong, owner: string | null): RoomDoc | RoomRefusal => {
+  const add = (
+    song: RoomSong,
+    owner: string | null,
+    lent: Pick<RoomEntry, 'from' | 'fromPicture'> = { from: null, fromPicture: null },
+  ): RoomDoc | RoomRefusal => {
     if (waitingEntries(doc).length >= ROOM_MAX_WAITING) {
       return refuse('full', 'the list is full; let some play first')
     }
@@ -255,8 +260,8 @@ export function applyRoomAction(
       song,
       addedBy: memberId,
       owner,
-      from: null,
-      fromPicture: null,
+      from: lent.from,
+      fromPicture: lent.fromPicture,
       addedAt: now,
       at: null,
       playedAt: null,
@@ -278,7 +283,14 @@ export function applyRoomAction(
     case 'again': {
       const entry = entryById(action.entryId)
       if (!entry) return refuse('missing', 'that song is not in the room')
-      return add(entry.song, entry.owner)
+      // Refused as not allowed, not as missing: a device takes a missing
+      // song's answer (404) as the room being over.
+      if (!canPlayAgain(doc, entry)) {
+        return refuse('forbidden', 'whoever that song is from has left the room')
+      }
+      // The same song from the same place: a shared playlist's keeps whose it
+      // is, and the doorman lends the copy as it lent the first (room.ts #act).
+      return add(entry.song, entry.owner, { from: entry.from, fromPicture: entry.fromPicture })
     }
     case 'fromShelf': {
       const shelf = doc.shelves.find(candidate => candidate.member === action.member)
@@ -320,7 +332,7 @@ export function applyRoomAction(
     case 'play':
       return {
         ...touched,
-        want: { seq: (doc.want?.seq ?? 0) + 1, kind: action.type, by: memberId },
+        want: { seq: (doc.want?.seq ?? 0) + 1, kind: action.type, by: memberId, at: now },
       }
     case 'report': {
       const startedAt = now - action.position * 1000
@@ -331,6 +343,10 @@ export function applyRoomAction(
       }
       const next = action.entryId === null ? undefined : entryById(action.entryId)
       if (action.entryId !== null && !next) return refuse('missing', 'that song is not in the room')
+      // The host's player gone back to a played song: only one that may go in again.
+      if (next && next.playedAt !== null && !canPlayAgain(doc, next)) {
+        return refuse('forbidden', 'whoever that song is from has left the room')
+      }
       const entries = doc.entries.map(entry => {
         if (entry.id === doc.playing?.entryId) return { ...entry, playedAt: now }
         if (entry.id === next?.id) return { ...entry, at: null, playedAt: null }
@@ -359,8 +375,9 @@ export function applyRoomAction(
     case 'kick': {
       const target = doc.members.find(candidate => candidate.id === action.member)
       if (!target || target.kind === 'host') return refuse('missing', 'nobody like that to remove')
-      // Someone asked to leave takes their waiting songs with them; someone
-      // who left by themselves leaves theirs to play (`leave`).
+      // Someone asked to leave takes their waiting songs with them, and any
+      // of theirs someone else put in again; someone who left by themselves
+      // leaves theirs to play (`leave`).
       return {
         ...touched,
         members: doc.members.map(other =>
@@ -369,7 +386,7 @@ export function applyRoomAction(
         entries: doc.entries.filter(
           entry =>
             !(
-              entry.addedBy === target.id &&
+              (entry.addedBy === target.id || entry.owner === target.id) &&
               entry.playedAt === null &&
               entry.id !== doc.playing?.entryId
             ),
@@ -412,12 +429,40 @@ export function roomStateFor(doc: RoomDoc, memberId: string, serverTime: number)
 }
 
 /**
- * Whether a member may still read an entry's files: the room is open, they
- * are in it, and the entry is in the list (waiting, playing or played).
+ * Whether a played song may go in again: its owner, when it is someone's in
+ * the room, is still here. Someone who left lends nothing new. (A shared
+ * playlist's song is lent while the playlist still has it, which only the
+ * doorman can ask.)
  */
-export function canReadEntry(doc: RoomDoc, memberId: string, entryId: string): RoomEntry | null {
+export function canPlayAgain(doc: Pick<RoomDoc, 'members'>, entry: RoomEntry): boolean {
+  return !ownerLeft(doc, entry)
+}
+
+/**
+ * Whether a member may still read one of an entry's files: the room is open,
+ * they are in it, and the entry is in the list (waiting, playing or played).
+ * A song whose owner left plays only while it waits or plays: what they left
+ * behind finishes, and none of it plays again. Its cover and words stay, as
+ * every song's do while the room is open.
+ */
+export function canReadEntry(
+  doc: RoomDoc,
+  memberId: string,
+  entryId: string,
+  part: RoomFilePart,
+): RoomEntry | null {
   if (doc.endedAt !== null) return null
   const member = doc.members.find(candidate => candidate.id === memberId)
   if (!member || member.left) return null
-  return doc.entries.find(entry => entry.id === entryId) ?? null
+  const entry = doc.entries.find(candidate => candidate.id === entryId)
+  if (!entry) return null
+  if (part === 'audio' && entry.playedAt !== null && ownerLeft(doc, entry)) return null
+  return entry
+}
+
+/** Whether the entry is lent by someone in the room who has since left. */
+function ownerLeft(doc: Pick<RoomDoc, 'members'>, entry: RoomEntry): boolean {
+  return (
+    entry.owner !== null && doc.members.find(member => member.id === entry.owner)?.left !== false
+  )
 }

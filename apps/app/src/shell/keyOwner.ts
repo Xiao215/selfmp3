@@ -53,14 +53,22 @@ export function rowOwnsKey(target: EventTarget | null, combination: string): boo
   return combination === ' ' && tabbing() && songRowOf(target) !== null
 }
 
-/** Controls that Space works, as Enter does (`Press`). */
-const SPACE_CONTROL = '[role="switch"], [role="checkbox"], [role="radio"], [role="tab"]'
+/**
+ * Spread on what Space works while it has a choice of its own: the sound
+ * map's field with a song chosen, where Space plays that song.
+ */
+export const OWNS_SPACE = { dataSet: { ownsSpace: 'true' } } as const
+
+/** Controls that Space works, as Enter does (`Press`), and anything `OWNS_SPACE` marks. */
+const SPACE_CONTROL =
+  '[role="switch"], [role="checkbox"], [role="radio"], [role="tab"], [data-owns-space]'
 
 /**
- * Whether Space is a switch's, a radio's, a checkbox's or a tab's, rather
- * than the page's play and pause: on one the keyboard has brought focus to,
- * Space flips, chooses or opens it, as WAI-ARIA's patterns have it. As with a
- * row, the focus a click leaves behind is not that, and Space still pauses.
+ * Whether Space is a switch's, a radio's, a checkbox's or a tab's (or the
+ * sound map's, with a song chosen), rather than the page's play and pause: on
+ * one the keyboard has brought focus to, Space flips, chooses or opens it, as
+ * WAI-ARIA's patterns have it. As with a row, the focus a click leaves behind
+ * is not that, and Space still pauses.
  */
 export function controlOwnsKey(target: EventTarget | null, combination: string): boolean {
   if (combination !== ' ' || !tabbing()) return false

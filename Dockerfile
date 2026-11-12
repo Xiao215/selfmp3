@@ -115,7 +115,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 # The layout mirrors the repo so the workspace symlinks in node_modules keep
-# resolving, and so the server's page sits beside its build where it expects.
+# resolving, and so the admin page sits beside its build where it expects.
 COPY --from=server --chown=node:node /app/package.json ./
 COPY --from=server --chown=node:node /app/node_modules ./node_modules
 COPY --from=server --chown=node:node /app/packages/shared/package.json ./packages/shared/

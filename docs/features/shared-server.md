@@ -8,7 +8,7 @@ bucket, and a server's address only ever reached the devices that read *its* buc
 
 Xiao chose **a revocable grant** for the server's way into each bucket, and anyone
 signed in for who may use it — then, on 2026-10-13, an **allow list** for who may sign in
-at all, kept by the doorman's owner in Settings (below).
+at all, kept by the doorman's owner on the admin page's People tab (below).
 
 **Where:** the server (`apps/server/src/hub/`), the doorman (`apps/doorman/src/grants.ts`
 and `access.ts`), and every app, which knows the shared server's address the way it knows
@@ -54,11 +54,11 @@ answered only to the server's own machine. There is no route to leave by: an
 account takes its grant back (below), which works while the server is off.
 
 The `selfmp3` command on the server itself lists the workspaces from `GET /api/hub`. The
-owner's admin page shows only how many there are ([admin.md](admin.md)). Changing a library's cloud connection
-(sign-in, bucket, disconnect, publish now) is refused from anywhere but that machine, token or
-not: a workspace reaches its bucket through the grant its devices gave it, and nothing a
-device holds may repoint it. The `selfmp3` command names one the same
-way, with `--library <id or email>` ([install-and-ops.md](install-and-ops.md)).
+owner's admin page shows only how many there are ([admin.md](admin.md)). Nothing changes a
+library's way into its bucket once it has joined: a workspace reaches its bucket through the
+grant its devices gave it, the server's cloud API only answers reads, and nothing a device
+holds may repoint it. The `selfmp3` command names a library the same way, with
+`--library <id or email>` ([install-and-ops.md](install-and-ops.md)).
 
 What the workspaces share is what is heavy, or tied to the machine rather than to anyone's
 library (`apps/server/src/shared.ts`):
@@ -153,7 +153,7 @@ in KV). The doorman lists an account's grants (`GET /v1/grants`) and ends one
 (`DELETE /v1/grants/<id>`). Settings › Account lists them under **Computers**, with
 **Remove** on each.
 
-Three rules keep grants safe:
+Four rules keep grants safe:
 
 - **A removed grant is noticed at once.** **Remove** asks the doorman alone, so it works
   while the server is off. Once the grant is ended, the doorman tells the server, after it
@@ -169,16 +169,22 @@ Three rules keep grants safe:
 - **Signing out everywhere ends grants too.**
 - **A grant cannot make grants.** Otherwise a server could hand the account on to another
   without anyone being asked.
+- **A grant ends only itself.** A server lets an account go with its own grant; which other
+  servers are let in is the account's to say, from a device.
 
 ### Telling the server
 
-A grant has always kept the address the server gave when it asked for it (`server`: its
+A grant keeps the address the server gave when it asked for it (`server`: its
 public address, `SELFMP3_PUBLIC_URL`, else the first it listens on). When a grant is ended
 from a device, or when the account signs out everywhere, the doorman sends
 `POST <server>/api/hub/check` with `{ "grant": "<id>" }` (`tellServer` in
 `apps/doorman/src/grants.ts`). It does so in the Worker's `waitUntil`, after the answer, with
 a five-second limit and no redirects followed. A failure is a line in the doorman's log and
-nothing more. A server letting the account go with its own grant is not told.
+nothing more. A server letting the account go with its own grant is not told. Nor is one whose
+address is off the public internet (this computer, a home network, a tailnet's 100.64/10, a
+link-local or metadata address, a `.local` name: `mayReach` in `apps/doorman/src/http.ts`, the
+check every address someone else chose goes through): any signed-in account can give any
+address, and the doorman must not knock on such a host for it. Under `wrangler dev --env dev` (`DEV`) a server on this computer is still told.
 
 The notice proves nothing and the server does not take its word (`Hub.check` in
 `apps/server/src/hub/hub.ts`). It carries no token, and the route needs none. All it does is
@@ -287,6 +293,6 @@ A change that touches the doorman, the server and the app goes out in that order
 | One library's background work | `apps/server/src/start.ts` |
 | Grants | `apps/doorman/src/grants.ts`; `DoormanGrant*` in `packages/shared/src/schemas/doorman.ts` |
 | Telling the server | `tellServer` in `apps/doorman/src/grants.ts`; `Hub.check` and `POST /api/hub/check` in `apps/server/src/hub/`; `HubCheckSchema` in `packages/shared/src/schemas/hub.ts` |
-| Plays in the bucket | `apps/server/src/services/playsArchive.ts`, `cloudSync.ts` (`#uploadPlays`, `#readBucketPlays`); `CloudPlays*` in `packages/shared/src/schemas/cloud.ts` |
+| Plays in the bucket | `apps/server/src/services/playsArchive.ts`, `cloudLibraryFiles.ts` (`uploadPlays`, `#readBucketPlays`); `CloudPlays*` in `packages/shared/src/schemas/cloud.ts` |
 | Joining, from a device | `packages/replica/src/sharedServer.ts`; `apps/app/src/connection/ServerAway.tsx`; `apps/app/src/features/settings/ConnectionPanel.tsx` (`Computers`) |
 | Tests | `apps/server/src/hub/hub.test.ts` (the real doorman over HTTP, and the device's side against it), `apps/doorman/src/grants.test.ts`, the `plays` block in `apps/server/src/services/cloudSync.test.ts`, `packages/replica/src/sharedServer.test.ts`, `packages/client/src/connection/reach.test.ts` |

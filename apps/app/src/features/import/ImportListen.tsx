@@ -8,7 +8,7 @@ import {
   type ImportCoverTone,
   type ImportPreviewItem,
 } from '@selfmp3/shared'
-import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
+import { coverSize, radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
 import { createValueStore } from '../../state/valueStore.model'
@@ -239,8 +239,7 @@ export function ListenCover({
   listening,
   onPress,
   shown,
-  size = 40,
-  label,
+  size = coverSize.rowDense,
 }: {
   item: Pick<ImportPreviewItem, 'title' | 'thumbnail'>
   /** This row's preview, when it is the one playing; null otherwise. */
@@ -248,8 +247,6 @@ export function ListenCover({
   onPress: () => void
   shown: boolean
   size?: number
-  /** What the button says, when it does something other than play: "Close 群青". */
-  label?: string
 }): ReactNode {
   const status = listening?.status ?? null
   const on = status !== null
@@ -259,7 +256,7 @@ export function ListenCover({
     <Press
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label ?? listenLabel(item.title, status)}
+      accessibilityLabel={listenLabel(item.title, status)}
       style={[styles.cover, { width: size, height: size }]}
     >
       <Cover uri={item.thumbnail} title={item.title} size={size} />

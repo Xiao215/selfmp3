@@ -11,6 +11,11 @@ Ask and Suggest tags share), **Tidy up** for names (and what is missing, and son
 twice), the **Report in words**, **Fix song info's Suggested card** and **Names at import**.
 The letters and numbers are the canvas's names for them.
 
+**Where:** the phone, the computer, the web and the desktop app ask; the server answers, and
+every `/api/ai/…` route is one only a server can answer ("Where it runs", below). The server's
+half is `apps/server/src/ai/` and `apps/server/src/routes/ai.ts`; the app's is
+`apps/app/src/features/smart/`, with Ask's box in `apps/app/src/features/search/`.
+
 ---
 
 ## The three rules
@@ -80,16 +85,16 @@ Measured on the real library (1,342 songs) through cli-bridge: Describe 8–15 s
 plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 
 The app has no page for the model. `GET /api/ai` says where the server asks (scheme, host
-and path only, never the key) and which two models; with no address, Settings › Smart
-features dims its switch and says "Your server has no model set up." A feature whose call
+and path only, never the key) and which two models; with no address, Settings' Smart
+features tile says "Not set up" and cannot be pressed. A feature whose call
 fails says so in words: the endpoint down, the key refused, or a limit reached
 ([INSTALL.md](../INSTALL.md#smart-features-cli-bridge-beside-the-server)).
 
 **The sparkle.** Every way into a model carries the four-pointed sparkle (`Sparkle` in
 `Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Describe it,
 Suggest tags, the Report's "In words", Fix song info's Suggest, a model's guesses in a
-review, a model's names under an import row, Tidy up's "Fill them in", and the Smart
-features heading. An Ask answer kept in Home's recents or
+review, a model's names under an import row, Tidy up's "Fill them in", and Settings' Smart
+features tile. An Ask answer kept in Home's recents or
 named as Up next's source carries it too. A press with a sparkle asks a model; one without
 only searches, sorts or edits.
 
@@ -216,7 +221,7 @@ climbed when the one below cannot answer:
   | `judge_each({as, from, brief})` | `songsThatAre`: every song read against the brief, a count by meaning (an even 600 past that, said) | smart |
   | `find_half_remembered({as, terms, brief})` | `halfRemembered.ts` (the find action's) | smart |
   | `propose_tags({as, request, scope, add, remove, focus, songs, ops, newTag, artists, checkup, limit})` | `tagReview` over the scope, kept under `as`: `add`/`remove` change exactly the scope's songs with nothing judged; `focus`, `songs` and `ops` are what the review's plan would have read, so it is not asked | smart (the groups) |
-  | `propose_names({as, what: checkup/change/spellings/fill/copies, request, lookUp, scope, limit})` | `tidy`, `oneSpelling`, `fillGaps`, `findCopies`; kept under `as` | smart / fast |
+  | `propose_names({as, what: checkup/change/spellings/fill/copies, request, lookUp, scope, limit})` | `tidy`, `askedTidy`, `oneSpelling`, `fillGaps`, `findCopies`; kept under `as` | smart / fast |
   | `album_tracks({albums: [{album, artist}] ≤8})` | 网易云 album search + track list, each track matched with `haveTrack` (`getMusic.ts`): how many, which are theirs, which they lack | none |
   | `catalogue({words})` | 网易云 song search | none |
 
@@ -292,7 +297,8 @@ place named exactly what was typed leads the results, so "calm" opens the tag (D
 
 ### The Ask page
 
-`/ask?q=…` (`smart/AskScreen.tsx`). It is a workbench (Xiao picked S1, 2026-10-27, from a
+`/ask?q=…` (`smart/AskScreen.tsx`; a turn's request and answer in `AskTurn.tsx`, the field in
+`AskField.tsx`). It is a workbench (Xiao picked S1, 2026-10-27, from a
 third canvas round, after the chat column of 2026-10-24 — A1 B2 C1 D1 E1 F1 — the split of
 A2 that still left a chat column floating in an empty window until a list arrived, and R1's
 stage, whose answer sat against the page's left edge while its field sat in the middle).
@@ -323,7 +329,10 @@ a list, the list's chip, "↳ these 19 songs" (Follow-ups, below): what "these" 
 nothing more. While a turn is worked on its send is the one
 Stop, which takes that turn off the page and puts its words back in the field. ‹ goes back
 to Search, and the conversation is not kept after it (so there is no "new chat" button);
-the page drawn again any other way finds its turns as they were (`askThread.store.ts`). A
+the page drawn again any other way finds its turns as they were (`askThread.store.ts`).
+Each visit is its own conversation, named in the address (`&thread=…`): the same words
+asked again from Search start afresh, and a reload, which loses the turns, opens with the
+question waiting in the field rather than asked (and done) again. A
 list played next, or asked for a room, keeps its card, whose button says what it does; the
 card opens the answer's page. A
 question over 500 characters is not sent: the field stops there, and one from Search says
@@ -368,8 +377,10 @@ A list does what the words led with (Xiao, "Play now, rest proposes", 2026-10-27
 play — a list, one song from one, "play it" — it starts playing as it comes, once however
 often it is drawn again, as a playback answer is carried out (`usePlayAsItComes`); in a
 reply of several, only its first list asked to play does. Asked to keep ("save it as
-Morning"), its head leads with one **Save as “Morning”** that makes the playlist of exactly
-the songs shown, and as a card among others, its card's Save does (`useSaveAnswer`). Adding
+Morning"), its head leads with one **Save** that makes a playlist called "Morning" of exactly
+the songs shown (the name is on the line above it; on the pill, a concert's long name ran the
+row off a phone, 2026-11-11), and as a card among others, its card's Save does
+(`useSaveAnswer`). The head's buttons go on to a second line when they run out of width. Adding
 to a playlist, tags and names stay proposals, each with its one button.
 
 **A question back** (`clarify`) is a card of its own, always a reply's only card: a question,
@@ -621,8 +632,8 @@ looked up took 26 s and said where its answer came from.
 "From now on, Chinese names only" is a `remember` card, that saves the note when you
 press Remember (`smartNotes` in the settings, at most 30). Every Ask after carries them under
 the request (`withNotes` in `ask.ts`: "Their standing preferences (follow them unless these
-words say otherwise)"), so the agent reads them with the request. Settings › Smart features lists
-them, each with Remove.
+words say otherwise)"), so the agent reads them with the request. Settings › What Ask remembers
+lists them, each with Remove.
 
 ## Follow-ups
 
@@ -1125,13 +1136,15 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 ## Settings › Smart features: one switch
 
-One switch, kept in the server's settings: "Use smart features" (`smartFeatures`, on by
-default), which says what leaves the library at all ("Song names and tags only. Never
-audio."). It covers every feature on this page: Ask (with New playlist's Describe it and Up
+One switch, kept in the server's settings: the **Smart features** tile among Settings' quick
+tiles (`smartFeatures`, on by default; `SmartTile` in
+`apps/app/src/features/settings/SmartPanel.tsx`). Song names and tags go to the model, never
+audio. It covers every feature on this page: Ask (with New playlist's Describe it and Up
 next), Tidy up, Suggest tags, the Report in words, Fix song info's Suggested card, names at
-import, and searching the web. With no model set up on the server the switch is dimmed and
-its hint says "Your server has no model set up." What Ask remembers is listed under it, each
-note with Remove, when there are any. Settings reads and writes the switch on the server
+import, and searching the web. With no model set up on the server the tile says "Not set up"
+and cannot be pressed; with the server out of reach it says "Can’t reach" and a press looks
+again. What Ask remembers is a row into a page of its own (`/settings/remembered`), each note
+with Remove, shown when there are any. Settings reads and writes the switch on the server
 itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy of the
 library keeps no settings. Off, no way in is drawn (`useSmartOn`, which asks the server
 presence has already found, so it costs no probe), and the server refuses every smart route

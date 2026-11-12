@@ -111,8 +111,17 @@ class NativeEngine implements PlaybackEngine {
   /** What each song handed to the player was shown as on the card (`cardKey`), so an unchanged one is not sent again. */
   #cardShown = new Map<number, string>()
 
+  /**
+   * The player set up and listened to, once. A set-up that fails — asked
+   * while the app is in the background — is tried again by the next load or
+   * play, and the listeners go on with it: left unwired, the engine never
+   * heard the player again, and no song ended or showed its progress.
+   */
+  #wired: Promise<void> | null = null
+
   constructor() {
-    void this.#wire()
+    // Failing here is the first load's to try again.
+    void this.#wire().catch(() => undefined)
   }
 
   get state(): EngineState {
@@ -141,18 +150,27 @@ class NativeEngine implements PlaybackEngine {
   }
 
   async load(songId: number, options: LoadOptions = {}): Promise<void> {
-    const { autoplay = true, startAt } = options
     // Loads overlap: the app opening restores a song while a tap starts
     // another. Every step below awaits, and a load allowed to carry on past a
     // newer one resets the player back to its own song, or puts its start
     // position on the song the person just picked.
     const generation = ++this.#loadGeneration
+    // Every caller lets the promise go: a failure is the state's to say.
+    try {
+      await this.#load(songId, options, generation)
+    } catch (error) {
+      if (generation === this.#loadGeneration) this.#hub.patch({ error: failureOf(error) })
+    }
+  }
+
+  async #load(songId: number, options: LoadOptions, generation: number): Promise<void> {
+    const { autoplay = true, startAt } = options
     const overtaken = (): boolean => generation !== this.#loadGeneration
     this.#failed = false
     // Cleared before anything is awaited, so a failure of this load is a
     // change the provider hears even when it says what the last one did.
     this.#hub.patch({ error: null })
-    await ensurePlayer()
+    await this.#wire()
     if (this.#destroyed || overtaken()) return
 
     // Already the song that is sounding. This is the ordinary case right after
@@ -215,11 +233,7 @@ class NativeEngine implements PlaybackEngine {
       // one's title until the player's first tick.
       this.#hub.patch({ error: null, currentTime: startAt ?? 0, duration: 0 })
     } catch (error) {
-      if (!overtaken()) {
-        this.#hub.patch({
-          error: error instanceof Error ? error.message : 'could not play that song',
-        })
-      }
+      if (!overtaken()) this.#hub.patch({ error: failureOf(error) })
     } finally {
       if (!overtaken()) this.#loading = false
     }
@@ -270,8 +284,12 @@ class NativeEngine implements PlaybackEngine {
   }
 
   async play(): Promise<void> {
-    await ensurePlayer()
-    await TrackPlayer.play()
+    try {
+      await this.#wire()
+      await TrackPlayer.play()
+    } catch (error) {
+      this.#hub.patch({ error: failureOf(error) })
+    }
   }
 
   pause(): void {
@@ -316,7 +334,15 @@ class NativeEngine implements PlaybackEngine {
 
   // --- the player's side -----------------------------------------------------
 
-  async #wire(): Promise<void> {
+  #wire(): Promise<void> {
+    this.#wired ??= this.#listen().catch((error: unknown) => {
+      this.#wired = null
+      throw error
+    })
+    return this.#wired
+  }
+
+  async #listen(): Promise<void> {
     await ensurePlayer()
     if (this.#destroyed) return
 
@@ -349,7 +375,7 @@ class NativeEngine implements PlaybackEngine {
         // Held where it is: what plays next is the provider's to say.
         void TrackPlayer.pause()
         void TrackPlayer.removeUpcomingTracks().catch(() => undefined)
-        void this.#explainFailure(failed, message ?? 'playback failed')
+        void this.#explainFailure(failed, message ?? 'playback failed', this.#loadGeneration)
       }),
     )
 
@@ -425,15 +451,16 @@ class NativeEngine implements PlaybackEngine {
    * are passed over for the ones that are. The web engine asks
    * the same way (`#explainSource`).
    */
-  async #explainFailure(songId: number | null, said: string): Promise<void> {
+  async #explainFailure(songId: number | null, said: string, generation: number): Promise<void> {
     const url = songId === null ? null : (this.#hub.wiring.streamUrl?.(songId) ?? null)
     const headers = songId === null ? null : (this.#hub.wiring.streamHeaders?.(songId) ?? null)
     // Only an address on the network: a file here has nothing to ask. A lent
     // song's needs no header — its link's key is in the address.
     const why =
       url && /^https?:/.test(url) ? await askWhyRefused(url, headers ?? {}, LOST_CONNECTION) : null
-    // Another song was loaded while this was asked: its own state stands.
-    if (this.#destroyed || this.#currentSongId !== null) return
+    // Another song was loaded while this was asked — even one not in the
+    // player yet: its own state stands.
+    if (this.#destroyed || generation !== this.#loadGeneration) return
     this.#hub.patch({ error: why ?? said })
   }
 
@@ -460,6 +487,11 @@ class NativeEngine implements PlaybackEngine {
       isLiveStream: false,
     }
   }
+}
+
+/** What the player threw, as the state's `error`. */
+function failureOf(error: unknown): string {
+  return error instanceof Error ? error.message : 'could not play that song'
 }
 
 /**

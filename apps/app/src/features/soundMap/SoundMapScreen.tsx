@@ -4,6 +4,8 @@ import { View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
+import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
+import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg'
 import { StyleSheet, ScopedTheme } from 'react-native-unistyles'
 import { plural, type MapPlace } from '@selfmp3/shared'
 import {
@@ -39,16 +41,27 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { pageFrame } from '../../ui/surfaces'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
+import { useSvgId } from '../../ui/useSvgId'
 import { ScrollView } from '../../ui/components/Scroll'
 import { showFailure, showToast, showUndoToast } from '../../ui/toast'
 import { newPlaylist } from '../playlists/playlists.model'
 import { FieldControl } from './fieldControl'
 import { useShiftHeld } from './fieldInput'
 import { MapHint, useMapHint } from './MapHint'
-import { MapTray, TRAY_PANEL_WIDTH } from './MapTray'
+import { MapTray, TRAY_PANEL_WIDTH, useTrayMotion } from './MapTray'
 import { SoundField } from './SoundField'
-import { chainAlong, lensTags, skyPoints, skyRegions, takeTone, type MapTake } from './sky.model'
+import {
+  chainAlong,
+  lensTags,
+  SKY_EDGE,
+  skyPoints,
+  skyRegions,
+  takeTone,
+  type MapTake,
+} from './sky.model'
 import { trayOrder, traySections } from './tray.model'
+import { boundsOf } from './soundMapView.model'
+import { KEY_ZOOM } from './fieldKeys.model'
 
 /** A drawn stroke's points closer than this (0–1) are one point. */
 const PATH_STEP = 0.004
@@ -69,7 +82,8 @@ const SHEET_SHARE = 0.5
  * name, the tags as chips that light their own songs and fly to them, and in
  * the corner the pen and the way to the song playing.
  *
- * A tap plays the songs nearest it. Holding, then dragging, draws: a line
+ * A tap plays the songs nearest it; without a pointer, the keys go from song
+ * to song and play and draw from there (`SoundField`). Holding, then dragging, draws: a line
  * takes the songs along it as a drift from one place to the other, a loop
  * the songs inside. Each stroke goes into the tray, a section of its own in
  * its colour, to play, add to Up next or save as a playlist: on a computer a
@@ -108,18 +122,7 @@ export function SoundMapScreen(): ReactNode {
   const regions = useMemo(() => skyRegions(allRegions, lens), [allRegions, lens])
   const chips = useMemo(() => lensTags(tags, points), [tags, points])
   useEffect(() => {
-    if (places.length === 0) return
-    let x0 = 1
-    let y0 = 1
-    let x1 = 0
-    let y1 = 0
-    for (const place of places) {
-      x0 = Math.min(x0, place.x)
-      y0 = Math.min(y0, place.y)
-      x1 = Math.max(x1, place.x)
-      y1 = Math.max(y1, place.y)
-    }
-    control.setBounds({ x0, y0, x1, y1 })
+    if (places.length > 0) control.setBounds(boundsOf(places))
   }, [control, places])
 
   // Opened on a song: Show on the map.
@@ -154,13 +157,14 @@ export function SoundMapScreen(): ReactNode {
   )
   // The song the pointer is on in the tray's list, or the one last pressed there.
   const [lit, setLit] = useState<number | null>(null)
-  const emptyTray = (): void => {
+  // Its setters never change, so this is the same function for as long as the page is open.
+  const emptyTray = useCallback((): void => {
     setTakes([])
     setLeft(new Set())
     setNamed(null)
     setTrayOpen(false)
     setLit(null)
-  }
+  }, [])
   const clearTray = (): void => {
     const was = { takes, left, named }
     emptyTray()
@@ -207,11 +211,7 @@ export function SoundMapScreen(): ReactNode {
         !nearest ||
         Math.hypot(nearest.x - spot.x, nearest.y - spot.y) > reach * EMPTY_TAP
       ) {
-        setTakes([])
-        setLeft(new Set())
-        setNamed(null)
-        setTrayOpen(false)
-        setLit(null)
+        emptyTray()
         return false
       }
       player.playFrom(ids, 0, {
@@ -219,25 +219,32 @@ export function SoundMapScreen(): ReactNode {
       })
       return true
     },
-    [places, songs, player],
+    [places, songs, player, emptyTray],
   )
   const onPathStart = useCallback((spot: MapPlace) => {
     strokeRef.current = [spot]
     setStroke([spot])
   }, [])
-  const onPathMove = useCallback((spot: MapPlace, within: number) => {
+  // A finger's points closer than a step are one; a song the keys went to is
+  // always its own, however near the one before.
+  const onPathMove = useCallback((spot: MapPlace, within: number, exact = false) => {
     reach.current = within
     const last = strokeRef.current[strokeRef.current.length - 1]
-    if (last && Math.hypot(spot.x - last.x, spot.y - last.y) < PATH_STEP) return
+    if (!exact && last && Math.hypot(spot.x - last.x, spot.y - last.y) < PATH_STEP) return
     strokeRef.current = [...strokeRef.current, spot]
     setStroke(strokeRef.current)
   }, [])
+  const onPathCancel = useCallback(() => {
+    strokeRef.current = []
+    setStroke([])
+  }, [])
   const { done: hintDone } = hint
-  const onPathEnd = useCallback(() => {
+  // How many songs the stroke took, for the keys to say.
+  const onPathEnd = useCallback((): number => {
     const drawn = strokeRef.current
     strokeRef.current = []
     setStroke([])
-    if (drawn.length < 2) return
+    if (drawn.length < 2) return 0
     setPen(false)
     hintDone()
     const loop = isLoop(drawn, reach.current * LOOP_CLOSE)
@@ -245,7 +252,7 @@ export function SoundMapScreen(): ReactNode {
       ? songsInside(places, drawn, songs)
       : songsAlongPath(places, drawn, reach.current, songs)
     // Nothing taken: the stroke simply goes, as it came, with no word about it.
-    if (ids.length === 0) return
+    if (ids.length === 0) return 0
     const take: Omit<MapTake, 'id' | 'tone'> = {
       kind: loop ? 'loop' : 'line',
       name: loop ? loopName(places, ids, songs, tags) : pathName(places, drawn, songs, tags),
@@ -255,6 +262,7 @@ export function SoundMapScreen(): ReactNode {
     }
     const id = nextTake.current++
     setTakes(before => [...before, { ...take, id, tone: takeTone(before) }])
+    return ids.length
   }, [places, songs, tags, hintDone])
 
   const playTray = (): void => {
@@ -375,6 +383,7 @@ export function SoundMapScreen(): ReactNode {
   }, [wide, tray, toolsBottom, tools])
 
   const shown = places.length > 0
+  const trayMoves = useTrayMotion(wide)
 
   return (
     <ScopedTheme name="dark">
@@ -435,8 +444,13 @@ export function SoundMapScreen(): ReactNode {
                 onPathStart={onPathStart}
                 onPathMove={onPathMove}
                 onPathEnd={onPathEnd}
+                onPathCancel={onPathCancel}
               />
             </View>
+
+            {head > 0 ? (
+              <HeadScrim height={head} beside={panel ? TRAY_PANEL_WIDTH + space.md : 0} />
+            ) : null}
 
             <SafeAreaView
               edges={['top']}
@@ -486,12 +500,13 @@ export function SoundMapScreen(): ReactNode {
               </View>
             </SafeAreaView>
 
-            <View
+            <Reanimated.View
               style={[
                 styles.tools,
                 wide ? styles.toolsWide : styles.toolsPhone,
                 { bottom: bottom + toolsBottom },
               ]}
+              layout={trayMoves.tools}
               pointerEvents="box-none"
               onLayout={event => setTools(event.nativeEvent.layout.height)}
             >
@@ -500,7 +515,7 @@ export function SoundMapScreen(): ReactNode {
                   <IconButton
                     label="Zoom in"
                     filled
-                    onPress={() => control.zoomBy(1.6)}
+                    onPress={() => control.zoomBy(KEY_ZOOM)}
                     testID="sound-map-zoom-in"
                   >
                     <Plus size={iconSize.item} tone="textPrimary" />
@@ -508,7 +523,7 @@ export function SoundMapScreen(): ReactNode {
                   <IconButton
                     label="Zoom out"
                     filled
-                    onPress={() => control.zoomBy(1 / 1.6)}
+                    onPress={() => control.zoomBy(1 / KEY_ZOOM)}
                     testID="sound-map-zoom-out"
                   >
                     <Minus size={iconSize.item} tone="textPrimary" />
@@ -541,41 +556,51 @@ export function SoundMapScreen(): ReactNode {
               >
                 <DrawLine size={iconSize.item} tone={pen ? 'onAccent' : 'textPrimary'} />
               </IconButton>
-            </View>
+            </Reanimated.View>
 
             {holding ? (
-              <View
+              <Reanimated.View
                 style={[
                   wide ? styles.trayWide : styles.tray,
                   { bottom },
                   wide && styles.panel,
                   sheet > 0 && { height: sheet },
                 ]}
+                entering={trayMoves.trayIn}
+                exiting={trayMoves.trayOut}
                 pointerEvents="box-none"
                 onLayout={onTray}
               >
-                <MapTray
-                  name={trayName}
-                  sections={sections}
-                  open={trayOpen}
-                  wide={wide}
-                  saving={saving}
-                  onOpen={setTrayOpen}
-                  onRename={setNamed}
-                  onRemove={id => setLeft(before => new Set(before).add(id))}
-                  onBringBack={ids =>
-                    setLeft(before => new Set([...before].filter(id => !ids.includes(id))))
-                  }
-                  onDrop={dropTake}
-                  onShow={showSong}
-                  onLight={setLit}
-                  onClear={clearTray}
-                  onPlay={playTray}
-                  onShuffle={shuffleTray}
-                  onSave={saveTray}
-                  onUpNext={upNextTray}
-                />
-              </View>
+                {/* The sky is night whatever the app's appearance, but the tray
+                    is the app's own sheet laid over it, light in light mode as
+                    the mini player under it is. Its first paint rides the
+                    tray's own rise; a fold or an open after that moves. */}
+                <ScopedTheme reset>
+                  <LayoutAnimationConfig skipEntering>
+                    <MapTray
+                      name={trayName}
+                      sections={sections}
+                      open={trayOpen}
+                      wide={wide}
+                      saving={saving}
+                      onOpen={setTrayOpen}
+                      onRename={setNamed}
+                      onRemove={id => setLeft(before => new Set(before).add(id))}
+                      onBringBack={ids =>
+                        setLeft(before => new Set([...before].filter(id => !ids.includes(id))))
+                      }
+                      onDrop={dropTake}
+                      onShow={showSong}
+                      onLight={setLit}
+                      onClear={clearTray}
+                      onPlay={playTray}
+                      onShuffle={shuffleTray}
+                      onSave={saveTray}
+                      onUpNext={upNextTray}
+                    />
+                  </LayoutAnimationConfig>
+                </ScopedTheme>
+              </Reanimated.View>
             ) : null}
 
             {hint.shown && field ? <MapHint field={field} onDone={hint.done} /> : null}
@@ -586,11 +611,40 @@ export function SoundMapScreen(): ReactNode {
   )
 }
 
+/** How far under the page's head its scrim fades out. */
+const SCRIM_FADE = 40
+
+/**
+ * A night fading in under the page's head, so a cover or a bright star that
+ * moves under the name and the tag chips never sits behind them as if it
+ * were part of them, as the head of a map over its tiles does (2026-10-31:
+ * open covers ran behind "Sound map").
+ */
+function HeadScrim({ height, beside }: { height: number; beside: number }): ReactNode {
+  const id = useSvgId('soundmaphead')
+  const total = height + SCRIM_FADE
+  return (
+    <View pointerEvents="none" style={[styles.scrim, { height: total, right: beside }]}>
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={SKY_EDGE} stopOpacity={0.88} />
+            <Stop offset={String(height / total)} stopColor={SKY_EDGE} stopOpacity={0.62} />
+            <Stop offset="1" stopColor={SKY_EDGE} stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill={`url(#${id})`} />
+      </Svg>
+    </View>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: '#04050b' },
+  screen: { flex: 1, backgroundColor: SKY_EDGE },
   empty: { flex: 1, backgroundColor: theme.colors.surface0 },
   emptyHead: { padding: space.md },
   top: { position: 'absolute', left: 0, right: 0, top: 0 },
+  scrim: { position: 'absolute', left: 0, top: 0 },
   head: { gap: space.md },
   chipRowPhone: { flexGrow: 0, marginHorizontal: -space.gutter },
   chipRowWide: { flexGrow: 0, marginHorizontal: -space.gutterWide },

@@ -80,9 +80,11 @@ export function SongsAnswer({
   const tags = library?.tags ?? []
   const songsById = useSongsById()
   const understanding = edited ?? result.understanding
-  const picks = picksHere(result, server.onDevice).filter(
-    pick => !left.has(pick.songId) && songsById.has(pick.songId),
-  )
+  // Each pick still here, with its song: one left out, or gone from the library, is not.
+  const picks = picksHere(result, server.onDevice).flatMap(pick => {
+    const song = left.has(pick.songId) ? undefined : songsById.get(pick.songId)
+    return song ? [{ song, why: pick.why }] : []
+  })
   const follows = onlyTags(understanding) && keepFilled
   const ready = edited === null && (follows || picks.length > 0)
 
@@ -106,7 +108,7 @@ export function SongsAnswer({
       }
       const input = newPlaylist('manual', title)
       if (!input) return
-      const created = await createPlaylist({ input, songIds: picks.map(each => each.songId) })
+      const created = await createPlaylist({ input, songIds: picks.map(each => each.song.id) })
       onSaved(created.id)
     } catch (caught) {
       setError(failureText(`Couldn’t make “${title}”`, caught))
@@ -160,28 +162,25 @@ export function SongsAnswer({
 
       {!edited && picks.length > 0 ? (
         <ScrollView style={styles.list} testID="songs-answer-picks">
-          {picks.map(each => {
-            const song = songsById.get(each.songId)!
-            return (
-              <SongLine
-                key={song.id}
-                style={styles.row}
-                artUri={artFor(song)}
-                coverTitle={song.album || song.title}
-                title={song.title}
-                sub={each.why ?? artistOr(song.artist)}
-                trailing={
-                  <IconButton
-                    size={LEAVE}
-                    onPress={() => setLeft(current => new Set([...current, song.id]))}
-                    label={`Leave out ${song.title}`}
-                  >
-                    <X size={iconSize.field} color={theme.colors.textMuted} />
-                  </IconButton>
-                }
-              />
-            )
-          })}
+          {picks.map(({ song, why }) => (
+            <SongLine
+              key={song.id}
+              style={styles.row}
+              artUri={artFor(song)}
+              coverTitle={song.album || song.title}
+              title={song.title}
+              sub={why ?? artistOr(song.artist)}
+              trailing={
+                <IconButton
+                  size={LEAVE}
+                  onPress={() => setLeft(current => new Set([...current, song.id]))}
+                  label={`Leave out ${song.title}`}
+                >
+                  <X size={iconSize.field} color={theme.colors.textMuted} />
+                </IconButton>
+              }
+            />
+          ))}
         </ScrollView>
       ) : null}
 

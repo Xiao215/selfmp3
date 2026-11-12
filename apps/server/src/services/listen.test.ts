@@ -10,41 +10,34 @@ function fakeYtDlp(expire: number | null) {
     get runs() {
       return runs
     },
-    audioUrl: () => {
+    findAudio: () => {
       runs++
       const query = expire === null ? '' : `&expire=${expire}`
-      return Promise.resolve(`https://rr1.googlevideo.test/videoplayback?n=${runs}${query}`)
+      return Promise.resolve({
+        url: `https://rr1.googlevideo.test/videoplayback?n=${runs}${query}`,
+        ext: 'm4a',
+        year: 2024,
+      })
     },
   }
 }
 
 describe('ListenService', () => {
-  it('warms the links a review is about to show, and a tap then shares the run', async () => {
+  it('keeps what a listen found for the import, and never looks anything up for it', async () => {
+    let now = 1_000_000
     const ytdlp = fakeYtDlp(4_000)
-    const listen = new ListenService(ytdlp, () => 1_000_000)
+    const listen = new ListenService(ytdlp, () => now)
 
-    listen.warm([TRACK, 'https://www.youtube.com/watch?v=jNQXAC9IVRw'])
-    expect(ytdlp.runs).toBe(2)
-    await listen.source(TRACK)
-    expect(ytdlp.runs).toBe(2)
-  })
+    expect(listen.known(TRACK)).toBeNull()
+    expect(ytdlp.runs).toBe(0)
 
-  it('keeps a link it could not warm to itself, for the play to report', async () => {
-    let failed = 0
-    const listen = new ListenService(
-      {
-        audioUrl: () => {
-          failed++
-          return Promise.reject(new Error('could not read that link'))
-        },
-      },
-      () => 1_000_000,
-    )
+    const found = await listen.source(TRACK)
+    expect(listen.known(TRACK)).toBe(found)
 
-    listen.warm([TRACK])
-    await new Promise(resolve => setTimeout(resolve, 0))
-    expect(failed).toBe(1)
-    await expect(listen.source(TRACK)).rejects.toThrow('could not read that link')
+    // Past the margin before it expires, it is not offered.
+    now = 4_000_000 - 9 * 60_000
+    expect(listen.known(TRACK)).toBeNull()
+    expect(ytdlp.runs).toBe(1)
   })
 
   it('asks yt-dlp once for a track, however often the player seeks', async () => {
@@ -106,16 +99,22 @@ describe('ListenService', () => {
     let fail = true
     const listen = new ListenService(
       {
-        audioUrl: () =>
+        findAudio: () =>
           fail
             ? Promise.reject(new Error('Sign in to confirm you are not a bot'))
-            : Promise.resolve('https://rr1.googlevideo.test/videoplayback?expire=9999999999'),
+            : Promise.resolve({
+                url: 'https://rr1.googlevideo.test/videoplayback?expire=9999999999',
+                ext: 'm4a',
+                year: null,
+              }),
       },
       () => 0,
     )
 
     await expect(listen.source(TRACK)).rejects.toThrow(/not a bot/)
     fail = false
-    await expect(listen.source(TRACK)).resolves.toContain('googlevideo')
+    await expect(listen.source(TRACK)).resolves.toMatchObject({
+      url: expect.stringContaining('googlevideo'),
+    })
   })
 })

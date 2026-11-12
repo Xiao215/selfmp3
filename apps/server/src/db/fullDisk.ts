@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { codeOf } from '@selfmp3/shared'
 
 /**
  * Less room than this on the data folder's disk is a full disk. Not zero: a
@@ -26,6 +27,16 @@ export function fullDiskProblem(
   }
   if (free >= FULL_BELOW_BYTES) return null
   return `the disk holding ${dir} is full (${free} bytes free): free some space there and start the server again`
+}
+
+/**
+ * Whether an error is a write the disk had no room for: SQLite's
+ * SQLITE_FULL ("database or disk is full"), or ENOSPC from a file's own.
+ * Worth trying again once space frees, unlike a file that will not read.
+ */
+export function isDiskFull(error: unknown): boolean {
+  const code = codeOf(error)
+  return code === 'SQLITE_FULL' || code === 'ENOSPC'
 }
 
 /** The room kept aside in the data folder to start in on a full disk (`keepRoomToStart`). */

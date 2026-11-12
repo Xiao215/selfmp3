@@ -100,6 +100,26 @@ describe('run', () => {
     expect(lines).toContain('WARNING: something to mention')
     expect(lines.map(parseProgress).filter(percent => percent !== null)).toEqual([12.5, 60, 100])
   })
+
+  it('reads a character that arrives split across two chunks whole', async () => {
+    // 夜 is three bytes: a pipe's chunk can end after the first of them, as
+    // one ending inside a long playlist's JSON of Chinese titles does.
+    const split = `
+const bytes = Buffer.from('夜に駆ける')
+process.stdout.write(bytes.subarray(0, 1))
+process.stderr.write(bytes.subarray(0, 1))
+setTimeout(() => {
+  process.stdout.write(bytes.subarray(1))
+  process.stderr.write(bytes.subarray(1))
+}, 50)
+`
+    const lines: string[] = []
+    const result = await run(process.execPath, ['-e', split], { onLine: line => lines.push(line) })
+
+    expect(result.stdout).toBe('夜に駆ける')
+    expect(result.stderr).toBe('夜に駆ける')
+    expect(lines).toEqual(['夜に駆ける', '夜に駆ける'])
+  })
 })
 
 describe('isVideoEntry', () => {
@@ -290,6 +310,38 @@ cat "${dir}/stdout.json"
     await expect(pending).rejects.toThrow()
     expect(fs.existsSync(path.join(dir, 'args.txt'))).toBe(false)
   })
+
+  it('lets a preview through at once, with no budget and in a pause, and spends nothing', async () => {
+    fs.writeFileSync(
+      path.join(dir, 'stdout.json'),
+      'm4a\t20241110\thttps://rr1.googlevideo.test/videoplayback\n',
+    )
+    state = { ...state, tokens: -10, pausedUntil: NOW + 60_000 }
+
+    // The year is the one a download would have tagged the file with.
+    await expect(service.findAudio(VIDEO)).resolves.toEqual({
+      url: 'https://rr1.googlevideo.test/videoplayback',
+      ext: 'm4a',
+      year: 2024,
+    })
+    expect(state.tokens).toBe(-10)
+  })
+
+  it('finds a song with no date as one with no year', async () => {
+    fs.writeFileSync(path.join(dir, 'stdout.json'), 'mp3\t\thttp://m7.music.126.test/a.mp3\n')
+    await expect(service.findAudio(VIDEO)).resolves.toEqual({
+      url: 'http://m7.music.126.test/a.mp3',
+      ext: 'mp3',
+      year: null,
+    })
+  })
+
+  it('still cuts the budget when YouTube refuses a preview', async () => {
+    ytDlpFailsWith('Sign in to confirm you’re not a bot. Use --cookies-from-browser')
+
+    await expect(service.findAudio(VIDEO)).rejects.toBeInstanceOf(RateLimitedError)
+    expect(throttle.status().ratchet).toBe(0.5)
+  })
 })
 
 /**
@@ -392,7 +444,7 @@ describe('YtDlpService', () => {
     const ytdlp = new YtDlpService(createLogger('silent'), () => ({}) as never, {} as never)
     for (const url of ['http://127.0.0.1:4646/api/health', 'https://example.com/a.mp3']) {
       await expect(ytdlp.probe(url)).rejects.toThrow(/only YouTube/)
-      await expect(ytdlp.audioUrl(url)).rejects.toThrow(/only YouTube/)
+      await expect(ytdlp.findAudio(url)).rejects.toThrow(/only YouTube/)
       await expect(
         ytdlp.download({ url, outputTemplate: '/nowhere/%(id)s', hasFfmpeg: false }),
       ).rejects.toThrow(/only YouTube/)

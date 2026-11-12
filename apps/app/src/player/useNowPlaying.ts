@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import type { PlaybackEngine, ServerConnection } from '@selfmp3/client'
 
 import type { PlayerApi } from './PlayerProvider'
 import {
@@ -7,16 +8,25 @@ import {
   type ProgressStore,
   type ReportedPosition,
 } from './progress.model'
+import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
+import { artAddress } from '../api/mediaAddress.model'
+import { mediaSourcesFor } from '../api/mediaSources'
+import { useConnection } from '../connection/ConnectionProvider'
+import { coverFor, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
 import { mediaSession } from '../ports/mediaSession'
 
 /**
- * Tell the operating system what is playing.
+ * Tell the operating system what is playing: Control Center and the Dock in
+ * the installed app through the media session, the lock screen and Control
+ * Center on a phone through the engine, nothing in a tab that has no media
+ * session. The artwork is chosen the same way for both (`nowPlayingArtwork`).
  *
- * Nothing on a phone: the native engine fills iOS's now-playing card from the
- * metadata the player already hands it, and two writers would fight over one
- * card. On the web this is `navigator.mediaSession`, which is the media keys,
- * the Now Playing card in Control Center, and — through the shell — the Dock
- * menu and the power-save blocker.
+ * On a phone the native engine fills the card from the metadata the player
+ * already hands it, and two writers would fight over one card: it only hears
+ * here when the playing song's cover arrives or its words change. On the web
+ * this is `navigator.mediaSession`, which is the media keys, the Now Playing
+ * card in Control Center, and — through the shell — the Dock menu and the
+ * power-save blocker.
  *
  * The actions are set once and read through a ref. They are functions the
  * player rebuilds when its queue changes, and handing Chromium a new set of
@@ -25,8 +35,9 @@ import { mediaSession } from '../ports/mediaSession'
 export function useNowPlaying(
   player: PlayerApi,
   progress: ProgressStore,
-  artwork: string | null,
+  engine: PlaybackEngine,
 ): void {
+  const { connection, fromCloud } = useConnection()
   const latest = useRef(player)
   useEffect(() => {
     latest.current = player
@@ -50,6 +61,27 @@ export function useNowPlaying(
   }, [])
 
   const { current, isPlaying } = player
+
+  /*
+   * The playing song's kept cover is read when the covers change, not on every
+   * render, and one song's rather than a map of every cover on the device to
+   * look one up in. Read again whenever a cover arrives. The covers already on
+   * disk are read in at launch and announced once, and a subscription made in
+   * an effect could miss that — then every song was shown with the server's
+   * address all session. `useSyncExternalStore` checks the version again once
+   * subscribed.
+   */
+  const coversSeen = useSyncExternalStore(subscribeCovers, coversVersion, coversVersion)
+  const keptCover = useMemo(
+    () => (current ? coverFor(current.id) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `coversSeen` is not read, but it is why the cover is looked up again
+    [current, coversSeen],
+  )
+  const artwork = useMemo(
+    () =>
+      current ? nowPlayingArtwork(current, artSources(keptCover, connection, fromCloud)) : null,
+    [current, keptCover, connection, fromCloud],
+  )
 
   useEffect(() => {
     mediaSession.setNowPlaying(
@@ -103,4 +135,23 @@ export function useNowPlaying(
       }
     })
   }, [progress, isPlaying, songId, songDuration])
+
+  // The phone's card is the engine's: it hears here when the playing song's
+  // cover arrives or its words change, and sends only what did.
+  const title = current?.title
+  const artist = current?.artist
+  const album = current?.album
+  useEffect(() => {
+    if (songId !== null) engine.refreshNowPlaying?.(songId)
+  }, [engine, songId, title, artist, album, artwork])
+}
+
+/** Where the Now Playing card may take a cover from: a copy here, or this library's address. */
+export function artSources(
+  kept: string | undefined,
+  connection: ServerConnection | null,
+  fromCloud: boolean,
+): ArtSources {
+  const sources = mediaSourcesFor(connection, fromCloud, KEPT_COVER_SIZE)
+  return { kept, remoteArt: (songId, rev) => artAddress(songId, rev, sources) }
 }

@@ -33,7 +33,6 @@ export const notSetUp = (message: string): DoormanError =>
   new DoormanError(500, DOORMAN_ERROR.notSetUp, message)
 
 /** JSON, never cached: every answer the API gives is about one person, now. */
-/** What every JSON answer of the doorman's says about itself. */
 export const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
@@ -65,6 +64,19 @@ export function methodNotAllowed(allowed: readonly string[]): Response {
   )
   response.headers.set('allow', allow)
   return response
+}
+
+/**
+ * A `302` to `location`. Built by hand rather than with Response.redirect,
+ * whose headers cannot be added to afterwards (CORS adds some to every
+ * answer). Never cached, and no Referer passed on: the address being left can
+ * carry a sign-in's state.
+ */
+export function redirect(location: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: { location, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
+  })
 }
 
 export function noContent(): Response {
@@ -150,6 +162,72 @@ export async function readBytes(
 /** `localhost` or `127.0.0.1`: this computer, as an address names it. */
 export function isLoopbackHost(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1'
+}
+
+/**
+ * An address that is not on the public internet, as a URL's hostname names it:
+ * this computer, a home or office network, a tailnet's 100.64/10, a link-local
+ * or cloud metadata address, or a name only a local network answers. Only
+ * literal addresses and those names are known here; a public name that a
+ * local resolver points somewhere private is not (a Worker cannot reach one).
+ * The URL parser has already turned `2130706433` and `0x7f.1` into
+ * `127.0.0.1`, and wraps IPv6 in brackets.
+ */
+function isPrivateHost(hostname: string): boolean {
+  const name = hostname.toLowerCase().replace(/\.$/, '')
+  if (name.startsWith('[')) return isPrivateIPv6(name.slice(1, -1))
+  const v4 = ipv4(name)
+  if (v4) return isPrivateIPv4(...v4)
+  // A name with no dot only a local network can answer.
+  return (
+    !name.includes('.') ||
+    name === 'localhost' ||
+    /\.(localhost|local|internal|lan|home\.arpa)$/.test(name)
+  )
+}
+
+/**
+ * Whether the doorman may send a request to a host someone else chose: a
+ * grant's server, a bucket's endpoint, a room host's server. Anywhere on the
+ * public internet, and this computer too under `wrangler dev --env dev` (DEV);
+ * never an address off it, which anyone signed in could otherwise make the
+ * doorman knock on.
+ */
+export function mayReach(hostname: string, dev: boolean): boolean {
+  return !isPrivateHost(hostname) || (dev && isLoopbackHost(hostname))
+}
+
+/** A dotted IPv4 address's first two bytes, which are all its private ranges need. */
+function ipv4(text: string): [number, number] | null {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text)
+  if (!match || match.slice(1).some(part => Number(part) > 255)) return null
+  return [Number(match[1]), Number(match[2])]
+}
+
+function isPrivateIPv4(a: number, b: number): boolean {
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  )
+}
+
+function isPrivateIPv6(text: string): boolean {
+  const address = text.toLowerCase()
+  if (address === '::' || address === '::1') return true
+  // An IPv4 address written as IPv6 (`::ffff:7f00:1`) is judged as that address.
+  const mapped = /^::ffff:([0-9a-f]{1,4}):[0-9a-f]{1,4}$/.exec(address)
+  if (mapped) {
+    const high = parseInt(mapped[1] ?? '', 16)
+    return isPrivateIPv4(high >> 8, high & 255)
+  }
+  return /^(f[cd]|fe[89ab]|ff)/.test(address)
 }
 
 /** Let go of a body nobody is going to read, so its connection is freed. */

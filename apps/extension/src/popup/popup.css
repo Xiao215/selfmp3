@@ -47,7 +47,8 @@ body {
   background: var(--good);
 }
 
-.conn.away .dot {
+.conn.away .dot,
+.conn.signedOut .dot {
   background: var(--warning);
 }
 

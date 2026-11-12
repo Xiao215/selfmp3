@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { FORMAT_KEY, messageOf } from '@selfmp3/shared'
+import { codeOf, FORMAT_KEY, messageOf } from '@selfmp3/shared'
 import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } from './store.js'
 
 /**
@@ -27,7 +27,7 @@ import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } f
  * published into and let go of songs into, and their audio was nowhere once
  * the drive came back (R3-m10). Nor is `format.json` written into a folder
  * that is gone once a library has been published into it (`published`): a
- * pass that checks the bucket afresh, as publishing by hand does, would have
+ * pass that checks the bucket afresh, as the first after a restart does, would have
  * made that same stand-in (R3-m10, R4).
  */
 export class LocalCloudStore implements CloudStore {
@@ -162,7 +162,7 @@ export class LocalCloudStore implements CloudStore {
 }
 
 function isMissing(error: unknown): boolean {
-  return (error as { code?: unknown }).code === 'ENOENT'
+  return codeOf(error) === 'ENOENT'
 }
 
 function explain(error: unknown): CloudError {

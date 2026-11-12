@@ -1,9 +1,16 @@
 # The admin page
 
-The owner's page for running a self.mp3 server. It has two tabs: **Data**, how the server is
-being used, as totals; and **People**, who can sign in. Only the owner can open it, from
+The owner's page for running a self.mp3 server. It has three tabs: **Data**, how the server is
+being used, as totals; **People**, who can sign in; and **iPhones**, friends waiting for the
+iPhone app ([below](#iphones)). Only the owner can open it, from
 their own devices on Tailscale. The app has no owner-only screens at all: the owner is a user
 like any other there.
+
+**Where:** a browser on the owner's tailnet, served by the server (`apps/server/admin/` for
+the page, `apps/server/src/admin/` for its routes); the doorman keeps the list of who can sign
+in and its own counts (`apps/doorman/src/access.ts`, `tally.ts`, `device.ts`). Not in the
+phone, computer or desktop app, which have no owner-only screens. More in
+[Where it lives](#where-it-lives).
 
 Decided on 2026-10-23 and reworked on 2026-10-24 (proposal artifact
 `JdZ4o2nCHbXMJmV3mu7i8z`, version 5 and Xiao's notes on it):
@@ -94,7 +101,7 @@ counts live in three places:
 
 | Where | What | Kept |
 | --- | --- | --- |
-| The server's `metrics.db`, beside `hub.json` (`services/metrics.ts`) | `import_log`: one row per finished import (where it came from, worked or why not, seconds per step, retries; no library, no song). `daily_totals`: Smart requests by feature with failures and time, YouTube asking the server to slow down, 500s by route, and what apps report | a year |
+| The server's `metrics.db`, beside `hub.json` (`repositories/metrics.ts`, counted by `services/metrics.ts`) | `import_log`: one row per finished import (where it came from, worked or why not, seconds per step, retries; no library, no song). `daily_totals`: Smart requests by feature with failures and time, YouTube asking the server to slow down, 500s by route, and what apps report | a year |
 | Each library's own database | plays, added up across libraries when the page asks | as the library keeps them |
 | The doorman's `TALLY` Durable Object (`apps/doorman/src/tally.ts`) | reads by bucket folder (`audio`, `covers`, `lyrics`) and by app (web, computer, phone, extension, server, lent), new sessions, refused sign-ins (the count, not the address) | a year |
 

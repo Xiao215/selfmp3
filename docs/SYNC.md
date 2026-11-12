@@ -31,7 +31,7 @@ storage — no code runs there — so every rule about how changes combine lives
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
 | Fetching YouTube links (yt-dlp), Stats, the smart features | The server, one that works for anyone signed in ([features/shared-server.md](features/shared-server.md)), on a computer at home | The computer's electricity |
 
-**Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. Its
+**Why B2.** It speaks the S3 API, so the doorman reaches it like any other bucket. Its
 first 10 GB are free, and since 1 May 2026 it charges nothing for API calls (uploads, reads,
 listings) — though the daily caps below still apply. Downloads are free up to
 three times what you store each month — 30 GB for a full 10 GB library, which is a great deal
@@ -145,7 +145,7 @@ stream through it without it holding them.
    How a tab does it: the page asks for a song and a cover at addresses of the app's own,
    `api/stream/<id>` and `api/art/<id>` under the base the build was made for
    (`apps/app/src/ports/bucketMedia.web.ts`), and the service worker answers them
-   (`apps/app/sw/sw.ts`) — looking the song's bucket key and the doorman session out of
+   (`apps/app/sw/bucket.ts`) — looking the song's bucket key and the doorman session out of
    IndexedDB and fetching the file with the bearer header no `<audio>` element or `<img>`
    could have sent. The first range of a song starts one download of the whole file, and every
    range the player asks for — Safari's two-byte look first, a seek — is read from that
@@ -233,7 +233,8 @@ audio-intelligence.md), all of them in one file (`apps/server/src/sound/pack.ts`
 song's audio key. One file rather than one a song: a server starting again from the bucket
 reads them back in one download rather than fifteen hundred. The server sends a new one
 when they change — at most once an hour while songs are still being heard — and the
-snapshot's `sound` names it; the one it replaces goes in the trash. Before it sends any, a
+snapshot's `sound` names it; the one it replaces goes in the trash, and from there once no
+snapshot in the bucket names it, as a replaced pack of covers does. Before it sends any, a
 server reads back the file the bucket's snapshot names, so a new server hears only the songs
 nobody has heard, and a file it could not read is never replaced by one without its vectors.
 
@@ -242,9 +243,14 @@ numbers (docs/features/sound-map.md), one small JSON file (about 120 KB for 1,50
 the vectors, keyed by each song's audio key like them. The server folds it again only when
 the vectors change, at most once an hour while songs are still being heard, starting from the
 last map so it holds still; the snapshot's `soundMap` names it, the one it replaces goes in the
-trash, and a device reads it once a change and keeps it by its hash, as it keeps a song's
-words. A server starting from the bucket with no map of its own reads it back once and starts
-from it.
+trash and is deleted once no snapshot in the bucket names it, and a device reads it once a
+change and keeps it by its hash, as it keeps a song's words. A phone answers from the
+snapshot it kept at its last look and looks again afterwards, so the map that snapshot names
+must still be there: deleted with the next snapshot, it left Home with no map until the app
+was sent away and back. A device that still finds its map gone (offline past every kept
+snapshot) looks at the bucket and reads the newer one, and every look that finds something
+asks for the map again. A server starting from the bucket with no map of its own reads it
+back once and starts from it.
 
 **Plays** are a file a month (`apps/server/src/services/playsArchive.ts`): each play as its
 song's uid, when it happened, how long it was heard, whether it ran to the end, and an id
@@ -313,16 +319,16 @@ that account, which it is given when one of the account's devices joins it — b
 first time the device looks for a server and the bucket names none
 ([features/shared-server.md](features/shared-server.md)). Each account it works for is a
 workspace of its own, with its own database and inbox, and everything below happens once per
-workspace. Everything that
-changes a library's way into its bucket — signing in, connecting a bucket by its key when
-there is no doorman, disconnecting, publishing now — is taken from that machine alone. A
-library's token is on every one of its account's devices, and none of them should be able to
-point the library at another bucket; a device only reads `GET /api/cloud` and
-`GET /api/cloud/uids`. Opened from another computer with a token, the page shows and does
-nothing (an SSH tunnel to port 4600 is the way in on a server with no screen).
+workspace. The grant is a library's only way into its bucket: the server keeps no bucket key,
+and nothing on it signs in, connects a bucket or disconnects one. A library's token is on
+every one of its account's devices, so the server's cloud API only answers reads: how the
+library stands with its bucket (`GET /api/cloud`) and the uid behind each song id
+(`GET /api/cloud/uids`). The one other bucket a server uses is a folder on its own disk
+(`SELFMP3_CLOUD_DIR`), for the dev profile and the verify lanes.
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
-file is present and uploads what the bucket does not have: the audio, hashed as it is read and
+file is present and uploads what the bucket does not have (one song's files are
+`services/cloudSongFiles.ts`): the audio, hashed as it is read and
 uploaded under its hash — skipped if the bucket already has that file — the cover, and the
 lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. The words go up
 as one JSON file, `{ text, romanized }` (`CloudWordsSchema`): the text as the sidecar holds it, and
@@ -335,8 +341,8 @@ put each such song's words up again as one file.
 
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
 so a rescan, a restart or a tag edit does not re-hash two thousand files. That bookkeeping is
-checked against the bucket's own listing on the first pass after connecting or starting up,
-and whenever you press *Publish now*: a file the bucket has lost is forgotten, and so is the
+checked against the bucket's own listing on the first pass after starting up, or after the
+account's bucket changes: a file the bucket has lost is forgotten, and so is the
 part of the song that named it. A song whose audio went goes up again from a copy here; one
 that lost only its cover, words or motion curve keeps its place in the library, and the pass
 sends that part again from what the server keeps, or publishes the song without it. (Before
@@ -427,7 +433,7 @@ anything**, and takes on every song in it that it does not already have
 
 | | |
 |---|---|
-| **When** | Once per bucket, on the first pass after connecting, signing in, or starting up — and again when you press *Publish now*, which starts over. Nothing is published until it has finished, an import's own publish included. |
+| **When** | Once per bucket, on the first pass after starting up or after the account's bucket changes. Nothing is published until it has finished, an import's own publish included. |
 | **What it makes** | A whole song row per song: uid, title, artist, album, year, track, duration, loved, resting until, play count, when it was added and last played, where it came from, its tags, its place in each manual playlist, its analysed features, its cover's colour, and the per-field stamps that decide how a later edit combines with it. Tags and playlists it does not have, likewise. The bucket's file keys go into `cloud_songs`, so publishing re-emits the song it was handed instead of uploading files that are already up there. |
 | **Matching** | By uid first, and then by the audio itself. A song already here under the same uid is left exactly as it is, field for field — a snapshot is not a change with a stamp, so it must never win an edit; anything genuinely later still arrives through the other device's log. A song here under a *different* uid whose audio is the same file — the bucket names audio by the hash of its bytes, so the same key is the same song — is left alone too, and the other uid is kept as an alias (`song_aliases`), so a change or a playlist that names it still finds the song. Ten of the bucket's fifty-two here ends at fifty-two, not sixty-two, whatever the two sides call the ten, and a second run adopts nothing. |
 | **A song the bucket has no audio for** | Gets its row — its tags, its plays and its place in a playlist are all still true — but nothing in `cloud_songs`, so it is left out of what this server publishes. No device is ever pointed at a file it cannot download. |
@@ -505,7 +511,8 @@ changes moves its own clock past it.
 | The names an artist also goes by (`artistNamed`) | The latest list wins, as a field does. An artist has no uid, so the list is kept under `artistKey` of the artist's name. The server fills in names from MusicBrainz for an artist nobody has named, stamped as the earliest change there could be, so whatever a person sets on any device wins. A list cleared is kept cleared. Those names join one artist under two spellings into one (shared `artistJoins.ts`); names still as MusicBrainz found them, told apart by that earliest stamp, only ask first. |
 | New tags and playlists | The device makes the `uid`, so a playlist can be made offline and have songs added to it before any other device has heard of it. A tag made twice under one name on two devices becomes one tag, and the second uid still finds it. |
 | A tag whose last songs were removed (`tagEmptied`) | It goes with them, unless a song has it by the time the change is applied — another device may be filling it that moment. Gone this way, it is kept aside (the snapshot's `emptiedTags`, the server's `emptied_tags`), and a song tagged with it brings it back, whichever change arrives first; a tag made under its name since takes it in, as a tag made twice does. Only a tag someone deletes (`tagRemoved`) is gone for good. |
-| Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist, and the server notes each one it deletes (`removed_playlists`) until the snapshot without it is up, so reading the bucket's older snapshot again — a restart, *Publish now* — does not take it back on. A removed song's files are deleted from the bucket by the next pass after the snapshot without it, unless another song still names them, and every device deletes the copy it kept. |
+| A kept playlist whose last songs were taken out (`playlistEmptied`) | Taken out of it, or out of the library, it goes with them — unless it has a song by the time the change is applied, as an emptied tag does; the server also keeps one an import has yet to fill. Gone this way, it is kept aside with its stamps (the snapshot's `emptiedPlaylists`, the server's `emptied_playlists` under the id it had), and a song put in it brings it back, whichever change arrives first, if that change wins over the song's own taking out. That is also how an Undo puts songs back in a playlist they emptied. A rename, a pin, an order or a song's taking out meanwhile is kept with it. Once emptied it is marked (`stamps.emptied`), so if a song another device put in it comes out again, it goes again. Undoing an add takes the songs out with `keep`, so a playlist that was empty before stays — unless it was emptied once, when it goes back aside as it does on a device. One an import on the server has yet to fill stays there, unmarked. Only a playlist someone deletes (`playlistRemoved`) is gone for good. |
+| Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist, and the server notes each one it deletes (`removed_playlists`) until the snapshot without it is up, so reading the bucket's older snapshot again after a restart does not take it back on. A removed song's files are deleted from the bucket by the next pass after the snapshot without it, unless another song still names them, and every device deletes the copy it kept. |
 
 Because the latest stamp wins whenever a change is applied, the same changes give every device
 the same library, in whatever order they arrive. Snapshots carry the stamp of anything a change
@@ -606,8 +613,8 @@ edits and plays, and stays small. This is worth deciding again with that.
 
 **Audio and words nothing names.** An import that fails halfway can leave its audio or words
 in the bucket with no song naming them, and a server that lost its database leaves whatever
-it had not published. The pass that lists the bucket — the first after the server starts, and
-*Publish now* — leaves it to the first pass after it that reads every log (`#trashOrphans`),
+it had not published. The pass that lists the bucket — the first after the server starts —
+leaves it to the first pass after it that reads every log (`#trashOrphans`),
 which puts in the trash each file in `audio/` and `lyrics/` (words, motion curves, sound
 vectors, months of plays) that:
 
@@ -631,8 +638,7 @@ It costs no listing of its own: it reads the one the server makes at start anywa
 
 **The first run on an existing bucket.** Nothing is migrated. `cloud_files` has always kept the
 time this server first listed or sent each file, so on a server whose database is a week old
-nothing can be a month old for three weeks yet, and then only at its next start or
-*Publish now*. Other servers' snapshots older than a month go with the first snapshot the
+nothing can be a month old for three weeks yet, and then only at its next start. Other servers' snapshots older than a month go with the first snapshot the
 server publishes after the update. Log files are tidied as before, except that the server first waits for a pass that
 finds every month of plays up (at most an hour), and devices on the new app leave their own
 files for it; one still on an older build goes on deleting its own folded files, which the
@@ -668,9 +674,10 @@ the smart features (Ask, tidying tags) are its, and so is searching the words of
 whose index only it builds. A device's copy of the library answers each of these routes with
 a `needs_server` refusal (`SERVER_ONLY_ROUTES` in `packages/replica/src/routes.ts`).
 
-A device signed in to the cloud reaches it directly. Every snapshot carries the addresses
-the server listens on — the ones on its own network, and `SELFMP3_PUBLIC_URL` last, the
-Tailscale Funnel address that answers from anywhere — and the token (`CloudServerSchema`,
+A device signed in to the cloud reaches it directly. Every snapshot carries where the server
+answers — `SELFMP3_PUBLIC_URL` alone when it has one, the Tailscale Funnel address that
+answers from anywhere; the addresses on its own network only when it has none, since those
+stop answering the moment it moves — and the token (`CloudServerSchema`,
 `apps/server/src/services/addresses.ts`); a screen that needs the server
 probes them all at once and talks to the first that answers, and looks again every twenty
 seconds so a server switched on is found without a tap. Nothing is typed, and there is no
@@ -893,13 +900,13 @@ given a grant to, with *Remove* on each.
 | Live playlists on a device | `packages/shared/src/smartRules.ts` |
 | The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`, `src/changes.ts` the change counter, `src/access.ts` who may sign in, `src/grants.ts`), `apps/doorman/README.md` |
 | The doorman's contract | `packages/shared/src/schemas/doorman.ts`, `packages/shared/src/doormanWire.ts` |
-| A day past the bucket's cap | `packages/replica/src/hold.ts`, `BUCKET_HOLD_MS` in `packages/shared/src/doormanWire.ts`, `apps/app/sw/sw.ts` |
+| A day past the bucket's cap | `packages/replica/src/hold.ts`, `BUCKET_HOLD_MS` in `packages/shared/src/doormanWire.ts`, `apps/app/sw/bucket.ts` |
 | Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` and `s3.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes), `apps/server/src/bucket/kept.ts` (words read from the bucket, kept on disk) |
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
-| Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
-| Plays and sound vectors in the bucket | `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
+| Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSongFiles.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
+| Plays, sound vectors and the sound map in the bucket | `apps/server/src/services/cloudLibraryFiles.ts` (sending them, and reading them back), `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
 | The sound map in the bucket | `apps/server/src/sound/soundMap.ts`, `packages/shared/src/soundMap.ts` |
-| Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `#uploadCoverPacks` in `apps/server/src/services/cloudSync.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |
+| Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `uploadCoverPacks` in `apps/server/src/services/cloudPictures.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |
 | Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
 | Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |
 | Tidying the log, old snapshots, and audio and words nothing names | `apps/server/src/services/cloudSync.ts` (`#tidyLogs`, `#trashOrphans`), `unnamedFiles` and `unplacedSongSizes` in `apps/server/src/repositories/cloud.ts`, `othersSnapshotsToPrune` and `snapshotFileKeys` in `packages/shared/src/cloud.ts` |

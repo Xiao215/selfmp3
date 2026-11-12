@@ -1,14 +1,7 @@
 import { DoormanHealthSchema, ErrorBodySchema } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import {
-  APP_ORIGIN,
-  APPLICATION_KEY,
-  CLIENT_SECRET,
-  KEY_ID,
-  SEAL_KEY,
-  harness,
-  newAttempt,
-} from './fakes.js'
+import { APPLICATION_KEY, KEY_ID } from './fakeBucket.js'
+import { APP_ORIGIN, CLIENT_SECRET, SEAL_KEY, harness, newAttempt } from './fakes.js'
 import { redact } from './http.js'
 
 /**

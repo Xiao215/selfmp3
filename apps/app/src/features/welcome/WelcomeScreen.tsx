@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AppState, Image, KeyboardAvoidingView, Linking, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -141,31 +141,55 @@ export function WelcomeScreen(): ReactNode {
     }
   }, [])
 
+  /*
+   * Which attempt this page is on, so a look that answers after Cancel signs
+   * nobody in; and whether a look is out, so the timer, the interval and the
+   * app coming back do not claim the same attempt twice at once.
+   */
+  const attempt = useRef(0)
+  const looking = useRef(false)
+
   const begin = useCallback((): void => {
+    attempt.current += 1
+    const mine = attempt.current
     setStage({ kind: 'waiting', googleDoneAt: null })
     void cloud.beginSignIn().catch((error: unknown) => {
+      // Cancelled, or begun again since: that attempt says what happened to it.
+      if (attempt.current !== mine) return
       setStage({ kind: 'idle', message: signInFailure(error, pageOrigin()) })
     })
   }, [])
 
   /** Ask the doorman how it is going: now, and whenever the app comes back. */
   const check = useCallback(async (): Promise<void> => {
+    if (looking.current) return
+    looking.current = true
+    const mine = attempt.current
     try {
       const pending = await cloud.pendingSignIn()
+      if (attempt.current !== mine) return
       if (!pending) {
         setStage(current => afterCheck(current, 'gone', Date.now()))
         return
       }
       const outcome = await cloud.claimSignIn(pending.attempt)
+      if (attempt.current !== mine) return
       if (outcome.status === 'signed-in') await signedInToCloud(outcome.session)
       else {
-        const attempt = outcome.status === 'code' ? 'done' : 'pending'
-        setStage(current => afterCheck(current, attempt, Date.now()))
+        const said = outcome.status === 'code' ? 'done' : 'pending'
+        setStage(current => afterCheck(current, said, Date.now()))
       }
     } catch {
       // Offline, or the doorman is busy. The next look will say.
+    } finally {
+      looking.current = false
     }
   }, [signedInToCloud])
+
+  const cancel = (): void => {
+    attempt.current += 1
+    setStage({ kind: 'idle', message: null })
+  }
 
   useEffect(() => {
     if (stage.kind !== 'waiting') return
@@ -294,7 +318,7 @@ export function WelcomeScreen(): ReactNode {
             </Press>
           </View>
         ) : (
-          <Button label="Cancel" onPress={() => setStage({ kind: 'idle', message: null })} />
+          <Button label="Cancel" onPress={cancel} />
         )}
         {/* The simulator tests' way in; a normal build has none. */}
         {__DEV__ && stage.kind === 'idle' ? <ServerAddress centred={!wide} /> : null}

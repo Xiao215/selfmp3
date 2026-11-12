@@ -7,6 +7,7 @@ import {
   type ImportPreviewItem,
 } from '@selfmp3/shared'
 import type { Review, ServerConnection } from '@selfmp3/client'
+import { readStored } from '../../state/stored.model'
 
 /**
  * What Import holds between a link being looked up and imported: the links
@@ -24,7 +25,8 @@ import type { Review, ServerConnection } from '@selfmp3/client'
  * first is the same server with the same tags. Keying the draft by the winner
  * threw a forty-track review away each time a different address won.
  */
-export type DraftSource = 'own' | 'cloud'
+const DraftSourceSchema = z.enum(['own', 'cloud'])
+export type DraftSource = z.infer<typeof DraftSourceSchema>
 
 /** The source a screen's draft belongs to, from how it reached its server. */
 export function draftSourceFor(via: ServerConnection | undefined): DraftSource {
@@ -108,13 +110,13 @@ const StoredReviewSchema = z.object({
   chosen: z.array(z.number().int().nonnegative()),
   playlistTitle: z.string().nullable(),
   from: ImportFromSchema,
-  unread: z.array(UnreadLinkSchema).default([]),
+  unread: z.array(UnreadLinkSchema),
 })
 type StoredReview = z.infer<typeof StoredReviewSchema>
 
 /** The draft as it is written down: sets as arrays, and nothing else changed. */
 const StoredDraftSchema = z.object({
-  source: z.enum(['own', 'cloud']),
+  source: DraftSourceSchema,
   links: z.string(),
   review: StoredReviewSchema.nullable(),
   search: z
@@ -135,16 +137,9 @@ const StoredDraftSchema = z.object({
  * draft rather than a crash, and the review is simply looked up again.
  */
 export function parseImportDraft(raw: string | null): ImportDraft | null {
-  if (!raw) return null
-  let stored: unknown
-  try {
-    stored = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  const result = StoredDraftSchema.safeParse(stored)
-  if (!result.success) return null
-  const { source, links, review, search, tagIds } = result.data
+  const stored = readStored(raw, StoredDraftSchema)
+  if (!stored) return null
+  const { source, links, review, search, tagIds } = stored
   return {
     source,
     links,

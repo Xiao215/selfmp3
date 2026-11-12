@@ -89,9 +89,7 @@ the server still reads — both happen in the browser too:
 
 Each takes a turn from the browser's budget (below) and does not wait for one:
 with no turn to spare, or if anything fails, the server looks the link up or
-plays the song as before. For a link the server reads, it is told not to look
-up where the first rows' audio is (`warmListen: false`), since the browser
-would be the one listening.
+plays the song as before.
 
 ## Settings
 

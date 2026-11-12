@@ -26,7 +26,9 @@ export * from './import/model.js'
 export { configureClient, clientApi } from './runtime.js'
 
 export { ClientStateProvider } from './queries/context.js'
+export * from './queries/keys.js'
 export * from './queries/queries.js'
+export * from './queries/mutations.js'
 export { STALE } from './queries/stale.js'
 // A recomputed list kept as the same array while its items are the same.
 export { useSameArray } from './queries/useSameArray.js'

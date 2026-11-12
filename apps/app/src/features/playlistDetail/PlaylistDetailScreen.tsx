@@ -89,7 +89,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const reorderPlaylist = useReorderPlaylist()
 
-  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`, I1).
+  // The head grows out of the tile that opened it (`useHeroGrow`, I1).
   const hero = useHeroGrow(wide)
   const heroRef = hero.heroRef
   const [renaming, setRenaming] = useState(params.rename === '1')
@@ -275,10 +275,7 @@ export function PlaylistDetailScreen(): ReactNode {
           // inside a page, not from the sidebar.
           <>
             {!wide || pageBackShown ? (
-              <BackButton
-                to="/playlists"
-                onPress={() => hero.back(() => goBack(router, '/playlists'))}
-              />
+              <BackButton to="/playlists" onPress={() => goBack(router, '/playlists')} />
             ) : (
               <View />
             )}

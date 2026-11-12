@@ -10,6 +10,7 @@ import { Moon, Plus } from '../../ui/components/Icons'
 import { Press } from '../../ui/components/Press'
 import { Slider } from '../../ui/components/Slider'
 import { Card, Tile } from './SettingsParts'
+import { Fold } from '../../ui/components/Fold'
 
 /**
  * Each preset's swatch colour, worked out once: the card redraws on every
@@ -82,7 +83,7 @@ export function AccentCard(): ReactNode {
           <Plus size={iconSize.small} tone={own ? 'onAccent' : 'textMuted'} />
         </Press>
       </View>
-      {open ? (
+      <Fold open={open}>
         <View style={styles.strip}>
           <Slider
             value={accent.hue}
@@ -95,7 +96,7 @@ export function AccentCard(): ReactNode {
             onChange={accent.setHue}
           />
         </View>
-      ) : null}
+      </Fold>
     </Card>
   )
 }

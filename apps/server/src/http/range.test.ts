@@ -1,7 +1,7 @@
 import { once } from 'node:events'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Readable } from 'node:stream'
+import { addAbortSignal, Readable } from 'node:stream'
 import express from 'express'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
@@ -24,20 +24,33 @@ interface Opened {
   readonly stream: Readable
 }
 
-function source(behaviour: { fail?: Error; slow?: boolean } = {}): {
+function source(behaviour: { fail?: Error; slow?: boolean; late?: boolean } = {}): {
   source: RangeSource
   opened: Opened[]
+  /** Whether the server has asked for the bytes yet. */
+  asked: () => boolean
 } {
   const opened: Opened[] = []
+  let asked = false
   return {
     opened,
+    asked: () => asked,
     source: {
       sizeBytes: BYTES.length,
       mime: 'audio/mpeg',
       etag: '"x"',
       lastModified: new Date(0),
       open: async (start, end, signal) => {
+        asked = true
         if (behaviour.fail) throw behaviour.fail
+        if (behaviour.late) {
+          // Opened only once the client has already gone, and tied to the same
+          // signal the way `fs.createReadStream` is: it errors itself next tick.
+          if (!signal.aborted) await once(signal, 'abort')
+          const stream = addAbortSignal(signal, new Readable({ read() {} }))
+          opened.push({ start, end, signal, stream })
+          return stream
+        }
         let sent = false
         const stream = behaviour.slow
           ? // One byte, then nothing until destroyed: a bucket that has stalled.
@@ -57,6 +70,12 @@ function source(behaviour: { fail?: Error; slow?: boolean } = {}): {
 }
 
 let server: http.Server | null = null
+
+/** Waits until `done` holds, by the clock: the server's side runs on turns of its own. */
+async function until(done: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!done() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5))
+}
 
 async function serve(ranged: RangeSource): Promise<string> {
   const app = express()
@@ -85,6 +104,24 @@ describe('sendRange', () => {
     expect(opened[0]).toMatchObject({ start: 10, end: 19 })
   })
 
+  it('says the size on a 416, and no range on a whole file or a 304', async () => {
+    const url = await serve(source().source)
+    const past = await fetch(url, { headers: { Range: 'bytes=999-' } })
+    expect(past.status).toBe(416)
+    expect(past.headers.get('content-range')).toBe(`bytes */${BYTES.length}`)
+
+    const whole = await fetch(url)
+    expect(whole.status).toBe(200)
+    expect(whole.headers.get('content-range')).toBeNull()
+    expect(whole.headers.get('content-length')).toBe(String(BYTES.length))
+    expect(await whole.text()).toBe(BYTES.toString())
+
+    const kept = await fetch(url, { headers: { Range: 'bytes=0-9', 'If-None-Match': '"x"' } })
+    expect(kept.status).toBe(304)
+    expect(kept.headers.get('content-range')).toBeNull()
+    expect(kept.headers.get('etag')).toBe('"x"')
+  })
+
   it('answers a source that fails before its first byte as an error, not a crash', async () => {
     const { source: ranged } = source({ fail: new Error('the bucket has no such file') })
     const url = await serve(ranged)
@@ -111,5 +148,31 @@ describe('sendRange', () => {
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(first.stream.destroyed).toBe(true)
     expect(first.signal.aborted).toBe(true)
+  })
+
+  it('lets go of a stream that opens after the client has gone, without crashing', async () => {
+    const { source: ranged, opened, asked } = source({ late: true })
+    const url = await serve(ranged)
+    // `pipeline` refuses a response that has already closed and never touches
+    // the upstream: its AbortError then had nobody listening and took the
+    // whole server down (R6A-3).
+    const crashes: unknown[] = []
+    const crash = (error: unknown): void => void crashes.push(error)
+    process.prependListener('uncaughtException', crash)
+    try {
+      const gone = new AbortController()
+      const request = fetch(url, { headers: { Range: 'bytes=0-9' }, signal: gone.signal })
+      // Gone once the server has asked for the bytes, before they open.
+      await until(asked)
+      gone.abort()
+      await expect(request).rejects.toThrow()
+      await until(() => opened[0]?.stream.destroyed === true)
+      // A few turns more, for an error the stream raises as it goes.
+      await new Promise(resolve => setTimeout(resolve, 20))
+    } finally {
+      process.off('uncaughtException', crash)
+    }
+    expect(crashes).toEqual([])
+    expect(opened[0]?.stream.destroyed).toBe(true)
   })
 })

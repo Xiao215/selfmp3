@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { artistLink, placeParam, tagLink } from './placeLinks'
+import { artistLink, placeParam, playlistLink, tagLink } from './placeLinks'
 
 describe('a place’s name in its address', () => {
   it('is the name itself for nearly every name', () => {
@@ -23,5 +23,12 @@ describe('a place’s name in its address', () => {
   it('is what a tag’s and an artist’s link carry', () => {
     expect(tagLink('..').params.name).toBe('%2E%2E')
     expect(artistLink('100%').params.name).toBe('100%25')
+  })
+})
+
+describe('a playlist’s address', () => {
+  it('is its id, with what the page opens with', () => {
+    expect(playlistLink(7)).toEqual({ pathname: '/playlists/[id]', params: { id: '7' } })
+    expect(playlistLink(7, { rename: '1' }).params).toEqual({ id: '7', rename: '1' })
   })
 })

@@ -20,10 +20,6 @@ configureClient({
       sent.push(`remove ${playlistId}: ${songIds.join(',')}`)
       return Promise.resolve({ playlist: null })
     },
-    deletePlaylist: (id: number) => {
-      sent.push(`delete ${id}`)
-      return Promise.resolve()
-    },
     library: () => new Promise(() => undefined),
     onCloudLibraryChanged: () => () => undefined,
     answersFromCloud: () => false,
@@ -56,7 +52,10 @@ afterEach(() => {
 })
 
 describe('taking songs out of a playlist', () => {
-  it('deletes the playlist with its last song, once the songs are out', async () => {
+  // The removal lets the playlist go, where it lands and only if it is still
+  // empty there: a delete sent from here took a song another device had just
+  // put in it (R7H-1).
+  it('says the playlist goes with its last song, and sends the removal alone', async () => {
     const remove = await removal([1])
     await act(() => remove.current(PLAYLIST, [song(1)]))
     expect(currentToasts().at(-1)).toMatchObject({
@@ -68,7 +67,7 @@ describe('taking songs out of a playlist', () => {
       sendPending()
       await settle()
     })
-    expect(sent).toEqual(['remove 7: 1', 'delete 7'])
+    expect(sent).toEqual(['remove 7: 1'])
   })
 
   it('keeps a playlist that still has songs', async () => {
@@ -98,7 +97,7 @@ describe('taking songs out of a playlist', () => {
     expect(sent).toEqual([])
   })
 
-  it('keeps an emptied playlist that songs are added back to within the time', async () => {
+  it('sends a waiting removal before songs are added back within the time', async () => {
     const remove = await removal([1])
     await act(() => remove.current(PLAYLIST, [song(1)]))
     await act(async () => {

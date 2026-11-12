@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useQuery } from '@tanstack/react-query'
+import { skipToken, useQuery } from '@tanstack/react-query'
 import { failureText, space, STALE } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { Sheet } from '../../ui/components/Sheet'
@@ -27,10 +27,10 @@ export function SuggestTagsSheet({
 }): ReactNode {
   const server = useSmartServer()
   const via = reachedConnection(server.reach)?.baseUrl ?? null
+  const { api } = server
   const answer = useQuery({
     queryKey: viaKey(via, 'ai', 'tags', 'untagged'),
-    queryFn: () => server.api!.untaggedTags(),
-    enabled: open && server.api !== null,
+    queryFn: open && api ? () => api.untaggedTags() : skipToken,
     ...ASKS_MODEL,
     staleTime: STALE.tenMinutes,
   })

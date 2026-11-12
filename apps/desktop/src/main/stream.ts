@@ -9,6 +9,7 @@ import {
   PLAYED_KEPT,
   STREAM_RELAYED_HEADERS,
   UNANSWERED_HEADER,
+  UNANSWERED_TEXT,
   WAIT_AHEAD_BYTES,
   isCloudFileKey,
   isHashNamedCloudKey,
@@ -26,7 +27,7 @@ import { contentTypeFor } from './paths.js'
  *
  * The doorman reads a bearer header and nothing else, and the window's
  * `<audio>` element cannot send one. A tab has its service worker attach it
- * (apps/app/sw/sw.ts, `playFromBucket`) and a phone's player sends it with
+ * (apps/app/sw/audio.ts, `playFromBucket`) and a phone's player sends it with
  * each track; here the main process does, which is the worker's `cloud`
  * branch in Node. The page points the element at this address
  * (apps/app/src/ports/desktop/bucketMedia.desktop.ts).
@@ -189,12 +190,7 @@ export function createStreamProxy({
         ...(init.signal ? { signal: init.signal } : {}),
       })
     } catch {
-      return {
-        status: 503,
-        body: 'This song is not on this device, and your storage cannot be reached.',
-        contentRange: null,
-        unanswered: true,
-      }
+      return { status: 503, body: UNANSWERED_TEXT, contentRange: null, unanswered: true }
     }
     if (upstream.ok) return upstream
 
@@ -386,7 +382,7 @@ class Arriving {
         this.#reader = await open(part, 'r')
         opened({ kind: 'ok', size })
 
-        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+        for await (const chunk of response.body) {
           for (let written = 0; written < chunk.byteLength;) {
             written += (await writer.write(chunk, written)).bytesWritten
           }
@@ -405,11 +401,7 @@ class Arriving {
         // far as it got, and the next play fetches it again.
         opened({
           kind: 'refused',
-          refusal: {
-            status: 503,
-            body: 'This song is not on this device, and your storage cannot be reached.',
-            contentRange: null,
-          },
+          refusal: { status: 503, body: UNANSWERED_TEXT, contentRange: null },
         })
         this.#failed = true
         this.#notify()
@@ -459,9 +451,11 @@ class Arriving {
             }
             await new Promise<void>(resolve => this.#wake.push(resolve))
           }
+          const reader = this.#reader
+          if (reader === null) throw new Error('the song stopped arriving')
           const length = Math.min(end, this.received - 1, at + READ_CHUNK - 1) - at + 1
           const buffer = Buffer.alloc(length)
-          const { bytesRead } = await this.#reader!.read(buffer, 0, length, at)
+          const { bytesRead } = await reader.read(buffer, 0, length, at)
           if (bytesRead === 0) throw new Error('the song stopped arriving')
           at += bytesRead
           controller.enqueue(new Uint8Array(buffer.buffer, buffer.byteOffset, bytesRead))

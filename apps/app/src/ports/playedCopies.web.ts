@@ -6,7 +6,7 @@ import { desktop } from './desktop/bridge'
 
 /**
  * The cloud songs a browser's service worker kept for having played them
- * (sw.ts, `playFromBucket`): the last few, by bucket key.
+ * (sw/audio.ts, `playFromBucket`): the last few, by bucket key.
  *
  * A tab downloads nothing by itself, so these and the songs saved by hand are
  * all it has of its own. They matter on the day the bucket refuses reads: every

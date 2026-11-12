@@ -4,6 +4,7 @@ import { LARGE_SYNC_BYTES, useLibrary } from '@selfmp3/client'
 import { ConfirmDialog } from '../ui/components/ConfirmDialog'
 import { useDownloads, type DownloadQuestion } from './DownloadsProvider'
 import { thisPlace } from '../ports/place'
+import { useKeptWhileClosing } from '../ui/motion'
 
 /**
  * The questions downloading and streaming put to the person, in words.
@@ -13,8 +14,10 @@ import { thisPlace } from '../ports/place'
  * mobile data or a lot of space asks first.
  */
 export function PlaybackNotices(): ReactNode {
-  const { question, answer } = useDownloads()
+  const { question: asked, answer } = useDownloads()
   const library = useLibrary()
+  // Kept as it goes, so the answered question fades out with its words.
+  const question = useKeptWhileClosing(asked !== null, asked)
   if (!question) return null
 
   const title =
@@ -25,7 +28,7 @@ export function PlaybackNotices(): ReactNode {
 
   return (
     <ConfirmDialog
-      open
+      open={asked !== null}
       title={words.title}
       body={words.body}
       confirmLabel={words.confirm}

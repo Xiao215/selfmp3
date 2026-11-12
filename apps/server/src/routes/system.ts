@@ -15,6 +15,14 @@ import { isAuthenticated } from '../http/middleware.js'
 import { APP_VERSION } from '../config.js'
 import { USUAL_DAYS, usualHours } from '../services/usualHours.js'
 
+/**
+ * What `/api/health` says to anyone: this server is up, which server it is,
+ * and for how long. Also the hub's answer when no library took the request.
+ */
+export function healthOf(serverId: string): Health {
+  return { ok: true, version: APP_VERSION, serverId, uptimeSeconds: Math.round(process.uptime()) }
+}
+
 export function systemRoutes(container: Container): Router {
   const router = Router()
 
@@ -28,11 +36,7 @@ export function systemRoutes(container: Container): Router {
       // an asker who has not authenticated.
       const known = isAuthenticated(req, container.config)
       return {
-        ok: true,
-        version: APP_VERSION,
-        serverId: container.serverId,
-        uptimeSeconds: Math.round(process.uptime()),
-        appUrl: container.config.appUrl,
+        ...healthOf(container.serverId),
         ...(known
           ? { libraryPath: container.config.libraryDir, songCount: container.songs.count() }
           : {}),

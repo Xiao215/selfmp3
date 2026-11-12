@@ -74,6 +74,15 @@ export function Chip({
   const { theme } = useUnistyles()
   const press = usePressScale()
   const text = selected ? theme.colors.onPrimary : theme.colors.textPrimary
+  // The fill is worked out here with the ink, not left to a themed style: on a
+  // phone, inside a ScopedTheme (the sound map's night sky), Unistyles laid the
+  // app's light fill under the scope's light ink and the names could not be
+  // read (2026-11-11), as it did to TagDot's hue.
+  const fill = selected
+    ? { backgroundColor: theme.colors.textPrimary }
+    : dashed
+      ? { backgroundColor: 'transparent', borderColor: theme.colors.borderStrong }
+      : { backgroundColor: theme.colors.surface2 }
 
   const padding = compact ? styles.labelCompact : styles.labelStrip
 
@@ -91,11 +100,7 @@ export function Chip({
     <Animated.View
       testID={testID}
       onLayout={onLayout}
-      style={[
-        styles.chip,
-        selected ? styles.chipSelected : dashed ? styles.chipDashed : styles.chipOff,
-        press.style,
-      ]}
+      style={[styles.chip, !selected && dashed && styles.chipDashed, fill, press.style]}
     >
       <Pressable
         {...press.handlers}
@@ -149,7 +154,7 @@ export function Chip({
   )
 }
 
-const styles = StyleSheet.create(theme => ({
+const styles = StyleSheet.create({
   // Never wider than its row: a long tag ends in an ellipsis, its × still on the pill.
   chip: {
     flexDirection: 'row',
@@ -157,15 +162,9 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     maxWidth: '100%',
   },
-  chipOff: { backgroundColor: theme.colors.surface2 },
-  chipSelected: { backgroundColor: theme.colors.textPrimary },
   // The add chip is the one drawn by its edge: it is a place something will go.
-  chipDashed: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-  },
+  // Its colours are the chip's `fill`.
+  chipDashed: { borderWidth: 1, borderStyle: 'dashed' },
   // Both give way in a chip held narrower than its name (a song page's long
   // tag), so the name ends in "…" rather than running off the display.
   press: {
@@ -189,4 +188,4 @@ const styles = StyleSheet.create(theme => ({
   },
   remove: { paddingLeft: 2, paddingRight: space.snug },
   removeGlyph: { fontSize: type.body, opacity: 0.6 },
-}))
+})

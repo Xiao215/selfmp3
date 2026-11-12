@@ -11,7 +11,7 @@ import { PanelDenseContext } from './panel'
 import { contentA11y, panelA11y, Sheet, type LayerRole } from './Sheet'
 import { floating } from '../surfaces'
 import { CATCHER, rightClickThrough, type PopoverAnchor } from '../rightClick'
-import { ease, motionMs, nativeDriver, timing } from '../motion'
+import { ease, motionMs, nativeDriver, timing, useKeptWhileClosing } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { clamp } from '@selfmp3/shared'
 import { ScrollView } from './Scroll'
@@ -132,16 +132,6 @@ export function Popover({
       {children}
     </AnchoredPopover>
   )
-}
-
-/**
- * What was shown while `open`, kept as it closes: in the render, so the frame
- * that closes it already draws what it had.
- */
-function useKeptWhileClosing<T>(open: boolean, value: T): T {
-  const [kept, setKept] = useState(value)
-  if (open && kept !== value) setKept(value)
-  return open ? value : kept
 }
 
 /**
@@ -277,7 +267,13 @@ function AnchoredPopover({
   // are — has nothing to close, and started a move on mount for nothing.
   const wasOpen = useRef(false)
   useEffect(() => {
-    if (!open && !wasOpen.current) return
+    // Closed before it was ever placed: no exit to play, and nothing to keep
+    // drawn — left mounted, its panel stayed in the overlay host, unseen and
+    // still a dialog to a screen reader.
+    if (!open && !wasOpen.current) {
+      setMounted(false)
+      return
+    }
     // Opening, it grows once its panel is placed (`ready`). A close still on
     // its way is stopped where it is, unfinished, so it never unmounts the
     // panel that is opening again; the grow goes on from there.

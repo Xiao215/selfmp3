@@ -3,6 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
+import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { plural, artistOr, formatDuration, isResting, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, type, iconSize, coverSize } from '@selfmp3/client'
@@ -39,6 +40,7 @@ import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
 import { Downloaded, Moon, More, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
+import { useRowMotion } from '../rowMotion'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 import { CONTROL_SCALE } from '../textScale'
 import { textScale } from '../../ports/textScale'
@@ -206,6 +208,9 @@ export const SongRow = memo(function SongRow({
   // scrolls into view already playing starts at rest, since a presence begins
   // where it is asked to be.
   const wash = usePresence(active, MOVE_MS.wash, motion.base)
+  // On a phone the choosing circle fades in as a hold starts choosing, and the
+  // cover and words glide over to make room rather than jump (and back).
+  const choosing = useRowMotion()
   // The playing row wears its cover's colour, and keeps it while its wash
   // draws back: asked for nothing the moment it stopped, the leaving wash
   // would turn the accent's blue. Every other row asks for nothing, and so does
@@ -260,6 +265,15 @@ export const SongRow = memo(function SongRow({
   // instant it starts (`press.rest`): a row held a moment before the pointer
   // moved would otherwise stay pressed in under the drag.
   const press = usePressScale(PRESS.row)
+  // Held on a phone, it darkens under its words too, on the same spring as it
+  // gives: the press's own value, so holding a row draws nothing again.
+  const [heldVeil] = useState(() => ({
+    opacity: press.style.transform[0]!.scale.interpolate({
+      inputRange: [PRESS.row, 1],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+  }))
   useSongDragSource(rowRef, {
     songIds: () => (dragSongs ? dragSongs(song) : [song.id]),
     title: song.title,
@@ -361,24 +375,33 @@ export const SongRow = memo(function SongRow({
 
   if (!wide) {
     return (
-      <Animated.View style={press.style}>
-        {/*
+      // A row scrolled into view while choosing is drawn with its circle, not fading one in.
+      <LayoutAnimationConfig skipEntering>
+        <Animated.View style={press.style}>
+          {/*
           The row is a container, and the thing you press is inside it. In a
           browser only this shape works: react-native-web renders a button as a
           real <button>, and a row that was one would nest the ⋯ inside it, so
           the row is a role="row" with its buttons as siblings.
         */}
-        <View
-          testID={testID}
-          role="row"
-          style={[styles.row, ...states]}
-          {...keys}
-          {...onRightClick}
-        >
-          {washLayer}
-          {picking ? selectBox(true) : null}
+          <View
+            testID={testID}
+            role="row"
+            style={[styles.row, ...states]}
+            {...keys}
+            {...onRightClick}
+          >
+            {washLayer}
+            {/* Over the row's ground and its wash, under its words: the ink's own
+              veil, as a pressed menu row has, so it reads on a song's colour. */}
+            <Animated.View style={[styles.held, heldVeil]} pointerEvents="none" />
+            {picking ? (
+              <Reanimated.View entering={choosing.entering} exiting={choosing.exiting}>
+                {selectBox(true)}
+              </Reanimated.View>
+            ) : null}
 
-          {/*
+            {/*
             The press target lies under the cover and the words rather than
             around them. The tag chips sit among the words, on the second line
             (E1), and are buttons of their own — and a button inside the row's
@@ -387,44 +410,43 @@ export const SongRow = memo(function SongRow({
             words are hidden from a screen reader, which hears the target's
             label instead, as it did when the words were inside it.
           */}
-          <View style={styles.body}>
-            {/* No pressed background: the row already gives under the finger, and a
-                filled box over the cover and title flashed white in the light theme. */}
-            {target(StyleSheet.absoluteFill)}
-            <View style={styles.main} pointerEvents="box-none">
-              <View style={styles.art} pointerEvents="none" {...UNREAD}>
-                <Cover uri={artUri} title={song.album || song.title} size={coverSize.row} />
-                {equalizer(12, styles.playingOverlay)}
-              </View>
-
-              <View style={styles.text} pointerEvents="box-none">
-                <View pointerEvents="none" {...UNREAD}>
-                  {title}
+            <Reanimated.View style={styles.body} layout={choosing.layout}>
+              {target(StyleSheet.absoluteFill)}
+              <View style={styles.main} pointerEvents="box-none">
+                <View style={styles.art} pointerEvents="none" {...UNREAD}>
+                  <Cover uri={artUri} title={song.album || song.title} size={coverSize.row} />
+                  {equalizer(12, styles.playingOverlay)}
                 </View>
-                <View style={styles.subtitleRow} pointerEvents="box-none">
-                  <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
-                    {hereMark}
-                    {restMark}
-                    <Text style={styles.subtitle} numberOfLines={1}>
-                      {artistOr(song.artist)}
-                    </Text>
-                    {/* Its own words, so a long artist is cut before the length is. */}
-                    <Text style={styles.subtitleLength} numberOfLines={1}>
-                      · {formatDuration(song.duration)}
-                    </Text>
+
+                <View style={styles.text} pointerEvents="box-none">
+                  <View pointerEvents="none" {...UNREAD}>
+                    {title}
                   </View>
-                  {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
-                  {tags && tags.length > 0 ? (
-                    <View style={styles.tagsUnder}>{chips(underLane)}</View>
-                  ) : null}
+                  <View style={styles.subtitleRow} pointerEvents="box-none">
+                    <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
+                      {hereMark}
+                      {restMark}
+                      <Text style={styles.subtitle} numberOfLines={1}>
+                        {artistOr(song.artist)}
+                      </Text>
+                      {/* Its own words, so a long artist is cut before the length is. */}
+                      <Text style={styles.subtitleLength} numberOfLines={1}>
+                        · {formatDuration(song.duration)}
+                      </Text>
+                    </View>
+                    {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
+                    {tags && tags.length > 0 ? (
+                      <View style={styles.tagsUnder}>{chips(underLane)}</View>
+                    ) : null}
+                  </View>
                 </View>
               </View>
-            </View>
-          </View>
+            </Reanimated.View>
 
-          {more(styles.control)}
-        </View>
-      </Animated.View>
+            {more(styles.control)}
+          </View>
+        </Animated.View>
+      </LayoutAnimationConfig>
     )
   }
 
@@ -472,7 +494,7 @@ export const SongRow = memo(function SongRow({
               accessibilityLabel={`Play ${song.title}`}
               {...tip('Play')}
               {...untabbed}
-              style={styles.indexPlay}
+              style={({ pressed }) => [styles.indexPlay, pressed && styles.controlPressed]}
             >
               <Play size={iconSize.item} tone="textPrimary" />
             </Pressable>
@@ -482,7 +504,7 @@ export const SongRow = memo(function SongRow({
         </View>
 
         {target(
-          styles.mainWide,
+          [styles.mainWide, albumColumn && styles.mainShare],
           <>
             <Cover uri={artUri} title={song.album || song.title} size={coverSize.rowDense} />
             <View style={styles.text}>
@@ -527,7 +549,7 @@ export const SongRow = memo(function SongRow({
                   accessibilityLabel={`Edit tags for ${song.title}`}
                   {...tip('Edit tags')}
                   {...untabbed}
-                  style={styles.tagAdd}
+                  style={({ pressed }) => [styles.tagAdd, pressed && styles.controlPressed]}
                 >
                   {/* The player bar's tag-with-a-plus: a bare + on a song row read as
                       Add to playlist or Add to Up next. */}
@@ -619,6 +641,11 @@ const UNREAD = {
   accessibilityElementsHidden: true,
   importantForAccessibility: 'no-hide-descendants',
 } as const
+
+/** The title's share of a desktop row beside the album's column. */
+const TITLE_SHARE = '46%'
+/** The widest a desktop row is drawn (E). */
+const ROW_MAX_WIDTH = 1280
 
 /** The page has room for the album column. */
 const ROOM_FOR_ALBUM = 1
@@ -885,7 +912,11 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   /* At desktop width: 7 by 10, 12 between cells. */
+  // Held, the whole row, to a reading width: on a very wide page the album
+  // and the length stay near the title rather than across the page from it
+  // (P1 C), and the length still ends every row in the same place.
   rowWide: {
+    maxWidth: ROW_MAX_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -919,13 +950,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingVertical: 3,
   },
-  // Held, with the album's column, to a reading width: on a very wide page
-  // the album and the length stay near the title rather than across the page
-  // from it (P1 C).
   mainWide: {
     flex: 1,
     minWidth: 0,
-    maxWidth: 720,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -933,6 +960,7 @@ const styles = StyleSheet.create(theme => ({
   // The palette's own selected-row colour, so picking a row is recoloured by
   // the accent picker without re-rendering a list of them.
   selected: { backgroundColor: theme.colors.accentSelected },
+  held: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.colors.veilPressed },
   resting: {
     opacity: OPACITY.resting,
   },
@@ -1033,12 +1061,16 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
-  /* A fixed column, so it lines up down the page; the title takes the slack. */
+  /*
+   * With the album's column the title takes one share of the row on every
+   * list, so the album starts at the same place whether or not a tag lane
+   * follows it: the lane comes out of the album's room, never the title's.
+   */
+  mainShare: { flexGrow: 0, flexShrink: 0, flexBasis: TITLE_SHARE },
+  /* What the title leaves, up to the tags or the length. */
   albumColumn: {
-    flexBasis: '20%',
-    maxWidth: 320,
-    flexGrow: 0,
-    flexShrink: 0,
+    flex: 1,
+    minWidth: 0,
     color: theme.colors.textMuted,
     fontSize: type.small,
     ...COLUMN_START,

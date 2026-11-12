@@ -11,11 +11,15 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
+import Reanimated, { Easing, FadeOut } from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
+import { motion } from '@selfmp3/client'
 import { createValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import { useLayerFocus, useLayerKeys } from './layerFocus'
 import { useWatchBusy } from '../features/guide/watchBusy'
+import { useMotionReduced } from '../ui/motion'
+import { EASE_IN_POINTS } from '../ui/motion.model'
 
 /**
  * One place, at the root of the app, where sheets and popovers are drawn.
@@ -171,19 +175,33 @@ function OverlayEntry({
 }): ReactNode {
   const ref = useRef<View | null>(null)
   useLayerFocus(ref, modal)
+  const reduced = useMotionReduced()
+  // A layer taken away while still open — a dialog its owner stopped drawing
+  // the moment it was answered, a palette closed by the page it opened —
+  // fades out rather than vanishing. A layer that ran its own exit (a sheet,
+  // a popover) is no longer modal when it goes, and goes as it is.
   return (
-    <View
-      ref={node => {
-        ref.current = node
-        onNode(node)
-      }}
+    <Reanimated.View
       style={StyleSheet.absoluteFill}
-      pointerEvents={leaving ? 'none' : 'box-none'}
+      pointerEvents="box-none"
+      exiting={modal && !reduced ? LAYER_OUT : undefined}
     >
-      {children}
-    </View>
+      <View
+        ref={node => {
+          ref.current = node
+          onNode(node)
+        }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents={leaving ? 'none' : 'box-none'}
+      >
+        {children}
+      </View>
+    </Reanimated.View>
   )
 }
+
+/** How a layer taken away while open goes: as a dialog's own exit does. */
+const LAYER_OUT = FadeOut.duration(motion.base).easing(Easing.bezier(...EASE_IN_POINTS))
 
 const styles = StyleSheet.create({
   root: {

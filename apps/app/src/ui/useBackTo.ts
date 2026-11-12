@@ -13,7 +13,7 @@ export function useBackTo(): (href: string) => void {
   const router = useRouter()
   const navigation = useNavigation()
   return href => {
-    const state = navigation.getState() as StackState | undefined
+    const state: StackState | undefined = navigation.getState()
     if (isBehind(state, href) && router.canGoBack()) router.back()
     else router.replace(href as never)
   }

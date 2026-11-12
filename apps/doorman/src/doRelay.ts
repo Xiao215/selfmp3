@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { Bucket, BucketError } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
-import { JSON_HEADERS, notFound } from './http.js'
+import { JSON_HEADERS, noContent, notFound } from './http.js'
 import { bearerToken, type Session } from './sessions.js'
 
 /**
@@ -41,7 +41,7 @@ export function post(body: unknown): RequestInit {
  * reading it only to write it out again is the Worker's time for nothing.
  */
 export function relayed(response: Response): Response {
-  if (response.status === 204) return new Response(null, { status: 204 })
+  if (response.status === 204) return noContent()
   return new Response(response.body, { status: response.status, headers: JSON_HEADERS })
 }
 
@@ -149,12 +149,13 @@ export function idIndex(ctx: Context, key: string, schema: z.ZodType<string>): I
  */
 export async function summariesOf<T>(
   index: IdIndex,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   summary: (id: string) => Promise<Response>,
 ): Promise<T[]> {
   const answers = await Promise.all(
     (await index.ids()).map(async id => {
       const answer = await summary(id)
-      if (answer.ok) return { id, found: (await answer.json()) as T, gone: false }
+      if (answer.ok) return { id, found: schema.parse(await answer.json()), gone: false }
       await answer.body?.cancel()
       return { id, found: null, gone: answer.status === 403 || answer.status === 404 }
     }),

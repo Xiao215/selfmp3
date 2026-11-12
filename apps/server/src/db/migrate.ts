@@ -478,7 +478,7 @@ const MIGRATIONS: readonly Migration[] = [
     // deleted from the bucket if no other song names them. `removed_songs` is
     // the uid of each such song for the same while: the bucket's newest
     // snapshot still lists it until then, and a server that reads that
-    // snapshot again — a restart, *Publish now* — must not take it back on.
+    // snapshot again — after a restart — must not take it back on.
     name: 'the server keeps no library of its own',
     sql: `
       DROP INDEX IF EXISTS idx_songs_missing;
@@ -1288,7 +1288,7 @@ const MIGRATIONS: readonly Migration[] = [
     //
     // `removed_playlists` is `removed_songs` for playlists: the uid of each
     // deleted here until the snapshot without it is up, so a server reading
-    // the bucket's newest snapshot again — a restart, *Publish now* — does not
+    // the bucket's newest snapshot again — after a restart — does not
     // take it back on (services/cloudAdopt.ts). This step's own deletions are
     // the first: the next start reads a snapshot that still has them.
     name: 'kept playlists with no songs go',
@@ -1311,7 +1311,38 @@ const MIGRATIONS: readonly Migration[] = [
     `,
   },
   {
-    // 59. A job a device downloads itself (docs/features/client-download.md).
+    // 59. A kept playlist that went with its last songs (`playlistEmptied`,
+    // docs/SYNC.md), as it was then, stamps and all: a device that puts a
+    // song in it, not having heard, brings it back — under the id it had,
+    // which AUTOINCREMENT never hands out again, so an Undo that puts the
+    // songs back finds it. Deleting it outright lost that song on every
+    // device (bug bash R7H-1). `id` is null for one a snapshot kept aside.
+    name: 'kept playlists emptied by a removal are kept aside',
+    sql: `
+      CREATE TABLE IF NOT EXISTS emptied_playlists (
+        uid            TEXT    PRIMARY KEY,
+        id             INTEGER,
+        name           TEXT    NOT NULL,
+        description    TEXT    NOT NULL DEFAULT '',
+        pinned         INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT    NOT NULL,
+        updated_at     TEXT    NOT NULL,
+        last_played_at TEXT,
+        stamps         TEXT    NOT NULL DEFAULT '{}',
+        song_stamps    TEXT    NOT NULL DEFAULT '{}'
+      ) WITHOUT ROWID;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_emptied_playlists_id ON emptied_playlists(id);
+    `,
+  },
+  {
+    // 60. A library reaches its bucket through the doorman alone, with the
+    // grant the hub keeps (docs/features/shared-server.md). The bucket key a
+    // server was once connected with directly is not kept.
+    name: 'no bucket key is kept',
+    sql: `DELETE FROM secrets WHERE name = 'cloud.connection';`,
+  },
+  {
+    // 61. A job a device downloads itself (docs/features/client-download.md).
     // `fetcher` is who fetches the song — the server, or the device that
     // asked — and a device holds its jobs by a lease (`lease_id`) that it
     // renews while it works on them. One left unrenewed past `lease_until`

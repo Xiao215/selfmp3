@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -44,7 +44,7 @@ import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { setRootSize, useLayoutFlags, useLayoutSize } from '../src/shell/useLayout'
 import { useFontScale } from '../src/ui/textScale'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
-import { useRoom } from '../src/features/room/room.store'
+import { currentRoom, subscribeRoom } from '../src/features/room/room.store'
 import { pageHidesTabs, pageOwnsScreen, setPageChrome, setPageTabs } from '../src/shell/pageChrome'
 import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
@@ -270,14 +270,19 @@ function Keeping(): ReactNode {
   return null
 }
 
+/** Whether this device holds a pass to a listening room. */
+const inARoom = (): boolean => currentRoom().pass !== null
+
 /** Which page is showing, and the frame around it: where sign-in sends you, and the stack. */
 function RootRoutes(): ReactNode {
   const { theme, rt } = useUnistyles()
   const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
-  // A guest in a room adds to it from Search (`opensSignedOut`).
-  const inRoom = useRoom().pass !== null
+  // A guest in a room adds to it from Search (`opensSignedOut`). Whether, and
+  // nothing else of the room: its clock is set again on every ping, and this
+  // is the root of the app.
+  const inRoom = useSyncExternalStore(subscribeRoom, inARoom, inARoom)
   const { wide } = useLayoutFlags()
   const reduced = useMotionReduced()
   // A face that failed to load is not a reason to keep the app shut: the system

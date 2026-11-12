@@ -124,6 +124,21 @@ describe('stateOfRequest', () => {
 })
 
 describe('what a page may ask', () => {
+  it('hands the rows question to the library, and nothing else', async () => {
+    const asked: unknown[] = []
+    const { handlers } = fakeHandlers({
+      owned: (request: unknown) => {
+        asked.push(request)
+        return Promise.resolve({ videoIds: ['ZRtdQ81jPUQ'] })
+      },
+    })
+    const handle = pageHandler(handlers)
+    expect(await handle({ type: 'owned', videoIds: ['ZRtdQ81jPUQ', 'YQHsXMglC9A'] })).toEqual({
+      videoIds: ['ZRtdQ81jPUQ'],
+    })
+    expect(asked).toEqual([{ type: 'owned', videoIds: ['ZRtdQ81jPUQ', 'YQHsXMglC9A'] }])
+  })
+
   it('says nothing at all about a link that is not a video', async () => {
     const { handlers } = fakeHandlers({})
     const handle = pageHandler(handlers)

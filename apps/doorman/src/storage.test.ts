@@ -1,15 +1,7 @@
 import { CLOUD_FORMAT, DoormanMeSchema, ErrorBodySchema } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
-import {
-  APPLICATION_KEY,
-  B2_HOST,
-  BUCKET,
-  KEY_ID,
-  ME,
-  SEAL_KEY,
-  harness,
-  type Harness,
-} from './fakes.js'
+import { APPLICATION_KEY, B2_HOST, BUCKET, KEY_ID } from './fakeBucket.js'
+import { ME, SEAL_KEY, harness, type Harness } from './fakes.js'
 
 /**
  * Connecting a bucket: the key is tried against the bucket — an S3 look-alike
@@ -363,6 +355,28 @@ describe('connecting a bucket', () => {
     expect(await refusal(await h.connect(token, { endpoint: `http://${B2_HOST}` }))).toBe(
       'The endpoint has to be an https:// address.',
     )
+  })
+
+  it('never sends a request to an address off the public internet', async () => {
+    const { h, token } = await signedIn()
+    const before = h.outside.length
+    for (const endpoint of [
+      'https://10.0.0.2',
+      'https://169.254.169.254',
+      'https://[fd12::1]',
+      'https://metadata.google.internal',
+      'https://minio',
+    ]) {
+      expect(
+        await refusal(await h.connect(token, { endpoint, region: 'us-east-1' })),
+        endpoint,
+      ).toBe('The endpoint has to be an address on the internet.')
+    }
+    h.env.DEV = 'true'
+    expect(
+      await refusal(await h.connect(token, { endpoint: 'https://10.0.0.2', region: 'us-east-1' })),
+    ).toBe('The endpoint has to be an address on the internet.')
+    expect(h.outside.slice(before)).toEqual([])
   })
 
   it('refuses a body that is not a CloudConnect', async () => {

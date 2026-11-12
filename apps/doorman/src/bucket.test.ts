@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Bucket, type Fetch } from './bucket.js'
-import { APPLICATION_KEY, B2_HOST, BUCKET, FakeBucket, KEY_ID } from './fakes.js'
+import { APPLICATION_KEY, B2_HOST, BUCKET, FakeBucket, KEY_ID } from './fakeBucket.js'
 
 /**
  * The day's signing key, handed to aws4fetch rather than derived by it.

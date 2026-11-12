@@ -1,7 +1,8 @@
 import { DoormanListSchema, ErrorBodySchema } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { utf8 } from './encoding.js'
-import { APPLICATION_KEY, B2_HOST, harness, type Harness } from './fakes.js'
+import { APPLICATION_KEY, B2_HOST } from './fakeBucket.js'
+import { harness, type Harness } from './fakes.js'
 
 /**
  * A device's reads and writes, through the doorman to the bucket and back:

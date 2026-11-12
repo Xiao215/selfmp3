@@ -83,7 +83,8 @@ device's store, because the only data there is is the owner's.
 - **Stored objects are upgraded as they are read, and written back**: a phone's kept
   library (`upgradeKeptBase`, packages/replica), its remembered rooms (`upgradePastRooms`,
   `features/room/room.model.ts`), and the doorman's shared playlists (`upgradeDoc`) and share
-  links (`upgradeSecrets`). Durable Objects and device stores cannot all be walked at once,
+  links (`upgradeSecrets`, and a link kept whole before its songs were kept in parts, in
+  `Share#read`). Durable Objects and device stores cannot all be walked at once,
   so each is migrated the first time it is opened; the schemas themselves keep no defaults.
 - **The unnamed-file sweep skips a round when an old snapshot does not read**
   (`#namedBySnapshots`, `apps/server/src/services/cloudSync.ts`): an old device's snapshot
@@ -91,3 +92,67 @@ device's store, because the only data there is is the owner's.
   deleted meanwhile, which is the safe side.
 - **Settings keeps `Row` + `Toggle`** rather than `ToggleRow`: its rows put every kind of
   control at the end (T-428).
+- **Import's review keeps a phone row and a computer row** (`PhoneRow`, `GridRow` in
+  `features/import/ReviewRows.tsx`): a phone's opens into a card and a computer's into
+  fields on the one grid every row shares; the box, the title, the name fields, the bar
+  and the words at the end are already the same parts.
+- **`features/lists/lists.model.ts` keeps Recently played with the sources**: a recent
+  list is keyed by its source (`sourceKey`), and the module's tests read both together.
+- **The desktop shell's IPC handlers do not check `event.senderFrame`**
+  (`apps/desktop/src/main/ipc.ts`): the preload runs only in the window's top frame, and
+  `window.ts` keeps that frame on the app's own origin (`will-navigate`, and every new
+  window denied), so a sender check would ask again what the navigation guard has
+  decided. Every argument is still parsed with its schema.
+- **SQL in the eval scripts** (`apps/server/src/ai/eval/`, `apps/server/src/sound/eval.ts`):
+  each builds its own in-memory library and reads it back, and a case's expectation is
+  written as a SQL condition over `songs` on purpose, so an answer is checked against the
+  database rather than against the code under test. They are scripts, not services.
+- **The account's doorman session and the reading of other devices' logs stay in
+  `cloudSync.ts`**: each reads and writes the pass's own state (the session and the bucket
+  in use; the newest snapshot of its own and how far its plays reach), so a module of its
+  own would call back into the sync for most of what it does. The sound vectors, the sound
+  map and the plays (`cloudLibraryFiles.ts`) and the pictures (`cloudPictures.ts`) did not,
+  and moved.
+- **`CloudSyncService.syncNow` stays, though only tests call it** since *Publish now* and
+  its route went (2026-11-11). The real entries are `kick`, which waits out a debounce, and
+  `start`; the sync's and the hub's tests drive passes one at a time through `syncNow`, and
+  `verify` starts a pass over against the bucket the way a restart does, without making a
+  second service on the same database.
+- **`PlayerProvider.tsx`, `SongRow.tsx` and `Sidebar.tsx` stay long, one file each**. The
+  provider's engine wiring, its commands and its recovery from a failed song share a dozen
+  refs (the comment above `useVolumeControls` there); a song row's phone and computer shapes
+  are placed from one set of parts, so a fix reaches both (the comment above `target` in
+  `SongRow.tsx`); the rail's sections share one stylesheet and its group heads. What had a
+  seam of its own has moved out: the volume, the sleep timer, play reporting and what the
+  operating system shows (`useNowPlaying`), and the worker's audio and bucket
+  (`sw/audio.ts`, `sw/bucket.ts`).
+- **`usePlayerProgress` reads `usePlayer()` for the song's own length**, so the scrubbers
+  and the synced lyrics render again for a queue edit. The playback store is told after the
+  commit, so taking the length from there would draw the last song's length under the new
+  one for a frame.
+- **`packages/replica/src/library.ts` stays one file**: its closures share the replica, the
+  sign-out `generation`, the outbox's `exclusive` lock and what has been written, so a split
+  would hand all of that across. What the library points at in the bucket (words, covers,
+  the sound map) needed none of it and is already `libraryFiles.ts`.
+  `packages/shared/src/sync.ts` stays one file too: `applyChange` is one case per kind of
+  change, and a list reads best whole.
+- **`parseDoormanRefusal` reads without zod** (`packages/shared/src/doormanWire.ts`): the
+  service worker imports `@selfmp3/shared/wire`, which stays free of zod to keep it small.
+- **`repositories/cloud.ts` stays one repository**, though long: saving any bucket file's
+  state trashes the file it replaces, and `reconcileFiles` resets every kind in one
+  transaction, so split repositories would each need the others' tables.
+- **The hub lets a library go with `fs.rmSync`** (`#leave`, `apps/server/src/hub/hub.ts`):
+  it runs once per grant taken back, and the hub's tests read the folders as gone the moment
+  it returns.
+- **The scrapers read their pages through casts, not schemas** (`services/netease.ts`,
+  `services/youtubeMusic*.ts`, `services/spotify.ts`): each shape is someone else's and changes
+  without notice, so a field is read where it is found and a missing one is skipped,
+  where a schema would refuse the whole page.
+- **The song and list menus reach into features from `ui/components`** (`SongActionItems`,
+  `useListActions`, `SelectionBar`, `SongMenu`): they are the one menu every screen opens, so
+  what a menu item does (queue, share, add to a room, open a tag) is imported from the
+  feature that owns it. The app states no layer rule between `ui` and `features`, and
+  moving the menus into a feature would only move the same imports.
+- **`DeviceStore.update` returns `unknown`** (packages/replica's `platform.ts`): a generic
+  `update<T>` would move the outbox's one cast into each of the three stores (the phone's,
+  the browser's IndexedDB and the extension's), each of which writes whatever `change` gave.

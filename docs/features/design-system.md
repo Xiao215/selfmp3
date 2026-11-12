@@ -8,7 +8,9 @@ The shared UI primitives: the dropdown, the floating-layer shell every menu sits
 tokens, and the rules for stacking and focus. Anything built on top of these should not
 need to reinvent portalling, dismissing, focus handling or z-index numbers.
 
-Files:
+**Where:** the phone, the computer, the web and the desktop app, which all draw `apps/app`'s
+one tree; the browser extension writes the same tokens into its own CSS
+([browser-extension.md](browser-extension.md#the-look)). The code:
 
 | What | Where |
 |---|---|
@@ -135,7 +137,7 @@ grey: that read as hovered.
 
 Not on these yet, on purpose: Stats' ranked lines (a rank, a picture of three kinds and a share
 bar, not a song line), the import rows waiting above Library (they stand in for `SongRow`s in
-the list below them), Forgotten gems' cards (a shelf of posters), and the sidebar's search
+the list below them), and the sidebar's search
 row (a row of the rail, which opens the palette). Up next on a phone keeps its own panel
 rather than `Sheet` (`features/queue/QueueSheet.tsx`): it is drawn by the shell under the
 overlay host so a song's menu and the Undo toast for a swiped-away row land above it, and it
@@ -395,9 +397,10 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   from 6 points below, 180 ms (`shell/pageStep.ts`, `ui/components/SlidingHighlight.tsx`).
   The phone's stack pushes pages with iOS's own slide, the one the swipe back drags. A tag
   opened from its Home tile crossfades over 340 ms instead while its head grows out of the
-  tile (`ui/coverHandoff.ts`), and Back shrinks the head into the tile as the page fades.
-  The grow starts with the navigator's `transitionStart`; a page going
-  away is told nothing, so the shrink starts with the press.
+  tile (`ui/coverHandoff.ts`); the grow starts with the navigator's `transitionStart`. Once
+  it has arrived it takes the slide for its way out, so Back and the swipe both slide it off
+  as any pushed page (`ui/useHeroGrow.ts`): a crossfade back read as the page being
+  dismissed.
 - Now Playing rises from the foot on the spring on a phone and in a browser, its cover
   travelling from where the mini player's or the bar's was (`ui/coverHandoff.ts`), and sinks
   back before the route changes; an iPad's stack slides it, 380 ms. The cover shrinks to

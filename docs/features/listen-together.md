@@ -141,6 +141,11 @@ sheet:
   song, so each play counts against the owner's daily Backblaze downloads. A friend whose
   bucket has hit its cap has their songs skipped, and the room says so once.
 
+**A friend who leaves** leaves their waiting songs to play; none of their songs plays again
+after, from Again, Autoplay or the host's player. Their played songs' covers and words stay
+while the room is open, as everyone's do. One the host removes
+takes their waiting songs with them, those someone else put in again too.
+
 **Keeping in step.** The host's player is the clock. It reports what it is on and where.
 The room keeps the song and when it started, on the doorman's clock. Each device works the
 position out with its own clock's offset from the doorman's, measured by a ping on the
@@ -154,6 +159,23 @@ is.
 wherever they are pressed (the player bar, the lock screen, a key), are the room's: Next skips
 the room's song and play/pause pauses it, when **Friends can** allows; otherwise they say only
 the host can. A room only goes forward, so Previous says so.
+
+**A host who is away.** Only the host's player moves the room on. While it is away (its socket
+closed), a friend's Next, play/pause and the room card's Skip and Play say *Xiao's player is
+away* instead of asking it, and what was asked is dropped rather than done when it is back
+(`hostAway` in `apps/app/src/features/room/room.model.ts`). On everyone's phones a song that
+has played to its end is not played again from past it: the friend's player waits for the
+host, and once the host is away, or still has not moved on ten seconds after the end, the
+room's sound stops with *Waiting for Xiao* until they are back (`followPlan`).
+
+**One tab plays it.** In a browser with the room open in several tabs, one tab plays it (a Web
+Lock per room, `room.store.ts`); the others say *The room plays in your other tab*, and the
+next takes over when that one closes.
+
+**Leaving has to be heard.** The host's Leave ends the room, and a friend's stops lending the
+songs and shelf they brought, so either counts only once the doorman has answered it. Offline,
+it says the room could not be reached and keeps you in it, still the host, to try again. A
+friend who brought nothing leaves at once.
 
 **One room at a time.** Joining or starting a room while in another leaves the one you were in,
 once the new one has let you in: an invite to a room that has ended changes nothing. When the
@@ -188,7 +210,8 @@ song and move it; a moved song leaves the turns and stays where it was put (`roo
 left, the room adds songs that sound like the last ones, taking turns between the people whose
 songs were played. Its switch says *When the list runs low, plays more of what people brought*.
 
-- **Where the songs come from:** shelves, and songs that played, leaving out the last dozen.
+- **Where the songs come from:** shelves, and songs that played, leaving out the last dozen
+  and the songs of anyone who left.
   A young room with nothing of its own to bring back yet takes songs from the host's library
   that it does not have, nearest in sound where the host's vectors say.
 - **How a song is picked:** each person's turn is the song of theirs whose sound is nearest
@@ -249,7 +272,9 @@ the internet:
 
 - **Which address:** the https one, usually the Tailscale Funnel's `*.ts.net`
   (`publicServerBase`).
-- **How it plays:** the doorman plays the link through that address for every member.
+- **How it plays:** the doorman plays the link through that address for every member. It
+  fetches only an address on the public internet and follows no redirect (`mayReach` in
+  `apps/doorman/src/http.ts`), so a host cannot point it at a private network.
 - **The token:** the server's token stays in the room's private storage, never sent to a
   member, and goes with the room.
 - **A server the internet can't reach:** a link plays on the host's device alone, and
@@ -277,7 +302,8 @@ Its page:
 - **Play together** opens a room filled with it. Its songs are lent from each owner's bucket
   even when the owner is not in the room, and named for them, for as long as they are in the
   playlist: the doorman asks the playlist on every read, so a song taken out, or an owner who
-  leaves, stops playing in the room at once.
+  leaves, stops playing in the room at once. Played again, it is the same song lent the same
+  way; one the playlist no longer has is refused then, not later.
 - **Add songs** adds from your library; songs already in it are marked *Already in*.
 - **Invite** shares a link and a QR code: `/shared/<id>/join/<invite>`. Joining needs an
   account; an invite opened before signing in opens again after.
@@ -302,7 +328,7 @@ share sheet; where there is none (the desktop app), it copies the link.
 | A room: one Durable Object per code, its sockets, its alarm | `apps/doorman/src/room.ts` |
 | The doorman's routes, and lending a song's files from its owner's bucket | `apps/doorman/src/rooms.ts` |
 | A device's side: the doorman's routes, the clock's offset, a room song as a track | `packages/client/src/room/` |
-| One of your songs as a room carries it | `packages/replica/src/roomSong.ts` (`cloudRoomSongNow`) |
+| One of your songs as a room carries it | `packages/replica/src/roomSong.ts` (`roomSongOf`), `library.ts` (`cloudRoomSongNow`) |
 | The room this device is in: its pass, its socket, Join, Leave | `apps/app/src/features/room/room.store.ts` |
 | Rows, tracks, the host's plan, Autoplay, what Recently played keeps | `apps/app/src/features/room/room.model.ts` |
 | The host's player playing the room; everyone's phones following it | `apps/app/src/features/room/RoomProvider.tsx` |

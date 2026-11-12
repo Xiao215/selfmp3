@@ -89,6 +89,7 @@ export function handleAppScheme(roots: ProtocolRoots): void {
 async function serveWebFile(file: string, known?: Stats): Promise<Response> {
   try {
     const stats = known ?? (await stat(file))
+    // Node's web stream and the DOM's are one object typed twice, and `Response` takes the DOM's.
     return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
       status: 200,
       headers: {
@@ -139,12 +140,12 @@ async function serveMedia(
   const rest = pathname.slice(MEDIA_PREFIX.length)
   const slash = rest.indexOf('/')
   const kind = fileKindSchema.safeParse(slash === -1 ? '' : rest.slice(0, slash))
-  if (!kind.success) return new Response('not found', { status: 404 })
+  if (!kind.success) return notFound()
 
   const file = resolveWithinRoot(directoryFor(kind.data), `/${rest.slice(slash + 1)}`)
   // One stat answers both "is it a file" and "how big": a seek is a request of its own.
   const stats = file === null ? null : await fileStats(file)
-  if (file === null || stats === null) return new Response('not found', { status: 404 })
+  if (file === null || stats === null) return notFound()
 
   const answer = answerFromDisk(request, file, stats)
   answer.headers.set('Access-Control-Allow-Origin', allowedOrigin(request, devOrigin))

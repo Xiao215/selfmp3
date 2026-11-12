@@ -91,8 +91,7 @@ export function Cover({
     askedAt.current = Date.now()
     if (uri && loadedUri === uri) return
     shown.setValue(0)
-    // Only a new address can make the picture loaded or not.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new address can make the picture loaded or not
   }, [uri, shown])
 
   const onLoad = (): void => {

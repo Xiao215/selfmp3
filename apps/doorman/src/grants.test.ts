@@ -81,6 +81,33 @@ describe('grants', () => {
     expect(again.status).toBe(404)
   })
 
+  it('ends no other server’s grant', async () => {
+    const h = harness()
+    const phone = await h.signIn()
+    const made = await grant(h, phone)
+    const other = await grant(h, phone, { server: 'https://other.example.com', name: 'other' })
+
+    const refused = await h.call(`/v1/grants/${other.grant.id}`, {
+      method: 'DELETE',
+      token: made.token,
+    })
+    expect(refused.status).toBe(403)
+    expect((await listed(h, phone)).map(g => g.id)).toEqual([made.grant.id, other.grant.id])
+    expect((await h.call('/v1/me', { token: other.token })).status).toBe(200)
+  })
+
+  it('is off the list once its server signs out with it', async () => {
+    const h = harness()
+    const phone = await h.signIn()
+    const made = await grant(h, phone)
+    const other = await grant(h, phone, { server: 'https://other.example.com', name: 'other' })
+
+    const out = await h.call('/v1/auth/signout', { method: 'POST', token: made.token })
+    expect(out.status).toBe(204)
+    expect((await h.call('/v1/me', { token: made.token })).status).toBe(401)
+    expect((await listed(h, phone)).map(g => g.id)).toEqual([other.grant.id])
+  })
+
   it('cannot be passed on: a grant makes no grants', async () => {
     const h = harness()
     const made = await grant(h, await h.signIn())
@@ -222,6 +249,47 @@ describe('grants', () => {
       await h.call(`/v1/grants/${odd.grant.id}`, { method: 'DELETE', token: phone })
       await h.settle()
       expect(heard).toEqual([])
+    })
+
+    it('knocks on no address off the public internet, whatever an account gives', async () => {
+      const h = harness()
+      const phone = await h.signIn()
+      const addresses = [
+        'http://127.0.0.1:5430',
+        'http://localhost:4600',
+        'http://2130706433',
+        'http://10.0.0.2',
+        'http://172.20.1.1',
+        'http://192.168.1.5:4600',
+        'http://100.101.1.2',
+        'http://169.254.169.254',
+        'http://[::1]:4600',
+        'http://[::ffff:7f00:1]',
+        'http://[fd12::1]',
+        'http://pi.local',
+        'http://metadata.google.internal',
+        'http://router',
+      ]
+      for (const server of addresses) {
+        const made = await grant(h, phone, { server, name: 'inside' })
+        expect(
+          (await h.call(`/v1/grants/${made.grant.id}`, { method: 'DELETE', token: phone })).status,
+        ).toBe(204)
+      }
+      await h.settle()
+      expect(h.outside.filter(request => request.url.pathname === '/api/hub/check')).toEqual([])
+    })
+
+    it('tells a server on this computer under wrangler dev', async () => {
+      const h = harness()
+      h.env.DEV = 'true'
+      const phone = await h.signIn()
+      const made = await grant(h, phone, { server: 'http://localhost:5430', name: 'here' })
+      await h.call(`/v1/grants/${made.grant.id}`, { method: 'DELETE', token: phone })
+      await h.settle()
+      expect(h.outside.map(request => request.url.href)).toContain(
+        'http://localhost:5430/api/hub/check',
+      )
     })
   })
 })

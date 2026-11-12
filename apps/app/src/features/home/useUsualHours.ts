@@ -5,6 +5,7 @@ import { STALE, useDeviceUids, useUsualHours as useUsualHoursOf } from '@selfmp3
 import { apiFor } from '../../api/client'
 import { noServer, useVia, viaKey } from '../../connection/via'
 import { prefs } from '../../ports/prefs'
+import { readStored } from '../../state/stored.model'
 import { useSongsById } from '../../ui/songsById'
 
 /**
@@ -17,16 +18,7 @@ import { useSongsById } from '../../ui/songsById'
 
 const KEY = 'home.usual'
 
-function read(): UsualHours | null {
-  try {
-    const parsed = UsualHoursSchema.safeParse(JSON.parse(prefs.get(KEY) ?? 'null'))
-    return parsed.success ? parsed.data : null
-  } catch {
-    return null
-  }
-}
-
-let kept: UsualHours | null = read()
+let kept: UsualHours | null = readStored(prefs.get(KEY), UsualHoursSchema)
 const listeners = new Set<() => void>()
 
 function keep(hours: UsualHours): void {

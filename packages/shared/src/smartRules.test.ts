@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MISSING_TAG_UID } from './cloud.js'
 import type { CloudSmartRule, CloudSmartRules, CloudSong } from './schemas/cloud.js'
-import { livePlaylistSongs } from './smartRules.js'
+import { followsTheClock, livePlaylistSongs } from './smartRules.js'
 
 const uid = (n: number): string => n.toString(16).padStart(32, '0')
 const CHILL = uid(0x71)
@@ -152,5 +152,22 @@ describe('smart playlists on a device', () => {
       })(),
     })
     expect(shuffled).toEqual(ids(4, 2, 3, 1, 5))
+  })
+})
+
+describe('a live playlist and the clock', () => {
+  it('follows it only for a rule about how many days ago', () => {
+    expect(followsTheClock(rules([{ field: 'addedAt', op: 'inLastDays', days: 7 }]))).toBe(true)
+    expect(
+      followsTheClock(
+        rules([
+          { field: 'loved', op: 'is', value: true },
+          { field: 'lastPlayedAt', op: 'notInLastDays', days: 30 },
+        ]),
+      ),
+    ).toBe(true)
+    expect(followsTheClock(rules([{ field: 'lastPlayedAt', op: 'never' }]))).toBe(false)
+    expect(followsTheClock(rules([{ field: 'tag', op: 'has', tagUid: CHILL }]))).toBe(false)
+    expect(followsTheClock(rules([]))).toBe(false)
   })
 })

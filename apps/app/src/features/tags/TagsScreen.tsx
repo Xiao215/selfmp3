@@ -32,6 +32,7 @@ import { useGuide } from '../guide/useGuide'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { Press } from '../../ui/components/Press'
 import { MOVE_MS } from '../../ui/motion.model'
+import { Fold } from '../../ui/components/Fold'
 import { rightClick } from '../../ui/rightClick'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { card, label, pageFrame, rowTitle, hint, textColumn } from '../../ui/surfaces'
@@ -193,8 +194,8 @@ export function TagsScreen(): ReactNode {
     [library],
   )
 
-  // The one Search, on its Tags scope: the page on a phone, the palette over
-  // this page on a computer (docs/ui-mock `P18`, `C05`).
+  // The one Search: the page on a phone, the palette over this page on a
+  // computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch()
   // Stable, because a tile is memoised and this is the prop every one of them holds.
   const edit = useCallback<EditTag>(tag => {
@@ -257,7 +258,7 @@ export function TagsScreen(): ReactNode {
           actions={actions}
         />
 
-        {adding ? (
+        <Fold open={adding}>
           <NewTag
             tags={tags}
             onExisting={tag => {
@@ -267,7 +268,7 @@ export function TagsScreen(): ReactNode {
             }}
             onClose={closeNew}
           />
-        ) : null}
+        </Fold>
 
         {playAndTag.count > 0 ? (
           <UntaggedCard

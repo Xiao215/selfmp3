@@ -231,7 +231,8 @@ redirect URI in step 2).
   (`/v1/grants`): sessions of their own, made with a device's session, with no
   180-day end. Each account sees and removes its own in self.mp3's Settings ›
   Account › Computers. Signing out everywhere ends them too, and a grant can
-  never make another. Making one costs two KV writes, and so does ending one.
+  never make another. A server ends its own grant, by taking it back or signing
+  out with it, and no other. Making one costs two KV writes, and so does ending one.
   Ending one also tells its server, at the address it gave when it asked for
   the grant: `POST <address>/api/hub/check`, naming the grant and nothing
   else, after the doorman has answered and with a five-second limit. The
@@ -239,8 +240,7 @@ redirect URI in step 2).
   library go when it does not. A server that is off, or not reachable from
   Cloudflare, finds out at its next look at the bucket instead
   ([docs/features/shared-server.md](../../docs/features/shared-server.md),
-  "Telling the server"). Nothing new is kept for it: every grant has always
-  stored that address.
+  "Telling the server").
 - **Friends' iPhones** for the iPhone app (device.ts): `/v1/device` is the
   profile service the install page starts, which keeps an iPhone's ID with the
   name it came with in KV as `iphones` (one record; a waiting request is

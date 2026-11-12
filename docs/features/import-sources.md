@@ -15,6 +15,11 @@ Each song comes from one of two places: YouTube, or 网易云 itself. Spotify's 
 be downloaded, so a Spotify song is found on YouTube by its name, as is a song from a
 list of names.
 
+**Where:** Import on the phone, the computer, the web and the desktop app
+(`apps/app/src/features/import/`); every look-up, search and download is the server's
+(`apps/server/src/services/`, listed under [Code](#code)). The share sheet and the browser
+extension take fewer kinds of link ([below](#where-it-does-not-work)).
+
 ## 网易云音乐
 
 A song, an album, a playlist (a chart is one) or an artist link (the fifty songs their
@@ -149,7 +154,11 @@ The same review as a YouTube link (`ImportReview.tsx`):
 - Open a song found by its name and **Look again**: by its name as it stands now, after
   fixing a title or an artist.
 - A song from 网易云 or YouTube can be heard before importing; a song still being looked
-  for cannot yet.
+  for cannot yet. Nothing is looked up until a song is played, and the first second or
+  several (seven on a Pi) is the server asking yt-dlp where its audio is. Listening is not
+  paced against YouTube (`ytThrottle.ts`) and takes nothing from the downloads' budget.
+  A song heard and then imported within a few hours is fetched from the same link,
+  with no second lookup and no turn at YouTube (`ListenService.known`).
 
 Songs already in the library are "In library" by the usual rule (`alreadyHave.ts`): the
 source link, a 网易云 song in any spelling, or the name and length.

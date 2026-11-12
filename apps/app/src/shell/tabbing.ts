@@ -31,3 +31,10 @@ export const FOCUS_INSIDE = { dataSet: { focusInside: 'true' } } as const
 
 /** The selector for rules drawn only while the keyboard moves focus. */
 export const TABBING_SELECTOR = `html[${TABBING}]`
+
+/**
+ * Spread on something that fills its place and is covered by what it draws
+ * (the sound map's field, under its canvases): its focus ring is drawn over
+ * them, just inside its edge.
+ */
+export const FOCUS_OVER = { dataSet: { focusOver: 'true' } } as const

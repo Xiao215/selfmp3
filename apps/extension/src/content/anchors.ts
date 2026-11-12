@@ -11,7 +11,7 @@
  * CSS, and YouTube Music's `.content-info-wrapper` sits on top of the title.
  */
 
-type Site = 'www' | 'mobile' | 'music'
+export type Site = 'www' | 'mobile' | 'music'
 
 interface Anchor {
   readonly selector: string

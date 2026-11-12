@@ -4,6 +4,7 @@ import {
   DoormanGrantsSchema,
   type CloudServer,
   type DoormanGrants,
+  messageOf,
   refusalOf,
 } from '@selfmp3/shared'
 import { z } from 'zod'
@@ -183,7 +184,9 @@ export function createSharedServer(
     let under = joining.get(email)
     if (!under) {
       under = takeOver(session, named !== null && isShared(named))
-        .catch(() => {
+        .catch((error: unknown) => {
+          // Nobody is waiting to be told: the library goes on without a server.
+          platform.warn?.(`the shared computer could not be joined: ${messageOf(error)}`)
           nextTry.set(email, Date.now() + RETRY_MS)
           return null
         })
@@ -314,6 +317,6 @@ function sameAddress(a: string, b: string): boolean {
 
 /** The answer's own message, when it has one. */
 async function errorOf(response: { json(): Promise<unknown> }): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: unknown } | null
-  return typeof body?.error === 'string' ? body.error : 'Something went wrong.'
+  const body = z.object({ error: z.string() }).safeParse(await response.json().catch(() => null))
+  return body.success ? body.data.error : 'Something went wrong.'
 }

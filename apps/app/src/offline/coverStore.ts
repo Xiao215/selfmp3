@@ -224,6 +224,13 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
    */
   const changes = createCoverChanges()
 
+  /**
+   * Bumped by `forgetCovers`. Work already under way when an account is
+   * forgotten answers for the old one's song ids, which the next account's
+   * songs reuse: it is dropped rather than kept under them.
+   */
+  let account = 0
+
   let primed = false
   /** True only while a platform primes synchronously; see `found` below. */
   let priming = false
@@ -328,9 +335,10 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     if (kept) return kept
     const failedAt = failedPictures.get(name)
     if (failedAt !== undefined && Date.now() - failedAt < RETRY_FAILED_MS) return null
+    const asked = account
     try {
       const uri = await keepFile(key)
-      if (!uri) return null
+      if (!uri || asked !== account) return null
       arrived(name, uri)
       return uri
     } catch (error) {
@@ -365,8 +373,10 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
         return platform.keepCloud(name, url, {})
       })().finally(() => fetchingFile.delete(name))
     fetchingFile.set(name, work)
+    const asked = account
     try {
       const uri = await work
+      if (asked !== account) return null
       if (uri) arrived(name, uri)
       return uri
     } catch (error) {
@@ -485,6 +495,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     if (have && have.rev === revision) return Promise.resolve()
     if (tried.has(url)) return Promise.resolve()
     tried.add(url)
+    const asked = account
     return (async () => {
       // Off the current frame first. This is called while a row renders, and a
       // cover found on disk would otherwise announce itself — and set state in
@@ -492,7 +503,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       await new Promise(resolve => setTimeout(resolve, 0))
       try {
         const uri = await platform.keepServed(servedName(songId, revision), url)
-        if (!uri) return
+        if (!uri || asked !== account) return
         served.set(songId, { rev: revision, uri })
         changes.changed(songId)
         // The art it replaces is never asked for again: it would only sit in
@@ -537,7 +548,9 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     })()
 
     fetching.set(songId, work)
+    const asked = account
     const uri = await work
+    if (asked !== account) return null
     fetching.delete(songId)
     // Fetched or given up on: either way the disk is worth a look again.
     notOnDisk.delete(songId)
@@ -560,6 +573,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
    * every name about to be deleted.
    */
   const forgetCovers = async (): Promise<void> => {
+    account++
     known.clear()
     fetching.clear()
     fetchingFile.clear()

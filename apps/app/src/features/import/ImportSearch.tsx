@@ -3,8 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
-import { useMutation } from '@tanstack/react-query'
-import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
+import { space, type, type ServerConnection } from '@selfmp3/client'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { pageFrame, lineSub } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -13,16 +12,16 @@ import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SearchField } from '../../ui/components/SearchField'
-import { ImportFoot, useImportPage } from './ImportPage'
+import { ImportFoot, useImportEnqueue, useImportPage } from './ImportPage'
 import { useFindSongs } from './useFindSongs'
 import { useSongSearch } from './useSongSearch'
-import { comingIn, importRequest, stillFinding } from './review.model'
-import { enqueueImport } from './deviceImports'
+import { comingIn, stillFinding } from './review.model'
 import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
 import { Spinner } from '../../ui/components/Spinner'
-import { countUse } from '../usage/usage'
+import Reanimated from 'react-native-reanimated'
+import { useFadeMotion } from '../../ui/rowMotion'
 
 /** How many of a search's songs show before "Show more", under the songs picked before it. */
 const FOUND_SHOWN = 12
@@ -52,7 +51,7 @@ export function ImportSearch({
 } = {}): ReactNode {
   const { wide, finePointer } = useLayoutFlags()
   const page = useImportPage(via, onUnreachable)
-  const { source, draft, patchDraft, listen, backTo, failed } = page
+  const { source, draft, patchDraft, listen, backTo } = page
   const key = page.draftKey
   const { search, tagIds } = draft
   const params = useLocalSearchParams<{ q?: string }>()
@@ -64,6 +63,7 @@ export function ImportSearch({
   const finder = useFindSongs(source.lookUp, key, search?.review ?? null, 'search')
   /** "Show more" pressed for these words; new words start short again. */
   const [moreFor, setMoreFor] = useState<string | null>(null)
+  const { entering: moreIn } = useFadeMotion()
 
   const found = useReviewRows({
     draft: key,
@@ -76,17 +76,11 @@ export function ImportSearch({
     unticked: 'picking',
   })
 
-  const enqueue = useMutation({
-    mutationFn: (current: Review) => enqueueImport(source.api, importRequest(current, tagIds)),
-    onSuccess: () => {
-      countUse('import')
-      // The songs are in the queue, which Import shows; the search is done, and so are its tags.
-      void source.invalidateQueue()
-      listen.close({ resume: false })
-      backTo('/import')
-      patchDraft({ search: null, tagIds: new Set() })
-    },
-    onError: failed,
+  // The search is done once its songs are in the queue, and so are its tags.
+  const enqueue = useImportEnqueue(page, () => {
+    listen.close({ resume: false })
+    backTo('/import')
+    patchDraft({ search: null, tagIds: new Set() })
   })
 
   const picked = search ? comingIn(search.review) : 0
@@ -164,7 +158,13 @@ export function ImportSearch({
                   style={[styles.group, kept > 0 && styles.apart]}
                 />
               ) : null}
-              {rows.slice(kept, moreFor === shownFor ? undefined : kept + FOUND_SHOWN)}
+              {rows.slice(kept, kept + FOUND_SHOWN)}
+              {/* Show more's rows fade in under the ones there, rather than simply being there. */}
+              {moreFor === shownFor && rows.length > kept + FOUND_SHOWN ? (
+                <Reanimated.View entering={moreIn}>
+                  {rows.slice(kept + FOUND_SHOWN)}
+                </Reanimated.View>
+              ) : null}
               {moreFor !== shownFor && rows.length > kept + FOUND_SHOWN ? (
                 <View style={styles.more}>
                   <Button

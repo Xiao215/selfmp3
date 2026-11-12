@@ -12,7 +12,7 @@ import { STALE } from '@selfmp3/client'
 import { appUpdate } from '../../ports/appUpdate'
 import { prefs } from '../../ports/prefs'
 import { dismissToast, showToast } from '../../ui/toast'
-import type { UpdateStatus } from './AboutCard'
+import { checkedStatus, checkLabel, type UpdateStatus } from './updateStatus.model'
 
 /**
  * A newer build of the phone app, shared from the `ios` or `android` release
@@ -61,8 +61,9 @@ const openInstallPage = () => void Linking.openURL(INSTALL_PAGE_URL)
  * iOS, after its own Install, downloads the build, then waits for self.mp3
  * to leave the screen before putting it in — the app asking is the app being
  * replaced. Pressing Install used to end there, with nothing to see
- * (2026-10-27). The message stays until answered, and Home steps back to the
- * Home Screen, where the icon shows the rest.
+ * (2026-10-27), then with a message whose Home stepped back. Now the app
+ * steps back to the Home Screen itself once iOS's question is answered
+ * (`leaveOnceAnswered`), and the icon there shows the rest.
  *
  * Android has the app download the build itself, then opens the installer
  * over it; the installer putting it in ends this app, so the installer
@@ -81,22 +82,15 @@ function install(build: number): void {
     prefs.set(TRIED_KEY, String(build))
     prefs.set(TRIED_AT_KEY, String(Date.now()))
   }
+  // Watching from before the link opens: its question can come before the open settles.
+  const answered = appUpdate.downloads ? null : leaveOnceAnswered(build)
   appUpdate.install(handed).then(
     () => {
-      if (appUpdate.downloads) {
-        notIn(build)
-        return
-      }
-      showToast(
-        {
-          say: `Build ${build} goes in from the Home Screen`,
-          under: 'self.mp3 has to close for it. Its icon there shows how far it’s got.',
-        },
-        'info',
-        { autoDismissMs: 0, actions: [{ label: 'Home', onPress: leaveForInstall(build) }] },
-      )
+      if (answered) answered.opened()
+      else notIn(build)
     },
     () => {
+      answered?.stop()
       if (fetching !== null) dismissToast(fetching)
       showToast(
         appUpdate.downloads
@@ -115,17 +109,62 @@ function install(build: number): void {
   )
 }
 
+/** How long the opened link has for iOS's question to come, before the app steps back without one. */
+const QUESTION_MS = 5000
+
 /**
- * Steps back for iOS to put the build in. Putting it in ends this app, so
- * coming back to this one still running means it has not gone in yet.
+ * iOS asks over the app whether to replace it: the app goes inactive while
+ * the question is up, and active again once it is answered. Either answer
+ * brings it back, and nothing says which, so the app steps back to the Home
+ * Screen on either. Cancel then finds the app still running on coming back,
+ * which says the build hasn't gone in, with Install again.
+ *
+ * A link that asks nothing (the simulator's) steps back once `opened` has
+ * waited QUESTION_MS — the time for iOS to fetch the manifest and ask. The
+ * app leaving the screen on its own while asked is the Home gesture doing
+ * the same.
  */
-const leaveForInstall = (build: number) => (): void => {
+function leaveOnceAnswered(build: number): { opened(): void; stop(): void } {
+  let asked = false
+  let wait: ReturnType<typeof setTimeout> | undefined
+  const stop = () => {
+    watch.remove()
+    clearTimeout(wait)
+  }
+  const leave = () => {
+    stop()
+    leaveForInstall(build)
+  }
+  const watch = AppState.addEventListener('change', state => {
+    if (state === 'inactive') {
+      asked = true
+      clearTimeout(wait)
+    } else if (state === 'background') {
+      stop()
+      notInOnReturn(build)
+    } else if (asked) leave()
+  })
+  return {
+    opened: () => {
+      if (!asked) wait = setTimeout(leave, QUESTION_MS)
+    },
+    stop,
+  }
+}
+
+/** Steps back for iOS to put the build in. */
+function leaveForInstall(build: number): void {
+  notInOnReturn(build)
+  appUpdate.leave()
+}
+
+/** Putting the build in ends this app, so coming back to this one still running means it has not gone in. */
+function notInOnReturn(build: number): void {
   const back = AppState.addEventListener('change', state => {
     if (state !== 'active') return
     back.remove()
     notIn(build)
   })
-  appUpdate.leave()
 }
 
 function notIn(build: number): void {
@@ -193,16 +232,12 @@ export function useAppUpdateStatus(): UpdateStatus | null {
     }
   }
   const check = {
-    label: latest.isFetching ? 'Checking…' : latest.isSuccess ? 'Check again' : 'Check',
+    label: checkLabel(latest.isFetching, latest.isSuccess),
     onPress: () => void latest.refetch(),
     busy: latest.isFetching,
     testID: 'settings-app-update-check',
   }
-  return latest.isError
-    ? { tone: 'error', line: 'Couldn’t check', action: check }
-    : latest.isSuccess
-      ? { tone: 'good', line: 'Up to date', action: check }
-      : { tone: 'quiet', line: 'Not checked yet', action: check }
+  return checkedStatus(latest.isError ? 'failed' : latest.isSuccess ? 'upToDate' : 'notYet', check)
 }
 
 /** The version as About shows it: with the build number where builds are shared. */

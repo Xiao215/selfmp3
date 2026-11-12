@@ -580,10 +580,15 @@ export function createApi({ context, fetch }: ApiOptions) {
       return parts[parts.length - 1]!
     },
 
-    removeManyFromPlaylist: async (id: number, songIds: number[]): Promise<RemovedFromPlaylist> => {
+    removeManyFromPlaylist: async (
+      id: number,
+      songIds: number[],
+      keep?: boolean,
+    ): Promise<RemovedFromPlaylist> => {
       const parts = await inChunks(songIds, part =>
         request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, {
           songIds: part,
+          ...(keep ? { keep } : {}),
         }),
       )
       return {
@@ -603,8 +608,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     importTools: (refresh = false) =>
       request('GET', `/api/import/tools${refresh ? '?refresh=1' : ''}`, ToolStatusSchema),
 
-    importPreview: (url: string, options: { warmListen?: boolean } = {}) =>
-      request('POST', '/api/import/preview', ImportPreviewSchema, { url, ...options }),
+    importPreview: (url: string) =>
+      request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
 
     /** Words looked for on YouTube Music and 网易云 at once, as review rows (`/import/search`). */
     importSearch: (query: string) =>

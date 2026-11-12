@@ -115,7 +115,7 @@ the platform.
 **Every device gets in the same way: sign in with Google, and the library is your
 bucket's.** There is no server address to type anywhere; the app knows the shared server's
 address as it knows the doorman's. The server serves no page on its public port: its
-owner's admin page (Data, Access, Server) listens on the server's own machine and is opened
+owner's admin page (Data, People, iPhones) listens on the server's own machine and is opened
 through Tailscale ([docs/features/admin.md](docs/features/admin.md)).
 
 | | Server | Browser tab | iPhone and Android app | Desktop app |
@@ -129,7 +129,8 @@ through Tailscale ([docs/features/admin.md](docs/features/admin.md)).
 | **Keyboard** | — | Space for play and pause | — | The application menu's shortcuts, and `⌘K` for Search |
 
 On a phone the tabs are **Home · Library · Playlists**. Search opens from Home, and Profile
-from Home's avatar; Profile leads on to Stats, Import, the Report and Settings. On a
+from Home's avatar; Profile leads on to Import, Stats (and the Report from there), Links you
+shared and Settings. On a
 computer those live in the sidebar.
 
 ---
@@ -184,7 +185,8 @@ song, so "(Live)", a "(From …)" note and a "feat." credit all survive (`tidyVi
 `packages/shared/src/titles.ts`).
 
 **From your phone's share sheet.** Share a track from the YouTube Music app and it queues on
-the server: a share target on Android, a one-step Shortcut on iOS. See
+the server: the share target of the web app installed from Chrome on Android, a one-step
+Shortcut on iOS. See
 [share-to-import.md](docs/features/share-to-import.md).
 
 **From other services.** Liked Music, private playlists and artist pages import like any
@@ -222,7 +224,7 @@ playlists, similar songs, and an auto-mix that orders Up next into a smooth path
 
 **Smart features.** Ask in the Search box — play something, find songs, make a playlist,
 tidy names or tags — and Describe it when making a playlist. The model only ever proposes,
-from your own songs, and you approve. Each feature has its own switch in Settings. See
+from your own songs, and you approve. One switch in Settings turns them all off. See
 [ai.md](docs/features/ai.md).
 
 ### With friends
@@ -281,7 +283,7 @@ nothing else to install. To update, `docker compose pull && docker compose up -d
 on a timer: the image is rebuilt on every push to `main`, and weekly for a fresh yt-dlp.
 
 It runs on the host's own network, so it sees and publishes the computer's home and
-Tailscale addresses. To reach it away from home, put Tailscale Funnel in front of it
+Tailscale addresses. To reach it away from home, or after it moves, put Tailscale Funnel in front of it
 (`tailscale funnel --bg 4600`) and set `SELFMP3_PUBLIC_URL` to that `https://` address in a
 `.env` beside `docker-compose.yml` (copy `.env.example`). Then sign in with Google in
 the [web app](https://xiao215.github.io/selfmp3), the desktop app or the phone app, and
@@ -312,7 +314,7 @@ They are read in `apps/server/src/config.ts`.
 |---|---|---|
 | `SELFMP3_PORT` | `4600` | Port to listen on |
 | `SELFMP3_HOST` | `0.0.0.0` | Bind address. The addresses the server finds on its network interfaces are how a device at home reaches it; `127.0.0.1` keeps it to this machine |
-| `SELFMP3_PUBLIC_URL` | none | One more address to publish: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
+| `SELFMP3_PUBLIC_URL` | none | The one address to publish, in place of the ones on the network interfaces: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
 | `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: with a public address its origin may call the server |
 | `SELFMP3_ADMIN_PORT` | `4610` | The owner's admin page, on `127.0.0.1` only whatever `SELFMP3_HOST` says; `0` turns it off |
 | `SELFMP3_ADMIN_URL` | none | The address `tailscale serve` gives the admin page, such as `https://pi.tail3d8516.ts.net:4443`: the page answers only to it and to this machine |
@@ -321,7 +323,7 @@ They are read in `apps/server/src/config.ts`.
 | `SELFMP3_DATA_DIR` | `/app/data` in Docker; `~/Library/Application Support/selfmp3` on macOS, `~/.local/share/selfmp3` elsewhere | `hub.json`, each workspace's database and caches, and the listening model's files |
 | `SELFMP3_PROFILE` | none | A separate installation outside Docker: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
 | `SELFMP3_AUTH_TOKEN` | one the server makes | The token of a server whose bucket is a folder. A server working for accounts gives each library its own, kept in `hub.json` |
-| `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman the server signs in to the cloud through. Empty for none |
+| `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman the server reaches each account's bucket through. Empty for none |
 | `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API, beyond the desktop app, the extension and (with a public address) the web app. `npm run dev` adds the web dev server's, `http://localhost:4601` |
 | `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features, such as cli-bridge's `http://127.0.0.1:8787/v1` ([ai.md](docs/features/ai.md)). Also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART` (both `sonnet`), `SELFMP3_AI_TIMEOUT_SECONDS` (240), and `SELFMP3_AI_CONCURRENCY` (2, requests in flight to it at once). Unset, the smart features are off and say so |
 | `SELFMP3_SOUND` | `true` | The listening model, which hears each song for "Sounds like" and for Ask. Its files, about 750 MB, are downloaded to the data folder the first time they are wanted. `false` turns it off |
@@ -432,10 +434,11 @@ The decisions that shape it — shared schemas instead of documented ones, stora
 interface, the bucket as the library, every play kept as a row, platform differences behind
 ports — are explained in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-Six GitHub workflows:
+Nine GitHub workflows:
 
 - [`check.yml`](.github/workflows/check.yml): typecheck, lint, format and tests on every
-  push and pull request, and called by the three builds below before they run.
+  push and pull request, and called by the Pages, desktop, extension, iPhone and Android
+  builds below before they run.
 - [`e2e.yml`](.github/workflows/e2e.yml): the extension and desktop Playwright suites, on
   every push to `main` and every pull request.
 - [`pages.yml`](.github/workflows/pages.yml): publishes the web app to GitHub Pages from
@@ -446,6 +449,12 @@ Six GitHub workflows:
   tag.
 - [`extension.yml`](.github/workflows/extension.yml): zips the extension on an
   `extension-v*` tag.
+- [`ios.yml`](.github/workflows/ios.yml) and [`android.yml`](.github/workflows/android.yml):
+  build and sign the phone app for friends and put it on the `ios` and `android` releases,
+  on every push to `main` that changes the app, and nightly when it has changed
+  ([MOBILE.md](docs/MOBILE.md)).
+- [`autofix.yml`](.github/workflows/autofix.yml): when a push to `main` goes red in Check,
+  End to end, Pages or Docker, Claude looks at why and offers a fix as a pull request.
 
 The doorman is deployed by hand with `npx wrangler deploy` from `apps/doorman`
 ([apps/doorman/README.md](apps/doorman/README.md)).

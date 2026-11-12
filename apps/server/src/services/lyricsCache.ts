@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
+import type { z } from 'zod'
 import { messageOf } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
@@ -35,10 +36,17 @@ export class LyricsCache {
     return path.join(this.#dir, String(songId), `${kind}.${hash}.json`)
   }
 
-  async read<T>(songId: number, kind: string, hash: string): Promise<T | null> {
+  /** An entry, read through its schema: null when there is none, or it is not this shape. */
+  async read<T>(
+    songId: number,
+    kind: string,
+    hash: string,
+    schema: z.ZodType<T>,
+  ): Promise<T | null> {
     try {
       const raw = await fsp.readFile(this.#file(songId, kind, hash), 'utf8')
-      return JSON.parse(raw) as T
+      const parsed = schema.safeParse(JSON.parse(raw))
+      return parsed.success ? parsed.data : null
     } catch {
       return null
     }

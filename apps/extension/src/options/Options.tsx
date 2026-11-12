@@ -1,13 +1,25 @@
-import { DEFAULT_LOCAL_SERVER_URL, plural, signInCodeFromUrl } from '@selfmp3/shared'
+import {
+  DEFAULT_APP_URL,
+  DEFAULT_LOCAL_SERVER_URL,
+  plural,
+  signInCodeFromUrl,
+} from '@selfmp3/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask, BridgeError, type Status } from '../bridge.js'
-import { Logo } from '../ui/parts.js'
+import { hostOf } from '../popup/popup.model.js'
+import { ErrorLine, Logo } from '../ui/parts.js'
+import { NOTE_PATH } from '../ui/mark.js'
 import { signInFailure } from './signIn.js'
 
 /**
  * Where the extension imports to: the same Google account as every other
  * device, or one server's address typed in.
+ *
+ * One column (A1, the Oct 31 canvas): what it is, then one card that says
+ * who it is signed in as and where an import goes from here (B1), then the
+ * three ways to save (C1), and the address folded into a row at the foot
+ * (D1).
  *
  * Signing in is the way in that keeps working: the server is asked directly
  * whenever it answers, and when it does not the link waits in the bucket for it
@@ -31,6 +43,7 @@ export function Options(): ReactNode {
   const [token, setToken] = useState('')
   /** The server answered 401, so it wants a token and the field is worth showing. */
   const [wantsToken, setWantsToken] = useState(false)
+  const [byAddress, setByAddress] = useState(false)
 
   const status = useQuery({
     queryKey: ['status'],
@@ -73,8 +86,10 @@ export function Options(): ReactNode {
     mutationFn: () => ask({ type: 'connect', baseUrl: address, token: token || null }),
     onSuccess: next => {
       remember(next)
+      setAddress('')
       setToken('')
       setWantsToken(false)
+      setByAddress(false)
     },
     onError: error => {
       if (error instanceof BridgeError && error.status === 401) setWantsToken(true)
@@ -90,30 +105,89 @@ export function Options(): ReactNode {
   const songCount = status.data?.songCount ?? null
   const mode = status.data?.mode ?? 'none'
   const noServer = status.data?.noServer ?? false
+  /** Signed out, and nothing typed in that answers: signing in is the one thing to do. */
+  const needsSignIn = !account && mode !== 'server'
+
+  const signInButton = (
+    <button
+      type="button"
+      className="primary google"
+      autoFocus
+      disabled={signIn.isPending}
+      onClick={() => signIn.mutate()}
+    >
+      <GoogleMark />
+      {signIn.isPending ? 'Waiting for Google…' : 'Sign in with Google'}
+    </button>
+  )
+  const signInError = <ErrorLine message={signIn.error && signInFailure(signIn.error)} />
 
   return (
     <main className="options">
-      <div className="options-intro">
-        <Logo>self.mp3 for your browser</Logo>
+      <header className="options-head">
+        <span className="brand">
+          <Logo size={20} />
+          <span className="brand-tag">for your browser</span>
+        </span>
+        <a className="open-app" href={DEFAULT_APP_URL} target="_blank" rel="noreferrer">
+          Open self.mp3
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+            <path d="M7 17 17 7M8 7h9v9" />
+          </svg>
+        </a>
+      </header>
+
+      <section className="hero">
         <h1>
           Save what you are already looking at<i>.</i>
         </h1>
         <p className="lede">
-          Adds the song, playlist, album or artist on the page to your library. It never plays
-          anything or reads your history.
+          Songs, playlists, albums and artists, from the page you are on. It never plays anything or
+          reads your history.
         </p>
+      </section>
 
-        <section className="card account" aria-live="polite">
+      {status.isPending ? (
+        <section className="card connection" aria-busy="true">
+          <p className="quiet">Checking…</p>
+        </section>
+      ) : needsSignIn ? (
+        <section className="card connection sign-in" aria-live="polite">
+          <div className="sign-in-row">
+            <span className="sign-in-text">
+              <b>{mode === 'away' ? 'Sign in to find your server' : 'One step: sign in'}</b>
+              <span>Use the same account as your phone. There is nothing to type.</span>
+            </span>
+            {signInButton}
+          </div>
+          {signInError}
+          {mode === 'away' && server && (
+            <div className="dead-address">
+              <span className="dot warning" aria-hidden="true" />
+              <span className="dead-address-text">
+                <b>{hostOf(server.baseUrl)}</b>, the address below, didn’t answer
+              </span>
+              <button
+                type="button"
+                className="tonal small"
+                disabled={disconnect.isPending}
+                onClick={() => disconnect.mutate()}
+              >
+                Forget it
+              </button>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="card connection" aria-live="polite">
           {account ? (
-            <>
+            <div className="who">
               <span className="avatar" aria-hidden="true">
                 {account.slice(0, 1).toUpperCase()}
               </span>
-              <span className="account-text">
-                <span className="account-name">Connected as {account}</span>
-                <span className="account-sub">
-                  {accountLine(mode, server?.baseUrl ?? null, songCount, noServer)}
-                </span>
+              <span className="who-text">
+                <b>{account}</b>
+                <span>Signed in with Google</span>
               </span>
               <button
                 type="button"
@@ -123,118 +197,173 @@ export function Options(): ReactNode {
               >
                 {signOut.isPending ? 'Signing out…' : 'Sign out'}
               </button>
-            </>
+            </div>
           ) : (
-            <div className="account-in">
-              {signIn.error && (
-                <p className="error" role="alert">
-                  {signInFailure(signIn.error)}
-                </p>
-              )}
-              {/* The popup's Sign in brings you here, so the button has the focus. */}
-              <button
-                type="button"
-                className="primary"
-                autoFocus
-                disabled={signIn.isPending}
-                onClick={() => signIn.mutate()}
-              >
-                {signIn.isPending ? 'Waiting for Google…' : 'Sign in with Google'}
-              </button>
-              <p className="account-hint">Use the same account as your phone.</p>
+            <div className="who">
+              <span className="who-text">
+                <b>Not signed in</b>
+                <span>Signed in, links wait in your bucket while this server sleeps.</span>
+              </span>
+              {signInButton}
             </div>
           )}
+          {!account && signInError}
+          <Route
+            mode={mode}
+            baseUrl={server?.baseUrl ?? null}
+            songCount={songCount}
+            noServer={noServer}
+          />
         </section>
-      </div>
+      )}
 
-      <div className="options-side">
-        <section className="group">
-          <h2 className="label">Downloading in the web app</h2>
-          <label className="card setting">
-            <span>Use my YouTube sign-in</span>
-            <input
-              type="checkbox"
-              checked={options.data?.useYouTubeSignIn ?? false}
-              disabled={!options.data || setSignIn.isPending}
-              onChange={event => {
-                const on = event.target.checked
-                // Taken only now, on the person's own click; `cookies` carries no warning, so Chrome shows no prompt.
-                const permission = on
-                  ? chrome.permissions.request({ permissions: ['cookies'] })
-                  : chrome.permissions.remove({ permissions: ['cookies'] }).then(() => true)
-                void permission
-                  .catch(() => !on)
-                  .then(granted => {
-                    if (granted) setSignIn.mutate(on)
-                  })
-              }}
-            />
-          </label>
-          <p className="hint">
-            When the web app downloads a song in this browser, YouTube counts it against your
-            account instead of your network, which lets many more through. Only the request that
-            asks for a song goes signed in, never one that could like, subscribe or comment — but
-            YouTube may flag an account that downloads a lot.
-          </p>
-        </section>
-
-        {server?.typed && (
-          <section className="group">
-            <h2 className="label">This server</h2>
-            <div className="card setting">
-              <span>
-                {account ? 'Also pointed at ' : 'Pointed at '}
-                <b>{server.baseUrl}</b>
-                {!account && songCount !== null ? ` · ${plural(songCount, 'song', 'songs')}` : ''}
-                {mode === 'away' && <span className="quiet"> · it isn’t answering right now.</span>}
+      <section className="ways" aria-labelledby="ways-title">
+        <h2 id="ways-title" className="label">
+          {needsSignIn ? 'Then, three ways to save' : 'Three ways to save'}
+        </h2>
+        <div className={needsSignIn ? 'ways-grid later' : 'ways-grid'}>
+          <Way title="The button on YouTube" text="Beside Like on any video, YouTube Music too.">
+            <span className="art-pill">Like</span>
+            <span className="art-pill art-lit">
+              <NoteMark size={11} />
+              self.mp3
+            </span>
+          </Way>
+          <Way title="Right-click a link" text="Anywhere: a chat, a search, a blog post.">
+            <span className="art-menu">
+              <span>Open link in new tab</span>
+              <span>Copy link address</span>
+              <span className="art-lit">Import link to self.mp3</span>
+            </span>
+          </Way>
+          <Way
+            title="The toolbar button"
+            text="Pin it for tags, a whole playlist, or a pasted link."
+          >
+            <span className="art-toolbar">
+              <span className="art-icon art-lit">
+                <NoteMark size={13} />
               </span>
-              <button
-                type="button"
-                className="tonal"
-                disabled={disconnect.isPending}
-                onClick={() => disconnect.mutate()}
-              >
-                Forget this address
-              </button>
-            </div>
-          </section>
-        )}
+              <span className="art-popup">
+                <span className="art-cover" />
+                <span className="art-lines">
+                  <span />
+                  <span />
+                </span>
+              </span>
+            </span>
+          </Way>
+        </div>
+      </section>
 
-        {/* Folded away: an address is for a server sign-in cannot find. */}
-        <details className="group by-address" open={server?.typed || wantsToken || undefined}>
-          <summary>Connect by address instead</summary>
+      {/* For the web app's downloads in this browser (docs/features/client-download.md). */}
+      <section className="card youtube-sign-in">
+        <label className="typed">
+          <span className="typed-text">
+            <b>Use my YouTube sign-in</b>
+            <span>
+              When the web app downloads a song in this browser, YouTube counts it against your
+              account instead of your network, which lets many more through. Only the request that
+              asks for a song goes signed in, never one that could like, subscribe or comment — but
+              YouTube may flag an account that downloads a lot.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={options.data?.useYouTubeSignIn ?? false}
+            disabled={!options.data || setSignIn.isPending}
+            onChange={event => {
+              const on = event.target.checked
+              // Taken only now, on the person's own click; `cookies` carries no warning, so Chrome shows no prompt.
+              const permission = on
+                ? chrome.permissions.request({ permissions: ['cookies'] })
+                : chrome.permissions.remove({ permissions: ['cookies'] }).then(() => true)
+              void permission
+                .catch(() => !on)
+                .then(granted => {
+                  if (granted) setSignIn.mutate(on)
+                })
+            }}
+          />
+        </label>
+      </section>
+
+      <section className="card by-address">
+        {server?.typed && (
+          <div className="typed">
+            <LinkMark />
+            <span className="typed-text">
+              <b>
+                {account ? 'Tried first: ' : 'Pointed at '}
+                {server.baseUrl}
+                {!account && songCount !== null ? ` · ${plural(songCount, 'song', 'songs')}` : ''}
+              </b>
+              <span>{mode === 'away' ? 'Not answering right now' : 'Answering'}</span>
+            </span>
+            <button
+              type="button"
+              className="tonal small"
+              disabled={disconnect.isPending}
+              onClick={() => disconnect.mutate()}
+            >
+              Forget
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          className="fold"
+          aria-expanded={byAddress || wantsToken}
+          aria-controls="address-form"
+          onClick={() => setByAddress(open => !open)}
+        >
+          {!server?.typed && <LinkMark />}
+          <span className="fold-text">
+            <b>{server?.typed ? 'Use another address' : 'Connect by address instead'}</b>
+            {!server?.typed && (
+              <span>Rarely needed. For a copy of self.mp3 your account can’t find.</span>
+            )}
+          </span>
+          <svg className="chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
+        {(byAddress || wantsToken) && (
           <form
-            className="group"
+            id="address-form"
+            className="address-form"
             onSubmit={event => {
               event.preventDefault()
               connect.mutate()
             }}
           >
-            <div className="address">
+            <label className="field">
+              <span className="label">Address</span>
               <input
                 id="address"
-                aria-label="Address"
                 value={address}
                 placeholder="https://your-server.ts.net"
                 autoComplete="url"
+                autoFocus
                 onChange={event => setAddress(event.target.value)}
               />
+            </label>
+            <div className="try">
+              <span>Try</span>
               <button
-                type="submit"
-                className="tonal"
-                disabled={connect.isPending || !address.trim()}
+                type="button"
+                className="try-chip"
+                onClick={() => setAddress(DEFAULT_LOCAL_SERVER_URL)}
               >
-                {connect.isPending ? 'Connecting…' : 'Use this address'}
+                {hostOf(DEFAULT_LOCAL_SERVER_URL)}
               </button>
+              <span>
+                or your server’s https://…ts.net address. It is tried before the ones from your
+                sync.
+              </span>
             </div>
-            <p className="hint">
-              For a server this computer can reach that your library has not been told about; it is
-              tried before the ones from your sync. On this computer,{' '}
-              <code>{DEFAULT_LOCAL_SERVER_URL}</code>. Over Tailscale, your server’s{' '}
-              <code>https://…ts.net</code> address.
-            </p>
             {wantsToken && (
-              <>
+              <div className="token">
                 <label className="field">
                   <span className="label">Token</span>
                   <input
@@ -247,37 +376,211 @@ export function Options(): ReactNode {
                   />
                 </label>
                 <p className="hint">
-                  Your library’s token on that server: its log prints it when it holds one library,
-                  and otherwise it is in its <code>data/hub.json</code>. The extension keeps it in
-                  its own storage, which no web page can read.
+                  Its log prints it when it holds one library; otherwise it is in its{' '}
+                  <code>data/hub.json</code>. Kept in the extension’s own storage.
                 </p>
-              </>
+              </div>
             )}
-            {connect.error && (
-              <p className="error" role="alert">
-                {connect.error.message}
-              </p>
-            )}
+            <ErrorLine message={connect.error?.message ?? null} />
+            <div className="form-actions">
+              <button
+                type="button"
+                className="tonal quiet-button"
+                onClick={() => {
+                  setByAddress(false)
+                  setWantsToken(false)
+                  connect.reset()
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="primary"
+                disabled={connect.isPending || !address.trim()}
+              >
+                {connect.isPending ? 'Connecting…' : 'Use this address'}
+              </button>
+            </div>
           </form>
-        </details>
-      </div>
+        )}
+      </section>
+
+      <footer className="options-foot">
+        <span>Version {chrome.runtime.getManifest().version}</span>
+        <span>Everything it keeps stays in its own storage, which no web page can read.</span>
+      </footer>
     </main>
   )
 }
 
-/** The line under the account: which way in is live, and how big the library is. */
-function accountLine(
-  mode: Status['mode'],
-  baseUrl: string | null,
-  songCount: number | null,
-  noServer: boolean,
-): string {
-  const songs = songCount !== null ? ` · ${plural(songCount, 'song', 'songs')}` : ''
-  if (mode === 'server') return `Your server answers at ${baseUrl ?? 'its own address'}${songs}`
+/**
+ * Where an import goes from here (B1): this browser, then the server or the
+ * bucket, then the library, with the line in the state's colour.
+ */
+function Route({
+  mode,
+  baseUrl,
+  songCount,
+  noServer,
+}: {
+  mode: Status['mode']
+  baseUrl: string | null
+  songCount: number | null
+  noServer: boolean
+}): ReactNode {
+  const songs = songCount !== null ? plural(songCount, 'song', 'songs') : 'Your songs'
+
   // Joining is the app's to do (connection.ts), so this says where to do it.
   if (mode === 'bucket' && noServer) {
-    return `No computer works for your library yet. Open self.mp3 to connect one; links wait in your bucket until then${songs}`
+    return (
+      <div className="notice warning">
+        <span className="notice-text">
+          <b>No computer works for your library yet</b>
+          <span>Open self.mp3 to connect one. Links wait in your bucket until then.</span>
+        </span>
+        <a className="primary" href={DEFAULT_APP_URL} target="_blank" rel="noreferrer">
+          Open self.mp3
+        </a>
+      </div>
+    )
   }
-  if (mode === 'bucket') return `Your server isn’t answering, so links wait in your bucket${songs}`
-  return 'Looking for your server.'
+
+  const viaBucket = mode === 'bucket'
+  return (
+    <>
+      <ol className={viaBucket ? 'route bucket' : 'route ready'}>
+        <li>
+          <span className="stop-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17">
+              <rect x="3" y="4" width="18" height="14" rx="2" />
+              <path d="M3 8h18" />
+            </svg>
+          </span>
+          <span className="stop-text">
+            <b>This browser</b>
+            <span>Where you press save</span>
+          </span>
+        </li>
+        <li className="line" aria-hidden="true" />
+        {viaBucket ? (
+          <li className="lit">
+            <span className="stop-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17">
+                <path d="M4 7h16l-1.5 12a2 2 0 0 1-2 1.8h-9a2 2 0 0 1-2-1.8z" />
+                <path d="M8 7a4 4 0 0 1 8 0" />
+              </svg>
+            </span>
+            <span className="stop-text">
+              <b>Your bucket</b>
+              <span>Links wait here</span>
+            </span>
+          </li>
+        ) : (
+          <li className="lit">
+            <span className="stop-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17">
+                <rect x="3" y="4" width="18" height="7" rx="2" />
+                <rect x="3" y="13" width="18" height="7" rx="2" />
+                <path d="M7 7.5h.01M7 16.5h.01" />
+              </svg>
+            </span>
+            <span className="stop-text">
+              <b>Your server</b>
+              <span>{baseUrl ? hostOf(baseUrl) : 'Answering'}</span>
+            </span>
+          </li>
+        )}
+        <li className={viaBucket ? 'line asleep' : 'line'} aria-hidden="true" />
+        <li className={viaBucket ? 'asleep' : undefined}>
+          <span className="stop-icon" aria-hidden="true">
+            {viaBucket ? (
+              <svg viewBox="0 0 24 24" width="17" height="17">
+                <rect x="3" y="4" width="18" height="7" rx="2" />
+                <rect x="3" y="13" width="18" height="7" rx="2" />
+              </svg>
+            ) : (
+              <NoteMark size={15} />
+            )}
+          </span>
+          <span className="stop-text">
+            <b>{viaBucket ? 'Your server' : 'Your library'}</b>
+            <span>{viaBucket ? 'Asleep' : songs}</span>
+          </span>
+        </li>
+      </ol>
+      <p className={viaBucket ? 'route-says bucket' : 'route-says ready'}>
+        <span className="dot" aria-hidden="true" />
+        {viaBucket
+          ? 'Your server isn’t answering, so links wait in your bucket. It takes them when it wakes.'
+          : 'Imports go straight to your server and reach your library in a minute or two.'}
+      </p>
+    </>
+  )
+}
+
+/** One of the three ways to save (C1): a small drawing of it, and two lines. */
+function Way({
+  title,
+  text,
+  children,
+}: {
+  title: string
+  text: string
+  children: ReactNode
+}): ReactNode {
+  return (
+    <div className="way">
+      <div className="way-art" aria-hidden="true">
+        {children}
+      </div>
+      <div className="way-text">
+        <b>{title}</b>
+        <span>{text}</span>
+      </div>
+    </div>
+  )
+}
+
+function NoteMark({ size }: { size: number }): ReactNode {
+  return (
+    <svg className="note" viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <path d={NOTE_PATH} />
+    </svg>
+  )
+}
+
+function LinkMark(): ReactNode {
+  return (
+    <span className="link-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16">
+        <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+        <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+      </svg>
+    </span>
+  )
+}
+
+/** Google's G, in its own colours, as its sign-in buttons carry it. */
+function GoogleMark(): ReactNode {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M22.6 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6a5 5 0 0 1-2.2 3.3v2.7h3.5c2.1-1.9 3.3-4.8 3.3-8.1z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c3 0 5.5-1 7.3-2.7l-3.5-2.7c-1 .7-2.3 1.1-3.8 1.1-2.9 0-5.4-2-6.3-4.7H2.1v2.8A11 11 0 0 0 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.7 14c-.2-.7-.4-1.3-.4-2s.1-1.4.4-2V7.2H2.1a11 11 0 0 0 0 9.7L5.7 14z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.1-3.1A11 11 0 0 0 2.1 7.2L5.7 10c.9-2.7 3.4-4.6 6.3-4.6z"
+      />
+    </svg>
+  )
 }

@@ -1,4 +1,4 @@
-import { Menu, app, shell } from 'electron'
+import { Menu, app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import {
   APP_MENU_ITEMS,
@@ -17,6 +17,7 @@ import { REPOSITORY_URL } from '@selfmp3/shared'
 
 import { sendCommand } from './commands.js'
 import { check } from './updates.js'
+import { openOutside } from './window.js'
 
 /** What the page last said the checkmarks are; drawn into a menu built later too. */
 let menuState: MenuState = MENU_STATE_AT_START
@@ -152,7 +153,7 @@ export function buildMenu(window_: () => BrowserWindow | null, showWindow: () =>
       submenu: [
         {
           label: 'self.mp3 on GitHub',
-          click: () => void shell.openExternal(REPOSITORY_URL),
+          click: () => openOutside(REPOSITORY_URL),
         },
       ],
     },

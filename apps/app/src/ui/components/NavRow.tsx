@@ -3,6 +3,7 @@ import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { iconSize, space, type, radius } from '@selfmp3/client'
+import { OPACITY } from '../motion.model'
 import { card as cardSurface, rowTitle, textColumn } from '../surfaces'
 import { ChevronRight, sizedIcon } from './Icons'
 import { Press } from './Press'
@@ -93,7 +94,7 @@ const styles = StyleSheet.create(theme => ({
     paddingVertical: space.md,
     paddingHorizontal: space.roomy,
   },
-  pressed: { opacity: 0.6 },
+  pressed: { opacity: OPACITY.pressed },
   cardPressed: { backgroundColor: theme.colors.surface2 },
   tile: {
     width: 40,

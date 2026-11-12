@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { BrowserWindow, screen, shell } from 'electron'
 import { APP_ORIGIN } from '@selfmp3/desktop-bridge'
-import { DEFAULT_APP_URL, plainPageAt } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, messageOf, plainPageAt } from '@selfmp3/shared'
 
 import { MINIMUM_SIZE, openingBounds, rememberBounds } from './bounds.js'
 import { openingGround } from './ground.js'
@@ -11,18 +11,18 @@ import { openingGround } from './ground.js'
  * The window.
  *
  * `contextIsolation` on, `nodeIntegration` off, `sandbox` on: the preload's
- * `contextBridge` object is the only thing the page can reach, which is the
- * plan's rule that the bridge is the only door. `webSecurity` is left alone —
- * turning it off is how an Electron app stops being a browser.
+ * `contextBridge` object is the only thing the page can reach, so the bridge
+ * is the only door. `webSecurity` is left alone — turning it off is how an
+ * Electron app stops being a browser.
  *
  * It opens where it was left, if that is still somewhere a person can reach,
  * and at the size the reference captures were taken at otherwise.
  *
  * `titleBarStyle: 'hiddenInset'` is the one deliberate visual difference from
- * the browser the plan allows: the traffic lights sit over the sidebar's top
- * rather than in a bar above the app. The page pads the sidebar for them, told
- * how much by `info.titleBarInset`, because only the shell knows whether there
- * is an inset title bar at all.
+ * the browser (docs/features/desktop-app.md): the traffic lights sit over the
+ * sidebar's top rather than in a bar above the app. The page pads the sidebar
+ * for them, told how much by `info.titleBarInset`, because only the shell
+ * knows whether there is an inset title bar at all.
  */
 export function createWindow({
   preload,
@@ -92,7 +92,10 @@ export function createWindow({
     }
   })
 
-  void window_.loadURL(devUrl ?? `${APP_ORIGIN}/`)
+  // Nobody waits on the load, so a failure is the log's to say.
+  window_.loadURL(devUrl ?? `${APP_ORIGIN}/`).catch((error: unknown) => {
+    console.warn('the app page did not load', messageOf(error))
+  })
   return window_
 }
 
@@ -118,7 +121,10 @@ export function outsideAddress(url: string, ownOrigins: readonly string[]): stri
  * would be the page asking the system to open a file or another app.
  */
 export function openOutside(url: string): void {
-  if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)
+  if (!url.startsWith('https://') && !url.startsWith('http://')) return
+  shell.openExternal(url).catch((error: unknown) => {
+    console.warn('a link could not be opened in the browser', messageOf(error))
+  })
 }
 
 /** Where the preload ends up next to the built main process. */

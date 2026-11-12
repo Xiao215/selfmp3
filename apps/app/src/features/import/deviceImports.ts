@@ -87,8 +87,7 @@ export async function enqueueImport(
 /**
  * Look a link up, on this device when it is one YouTube video and the
  * extension answers (devicePreview.model.ts), and by the server otherwise —
- * or when the device could not. The server is told not to look for the rows'
- * audio when this device would be the one listening.
+ * or when the device could not.
  */
 export async function previewImport(
   api: Api,
@@ -115,7 +114,7 @@ export async function previewImport(
       console.warn('[device import] the server looks this one up instead:', error)
     }
   }
-  return onDevice ? lookUp.importPreview(input, { warmListen: false }) : lookUp.importPreview(input)
+  return lookUp.importPreview(input)
 }
 
 /**

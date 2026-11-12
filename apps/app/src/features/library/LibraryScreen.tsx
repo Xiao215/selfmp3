@@ -34,9 +34,9 @@ import { SongList } from '../../ui/components/SongList'
 import { useSongRowHeight } from '../../ui/components/SongRow'
 import { SyncStatus } from '../../ui/components/SyncStatus'
 import { CantReach } from './CantReach'
-import { GemsRow } from './GemsRow'
 import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { Fold } from '../../ui/components/Fold'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { useSelection } from '../../selection/useSelection'
 import { useLayoutFlags, useWindowValue } from '../../shell/useLayout'
@@ -44,7 +44,7 @@ import { deviceWord } from '../../ports/device'
 import { thisPlace } from '../../ports/place'
 import { onThisDevice } from '../settings/settings.model'
 import { useDragScroll } from '../../ports/dragScroll'
-import { useContentWidth } from '../../shell/contentWidth'
+import { useContentWidthValue } from '../../shell/contentWidth'
 import { linkedSort, noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { libraryListSource, playAlone } from '../lists/lists.model'
@@ -88,9 +88,13 @@ export function LibraryScreen(): ReactNode {
   // and shuffle, the search giving up width first. An iPad's column beside the
   // sidebar is 590, so there it stacks as a phone's does. Before the column is
   // measured the row is kept, so a desktop never flashes.
-  const contentWidth = useContentWidth()
-  const headWide = wide && (contentWidth === null || contentWidth >= COLUMN_WIDTH.libraryHeadRow)
-  const shuffleIconOnly = contentWidth !== null && contentWidth < COLUMN_WIDTH.libraryShuffleLabel
+  const headRoom = useContentWidthValue(
+    column => column === null || column >= COLUMN_WIDTH.libraryHeadRow,
+  )
+  const headWide = wide && headRoom
+  const shuffleIconOnly = useContentWidthValue(
+    column => column !== null && column < COLUMN_WIDTH.libraryShuffleLabel,
+  )
   const player = usePlayerCommands()
   const { state: downloads, installed } = useDownloads()
   const openSearch = useOpenSearch()
@@ -308,15 +312,7 @@ export function LibraryScreen(): ReactNode {
             ))}
           </View>
         ) : null}
-        {model.tagFiltered ? (
-          <Button
-            label="Show all songs"
-            onPress={() => {
-              model.clearTags()
-              if (filter.likedOnly) model.toggleLikedOnly()
-            }}
-          />
-        ) : null}
+        {model.tagFiltered ? <Button label="Show all songs" onPress={model.showAll} /> : null}
       </EmptyState>
     )
 
@@ -493,16 +489,7 @@ export function LibraryScreen(): ReactNode {
           {...stripDrag}
           {...FOCUS_INSIDE}
         >
-          <Chip
-            testID="library-tag-all"
-            label="All"
-            selected={!narrowed}
-            onPress={() => {
-              model.clearTags()
-              if (filter.downloadedOnly) model.toggleDownloadedOnly()
-              if (filter.likedOnly) model.toggleLikedOnly()
-            }}
-          />
+          <Chip testID="library-tag-all" label="All" selected={!narrowed} onPress={model.showAll} />
           {/* Liked, first: it narrows whatever else is on. Not there until a song is. */}
           {model.likedCount > 0 || filter.likedOnly ? (
             <Chip
@@ -569,7 +556,7 @@ export function LibraryScreen(): ReactNode {
         the chip just tapped stays under the finger. Above it, the row pushed
         the strip down, and a second tap on the chip opened Search.
       */}
-      {!wide && listed ? (
+      <Fold open={!wide && listed}>
         <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
           <PlayButton
             label={playLabel}
@@ -585,7 +572,7 @@ export function LibraryScreen(): ReactNode {
             onPress={() => playTags(true)}
           />
         </View>
-      ) : null}
+      </Fold>
 
       {/* On a phone the list is headed by its order: "RECENTLY ADDED" (`P12`). */}
       {!wide && songs.length > 0 ? (
@@ -627,9 +614,6 @@ export function LibraryScreen(): ReactNode {
           summary={model.tagFiltered ? model.subtitle : undefined}
         />
       </View>
-
-      {/* Not over a library that never came: songs to play above "can't reach" read as a library that half works. */}
-      {listed || model.emptyReason === 'unreachable' ? null : <GemsRow />}
 
       <SyncStatus />
 

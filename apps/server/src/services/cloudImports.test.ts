@@ -8,7 +8,9 @@ import {
   type ImportPreview,
 } from '@selfmp3/shared'
 import { migrate } from '../db/migrate.js'
+import { newSong } from '../fixtures/songs.js'
 import { createLogger } from '../logger.js'
+import { CloudRepository } from '../repositories/cloud.js'
 import { ImportRequestRepository } from '../repositories/importRequests.js'
 import { ImportRepository } from '../repositories/imports.js'
 import { PlaylistRepository } from '../repositories/playlists.js'
@@ -75,18 +77,26 @@ describe('links other devices ask to import', () => {
     tags = new TagRepository(db)
     playlists = new PlaylistRepository(db)
     sync = new SyncRepository(db)
+    const stats = new StatsRepository(db)
     ingest = new CloudIngest({
       db,
       songs,
       tags,
       playlists,
-      stats: new StatsRepository(db),
+      stats,
       sync,
       requests,
       names: new NamesRepository(db),
       clock: new SyncClock({ deviceId: () => 'mac-aaaa1111', latest: () => null, now: () => BASE }),
       logger,
-      merge: new SongMerge({ db, sync }),
+      merge: new SongMerge({
+        songs,
+        tags,
+        playlists,
+        stats,
+        cloud: new CloudRepository(db),
+        sync,
+      }),
     })
     resolve = () => Promise.resolve(single('Sunrise'))
     kicked = 0
@@ -222,23 +232,14 @@ describe('links other devices ask to import', () => {
     ingest.apply([ask()])
     await service.process()
     const [job] = jobsOf(REQUEST)
-    const songId = songs.insert({
-      path: 'Sunrise.m4a',
-      title: 'Sunrise',
-      artist: 'Aurora',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 200,
-      sizeBytes: 1,
-      mime: 'audio/mp4',
-      mtimeMs: 1,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
+    const songId = songs.insert(
+      newSong({
+        title: 'Sunrise',
+        artist: 'Aurora',
+        duration: 200,
+        mtimeMs: 1,
+      }),
+    )
 
     imports.update(job?.id ?? '', { status: 'running', step: 'downloading' })
     expect(requests.settle()).toBe(0)

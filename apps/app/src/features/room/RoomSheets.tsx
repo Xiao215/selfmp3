@@ -147,7 +147,8 @@ function TogetherSheet({ open, state }: { open: boolean; state: RoomState | null
 /**
  * Out of a room: ended, if it was yours. A toast says so and, once a song has
  * played, offers the room as Recently played keeps it (C3). The room's own
- * page goes with it; anywhere else you stay where you were.
+ * page goes with it; anywhere else you stay where you were. A host's end the
+ * room could not hear says that instead, and you stay in it.
  */
 function useLeave(): (state: RoomState) => Promise<void> {
   const router = useRouter()
@@ -157,9 +158,22 @@ function useLeave(): (state: RoomState) => Promise<void> {
   return async state => {
     closeRoomSheet()
     const played = pastRoomOf(state, Date.now()) !== null
-    await leaveRoom()
+    let heard: boolean
+    try {
+      heard = await leaveRoom()
+    } catch (error) {
+      // Not heard: still in the room, and still its host.
+      sayRoomFailure(error)
+      return
+    }
     if (!overNowPlaying && pathname === '/room') router.replace('/')
-    showToast(isHost(state) ? 'Room ended' : `You left ${roomTitle(state)}`, 'info', {
+    // A host's end the doorman refused (`leaveRoom`): out of it here, not ended.
+    const said = isHost(state)
+      ? heard
+        ? 'Room ended'
+        : 'Out of the room on this device'
+      : `You left ${roomTitle(state)}`
+    showToast(said, 'info', {
       actions: played
         ? [
             {

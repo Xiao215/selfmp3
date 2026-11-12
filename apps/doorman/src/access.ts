@@ -5,7 +5,8 @@ import {
 } from '@selfmp3/shared'
 import { recall, remember, type BoundedCache } from './boundedCache.js'
 import type { Context } from './context.js'
-import { forbidden, json, methodNotAllowed, readJson } from './http.js'
+import { forbidden, json, readJson } from './http.js'
+import { sameSecret } from './encoding.js'
 import { getRecord, putRecord, type KvStore } from './kv.js'
 import { requireSession } from './context.js'
 import { bearerToken } from './sessions.js'
@@ -119,23 +120,19 @@ export async function requireOwner(ctx: Context): Promise<void> {
 /** Whether `token` is the admin key, compared in constant time; never when none is set. */
 async function isAdminKey(key: string | undefined, token: string): Promise<boolean> {
   const set = key?.trim() ?? ''
-  if (set.length < 32) return false
-  const digest = (text: string) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  const [a, b] = (await Promise.all([digest(set), digest(token)])).map(d => new Uint8Array(d))
-  // Every byte looked at, whatever the first difference: equal-length digests, so no early out.
-  let differ = 0
-  for (let i = 0; i < 32; i += 1) differ |= (a?.[i] ?? 0) ^ (b?.[i] ?? 0)
-  return differ === 0
+  return set.length >= 32 && (await sameSecret(token, set))
 }
 
-/** `GET /v1/access` and `PUT /v1/access`: the list, for an owner only. */
-export async function access(ctx: Context): Promise<Response> {
+/** `GET /v1/access`: the list, for an owner only. */
+export async function readAccess(ctx: Context): Promise<Response> {
   await requireOwner(ctx)
-  if (ctx.request.method === 'GET') return json(await ctx.access.read())
-  if (ctx.request.method === 'PUT') {
-    return json(await ctx.access.write(await readJson(ctx.request, DoormanAccessUpdateSchema)))
-  }
-  return methodNotAllowed(['GET', 'PUT'])
+  return json(await ctx.access.read())
+}
+
+/** `PUT /v1/access`: the list replaced, by an owner only. */
+export async function writeAccess(ctx: Context): Promise<Response> {
+  await requireOwner(ctx)
+  return json(await ctx.access.write(await readJson(ctx.request, DoormanAccessUpdateSchema)))
 }
 
 /** `GET /v1/stats?days=N`: what the doorman counted, for an owner only. */

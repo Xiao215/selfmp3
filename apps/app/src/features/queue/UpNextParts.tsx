@@ -5,7 +5,12 @@ import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } fr
 import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, formatDuration, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, radius, space, type, iconSize } from '@selfmp3/client'
-import { usePlayer, usePlayerProgress, type PlayerApi } from '../../player/PlayerProvider'
+import {
+  usePlayerPlaying,
+  usePlayerProgress,
+  useSongLoaded,
+  type PlayerApi,
+} from '../../player/PlayerProvider'
 import { useLayoutValue } from '../../shell/useLayout'
 import { label, smallTitle } from '../../ui/surfaces'
 import { useSongTagLookup } from '../../ui/songTags'
@@ -42,7 +47,7 @@ import { Press } from '../../ui/components/Press'
 export function useUpNextShown(wide: boolean): boolean {
   const open = useQueueSheetOpen()
   const layoutWide = useLayoutValue(layout => layout.wide)
-  const loaded = usePlayer().current !== null
+  const loaded = useSongLoaded()
   const inRoom = useRoom().state !== null
   useEffect(() => {
     if (open && !loaded && !inRoom) closeQueueSheet()
@@ -92,7 +97,7 @@ export function PlayingNow({
    */
   quiet?: boolean
 }): ReactNode {
-  const playing = usePlayer().isPlaying
+  const playing = usePlayerPlaying()
   return (
     <PlayingCard
       song={row.song}
@@ -163,6 +168,12 @@ export function ClearRestButton({
   )
 }
 
+/** What of the player Auto-mix's switch reads and sets. */
+type AutoMixPlayer = Pick<
+  PlayerApi,
+  'autoMix' | 'setAutoMix' | 'canCrossfade' | 'nextCrossfadeSeconds'
+>
+
 /**
  * The switches at Up next's foot, one above the other: Auto-mix, and Keep
  * going beside it (docs/features/lists.md), each kept on this device.
@@ -172,7 +183,7 @@ export function UpNextSwitches({
   upcoming,
   style,
 }: {
-  player: Pick<PlayerApi, 'autoMix' | 'setAutoMix' | 'canCrossfade' | 'nextCrossfadeSeconds'>
+  player: AutoMixPlayer
   upcoming: number
   style?: StyleProp<ViewStyle>
 }): ReactNode {
@@ -206,17 +217,9 @@ export function KeepGoingNext({ style }: { style?: StyleProp<ViewStyle> }): Reac
 }
 
 /** Auto-mix's switch, and what it will do next. */
-function AutoMixRow({
-  player,
-  upcoming,
-  style,
-}: {
-  player: Pick<PlayerApi, 'autoMix' | 'setAutoMix' | 'canCrossfade' | 'nextCrossfadeSeconds'>
-  upcoming: number
-  style?: StyleProp<ViewStyle>
-}): ReactNode {
+function AutoMixRow({ player, upcoming }: { player: AutoMixPlayer; upcoming: number }): ReactNode {
   return (
-    <View style={[styles.autoMix, style]}>
+    <View style={styles.autoMix}>
       <Toggle
         value={player.autoMix}
         onChange={player.setAutoMix}
@@ -256,8 +259,7 @@ const VIEWPORT_GUESS = 800
  *
  * Every row is `rowHeight` tall: what a held row's travel is counted in, and
  * where each is placed. `head` comes first (the playing card, the line over
- * the songs) and `foot` last; `overlay` is drawn over the rows, told where the
- * songs start.
+ * the songs) and `foot` last.
  */
 export function UpNextList({
   next,
@@ -267,10 +269,8 @@ export function UpNextList({
   head,
   afterNext,
   foot,
-  overlay,
   raised,
   scrollEnabled,
-  onScrolled,
   runsStyle,
   labelStyle,
   style,
@@ -286,13 +286,10 @@ export function UpNextList({
   /** Drawn after what is next and before what played: Keep going's line. */
   afterNext?: ReactNode
   foot?: ReactNode
-  overlay?: (songsTop: number) => ReactNode
   /** The queue index of a row drawn over its neighbours: the one being carried. */
   raised?: number | null
   /** Off while a row is carried: the row moves, not the list under it. */
   scrollEnabled: boolean
-  /** The list was scrolled away from its top. */
-  onScrolled?: () => void
   /** The runs' own style: the rail fades them in. */
   runsStyle?: StyleProp<ViewStyle> | Animated.WithAnimatedValue<StyleProp<ViewStyle>>
   /** Where "Played" sits, in from the edge as the rows' covers are. */
@@ -312,7 +309,6 @@ export function UpNextList({
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = event.nativeEvent.contentOffset.y
-      if (y > 0) onScrolled?.()
       const at = Math.floor(y / step)
       // Drawn behind the scroll rather than in its way: the rows a step
       // brings are a screen ahead already (`span`), and each one sets up its
@@ -320,7 +316,7 @@ export function UpNextList({
       // queue flung on a phone dropped a frame in three (bug bash F168).
       startTransition(() => setScrollStep(now => (now === at ? now : at)))
     },
-    [onScrolled, step],
+    [step],
   )
   // A screen either side of the one in view, as a list of songs keeps, so a
   // fling is through rows already there while the next step is drawn.
@@ -392,7 +388,6 @@ export function UpNextList({
         ) : null}
       </Animated.View>
       {foot}
-      {overlay?.(headHeight)}
     </ScrollView>
   )
 }

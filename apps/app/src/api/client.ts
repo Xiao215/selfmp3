@@ -118,7 +118,7 @@ export const fetchWithin = (timeoutMs: number) => async (url: string, init?: Cli
   }, timeoutMs)
   // The caller's own stop (Stop pressed, nobody watching) aborts it too.
   // Joined by hand: Hermes has no AbortSignal.any.
-  const given = init?.signal as AbortSignal | undefined
+  const given = init?.signal
   const stop = (): void => controller.abort()
   if (given?.aborted) stop()
   given?.addEventListener('abort', stop)

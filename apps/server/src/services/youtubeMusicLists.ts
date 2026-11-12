@@ -53,21 +53,20 @@ export class YouTubeMusicLists {
   }
 
   /**
-   * An album's songs. Its rows name only the title and length; the artist and
-   * the cover are the page's, and the album is the page's title.
+   * An album's songs. Its own rows can lead to the wrong recording: where a
+   * song has a music video, the album page's row plays the video, and a live
+   * album's video carries the stage around the song (セブンティーン's runs
+   * 297 s where the track runs 218, the Opening before it included). The
+   * album's own playlist, which its play button names, lists the tracks, so
+   * the rows are read from there and the rest from the album's page.
    */
   async album(browseId: string): Promise<SongList | null> {
     const page = await this.#api.post('browse', { browseId })
     if (!page) return null
-    const header = pageHeader(page)
-    if (!header.title) return null
-    const tracks = rows(page, {
-      artist: header.artist,
-      album: header.title,
-      thumbnail: header.thumbnail,
-    })
-    if (tracks.length === 0) return null
-    return { title: header.title, tracks, complete: whole(header, tracks) }
+    const audio = audioPlaylistIn(page)
+    if (!audio) return null
+    const list = await this.#api.post('browse', { browseId: `VL${audio}` })
+    return list ? asAlbum(page, list) : null
   }
 
   /**
@@ -75,10 +74,9 @@ export class YouTubeMusicLists {
    * page only names the playlist.
    *
    * An album's own playlist — the `OLAK5uy_…` list a `watch?v=…&list=` link
-   * from an album carries — is answered with rows and no header at all. It
-   * is read as the album rather than handed to yt-dlp, whose listing has no
-   * album: its rows each name the album they are from, and the album's own
-   * page has the title, artist, cover and count.
+   * from an album carries — is answered with rows and no header at all. Its
+   * rows are the album's tracks, each naming the album it is from; the
+   * album's own page has the title, artist, cover and count.
    */
   async playlist(playlistId: string): Promise<SongList | null> {
     const page = await this.#api.post('browse', { browseId: `VL${playlistId}` })
@@ -86,12 +84,38 @@ export class YouTubeMusicLists {
     const header = pageHeader(page)
     if (!header.title) {
       const albumId = albumIdIn(page)
-      return albumId ? this.album(albumId) : null
+      const album = albumId ? await this.#api.post('browse', { browseId: albumId }) : null
+      return album ? asAlbum(album, page) : null
     }
     const tracks = rows(page, {})
     if (tracks.length === 0) return null
     return { title: header.title, tracks, complete: whole(header, tracks) }
   }
+}
+
+/** An album: named, credited and counted by its own page, its tracks the rows of its playlist. */
+function asAlbum(albumPage: unknown, listPage: unknown): SongList | null {
+  const header = pageHeader(albumPage)
+  if (!header.title) return null
+  const tracks = rows(listPage, {
+    artist: header.artist,
+    album: header.title,
+    thumbnail: header.thumbnail,
+  })
+  if (tracks.length === 0) return null
+  return { title: header.title, tracks, complete: whole(header, tracks) }
+}
+
+/** The album's own playlist (`OLAK5uy_…`), as its page's play button names it. */
+function audioPlaylistIn(albumPage: unknown): string | null {
+  const header =
+    findKey(albumPage, 'musicResponsiveHeaderRenderer') ??
+    findKey(albumPage, 'musicDetailHeaderRenderer')
+  for (const endpoint of findAll(header, 'watchPlaylistEndpoint')) {
+    const id = (endpoint as { playlistId?: unknown }).playlistId
+    if (typeof id === 'string' && id.startsWith('OLAK5uy_')) return id
+  }
+  return null
 }
 
 /** What the page says about itself: name, artist, cover, and how many songs it holds. */

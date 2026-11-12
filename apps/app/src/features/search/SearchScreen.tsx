@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
+import Reanimated from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
@@ -23,7 +24,7 @@ import {
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayingSongId } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { isComposing } from '../../shell/composing'
 import { focusNextStop, useArrowsBetweenStops } from '../../shell/focusNext'
@@ -66,6 +67,7 @@ import {
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
+import { useFadeMotion } from '../../ui/rowMotion'
 import { playableLink } from '../room/linkSong'
 import { roomTitle, youMay } from '../room/room.model'
 import { useRoom } from '../room/room.store'
@@ -117,7 +119,7 @@ export function SearchScreen(): ReactNode {
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
   const { wide } = useLayoutFlags()
   const { data: library } = useLibrary()
-  const player = usePlayer()
+  const currentId = usePlayingSongId()
 
   const [query, setQuery] = useState(() => (typeof params.q === 'string' ? params.q : ''))
   // A search counted as it starts: the field going from empty to something.
@@ -172,7 +174,6 @@ export function SearchScreen(): ReactNode {
   const { shown, found, lyricHits, lyricsAway } = search
   const typed = shown.trim() !== ''
 
-  const currentId = player.current?.id ?? null
   const empty = useMemo(() => beforeTyping(library, currentId), [library, currentId])
   const counts = sectionCounts(found, lyricHits.length)
   const matched = matchCount(found, lyricHits.length)
@@ -219,6 +220,11 @@ export function SearchScreen(): ReactNode {
   // Escape is Cancel, as it closes the palette a computer draws instead; a
   // selection takes it first, and clears.
   useEscape(!selection.active, close)
+  // What is under the field — before typing, every result, one kind of
+  // result — fades in as it takes the place of the last, not swapped in one
+  // frame; a keystroke within the same view changes nothing here.
+  const { entering: viewIn } = useFadeMotion()
+  const view = typed ? (section ?? 'all') : adding ? 'adding' : 'before'
   const bar = useListSelectionBar({
     songs: rowSongs,
     selection,
@@ -330,63 +336,69 @@ export function SearchScreen(): ReactNode {
 
               {bar.beforeList}
 
-              {!typed ? (
-                adding ? (
-                  <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
-                ) : (
-                  <BeforeTyping
-                    tags={empty.tags}
-                    recent={empty.recent}
+              <Reanimated.View key={view} entering={viewIn} style={styles.view}>
+                {!typed ? (
+                  adding ? (
+                    <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+                  ) : (
+                    <BeforeTyping
+                      tags={empty.tags}
+                      recent={empty.recent}
+                      selection={selection}
+                      listPadding={bar.listPadding}
+                    />
+                  )
+                ) : section === 'songs' ? (
+                  <SongResults
+                    songs={found.songs}
+                    query={shown}
                     selection={selection}
                     listPadding={bar.listPadding}
+                    adds={adding ? adds : null}
                   />
-                )
-              ) : section === 'songs' ? (
-                <SongResults
-                  songs={found.songs}
-                  query={shown}
-                  selection={selection}
-                  listPadding={bar.listPadding}
-                  adds={adding ? adds : null}
-                />
-              ) : (
-                <ScrollView
-                  nativeID={RESULTS_ID}
-                  contentContainerStyle={[styles.results, bar.listPadding]}
-                >
-                  {!link && offerAsk && matched === 0 ? (
-                    <AskCard words={words} first onAsk={() => ask(words)} />
-                  ) : null}
-                  {adding && link ? <LinkPick state={adding} url={link} /> : null}
-                  {link ? null : section === null ? (
-                    <AllResults
-                      found={found}
-                      lyricHits={lyricHits}
-                      selection={selection}
-                      onSeeAll={seeAll}
-                      onArtist={openArtist}
-                      adds={adding ? adds : null}
-                    />
-                  ) : section === 'places' ? (
-                    <View style={styles.section}>
-                      <Places places={placesOf(found)} onArtist={openArtist} />
-                    </View>
-                  ) : (
-                    <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
-                  )}
-                  {!link && offerAsk && matched > 0 ? (
-                    <AskCard words={words} first={false} onAsk={() => ask(words)} />
-                  ) : null}
-                  {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
-                  {!link &&
-                  !offerAsk &&
-                  counts[section ?? 'all'] === 0 &&
-                  !(section === 'lyrics' && lyricsAway) ? (
-                    <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
-                  ) : null}
-                  <ChromeSpacer />
-                </ScrollView>
-              )}
+                ) : (
+                  <ScrollView
+                    nativeID={RESULTS_ID}
+                    contentContainerStyle={[styles.results, bar.listPadding]}
+                  >
+                    {!link && offerAsk && matched === 0 ? (
+                      <AskCard words={words} first onAsk={() => ask(words)} />
+                    ) : null}
+                    {adding && link ? <LinkPick state={adding} url={link} /> : null}
+                    {link ? null : section === null ? (
+                      <AllResults
+                        found={found}
+                        lyricHits={lyricHits}
+                        selection={selection}
+                        onSeeAll={seeAll}
+                        onArtist={openArtist}
+                        adds={adding ? adds : null}
+                      />
+                    ) : section === 'places' ? (
+                      <View style={styles.section}>
+                        <Places places={placesOf(found)} onArtist={openArtist} />
+                      </View>
+                    ) : (
+                      <LyricResults
+                        hits={lyricHits}
+                        away={lyricsAway}
+                        adds={adding ? adds : null}
+                      />
+                    )}
+                    {!link && offerAsk && matched > 0 ? (
+                      <AskCard words={words} first={false} onAsk={() => ask(words)} />
+                    ) : null}
+                    {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
+                    {!link &&
+                    !offerAsk &&
+                    counts[section ?? 'all'] === 0 &&
+                    !(section === 'lyrics' && lyricsAway) ? (
+                      <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
+                    ) : null}
+                    <ChromeSpacer />
+                  </ScrollView>
+                )}
+              </Reanimated.View>
             </View>
           </SafeAreaView>
         </NarrowerContentWidth>
@@ -776,6 +788,7 @@ const styles = StyleSheet.create(theme => ({
   askAfter: { marginTop: space.md },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
+  view: { flex: 1, minHeight: 0 },
   // The title starts where every page's does (`PAGE_TOP_WIDE`, `gutterWide`):
   // on the left with the page, rather than a column floating in the middle.
   pageWide: {

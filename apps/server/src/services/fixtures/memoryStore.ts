@@ -25,6 +25,8 @@ export class MemoryCloudStore implements CloudStore {
   /** Every key asked about, and every prefix listed: the calls a bucket counts against a day's allowance. */
   readonly heads: string[] = []
   readonly lists: string[] = []
+  /** Every list of files the share links were told are gone (`unlend`), in order. */
+  readonly unlent: string[][] = []
   /** While set, every operation fails with this. */
   failure: CloudError | null = null
   /** Keys the bucket will not take, each with its reason: a full bucket refuses the next file, not the last. */
@@ -33,7 +35,7 @@ export class MemoryCloudStore implements CloudStore {
    * A change counter like the doorman's, once `keepCount` is called: it moves
    * for this store's own writes and deletes of snapshots and logs, and for
    * `countChange` — another device's write, which a test makes by setting
-   * `objects` directly. Null, as for a bucket reached with its own key, until then.
+   * `objects` directly. Null, as for a folder standing in for a bucket, until then.
    */
   #count: number | null = null
   readonly #ownMoves = new Map<string, string>()
@@ -105,6 +107,12 @@ export class MemoryCloudStore implements CloudStore {
     return this.#answer(() => {
       this.objects.delete(key)
       this.#ownChange(key)
+    })
+  }
+
+  unlend(keys: readonly string[]): Promise<void> {
+    return this.#answer(() => {
+      this.unlent.push([...keys])
     })
   }
 

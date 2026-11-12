@@ -6,7 +6,8 @@
    * than lib.dom's. Checking it in the app's project would make the two
    * declarations of `self` collide, so it gets its own lib set. esbuild
    * bundles it (the build:sw script) and does not type-check, so this is what
-   * keeps sw.ts honest.
+   * keeps the worker honest; sw.ts brings in
+   * the modules it imports.
    */
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {

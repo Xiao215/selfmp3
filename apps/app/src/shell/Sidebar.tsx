@@ -1,6 +1,13 @@
 import { memo, useMemo, useRef, useState } from 'react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
-import { Animated, Text, View } from 'react-native'
+import {
+  Animated,
+  Text,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native'
 import { Guide } from '../features/guide/Guide'
 import { useGuideAsked } from '../features/guide/guideMemory'
 import { useGuide } from '../features/guide/useGuide'
@@ -68,7 +75,8 @@ import { useAccount } from '../features/profile/useAccount'
 import { activeDestination, NAV, navGoes, navItemProps } from './nav.model'
 import { NAV_ICON } from './navIcons'
 import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
-import { useFade } from '../ui/motion'
+import { useFade, useKeptWhileClosing } from '../ui/motion'
+import { Fold } from '../ui/components/Fold'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
 import { label, serif } from '../ui/surfaces'
@@ -76,12 +84,11 @@ import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Bone, Skeleton } from '../ui/components/Skeleton'
 import { ResumeCard } from '../features/devices/ResumeToast'
-import { FOCUS_INSIDE } from './tabbing'
+import { FOCUS_INSIDE, tabbing } from './tabbing'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
 import { thisPlace } from '../ports/place'
-import { tabbing } from './tabbing'
 import { useOnline } from '../offline/useOnline'
 import { useWaitingEdits } from '../offline/waitingEdits'
 import { useSteadyOrder } from '../ui/useSteadyOrder'
@@ -131,6 +138,7 @@ function SidebarInner(): ReactNode {
   const slide = useSlidingHighlight(lit, styles.itemOn)
   // What a press here opens is a place of its own, with no ‹ (J1).
   useRecordSidebarEntry()
+  const edges = useScrollEdges()
 
   return (
     <View
@@ -154,8 +162,16 @@ function SidebarInner(): ReactNode {
       {/*
         Everything above the foot scrolls, so on a short window (a 720 p laptop's
         browser) the foot stays in reach rather than going under the player bar.
+        An end with more past it fades out, rather than slicing a row in half.
       */}
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        style={[styles.body, FADES[edges.edges]]}
+        contentContainerStyle={styles.bodyContent}
+        onLayout={edges.onLayout}
+        onContentSizeChange={edges.onContentSizeChange}
+        onScroll={edges.onScroll}
+        scrollEventThrottle={16}
+      >
         <View style={styles.brand}>
           <BrandMark size={20} />
           <Text style={styles.wordmark}>self.mp3</Text>
@@ -198,6 +214,47 @@ function SidebarInner(): ReactNode {
       <Foot />
     </View>
   )
+}
+
+/** More of the rail above what shows, or below it: bits of `useScrollEdges`' answer. */
+const MORE_ABOVE = 1
+const MORE_BELOW = 2
+
+/**
+ * Which ends of the rail's scroller have rows past them, as `MORE_ABOVE` and
+ * `MORE_BELOW` together. A number that changes only when an end does, so the
+ * rail renders then and not on every scrolled pixel.
+ */
+function useScrollEdges(): {
+  edges: number
+  onLayout: (event: LayoutChangeEvent) => void
+  onContentSizeChange: (width: number, height: number) => void
+  onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void
+} {
+  const [edges, setEdges] = useState(0)
+  const box = useRef({ height: 0, content: 0, offset: 0 })
+  const update = (): void => {
+    const { height, content, offset } = box.current
+    setEdges(
+      (offset > 1 ? MORE_ABOVE : 0) |
+        (height > 0 && content - height - offset > 1 ? MORE_BELOW : 0),
+    )
+  }
+  return {
+    edges,
+    onLayout: event => {
+      box.current.height = event.nativeEvent.layout.height
+      update()
+    },
+    onContentSizeChange: (_width, height) => {
+      box.current.content = height
+      update()
+    },
+    onScroll: event => {
+      box.current.offset = event.nativeEvent.contentOffset.y
+      update()
+    },
+  }
 }
 
 /**
@@ -462,10 +519,10 @@ function Tags(): ReactNode {
   const tags = useMemo<readonly Tag[]>(() => library?.tags ?? [], [library?.tags])
   const recentIds = useRecentTagIds()
   /*
-   * Four tags, not two hundred.
+   * Eight tags, not two hundred.
    *
    * A rail that lists every tag is a scroll nobody reaches the bottom of, and
-   * the ones that matter are somewhere in the middle of it. These four are the
+   * the ones that matter are somewhere in the middle of it. These eight are the
    * ones this device reached for last — no pinning, nothing to maintain —
    * and the rest are one press away on All tags, which the header opens.
    */
@@ -537,7 +594,7 @@ function Tags(): ReactNode {
         newRef={plus}
       />
 
-      {adding ? (
+      <Fold open={adding}>
         <View style={styles.tagForm} testID="sidebar-new-tag">
           <TagNameField
             form={form}
@@ -573,7 +630,7 @@ function Tags(): ReactNode {
             </View>
           ) : null}
         </View>
-      ) : null}
+      </Fold>
 
       <ScrollView
         style={styles.tagList}
@@ -865,24 +922,32 @@ function Foot(): ReactNode {
   const pageSays =
     failure !== null && !library.data && (pathname === '/library' || pathname === '/')
 
+  // Kept as it folds away, so the card leaves with its words.
+  const noticeShown = notice !== null && !pageSays
+  const card = useKeptWhileClosing(noticeShown, notice)
+
   return (
     <View style={styles.foot}>
-      {notice && !pageSays ? (
-        <NoticeCard
-          tone="warn"
-          wash
-          compact
-          live
-          title={notice.title}
-          style={styles.notice}
-          testID="sidebar-notice"
-          actions={
-            capped ? <Button label="Try again" size="small" onPress={askBucketAgain} /> : undefined
-          }
-        >
-          {notice.body}
-        </NoticeCard>
-      ) : null}
+      <Fold open={noticeShown}>
+        {card ? (
+          <NoticeCard
+            tone="warn"
+            wash
+            compact
+            live
+            title={card.title}
+            style={styles.notice}
+            testID="sidebar-notice"
+            actions={
+              capped ? (
+                <Button label="Try again" size="small" onPress={askBucketAgain} />
+              ) : undefined
+            }
+          >
+            {card.body}
+          </NoticeCard>
+        ) : null}
+      </Fold>
       {/* Another device's song, waiting to be picked up here (AE1). */}
       <ResumeCard />
       <Press
@@ -931,6 +996,13 @@ const HOVER_TRANSITION = {
   transitionTimingFunction: EASE_OUT_CSS,
 } as const
 
+/** How far the rail's scroller fades at an end with rows past it. */
+const FADE_TOP = 20
+const FADE_BOTTOM = 40
+const FADE_ABOVE = `linear-gradient(to bottom, transparent, #000 ${FADE_TOP}px)`
+const FADE_BELOW = `linear-gradient(to bottom, #000 calc(100% - ${FADE_BOTTOM}px), transparent)`
+const FADE_BOTH = `linear-gradient(to bottom, transparent, #000 ${FADE_TOP}px, #000 calc(100% - ${FADE_BOTTOM}px), transparent)`
+
 const styles = StyleSheet.create(theme => ({
   titleBarDrag: { position: 'absolute', top: 0, left: 0, right: 0 },
   rail: {
@@ -941,12 +1013,23 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     paddingTop: space.xl,
     paddingBottom: space.md,
-    gap: space.xl,
   },
   // Out to the rail's edges, so a focus ring or a dragged-over row's edge is
   // not clipped by the scroller; the rail's own margin is put back inside.
   body: { flex: 1, minHeight: 0, marginHorizontal: -space.md },
-  bodyContent: { flexGrow: 1, gap: space.xl, paddingHorizontal: space.md },
+  // The foot's distance is the scroller's own last padding: with rows past
+  // it, they fade into the foot through that band rather than stopping
+  // above an empty one.
+  bodyContent: {
+    flexGrow: 1,
+    gap: space.xl,
+    paddingHorizontal: space.md,
+    paddingBottom: space.lg,
+  },
+  // A browser's mask; an iPad's rail keeps its plain edge.
+  fadeAbove: { _web: { maskImage: FADE_ABOVE, WebkitMaskImage: FADE_ABOVE } },
+  fadeBelow: { _web: { maskImage: FADE_BELOW, WebkitMaskImage: FADE_BELOW } },
+  fadeBoth: { _web: { maskImage: FADE_BOTH, WebkitMaskImage: FADE_BOTH } },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1166,3 +1249,6 @@ const styles = StyleSheet.create(theme => ({
  * the tags and the status row would be reconciled every one of those times.
  */
 export const Sidebar = memo(SidebarInner)
+
+/** The scroller's mask, by `useScrollEdges`' answer. */
+const FADES = [null, styles.fadeAbove, styles.fadeBelow, styles.fadeBoth] as const

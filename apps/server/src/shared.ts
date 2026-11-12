@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { z } from 'zod'
 import { freshState, messageOf, type ThrottleState } from '@selfmp3/shared'
 import type { Config } from './config.js'
 import type { Logger } from './logger.js'
@@ -10,6 +11,7 @@ import { RateLimiter } from './services/rateLimiter.js'
 import { RomanizationService } from './services/romanization.js'
 import type { YtThrottleService, ThrottleStore } from './services/ytThrottle.js'
 import { ServerMetrics } from './services/metrics.js'
+import { MetricsRepository } from './repositories/metrics.js'
 import { SoundModelHost } from './sound/sound.js'
 import { Gate } from './util/gate.js'
 
@@ -62,7 +64,8 @@ export function createShared(
 ): SharedServices {
   const soundModel = new SoundModelHost({ config, logger })
   const keepAwake = createKeepAwake(logger)
-  const metrics = new ServerMetrics(config.dataDir, undefined, error => {
+  const metricsRepo = new MetricsRepository(config.dataDir)
+  const metrics = new ServerMetrics(metricsRepo, undefined, error => {
     logger.warn('could not count for the admin page', { message: messageOf(error) })
   })
   const musicBrainzPace = new RateLimiter(MUSICBRAINZ_PACE_MS)
@@ -79,7 +82,7 @@ export function createShared(
     close: async () => {
       keepAwake.stop()
       await soundModel.close()
-      metrics.close()
+      metricsRepo.close()
     },
   }
 }
@@ -157,6 +160,15 @@ function serverIdIn(dataDir: string): string {
   }
 }
 
+/** `ThrottleState` as the file holds it. */
+const ThrottleStateSchema = z.object({
+  tokens: z.number(),
+  ratchet: z.number(),
+  updatedAt: z.number(),
+  pausedUntil: z.number(),
+  limitedAt: z.number(),
+})
+
 /**
  * YouTube's pace kept in a file of its own, for a server with several
  * databases and one address. Read once and written through: nothing else
@@ -176,10 +188,9 @@ export class FileThrottleStore implements ThrottleStore {
   get(now: number): ThrottleState {
     if (this.#state) return this.#state
     try {
-      const read = JSON.parse(fs.readFileSync(this.#file, 'utf8')) as Partial<ThrottleState>
-      const fields = ['tokens', 'ratchet', 'updatedAt', 'pausedUntil', 'limitedAt'] as const
-      if (fields.every(field => typeof read[field] === 'number')) {
-        this.#state = read as ThrottleState
+      const read = ThrottleStateSchema.safeParse(JSON.parse(fs.readFileSync(this.#file, 'utf8')))
+      if (read.success) {
+        this.#state = read.data
         return this.#state
       }
     } catch {

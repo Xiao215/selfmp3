@@ -85,8 +85,10 @@ function setUp(
   store: DeviceStore = memoryStore(),
 ) {
   const sent: { url: string; method: string; auth: string | undefined }[] = []
+  const warned: string[] = []
   const platform = {
     doormanUrl: ME.doormanUrl,
+    warn: (message: string) => warned.push(message),
     sharedServerUrl: `${SERVER}/`,
     store,
     fetch: (url: string, init?: { method?: string; headers?: Record<string, string> }) => {
@@ -102,7 +104,7 @@ function setUp(
       return Promise.resolve(json({ grants: given }))
     },
   } as unknown as CloudSessionApi
-  return { shared: createSharedServer(platform, sessionApi), sent, doorman }
+  return { shared: createSharedServer(platform, sessionApi), sent, doorman, warned }
 }
 
 describe('the shared server, from a device', () => {
@@ -198,6 +200,12 @@ describe('the shared server, from a device', () => {
     expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
     expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
     expect(sent).toHaveLength(1)
+  })
+
+  it('says why a join it made by itself failed, though nobody was waiting on it', async () => {
+    const { shared, warned } = setUp(() => json({ error: 'The hub is full.' }, 503))
+    expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
+    expect(warned).toEqual(['the shared computer could not be joined: The hub is full.'])
   })
 
   it('does not join again by itself once the shared server was removed here, until joined by hand', async () => {

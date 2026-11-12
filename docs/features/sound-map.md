@@ -36,8 +36,15 @@ a panel down the right. The buttons hold their place: on a phone they stand over
 tray and the opened tray lies over them as a sheet does; on a computer the panel never
 reaches them (2026-10-27: on the right they moved over each time it opened). On a computer
 the page wears no way back however it was opened, Home's card included, since the sidebar
-has a row for it (Xiao, 2026-10-27). The page is dark in either theme, since the
-sky is the point (`ScopedTheme name="dark"`). A song not heard yet has no place and is left
+has a row for it (Xiao, 2026-10-27). The sky, its head, chips and buttons are dark in
+either theme, since the sky is the point (`ScopedTheme name="dark"`); the tray is the app's
+own sheet laid over it and follows the app's appearance, as the mini player under it does
+(`ScopedTheme reset`, 2026-11-11: a dark tray in light mode read as a mistake). Under the
+scope a phone's Unistyles can paint a themed fill in the app's theme while the ink is the
+scope's, so `Chip` and `TagDot` work their colours out from `useUnistyles` instead of a
+themed style (the chips were light on light, 2026-11-11). Behind the head the night deepens, fading out
+just under the chips (`HeadScrim`), so a cover or a bright star passing under the name never
+sits behind it as if part of it (2026-10-31). A song not heard yet has no place and is left
 off; nothing counts them.
 
 ### The sky
@@ -77,7 +84,10 @@ off; nothing counts them.
     room its neighbours leave (`haloReach`) so a crowd is not fogged over; a faint rim; its
     plays as brightness, the least played under a veil of black up to 40 %; and a flared
     star's flare as a glint on its top right corner (`glint`).
-  - Open covers wear their titles from 30 points. Only covers opening ask for a picture.
+  - Open covers wear their titles from 30 points, each only where its title lies over no
+    other cover and no title already placed, the most played first, as a map places its
+    labels (`namedCovers`; 2026-10-31: in a crowd the titles ran over the next cover and
+    over each other). Only covers opening ask for a picture.
 - **The deep sky** (K3): two layers of faint stars that are not songs, behind everything
   (`deepStars`, `deepPlaces`). Each is a tile that repeats, moving 7 % and 18 % as far as the
   map does and growing by the 0.12th and 0.3th power of its scale, so close in, with covers
@@ -105,57 +115,98 @@ most once a frame while it moves and not at all while it holds still, reading wh
 from the field (`LiveView`) rather than through a render (the ground and the deep sky are a second canvas
 under it, drawn again at most 25 times a second while they twinkle, so a twinkle never draws
 the songs again); nothing a song is drawn
-with is a style. It keeps a glow picture per colour and at most 240 covers (the oldest let
-go). Measured in Chrome on the test library: zooming and moving for a minute left the CSS
+with is a style. It keeps a glow picture per colour and about 240 covers (the oldest let
+go, never one in the frame being drawn), and starts at most 24 cover loads a frame. A frame
+looks only at the songs on screen, by a grid over the map (`skyGrid`, `pointsIn`), and the
+pointer only at the cells round it; the stars' dots are one path a colour and step of
+brightness; titles cut to fit are kept rather than measured a letter at a time each frame.
+Measured in Chrome on the test library: zooming and moving for a minute left the CSS
 rules, the DOM and the heap where they started (556 → 572 rules, the tray's; 355 → 389
-nodes; 31 → 34 MB).
+nodes; 31 → 34 MB). With 5,450 songs (2026-10-31) the work in a frame with covers open went
+from about 10 ms to 4–6 ms at its 95th percentile: until then, more than 240 covers in view
+meant each frame let go of covers it then asked for again, and worked out every cover's
+address again.
 
-**On a phone** a move costs no render. The field hands each frame's view to a Reanimated
-shared value (`LiveView`, `useLiveView`), and the native side moves and scales the sky drawn
-for where the map last held still; React draws again only when it settles. Everything a song
-is drawn with (the nebulae, the stars, the covers, what the tray holds, the song playing) is
-one layer kept as one picture while it moves (`shouldRasterizeIOS`), so a pan composites a
-picture rather than every cover's rounded clip and rim. The sky is drawn twice over
-(`useSlots`): a settled view is drawn into the copy not showing, and after the commit that
-drew it the native side shows that copy, moved for where the map is, and hides the other in
-the same frame, so new stars never show for a frame at the old place. The two transforms are
-not nested: a drawing scaled down by one view and up by another came out blurred. The stars
-are a glow circle each and, over all the glows, one path of dots a colour and step of
-brightness; the deep sky is a path a tint and step a twinkle group. An SVG element is a
-native view, and a star drawn as two groups and two circles made some 6,000 views to build
-at each settle, which held the phone for seconds.
+**On a phone** the sky is drawn with Skia (`@shopify/react-native-skia`) on the GPU: one
+canvas for the songs over one for the ground and the deep sky (`SkyLayer.tsx`). The songs
+(nebulae, stars, covers and their titles, what the tray holds, the song playing) are recorded
+as a picture for where the map is, a third of a screen past each edge; the field hands each
+frame's view to a Reanimated shared value (`LiveView`, `useLiveView`), and the native side
+moves and scales that picture, so a move costs React nothing. A picture is drawing commands,
+not pixels, so a pinch stays sharp. It is recorded again when the map settles and, while it
+moves, once its edge would come near the screen or the zoom has gone a quarter either way
+from it (`drifted`), at most once in 90 ms. The stroke being drawn, the pressed spot and the
+song lit from the tray are a second, small picture over it, moved the same way. The deep sky
+is a picture a twinkle for each layer, recorded with the songs and moved a part as far
+(`deepSince`); a twinkle is a group's opacity, stepped every 40 ms, on its own canvas so it
+never draws the songs again. Covers are read as Skia images by address and kept like the
+browser's; titles are laid out as paragraphs (so a Japanese or Chinese title finds its font)
+and kept.
 
-Measured on the iPhone 17 simulator with a 1,635-song library, covers open (2026-10-26):
-before, a pan drew about 10 frames a second and the map went on moving for two seconds after
-the finger stopped, since every frame drew the nebulae and the tray's marks again through
-React; after, the pan's events reach the field as they happen (none waits on a render) and
-the sky moved every 23 ms at the whole-map view and every 38 ms with covers open, which is the
-simulator's own compositor, drawing in software, at its limit rather than the app. Drawing a settled view went from about 2.3 s to 0.8 s at the whole-map
-view in a development build. The stroke being drawn, the pressed spot and the song lit from
-the tray are drawn over the sky and move with it.
+Until 2026-10-31 the phone drew SVG and views, moved as a rasterized snapshot: each settle
+built thousands of native views on the JavaScript thread (about 200–630 ms on the iPhone 17
+simulator with 1,635 songs, one frame held for 1.5 s), so a touch just after a move waited;
+a pinch scaled a snapshot of pixels until it went soft and blocky; and a move showed empty sky
+at the edges until the finger lifted. Recording the whole library takes about 10–60 ms in a
+development build (27 ms at the whole-map view), the first title in a new script once about
+300 ms while its font loads.
 
 ### Gestures
 
 | | Phone | Computer |
 |---|---|---|
-| Move | one finger (or two) | drag, or a trackpad's two fingers |
-| Zoom | pinch; double tap zooms in | a mouse's wheel, trackpad pinch, ⌘ / Ctrl + scroll, double click; +, − |
+| Move | one finger (or two); a flick carries it on | drag, a flick carries it on; the arrow keys |
+| Zoom | pinch; double tap zooms in | any scroll: a mouse's wheel, a trackpad's two fingers or pinch; double click; +, − |
 | Play what's there | tap | click |
 | Draw | hold still a moment, then drag; or the pen, for one stroke | the same, or Shift-drag |
+| Without a pointer | VoiceOver/TalkBack: swipe through the songs, double tap plays, actions draw | Tab in; arrows go from song to song; Enter plays; Shift+Enter, arrows, Enter draw |
 
-A mouse's wheel zooms, as a map's does, and a trackpad's two fingers move (Xiao, 2026-10-27:
-the wheel moved the map up and down). A browser sends both as the same wheel, so
-`wheel.model.ts` tells them apart: lines or pages, a Mac's notch (4.000244… points) or a
-large whole step are a mouse; sideways movement, Chrome's and Safari's older field at three
-times the new one, or small steps are a trackpad; and a gesture keeps the source it began
-with, so a trackpad's fast flick never turns into a zoom halfway.
+Every scroll zooms, as a map's does, and up and down are a drag or the arrow keys (Xiao,
+2026-10-27: the wheel moved the map up and down; 2026-11-01: a trackpad's two fingers still
+did, and zooming took ⌘). Sideways scrolling does nothing. A browser sends a mouse's wheel
+and a trackpad's two fingers as the same wheel, so `wheel.model.ts` tells them apart, only
+to decide how a step zooms: lines or pages, a Mac's notch (4.000244… points) or a large
+whole step are a mouse; sideways movement, Chrome's and Safari's older field at three times
+the new one, or small steps are a trackpad; and a gesture keeps the source it began with.
+A mouse's notch glides the zoom about the pointer rather than jumping (closing most of the
+way in about 70 ms, `WHEEL_GLIDE_MS`), and a notch while it glides goes on from where it
+was heading; a trackpad's steps come a frame at a time and zoom as they come. The arrow
+keys slide the map while held (`FieldControl.keys`), getting up to speed and slowing to a
+stop over about 90 ms rather than stepping at each key repeat; two held go diagonally. They
+stand aside while someone types, and with ⌘, Ctrl or ⌥ held.
 
 A map is moved with one finger everywhere else, so it is here (B1). Drawing waits for a
-hold: a ring fills under the still finger (from 90 ms, so a tap or a move never flickers
-one) and at 320 ms (`HOLD_MS`) the phone gives a light tap and the drag draws. The pen
+hold: a ring fills under the still finger (from 180 ms, so a tap or a move never flickers
+one: at 90 ms it showed under nearly every drag, since a finger rests a moment before it
+moves, Xiao 2026-11-01) and at 320 ms (`HOLD_MS`) the phone gives a light tap and the drag draws. The pen
 button arms the next stroke without the hold, and moving then takes two fingers; it goes
 back to moving after the stroke. On a computer, Shift held does what the pen does
 (`useShiftHeld`), and the pointer is a hand, or a crosshair while drawing is armed.
+
+Without a pointer (R7G-1, 2026-11-08) the field is one Tab stop (`role="application"`,
+named with its keys). Tab in chooses the song nearest the middle, ringed in the accent and
+named, and a live region says its title and artist; the field itself wears the focus ring
+over the sky (`FOCUS_OVER`). With a song chosen the arrow keys step to the nearest song that
+way (`songToward`, `fieldKeys.model.ts`), the map sliding just far enough to keep it in view,
+and Enter or Space plays it as a tap there does. Armed (the pen, or Shift+Enter), Enter
+starts a line at the song instead; the arrows carry it from song to song, back to its start
+makes a loop, Enter ends it and it goes into the tray as a drawn one does (each song the
+keys went to is a point of it, however close, and it says how many songs it took), and
+Escape drops it. Escape lets go of the song, and then the arrows move the map again and Enter chooses
+anew; + and − zoom about the song. A click leaves focus on the field without choosing, so
+a pointer's arrows still move the map. The pointer over a star names that one, the keys'
+ring staying where it is, and a song lit from the tray (shown, or under the pointer in its
+list) lets go of the keys' one: the newer of the two is lit. Every Show and every Find the
+song playing lets go of the keys' song, even one the tray already lit, unless the keys are
+drawing a line (`FieldControl`'s `toSong`). A pointer left resting on the field, which the
+map slides under, is set aside when the keys choose a new song or the page flies to one, and
+names a star again once it moves (`hoverAfter`, `sky.model.ts`). The gesture handler takes Enter and Space on a
+focused view for a tap at its middle; the field's own listener answers them first and keeps
+them from it. On a phone, VoiceOver and TalkBack have the field as one adjustable element:
+a swipe up or down steps through the songs in bands, each near the one before
+(`readingOrder`), the song is its value, a double tap plays it, its "Start a line here"
+and "End the line here" actions draw a straight line between two songs (said aloud as they
+begin and end), and a scrub lets go of the song.
 
 The first visit acts it out once (`MapHint.tsx`, guide `sound-map-draw`): a finger's circle
 holds and draws a line between two places, then holds and goes round a loop, each with its
@@ -232,6 +283,12 @@ stays there (`FieldControl.setInsets`).
 
 **On a phone** it stays folded at the foot until pulled up or pressed, and opens as a sheet
 half the screen high, its buttons under its head; the map's clear part shrinks to above it.
+The sheet slides up as the folded line fades, and back down as the line comes back.
+
+Nothing about the tray is a cut (`useTrayMotion`, 2026-11-11): the first stroke brings it up
+from the foot (a computer's panel in from the right), Clear takes it away the same way, and
+the buttons that stand over the folded tray glide up and down with it. None of it under
+Reduce Motion.
 
 Whenever the panel or the sheet opens, or a stroke is drawn where the tray lies, the map
 slides at the same scale until the strokes are clear of it (`keepClear`, `keptClear`). Save
@@ -255,6 +312,14 @@ drawn a quarter turn clockwise so it fills the screen (`MapView.turned`); a flig
 keeps it turned. Flights (the lens, the song playing, a song opened from its ⋯, show all,
 + and −) take 420 ms, the scale eased on its logarithm and the middle moving in a straight
 line (`between`); a finger stops one where it is.
+
+A move let go at speed carries on, slowing as a phone's lists do (`flung`, 0.997 of its
+speed kept each millisecond; slower than a quarter of a point a millisecond is a release, and
+a pinch just ended is never a flick). However it is moved, the middle of what the page leaves
+clear stays over the part of the map the songs are in (`heldOn`): a drag or a flick can bring
+the edge of the songs to the middle of the screen and no further, as a map keeps you from
+dragging it away into nothing (2026-10-31: a drag could leave an empty sky with no way back
+but the button).
 
 ## How the map is made
 
@@ -309,7 +374,10 @@ any song heard, from each bucket pass, and from a device asking for the map.
 `lyrics/<sha256>.map`, JSON: `{"places": [["audio/<sha256>.m4a", x, y], …]}`, songs named by
 their audio's key as the vectors are, x and y whole numbers 0–10 000, keys sorted so the same
 map is the same file (`encodeSoundMap`, packages/shared `soundMap.ts`). About 120 KB for
-1,500 songs. The snapshot's `soundMap` names it; the one it replaces goes in the trash. A
+1,500 songs. The snapshot's `soundMap` names it; the one it replaces goes in the trash and is
+deleted once no snapshot in the bucket names it, since a phone answers from the snapshot it
+kept at its last look. A device that still finds its map gone reads the bucket's newer one,
+and every look that finds something asks for the map again. A
 changed map is enrichment, held with the motion curves and cover colours rather than
 published at once. In the doorman's `lyrics/` folder, so no doorman needed redeploying. A
 server starting again from the bucket with no map of its own reads the bucket's back once
@@ -326,7 +394,7 @@ changes, never one a visit.
 - `apps/server/src/sound/map.ts` — the fold (tested: `map.test.ts`)
 - `apps/server/src/sound/soundMap.ts`, `repositories/soundMap.ts`, `routes/soundMap.ts` —
   keeping it, when to fold, `/api/sound-map`
-- `apps/server/src/services/cloudSync.ts` (`#uploadSoundMap`, `#readBucketSoundMap`) — the
+- `apps/server/src/services/cloudLibraryFiles.ts` (`uploadSoundMap`, `#readBucketSoundMap`) — the
   bucket's copy (tested in `cloudSync.test.ts`, "the sound map")
 - `packages/shared/src/soundMap.ts` — the file; `cloud.ts` `soundMapKey`;
   `schemas/cloud.ts` `CloudSoundMapSchema`; `schemas/library.ts` `SoundMapSchema`
@@ -335,6 +403,7 @@ changes, never one a visit.
 - `packages/client/src/soundMap/soundMap.ts` — nearest songs, songs along a line and inside a
   loop, tag regions, names (tested)
 - `apps/app/src/features/soundMap/` — the page (`SoundMapScreen`), the field and its gestures
-  (`SoundField`, `fieldControl`, `fieldInput`), the sky (`sky.model`, `SkyLayer` and
-  `SkyLayer.web`), the tray, the hint, Home's card, the view's arithmetic
-  (`soundMapView.model`); the pure parts tested
+  (`SoundField`, `fieldControl`, `fieldInput`), the keys (`fieldKeys.model`), the wheel
+  (`wheel.model`), the sky (`sky.model`, `SkyLayer` with Skia and `SkyLayer.web` with a
+  canvas), the tray (`MapTray`, `tray.model`), the hint (`MapHint`), Home's card (`MapCard`),
+  the view's arithmetic (`soundMapView.model`); the pure parts tested

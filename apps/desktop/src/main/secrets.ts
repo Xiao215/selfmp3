@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { codeOf } from '@selfmp3/shared'
 import { app, safeStorage } from 'electron'
+import { z } from 'zod'
 
 import { writeFileAtomicSync } from './writeAtomic.js'
 
@@ -15,8 +17,9 @@ import { writeFileAtomicSync } from './writeAtomic.js'
  *
  * The browser's answer to the same port is `localStorage`, which is protected
  * by the origin and nothing else. This is the difference an installed app is
- * for, and the plan's rule is absolute: tokens go through here and nowhere
- * else, never into the renderer's own storage.
+ * for: a token the page keeps itself goes through here, never into the
+ * renderer's own storage. The doorman session is the one exception, kept by
+ * the replica in IndexedDB as in a tab (docs/features/desktop-app.md).
  */
 
 /**
@@ -40,9 +43,10 @@ export function parseSecrets(text: string): SealedSecrets {
     // token, and signing in again is the recovery.
     return {}
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+  const document = z.record(z.unknown()).safeParse(parsed)
+  if (!document.success) return {}
   const out: SealedSecrets = {}
-  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(document.data)) {
     if (typeof value === 'string') out[key] = value
   }
   return out
@@ -74,12 +78,19 @@ let cached: SealedSecrets | null = null
  */
 const opened = new Map<string, string | null>()
 
-/** A copy: callers change what they are given, and the cache must not change with it. */
+/**
+ * A copy: callers change what they are given, and the cache must not change with it.
+ *
+ * No file yet is no secrets. A file that is there and cannot be read throws,
+ * and is not taken for empty: the next `set` writes the whole document, and
+ * would write every other secret out of it.
+ */
 function read(): SealedSecrets {
   if (cached === null) {
     try {
       cached = parseSecrets(readFileSync(file(), 'utf8'))
-    } catch {
+    } catch (error) {
+      if (codeOf(error) !== 'ENOENT') throw error
       cached = {}
     }
   }
@@ -101,10 +112,9 @@ function write(secrets: SealedSecrets): void {
  * Whether this machine has a real store behind `safeStorage`.
  *
  * macOS: the login keychain, always. Linux: only where a secret service
- * answers. The plan's risk table already settled what to do when it does not —
- * "plain JSON with a warning in Settings — the browser's promise, no worse" —
- * because the alternative is an installed app that cannot sign in at all, which
- * is worse than the tab it replaced.
+ * answers. Where it does not, values are kept plainly and Settings says so —
+ * the browser's promise, no worse — because the alternative is an installed
+ * app that cannot sign in at all, which is worse than the tab it replaced.
  */
 export function encryptionAvailable(): boolean {
   try {

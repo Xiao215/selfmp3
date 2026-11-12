@@ -8,6 +8,7 @@ import {
   noSongsProblem,
   playlistPatchProblem,
   playlistSongsProblem,
+  playlistsEmptiedBy,
   tagFlips,
   tagsAfter,
   tagNamed,
@@ -163,7 +164,9 @@ export function tagSongs(
  * Out of the library, on every device — with each tag only these songs had,
  * as the server's own removal takes them (`tagsEmptiedBy`). Those go as
  * `tagEmptied`, not `tagRemoved`: another device may be putting one on a song
- * this one has not heard of, and then it stays.
+ * this one has not heard of, and then it stays. Each kept playlist only these
+ * songs were on goes too (`playlistsEmptiedBy`), as `playlistEmptied` for the
+ * same reason.
  */
 export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
   const known = knownSongs(ctx, ids)
@@ -171,10 +174,20 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
     ctx.view.library.tags,
     known.flatMap(([id]) => ctx.view.byId.songs.get(id) ?? []),
   )
+  const playlists = playlistsEmptiedBy(
+    ctx.view.library.playlists,
+    ctx.view.playlistSongs,
+    known.map(([id]) => id),
+  )
   return [
     ...known.map(([, uid]) => ({ type: 'songRemoved' as const, hlc: ctx.stamp(), uid })),
     ...lettingGoOf(ctx, emptied, new Set(known.map(([, uid]) => uid))),
     ...emptied.map(id => ({ type: 'tagEmptied' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
+    ...playlists.map(id => ({
+      type: 'playlistEmptied' as const,
+      hlc: ctx.stamp(),
+      uid: playlist(ctx, id).uid,
+    })),
   ]
 }
 
@@ -404,7 +417,9 @@ export function addToPlaylist(
   songIds: readonly number[],
   position: number | undefined,
 ): Change[] {
-  const found = manual(ctx, id)
+  // One that went with its last songs is filled again: the songs bring it back.
+  const emptied = ctx.view.emptiedPlaylists.get(id)
+  const found = emptied ? { uid: emptied } : manual(ctx, id)
   const valid = knownSongs(ctx, songIds)
   const none = noSongsProblem(valid.length)
   if (none) throw refused(none)
@@ -432,19 +447,36 @@ export function addToPlaylist(
   return changes
 }
 
+/**
+ * Songs out of a manual playlist, and the playlist with them when they were
+ * its last (`playlistEmptied`), as the server's own removal lets it go: kept
+ * aside, so a song put in it again — an Undo, another device that had not
+ * heard — brings it back.
+ */
 export function removeFromPlaylist(
   ctx: EditContext,
   id: number,
   songIds: readonly number[],
+  /** Undoing an add: it stays with none left, as it was before. */
+  keep = false,
 ): Change[] {
   const found = manual(ctx, id)
-  return knownSongs(ctx, songIds).map(([, songUid]) => ({
+  const known = knownSongs(ctx, songIds)
+  const changes: Change[] = known.map(([, songUid]) => ({
     type: 'playlistSong' as const,
     hlc: ctx.stamp(),
     uid: found.uid,
     songUid,
     on: false,
   }))
+  const emptied = playlistsEmptiedBy(
+    [found],
+    ctx.view.playlistSongs,
+    known.map(([songId]) => songId),
+  )
+  if (emptied.length > 0 && !keep)
+    changes.push({ type: 'playlistEmptied', hlc: ctx.stamp(), uid: found.uid })
+  return changes
 }
 
 // --- Importing -------------------------------------------------------------------

@@ -236,6 +236,36 @@ describe('the cover store', () => {
     expect(replica.library.cloudCoverKey).toHaveBeenCalledTimes(2)
   })
 
+  it('does not keep a cover for a song id that was on its way when the account was forgotten', async () => {
+    let answer = (_uri: string | null): void => undefined
+    const store = createCoverStore(
+      fakePlatform({
+        haveCloud: () =>
+          new Promise(resolve => {
+            answer = resolve
+          }),
+        keepServed: () =>
+          new Promise(resolve => {
+            answer = resolve
+          }),
+      }),
+    )
+    const cloud = store.ensureCover(7)
+    await vi.waitFor(() => expect(replica.library.cloudCoverKey).toHaveBeenCalled())
+    await store.forgetCovers()
+    answer('file:///hash-7.jpg')
+    await cloud
+    // The next account's song 7 is another song.
+    expect(store.coverFor(7)).toBeUndefined()
+
+    const server = store.ensureServerCover(8, 'r1', 'https://mac.example/art/8')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await store.forgetCovers()
+    answer('file:///8-r1.jpg')
+    await server
+    expect(store.coverFor(8)).toBeUndefined()
+  })
+
   it('fetches a picture by its key once, and draws it from then on', async () => {
     const platform = fakePlatform()
     const keepCloud = vi.spyOn(platform, 'keepCloud')

@@ -11,7 +11,6 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
-  DoormanError,
   formatLongDuration,
   hasColour,
   plural,
@@ -32,6 +31,7 @@ import {
   yoursOf,
 } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { useOnline } from '../../offline/useOnline'
 import { usePlayerCommands, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
@@ -60,6 +60,8 @@ import { useGetSongs } from '../room/useGetSongs'
 import { GoneLink } from './GoneLink'
 import {
   gettable,
+  goneAskedFor,
+  linkTrouble,
   shareHeadLine,
   shareStage,
   shareStartOf,
@@ -69,6 +71,7 @@ import {
 import { ShareSong, SongStill, useShareStage } from './ShareSong'
 import { CoverRail, listSummary, RAIL_WIDTH, UpNext } from './ShareRail'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
+import { useAskAgainWhenBack } from './useAskAgainWhenBack'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
 import { useOwnCover } from './useOwnCover'
@@ -108,7 +111,10 @@ export function ShareLinkScreen(): ReactNode {
   const id = ShareIdSchema.safeParse(params.id ?? '').success ? (params.id ?? null) : null
   const key = ShareKeySchema.safeParse(params.key ?? '').success ? (params.key ?? null) : null
   const { status } = useConnection()
-  const { data: link, isLoading, error } = useShareLink(id, key)
+  const { data: link, isLoading, isFetching, error, refetch } = useShareLink(id, key)
+  const online = useOnline()
+  const trouble = link ? null : linkTrouble(id, key, error)
+  useAskAgainWhenBack(trouble === 'unreachable' && !isFetching, () => void refetch())
 
   if (!link) {
     if (isLoading || (status === 'loading' && id && key)) {
@@ -118,8 +124,15 @@ export function ShareLinkScreen(): ReactNode {
         </SafeAreaView>
       )
     }
-    const wrongKey = !key || (error instanceof DoormanError && error.status === 403)
-    return <GoneLink torn={!id || wrongKey} signedIn={status === 'ready'} />
+    return (
+      <GoneLink
+        trouble={trouble ?? 'unreachable'}
+        signedIn={status === 'ready'}
+        offline={!online}
+        onRetry={() => void refetch()}
+        retrying={isFetching}
+      />
+    )
   }
   return <LinkPage link={link} s={params.s} t={params.t} />
 }
@@ -196,6 +209,12 @@ function LinkPage({
       entries.findIndex(entry => entry.id === s),
     ),
   )
+  // A song the address names that its sender has since removed: the list
+  // opens on its first, and says why, once.
+  const goneTitle = goneAskedFor(link, s)?.song.title ?? null
+  useEffect(() => {
+    if (goneTitle) showToast(`“${goneTitle}” was removed from this list`)
+  }, [goneTitle])
   // Kept on the song playing, so the page stays on it once the list stops.
   // Adjusted during render, as React has a value follow another.
   if (playingAt !== undefined && playingAt !== cued) setCued(playingAt)

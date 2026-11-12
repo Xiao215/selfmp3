@@ -1,4 +1,4 @@
-import type { YtDlpService } from './ytdlp.js'
+import type { FoundAudio, YtDlpService } from './ytdlp.js'
 
 /**
  * Listening to a track before importing it.
@@ -12,6 +12,11 @@ import type { YtDlpService } from './ytdlp.js'
  * new range request every time, and should cost one yt-dlp run per track,
  * not one per seek. Two requests at once for the same track — Safari asks for
  * the first two bytes before the rest — share one run.
+ *
+ * Nothing is looked up before someone presses play: most reviews are imported
+ * without a listen, and each lookup is a request to YouTube and seconds of a
+ * Pi's time. A link found for a listen is kept for the import that may follow
+ * (`known`), so a song heard and then imported is looked up once.
  */
 
 /** Links are dropped this long before YouTube says they expire. */
@@ -22,55 +27,44 @@ const DEFAULT_LIFETIME_MS = 60 * 60 * 1000
 const MAX_ENTRIES = 200
 
 interface Entry {
-  readonly url: string
+  readonly found: FoundAudio
   readonly expiresAt: number
 }
 
 export class ListenService {
-  readonly #ytdlp: Pick<YtDlpService, 'audioUrl'>
+  readonly #ytdlp: Pick<YtDlpService, 'findAudio'>
   readonly #now: () => number
   readonly #links = new Map<string, Entry>()
-  readonly #pending = new Map<string, Promise<string>>()
+  readonly #pending = new Map<string, Promise<FoundAudio>>()
 
-  constructor(ytdlp: Pick<YtDlpService, 'audioUrl'>, now: () => number = Date.now) {
+  constructor(ytdlp: Pick<YtDlpService, 'findAudio'>, now: () => number = Date.now) {
     this.#ytdlp = ytdlp
     this.#now = now
   }
 
   /** Where the track's audio can be fetched from right now. */
-  async source(trackUrl: string): Promise<string> {
-    const known = this.#links.get(trackUrl)
-    if (known && known.expiresAt > this.#now()) return known.url
+  async source(trackUrl: string): Promise<FoundAudio> {
+    const known = this.known(trackUrl)
+    if (known) return known
 
     const pending = this.#pending.get(trackUrl)
     if (pending) return pending
 
     const lookup = this.#ytdlp
-      .audioUrl(trackUrl)
-      .then(url => {
-        this.#remember(trackUrl, url)
-        return url
+      .findAudio(trackUrl)
+      .then(found => {
+        this.#remember(trackUrl, found)
+        return found
       })
       .finally(() => this.#pending.delete(trackUrl))
     this.#pending.set(trackUrl, lookup)
     return lookup
   }
 
-  /**
-   * Look the links up now, so the first tap on a review does not pay for it.
-   *
-   * The lookup is the one fixed cost of a preview — a couple of seconds of
-   * yt-dlp before a single byte plays — and a review's first rows are the ones
-   * somebody is about to press. Each is a request against the YouTube budget
-   * (ytThrottle.ts), which is why it is a few and not the whole list; a tap
-   * that lands while a lookup is running shares it, as `source` always has.
-   * Nothing here is waited on, and a link that cannot be read says so when
-   * it is played, not now.
-   */
-  warm(trackUrls: readonly string[]): void {
-    for (const trackUrl of trackUrls) {
-      this.source(trackUrl).catch(() => undefined)
-    }
+  /** The track's audio if a listen already found it and the link is still good; never asks. */
+  known(trackUrl: string): FoundAudio | null {
+    const entry = this.#links.get(trackUrl)
+    return entry && entry.expiresAt > this.#now() ? entry.found : null
   }
 
   /** YouTube turned the link down after all: look it up afresh next time. */
@@ -78,13 +72,13 @@ export class ListenService {
     this.#links.delete(trackUrl)
   }
 
-  #remember(trackUrl: string, url: string): void {
-    const expire = Number(new URL(url).searchParams.get('expire'))
+  #remember(trackUrl: string, found: FoundAudio): void {
+    const expire = Number(new URL(found.url).searchParams.get('expire'))
     const expiresAt =
       expire > 0 ? expire * 1000 - EXPIRY_MARGIN_MS : this.#now() + DEFAULT_LIFETIME_MS
 
     this.#links.delete(trackUrl)
-    this.#links.set(trackUrl, { url, expiresAt })
+    this.#links.set(trackUrl, { found, expiresAt })
     if (this.#links.size > MAX_ENTRIES) {
       const oldest = this.#links.keys().next().value
       if (oldest !== undefined) this.#links.delete(oldest)

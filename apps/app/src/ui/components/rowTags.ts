@@ -132,8 +132,8 @@ export function fitTags(
 
 function rowWidth(tags: readonly Tag[], widthOf: (tag: Tag) => number, shown: number): number {
   let width = 0
-  for (let i = 0; i < shown; i++) {
-    width += Math.min(TAG_CHIP_MAX_WIDTH, widthOf(tags[i] as Tag)) + (i > 0 ? TAG_GAP : 0)
+  for (const [i, tag] of tags.slice(0, shown).entries()) {
+    width += Math.min(TAG_CHIP_MAX_WIDTH, widthOf(tag)) + (i > 0 ? TAG_GAP : 0)
   }
   const hidden = tags.length - shown
   if (hidden > 0) width += (shown > 0 ? TAG_GAP : 0) + countPillWidth(hidden)

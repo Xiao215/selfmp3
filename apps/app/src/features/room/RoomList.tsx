@@ -3,7 +3,14 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
-import { artistOr, formatDuration, plural, type RoomAction, type RoomState } from '@selfmp3/shared'
+import {
+  artistOr,
+  canPlayAgain,
+  formatDuration,
+  plural,
+  type RoomAction,
+  type RoomState,
+} from '@selfmp3/shared'
 import {
   radius,
   roomTrackId,
@@ -37,13 +44,16 @@ import {
   roomLine,
   roomTitle,
   upcomingRows,
+  mayBring,
   youMay,
+  hostAway,
   type RoomRow,
 } from './room.model'
 import { openRoomSheet } from './roomSheets.store'
 import { sayRoomFailure } from './roomFailure'
 import { currentRoom, roomAct, useRoom } from './room.store'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
+import { showToast } from '../../ui/toast'
 
 /** Rows of what is next drawn at once; a room's list is rarely longer. */
 const SHOWN_NEXT = 40
@@ -52,6 +62,13 @@ const SHOWN_PLAYED = 5
 
 function act(action: RoomAction): void {
   void roomAct(action).catch(sayRoomFailure)
+}
+
+/** A skip, pause or play asked of the host's player, or why it would do nothing now. */
+function ask(state: RoomState, action: RoomAction): void {
+  const away = hostAway(state)
+  if (away) showToast(away, 'info')
+  else act(action)
 }
 
 /**
@@ -146,13 +163,17 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
   const localPlaying = usePlayerPlaying()
   const row = playingRow(state)
   const song = row ? (roomTrack(row.trackId)?.song ?? roomTrackSong(row.entry)) : null
+  const { lead } = useRoom()
   if (!row || !song) return <RoomEmpty state={state} />
-  const host = isHost(state)
+  // The host's player, in the tab that plays the room (`leadRoom`). In the
+  // host's other tabs the card asks the room, as a friend's does, and the
+  // tab that plays it does what is asked.
+  const drives = isHost(state) && lead === 'here'
   const paused = state.playing?.pausedAt !== null
-  const playing = host ? localPlaying : !paused
+  const playing = drives ? localPlaying : !paused
   const mayToggle = youMay(state, playing ? 'pause' : 'play')
-  // The host's own player has Next; a friend's card is their only way to skip.
-  const maySkip = !host && youMay(state, 'skip')
+  // The host's own player has Next; anyone else's card is their only way to skip.
+  const maySkip = !drives && youMay(state, 'skip')
   const whose = !row.owner
     ? row.entry.from
       ? `${row.entry.from}’s`
@@ -184,12 +205,19 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
           size={44}
           glyph={iconSize.nav}
           playing={playing}
-          onPress={() => (host ? commands.toggle() : act({ type: playing ? 'pause' : 'play' }))}
+          onPress={() =>
+            drives ? commands.toggle() : ask(state, { type: playing ? 'pause' : 'play' })
+          }
           testID="room-toggle"
         />
       ) : null}
       {maySkip ? (
-        <IconButton onPress={() => act({ type: 'skip' })} label="Skip" filled testID="room-skip">
+        <IconButton
+          onPress={() => ask(state, { type: 'skip' })}
+          label="Skip"
+          filled
+          testID="room-skip"
+        >
           <Next size={iconSize.medium} color={theme.colors.textPrimary} />
         </IconButton>
       ) : null}
@@ -206,16 +234,18 @@ function RoomEmpty({ state }: { state: RoomState }): ReactNode {
   const { theme } = useUnistyles()
   const commands = usePlayerCommands()
   const addSongs = useAddSongs()
+  const { lead } = useRoom()
   const waiting = state.order.length
-  const mayAdd = youMay(state, 'add') || youMay(state, 'again') || youMay(state, 'addLink')
+  const mayAdd = mayBring(state)
   // Songs waiting and nothing playing: the host's player has not started on
-  // them (it was busy, or a song would not play). The host starts it here.
+  // them (it was busy, or a song would not play). The host starts it here,
+  // in the tab that plays the room.
   if (waiting > 0) {
     return (
       <View style={styles.empty} testID="room-empty">
         <Text style={styles.emptyTitle}>Nothing playing yet</Text>
         <Text style={styles.emptyText}>{plural(waiting, 'song', 'songs')} waiting</Text>
-        {isHost(state) ? (
+        {isHost(state) && lead === 'here' ? (
           <View style={styles.actions}>
             <Button
               label="Play"
@@ -269,7 +299,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
   const next = upcomingRows(state)
   const played = playedRows(state).slice(0, SHOWN_PLAYED)
   const host = isHost(state)
-  const mayAdd = youMay(state, 'again') || youMay(state, 'add') || youMay(state, 'addLink')
+  const mayAdd = mayBring(state)
   const addSongs = useAddSongs()
   return (
     <View style={styles.list}>
@@ -331,7 +361,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
               row={row}
               dim
               action={
-                youMay(state, 'again') ? (
+                youMay(state, 'again') && canPlayAgain(state, row.entry) ? (
                   <IconButton
                     label={`Play ${row.entry.song.title} again later`}
                     caption="Again"

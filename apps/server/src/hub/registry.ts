@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
-import { DoormanAccountSchema, randomHex } from '@selfmp3/shared'
+import { codeOf, DoormanAccountSchema, randomHex } from '@selfmp3/shared'
 
 /**
  * Who this server works for: `<data>/hub.json` (docs/features/shared-server.md).
@@ -31,7 +31,7 @@ const EntrySchema = z.object({
   id: WorkspaceIdSchema,
   /** The doorman's id for the account. */
   account: DoormanAccountSchema,
-  /** For the log and the server's page; the account's own word for itself. */
+  /** For the log and `GET /api/hub`; the account's own word for itself. */
   email: z.string(),
   /** What every device of the account sends: published in its snapshots. */
   token: z.string().min(16),
@@ -113,7 +113,7 @@ function read(file: string): HubEntry[] {
   try {
     text = fs.readFileSync(file, 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (codeOf(error) !== 'ENOENT') throw error
     const dataDir = path.dirname(file)
     if (fs.existsSync(path.join(dataDir, 'selfmp3.db'))) {
       throw new Error(

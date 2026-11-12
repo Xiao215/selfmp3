@@ -3,7 +3,7 @@ import { DEFAULT_APP_URL, YT_PROXY_PAGES } from '@selfmp3/shared'
 import type { Handlers } from '../bridge.js'
 import { serve, servePage } from '../bridge.js'
 import { createCloud } from './cloud.js'
-import { createHandlers, explain, forPages, workerRouter } from './handlers.js'
+import { createHandlers, explain, explainToPage, forPages, workerRouter } from './handlers.js'
 import { createPageHandler } from './pill.js'
 import { installMenus, openPopupWindow } from './menus.js'
 import { idbStore } from './store.js'
@@ -77,11 +77,12 @@ const handlers: Handlers = createHandlers({ store, fetch: workerFetch, watcher, 
 
 // The popup and the options page: a queue read from there clears the `!`.
 serve(forPages(handlers, watcher), explain)
-// The pill's channel, which learns nothing about the library but this one song —
-// and whose polling from a YouTube tab is not anyone looking at the badge.
+// The pill's channel, which learns nothing about the library but yes or no for
+// the videos a page names — and whose polling from a YouTube tab is not anyone
+// looking at the badge.
 servePage(
   createPageHandler(handlers, async () => (await router.route()).mode),
-  explain,
+  explainToPage,
 )
 
 /**

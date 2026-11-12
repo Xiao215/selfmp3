@@ -15,6 +15,7 @@ import {
   packVector,
   soundCloseness,
   unpackVector,
+  type RoomSong,
   type RoomState,
 } from '@selfmp3/shared'
 import type { RoomPass } from '@selfmp3/client'
@@ -39,6 +40,7 @@ import { useLibraryIndex } from '../../ui/songsById'
 import {
   arrivals,
   entryOfTrack,
+  followPlan,
   followerPress,
   freshWant,
   hostPlan,
@@ -51,6 +53,7 @@ import {
   pastRoomOf,
   positionNow,
   roomTracks,
+  sendKeepGoing,
   soundTarget,
 } from './room.model'
 import {
@@ -95,6 +98,10 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const playing = usePlayerPlaying()
   const index = useLibraryIndex()
   const host = state ? isHost(state) : false
+  // One tab of a browser plays the room (`leadRoom`); the others leave their player be.
+  const plays = room.lead === 'here'
+  // A room's final state, heard before it is let go, is nothing to play on.
+  const driving = host && plays && state?.endedAt === null
 
   // A link plays through the host's server: looked for only by a host with a link to play.
   const hasLinks = state?.entries.some(entry => entry.song.link !== null) ?? false
@@ -127,10 +134,10 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   }, [state, pass, host, hasLinks, cloudServer])
 
   // What the engine's callbacks and the timers read, current without re-wiring.
-  const live = useRef({ playingId, playing, queueIndex: queue.index })
+  const live = useRef({ playingId, playing, ranOut, queueIndex: queue.index })
   useEffect(() => {
-    live.current = { playingId, playing, queueIndex: queue.index }
-  }, [playingId, playing, queue.index])
+    live.current = { playingId, playing, ranOut, queueIndex: queue.index }
+  }, [playingId, playing, ranOut, queue.index])
 
   // A friend coming in: a tap on the phone and their name, wherever you are (M2).
   const seen = useRef<{ code: string; ids: Set<string> } | null>(null)
@@ -230,16 +237,37 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     )
   }, [pastRooms])
 
+  // Another tab of this browser plays the room: said once, as this one comes in.
+  const saidElsewhere = useRef<string | null>(null)
+  useEffect(() => {
+    if (!state || room.lead !== 'elsewhere' || saidElsewhere.current === state.code) return
+    saidElsewhere.current = state.code
+    showToast({
+      say: 'The room plays in your other tab',
+      under: 'This one takes over if you close it.',
+    })
+  }, [state, room.lead])
+
   // --- the host ---------------------------------------------------------------
 
+  // A tab that waited on another of the host's and now plays the room: it
+  // takes the room's song up, whatever of its own it had on, before it
+  // reports anything (`hostPlan`).
+  const tookLead = useRef(false)
   useEffect(() => {
-    if (!state || !host) return
+    if (room.lead === 'elsewhere') tookLead.current = true
+  }, [room.lead])
+
+  useEffect(() => {
+    if (!state || !driving) return
     const plan = hostPlan(state, {
       currentId: playingId,
       playing,
       ranOut,
       takeOver: roomMayTakeOver(),
+      tookLead: tookLead.current,
     })
+    if (plan.kind !== 'resume') tookLead.current = false
     switch (plan.kind) {
       case 'start': {
         const hint = takeRoomStartHint()
@@ -268,13 +296,14 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
       case 'none':
         return
     }
-  }, [state, host, playingId, playing, ranOut, commands])
+  }, [state, driving, playingId, playing, ranOut, commands])
 
   // What the host's player is on, told to the room whenever it differs from what the room says.
   const reporting = useRef(false)
   const report = useCallback(() => {
     const now = currentRoom()
-    if (!now.state || !isHost(now.state) || reporting.current) return
+    if (!now.state || !isHost(now.state) || now.lead !== 'here' || reporting.current) return
+    if (tookLead.current || now.state.endedAt !== null) return
     // Nothing loaded yet (the app just opened): the plan takes the room's
     // song up, and the room hears once it plays, not that nothing does.
     if (live.current.playingId === null && now.state.playing) return
@@ -284,58 +313,74 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     if (!needsReport(now.state, now.offset, Date.now(), facts)) return
     reporting.current = true
     void roomAct({ type: 'report', ...facts })
+      // A report that did not land is made again at the next check, while the room still differs.
       .catch(() => undefined)
       .finally(() => {
         reporting.current = false
       })
   }, [commands])
   useEffect(() => {
-    if (host) report()
-  }, [host, state, playingId, playing, report])
+    if (driving) report()
+  }, [driving, state, playingId, playing, report])
 
   // What a friend asked of the host's player: each once, and none from before this device heard the room.
   const lastWant = useRef<{ code: string; seq: number } | null>(null)
   useEffect(() => {
-    if (!state || !host) return
+    if (!state || !driving) return
     if (lastWant.current?.code !== state.code) {
       lastWant.current = { code: state.code, seq: state.want?.seq ?? 0 }
       return
     }
-    const want = freshWant(state, lastWant.current.seq)
-    if (!want) return
+    const now = currentRoom()
+    const fresh = freshWant(state, lastWant.current.seq, {
+      offset: now.offset,
+      now: Date.now(),
+      heard: now.link === 'live',
+    })
+    if (!fresh) return
+    const { want } = fresh
     lastWant.current = { code: state.code, seq: want.seq }
+    if (!fresh.act) return
     if (want.kind === 'skip') commands.next()
     else if ((want.kind === 'pause') === live.current.playing) commands.toggle()
-  }, [state, host, commands])
+  }, [state, driving, commands])
 
   // Autoplay (`keepGoing`): a couple of songs always waiting, while something plays.
   const keptFor = useRef<string | null>(null)
+  const refusedAgain = useRef<{ code: string; ids: Set<string> }>({ code: '', ids: new Set() })
   useEffect(() => {
-    if (!state || !host || !state.keepGoing || !state.playing) return
+    if (!state || !driving || !state.keepGoing || !state.playing) return
     if (state.order.length >= KEEP_WAITING || keptFor.current === state.playing.entryId) return
     keptFor.current = state.playing.entryId
+    if (refusedAgain.current.code !== state.code) {
+      refusedAgain.current = { code: state.code, ids: new Set() }
+    }
+    const refused = refusedAgain.current.ids
     const wanted = KEEP_WAITING - state.order.length
     void (async () => {
       // By sound where the room knows how its songs sound; by turns alone otherwise.
       const closeness = await closenessTo(state, pass).catch(() => undefined)
-      const picks = keepGoingPicks(
-        state,
-        wanted,
-        closeness ? { closeness: song => (song.audio ? closeness(song.audio.key) : null) } : {},
-      )
-      for (const action of picks) await roomAct(action).catch(() => undefined)
-      // A young room has nothing of its own to bring back yet: the host's
-      // library keeps it going rather than letting it run dry.
-      if (picks.length >= wanted) return
-      const yours = libraryPicks(state, index.byAudio, wanted - picks.length, {
+      const picks = keepGoingPicks(state, wanted, {
+        refused,
+        ...(closeness
+          ? { closeness: (song: RoomSong) => (song.audio ? closeness(song.audio.key) : null) }
+          : {}),
+      })
+      const taken = await sendKeepGoing(picks, roomAct, refused)
+      // A young room has nothing of its own to bring back yet, or what it
+      // had was refused: the host's library keeps it going rather than
+      // letting it run dry.
+      if (taken >= wanted) return
+      const yours = libraryPicks(state, index.byAudio, wanted - taken, {
         ...(closeness ? { closeness } : {}),
       })
       for (const id of yours) {
         const song = cloudLibrary.cloudRoomSongNow(id)
+        // One the room would not take is passed over; the next song is still worth asking.
         if (song) await roomAct({ type: 'add', song }).catch(() => undefined)
       }
     })()
-  }, [state, host, pass, index])
+  }, [state, driving, pass, index])
 
   // How your own songs in the room sound, told to the room once each: what
   // the host's Autoplay ranks by. Read from your bucket's pack.
@@ -393,42 +438,99 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     return () => setRoomTransport(null)
   }, [])
 
+  // The song a follower last said it waits on the host for, so it is said once;
+  // since when it has waited on this play of it (`followPlan`'s `outSince`,
+  // keyed by the song and when it started); and where the room was when this
+  // player left its song: ran out on it, or went on by itself to what the
+  // room has next (`leftAt`).
+  const saidWaiting = useRef<string | null>(null)
+  const waitingSince = useRef<{ play: string; at: number } | null>(null)
+  const leftSong = useRef<{ entryId: string; position: number } | null>(null)
+  const noteLeft = useCallback(() => {
+    const now = currentRoom()
+    const room = now.state
+    const entryId = room?.playing?.entryId ?? null
+    if (!room || entryId === null) {
+      leftSong.current = null
+      return
+    }
+    const onIt = live.current.playingId === roomTrackId(entryId)
+    const next = room.order[0]
+    const onNext = next !== undefined && live.current.playingId === roomTrackId(next)
+    if (!((onIt && live.current.ranOut) || onNext)) leftSong.current = null
+    else if (leftSong.current?.entryId !== entryId) {
+      leftSong.current = { entryId, position: positionNow(room, now.offset, Date.now()) }
+    }
+  }, [])
   const follow = useCallback(() => {
     const now = currentRoom()
     const room = now.state
-    if (!room || isHost(room) || room.mode !== 'everyone') return
+    if (!room || isHost(room) || room.mode !== 'everyone' || now.lead !== 'here') return
     // Reconnecting, what the room last said goes stale: the song this device
     // has goes on as it is, and is put in step once the room is back.
     if (now.link !== 'live') return
     const onRoomSong = roomTrack(live.current.playingId ?? 0) !== undefined
-    if (!room.playing) {
-      if (onRoomSong && live.current.playing) commands.toggle()
-      return
+    const entryId = room.playing?.entryId ?? null
+    const at = Date.now()
+    noteLeft()
+    const play = room.playing && `${room.playing.entryId} ${room.playing.startedAt}`
+    const since = waitingSince.current?.play === play ? waitingSince.current.at : null
+    const plan = followPlan(
+      room,
+      now.offset,
+      at,
+      {
+        currentId: live.current.playingId,
+        leftAt: leftSong.current?.position ?? null,
+        playsHere: entryId !== null && commands.mayPlay(roomTrackId(entryId)),
+      },
+      since,
+    )
+    if (plan.kind !== 'wait') waitingSince.current = null
+    else if (play && since === null) waitingSince.current = { play, at }
+    switch (plan.kind) {
+      case 'stop':
+        if (onRoomSong && live.current.playing) commands.toggle()
+        return
+      case 'wait': {
+        if (!plan.away) return
+        if (onRoomSong && live.current.playing) commands.toggle()
+        const waiting = `${room.code} ${room.playing?.entryId ?? ''}`
+        if (saidWaiting.current !== waiting) {
+          saidWaiting.current = waiting
+          showToast({ say: plan.away, under: 'The room goes on when they’re back.' })
+        }
+        return
+      }
+      case 'load':
+        commands.playFrom(plan.ids, 0, { position: plan.position, autoplay: plan.autoplay })
+        return
+      case 'keep':
+        commands.setUpcoming(plan.upcoming)
+        if (plan.playing !== live.current.playing) commands.toggle()
+        if (shouldResync(commands.getPosition(), plan.position)) commands.seekTo(plan.position)
+        return
     }
-    const id = roomTrackId(room.playing.entryId)
-    const upcoming = room.order.map(roomTrackId)
-    const expected = positionNow(room, now.offset, Date.now())
-    const shouldPlay = room.playing.pausedAt === null
-    if (live.current.playingId !== id) {
-      commands.playFrom([id, ...upcoming], 0, { position: expected, autoplay: shouldPlay })
-      return
-    }
-    commands.setUpcoming(upcoming)
-    if (shouldPlay !== live.current.playing) commands.toggle()
-    if (shouldResync(commands.getPosition(), expected)) commands.seekTo(expected)
-  }, [commands])
+  }, [commands, noteLeft])
 
   useEffect(() => {
     follow()
-  }, [state, follow])
+  }, [state, plays, follow])
+  // Where the room was as the player left its song is noted then, not after
+  // the host has moved it (`leftAt`); the plan itself waits for the room or
+  // the next check, so a song this player starts is not planned again while
+  // it loads.
+  useEffect(() => {
+    if (plays) noteLeft()
+  }, [plays, ranOut, playingId, noteLeft])
 
   // The steady checks: a follower's drift, and a host's seek the room has not heard of.
   const inRoom = state !== null
   useEffect(() => {
-    if (!inRoom) return
+    if (!inRoom || !plays) return
     const timer = setInterval(() => (host ? report() : follow()), CHECK_MS)
     return () => clearInterval(timer)
-  }, [inRoom, host, report, follow])
+  }, [inRoom, plays, host, report, follow])
 
   return children
 }

@@ -1,6 +1,7 @@
 import { ArtistNamesSchema, hlcWins, namesFound, type ArtistJoinNames } from '@selfmp3/shared'
 import { z } from 'zod'
 import type { Db } from '../db/index.js'
+import { readStored } from '../db/rows.js'
 
 /** An artist's other names, and the stamp of the change that set them. */
 export interface ArtistNamesRow {
@@ -70,9 +71,9 @@ export class NamesRepository {
   /**
    * Every artist's other names as the library carries them, with the artists
    * whose names are MusicBrainz's as found: what joins artists (shared artistJoins.ts).
+   * `rows` when the caller has just read them (`artistNames`).
    */
-  joinNames(): ArtistJoinNames {
-    const rows = this.artistNames()
+  joinNames(rows: ReadonlyMap<string, ArtistNamesRow> = this.artistNames()): ArtistJoinNames {
     return {
       artistNames: Object.fromEntries([...rows].map(([artist, row]) => [artist, [...row.names]])),
       artistNamesFound: [...rows].flatMap(([artist, row]) => (namesFound(row.hlc) ? [artist] : [])),
@@ -125,19 +126,9 @@ export class NamesRepository {
 
 /** Written by this class alone, so a row that does not read is an empty one. */
 function readNames(json: string): string[] {
-  const parsed = ArtistNamesSchema.safeParse(safeJson(json))
-  return parsed.success ? parsed.data : []
+  return readStored(ArtistNamesSchema, json) ?? []
 }
 
 function readSpelt(json: string): string[] {
-  const parsed = SpeltSchema.safeParse(safeJson(json))
-  return parsed.success ? parsed.data : []
-}
-
-function safeJson(json: string): unknown {
-  try {
-    return JSON.parse(json) as unknown
-  } catch {
-    return null
-  }
+  return readStored(SpeltSchema, json) ?? []
 }

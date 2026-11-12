@@ -34,9 +34,10 @@ import {
  *   of "on" and "off" wins, so a tag taken off after it was put on stays off.
  * - Making something is a change of its own, and removing it is for good. A
  *   change to something that is not there is ignored, so a late edit never
- *   brings a deleted playlist back. The one exception is a tag that went
- *   only because its last songs did (`tagEmptied`): a song tagged with it
- *   brings it back.
+ *   brings a deleted playlist back. The exceptions are a tag that went
+ *   only because its last songs did (`tagEmptied`), which a song tagged with
+ *   it brings back, and a kept playlist that went with its last songs
+ *   (`playlistEmptied`), which a song put in it brings back.
  * - Plays only add up, and the same one twice counts once.
  *
  * Since the latest stamp wins whenever a change is applied, the same changes
@@ -54,6 +55,8 @@ export interface SyncLibrary {
   readonly aliases: Map<string, string>
   /** Tags that went with their last songs (`tagEmptied`), kept aside to come back. */
   readonly emptied: Map<string, CloudTag>
+  /** Kept playlists that went with their last songs (`playlistEmptied`), kept aside to come back. */
+  readonly emptiedPlaylists: Map<string, CloudPlaylist>
   /** Links asked to be imported, and how each went. */
   readonly imports: Map<string, CloudImport>
   /** Artists' pictures, as the snapshot had them: no change touches them. */
@@ -79,6 +82,9 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     playlists: new Map(snapshot?.playlists.map(playlist => [playlist.uid, playlist])),
     aliases: new Map(Object.entries(snapshot?.aliases ?? {})),
     emptied: new Map(snapshot?.emptiedTags?.map(tag => [tag.uid, tag])),
+    emptiedPlaylists: new Map(
+      snapshot?.emptiedPlaylists?.map(playlist => [playlist.uid, playlist]),
+    ),
     imports: new Map(snapshot?.imports?.map(request => [request.uid, request])),
     artists: snapshot?.artists ?? [],
     artistNames: new Map(snapshot?.artistNames.map(entry => [entry.artist, entry])),
@@ -109,6 +115,9 @@ export function snapshotOf(
     sound: library.sound,
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
     ...(library.emptied.size > 0 ? { emptiedTags: [...library.emptied.values()] } : {}),
+    ...(library.emptiedPlaylists.size > 0
+      ? { emptiedPlaylists: [...library.emptiedPlaylists.values()] }
+      : {}),
     ...(library.merged.size > 0 ? { merged: Object.fromEntries(library.merged) } : {}),
     ...(library.imports.size > 0 ? { imports: [...library.imports.values()] } : {}),
   }
@@ -178,9 +187,17 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         const inIt = playlist.songUids.includes(change.uid)
         const stamped = playlist.songStamps?.[change.uid] !== undefined
         if (!inIt && !stamped) continue
-        library.playlists.set(playlist.uid, {
+        putPlaylist(library, {
           ...playlist,
           songUids: playlist.songUids.filter(uid => uid !== change.uid),
+          ...withoutKey('songStamps', playlist.songStamps, change.uid),
+        })
+      }
+      // One kept aside forgets the song too, as the server's snapshot does.
+      for (const playlist of library.emptiedPlaylists.values()) {
+        if (playlist.songStamps?.[change.uid] === undefined) continue
+        library.emptiedPlaylists.set(playlist.uid, {
+          ...playlist,
           ...withoutKey('songStamps', playlist.songStamps, change.uid),
         })
       }
@@ -294,7 +311,9 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'playlistCreated': {
-      if (library.playlists.has(change.uid)) return false
+      if (library.playlists.has(change.uid) || library.emptiedPlaylists.has(change.uid)) {
+        return false
+      }
       const when = toSqliteTime(hlcTime(change.hlc))
       library.playlists.set(change.uid, {
         uid: change.uid,
@@ -310,7 +329,9 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'playlistEdited': {
-      const playlist = library.playlists.get(change.uid)
+      // Kept aside or not: a rename made while it is, by a device that had not
+      // heard, is there when it comes back, in whichever order the two arrive.
+      const playlist = playlistAnywhere(library, change.uid)
       if (!playlist) return false
       const next: Record<string, unknown> = { ...playlist }
       const stamps = { ...playlist.stamps }
@@ -331,7 +352,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         changed = true
       }
       if (!changed) return false
-      library.playlists.set(playlist.uid, {
+      putPlaylist(library, {
         ...(next as CloudPlaylist),
         stamps,
         updatedAt: laterTime(playlist.updatedAt, change.hlc),
@@ -340,17 +361,44 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'playlistRemoved':
-      return library.playlists.delete(change.uid)
+      // For good, even if it had gone with its last songs already.
+      return library.playlists.delete(change.uid) || library.emptiedPlaylists.delete(change.uid)
+
+    case 'playlistEmptied': {
+      const playlist = playlistAnywhere(library, change.uid)
+      if (!playlist || playlist.kind !== 'manual') return false
+      // Noted whether it goes now or not (`emptied`): a playlist once emptied
+      // goes as soon as it has no songs again, so a song another device put
+      // in it and took out again leaves the same thing in either order.
+      const marked = hlcWins(change.hlc, playlist.stamps?.['emptied'])
+      if (marked) {
+        putPlaylist(library, {
+          ...playlist,
+          stamps: { ...playlist.stamps, emptied: change.hlc },
+        })
+      }
+      // Filled again since, on this device or another, it stays; the rest is
+      // `putPlaylist`'s, which lets go of a marked one with no songs.
+      return marked
+    }
 
     case 'playlistSong': {
-      const playlist = library.playlists.get(change.uid)
+      // A playlist that went with its last songs, given one: whoever did it
+      // had not heard and was filling it, so it is back — whichever of the
+      // two arrived first, as the server may hear them in either order.
       const songUid = resolveSong(library, change.songUid)
+      if (change.on && library.songs.has(songUid)) {
+        playlistBroughtBack(library, change.uid, songUid, change.hlc)
+      }
+      // One kept aside keeps the stamp of a song taken out of it meanwhile,
+      // so a later song put back meets the latest taking out.
+      const playlist = playlistAnywhere(library, change.uid)
       if (!playlist || playlist.kind !== 'manual' || !library.songs.has(songUid)) {
         return false
       }
       if (!hlcWins(change.hlc, playlist.songStamps?.[songUid])) return false
       const has = playlist.songUids.includes(songUid)
-      library.playlists.set(playlist.uid, {
+      putPlaylist(library, {
         ...playlist,
         songUids: change.on
           ? has
@@ -392,7 +440,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'playlistOrdered': {
-      const playlist = library.playlists.get(change.uid)
+      const playlist = playlistAnywhere(library, change.uid)
       if (!playlist) return false
       if (!hlcWins(change.hlc, playlist.stamps?.['order'])) return false
       const order = change.songUids.map(uid => resolveSong(library, uid))
@@ -405,7 +453,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         playlist.kind === 'live'
           ? [...new Set([...playlist.songUids, ...order.filter(uid => library.songs.has(uid))])]
           : playlist.songUids
-      library.playlists.set(playlist.uid, {
+      putPlaylist(library, {
         ...playlist,
         songUids: reordered(current, order),
         stamps: { ...playlist.stamps, order: change.hlc },
@@ -490,6 +538,47 @@ function broughtBack(library: SyncLibrary, uid: string): boolean {
   if (same) library.aliases.set(uid, same.uid)
   else library.tags.set(uid, tag)
   return true
+}
+
+/** A playlist in the library, or kept aside since it went with its last songs. */
+function playlistAnywhere(library: SyncLibrary, uid: string): CloudPlaylist | null {
+  return library.playlists.get(uid) ?? library.emptiedPlaylists.get(uid) ?? null
+}
+
+/**
+ * A playlist as it is now, where it belongs: in the library, or kept aside
+ * when it is a kept one marked emptied (`playlistEmptied`) with no songs left.
+ * One kept aside stays there, edited, until a song brings it back.
+ */
+function putPlaylist(library: SyncLibrary, playlist: CloudPlaylist): void {
+  const aside =
+    library.emptiedPlaylists.has(playlist.uid) ||
+    (playlist.kind === 'manual' &&
+      playlist.songUids.length === 0 &&
+      playlist.stamps?.['emptied'] !== undefined)
+  if (aside) {
+    library.playlists.delete(playlist.uid)
+    library.emptiedPlaylists.set(playlist.uid, playlist)
+  } else {
+    library.playlists.set(playlist.uid, playlist)
+  }
+}
+
+/**
+ * A kept playlist that went with its last songs, back as it was, for a song
+ * put in it by a change that wins: one older than the song's own taking out
+ * would not have kept it, had the two arrived the other way round.
+ */
+function playlistBroughtBack(
+  library: SyncLibrary,
+  uid: string,
+  songUid: string,
+  hlc: string,
+): void {
+  const playlist = library.emptiedPlaylists.get(uid)
+  if (!playlist || !hlcWins(hlc, playlist.songStamps?.[songUid])) return
+  library.emptiedPlaylists.delete(uid)
+  library.playlists.set(uid, playlist)
 }
 
 /**

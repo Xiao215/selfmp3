@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
+import { newSong } from '../fixtures/songs.js'
 import { CloudRepository } from './cloud.js'
 import { SongRepository } from './songs.js'
 import { StatsRepository } from './stats.js'
@@ -31,23 +32,16 @@ describe('uids', () => {
   })
 
   const insert = (title: string, artist = 'Aurora Lane'): number =>
-    songs.insert({
-      path: `${artist} - ${title}/${artist} - ${title}.m4a`,
-      title,
-      artist,
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 200,
-      sizeBytes: 1000,
-      mime: 'audio/mp4',
-      mtimeMs: 1,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'none',
-      sourceUrl: null,
-    })
+    songs.insert(
+      newSong({
+        path: `${artist} - ${title}/${artist} - ${title}.m4a`,
+        title,
+        artist,
+        duration: 200,
+        sizeBytes: 1000,
+        mtimeMs: 1,
+      }),
+    )
 
   const uid = (table: string, id: number): unknown =>
     (db.prepare(`SELECT uid FROM ${table} WHERE id = ?`).get(id) as { uid: unknown }).uid
@@ -108,7 +102,7 @@ describe('uids', () => {
   })
 })
 
-describe('the connection', () => {
+describe('the account’s session and the bucket it points at', () => {
   let db: Database.Database
   let cloud: CloudRepository
 
@@ -119,35 +113,41 @@ describe('the connection', () => {
     cloud = new CloudRepository(db)
   })
 
-  const connection = {
+  const target = {
     endpoint: 'https://s3.us-west-004.backblazeb2.com',
-    region: 'us-west-004',
     bucket: 'my-music',
     prefix: 'selfmp3',
-    keyId: 'key',
-    applicationKey: 'secret',
   }
 
-  it('is kept apart from settings, and read back whole', () => {
-    cloud.saveConnection(connection)
-    expect(cloud.connection()).toEqual(connection)
+  const session = {
+    url: 'https://doorman.test',
+    token: 'session-1',
+    email: 'me@example.com',
+    name: 'Me',
+    picture: null,
+    storage: { ...target, region: 'us-west-004', keyIdHint: '004abc…' },
+  }
+
+  it('keeps the session apart from settings, and reads it back whole', () => {
+    cloud.saveDoormanSession(session)
+    expect(cloud.doormanSession()).toEqual(session)
     const settings = db.prepare('SELECT COUNT(*) AS n FROM settings').get() as { n: number }
     expect(settings.n).toBe(0)
   })
 
-  it('reads a corrupt row as not connected rather than failing', () => {
-    db.prepare("INSERT INTO secrets (name, value) VALUES ('cloud.connection', '{oops')").run()
-    expect(cloud.connection()).toBeNull()
+  it('reads a corrupt row as no session rather than failing', () => {
+    db.prepare("INSERT INTO secrets (name, value) VALUES ('cloud.doorman', '{oops')").run()
+    expect(cloud.doormanSession()).toBeNull()
   })
 
-  it('forgets what was uploaded when pointed at another folder, not for a new key', () => {
-    cloud.saveConnection(connection)
+  it('forgets what was uploaded when pointed at another folder, not at the same one again', () => {
+    cloud.adoptTarget(target)
     cloud.recordFile(`audio/${'a'.repeat(64)}.m4a`, 10)
 
-    cloud.saveConnection({ ...connection, keyId: 'new-key', applicationKey: 'new-secret' })
+    cloud.adoptTarget(target)
     expect(cloud.hasFile(`audio/${'a'.repeat(64)}.m4a`)).toBe(true)
 
-    cloud.saveConnection({ ...connection, prefix: 'elsewhere' })
+    cloud.adoptTarget({ ...target, prefix: 'elsewhere' })
     expect(cloud.hasFile(`audio/${'a'.repeat(64)}.m4a`)).toBe(false)
   })
 
@@ -163,7 +163,7 @@ describe('the connection', () => {
     cloud.adoptTarget({ endpoint: 'file://', bucket: '/srv/./other/../bucket/', prefix: '' })
     expect(cloud.hasFile(key)).toBe(true)
 
-    cloud.saveConnection(connection)
+    cloud.adoptTarget(target)
     cloud.recordFile(key, 10)
     cloud.adoptTarget({
       endpoint: 'HTTPS://S3.us-west-004.backblazeb2.com/',

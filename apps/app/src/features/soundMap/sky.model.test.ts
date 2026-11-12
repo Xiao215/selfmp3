@@ -10,9 +10,15 @@ import {
   deepTwinkle,
   dustSpecks,
   flareReach,
+  skyRgba,
+  spotlightSide,
+  hoverAfter,
   glowReach,
   lensTags,
+  namedCovers,
   playTop,
+  pointsIn,
+  skyGrid,
   skyPoints,
   skyRegions,
   songUnder,
@@ -234,5 +240,80 @@ describe('the night sky', () => {
       expect(p.x).toBeLessThanOrEqual(400)
       expect(deepTwinkle(p.star, 0) + deepTwinkle(p.star, 1)).toBeCloseTo(p.star.opacity * 1.45, 5)
     }
+  })
+
+  it('finds the songs in a part of the map from its grid, the same ones a scan of every song finds, in the same order each time', () => {
+    let seed = 11
+    const next = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647
+    const songs = new Map(Array.from({ length: 3000 }, (_, id) => [id, song(id)]))
+    const points = skyPoints(
+      [...songs.keys()].map(id => ({ id, x: next(), y: next() })),
+      songs,
+    )
+    const grid = skyGrid(points)
+    for (const rect of [
+      { x0: 0, y0: 0, x1: 1, y1: 1 },
+      { x0: 0.31, y0: 0.62, x1: 0.35, y1: 0.7 },
+      { x0: -0.5, y0: 0.9, x1: 0.2, y1: 1.4 },
+    ]) {
+      const found = pointsIn(grid, rect)
+      const scanned = points.filter(
+        p => p.x >= rect.x0 && p.x <= rect.x1 && p.y >= rect.y0 && p.y <= rect.y1,
+      )
+      expect(new Set(found.map(p => p.id))).toEqual(new Set(scanned.map(p => p.id)))
+      expect(pointsIn(grid, rect)).toEqual(found)
+    }
+  })
+
+  it('names a cover only where its name lies over no other cover and no other name, the most played first', () => {
+    // Two covers side by side with room under them, and one sitting where the first's name would go.
+    const named = namedCovers([
+      { id: 1, x: 100, y: 100, side: 40, bright: 0.2 },
+      { id: 2, x: 200, y: 100, side: 40, bright: 0.9 },
+      { id: 3, x: 300, y: 100, side: 40, bright: 0.5 },
+      { id: 4, x: 300, y: 140, side: 30, bright: 0.1 },
+    ])
+    expect([...named].sort()).toEqual([1, 2, 4])
+    // Two covers on top of each other: only the more played is named.
+    expect([
+      ...namedCovers([
+        { id: 5, x: 0, y: 0, side: 40, bright: 0.3 },
+        { id: 6, x: 4, y: 2, side: 40, bright: 0.8 },
+      ]),
+    ]).toEqual([6])
+  })
+})
+
+describe('a pointer resting on the map, once something else lights a song', () => {
+  const hover = { x: 120, y: 80 }
+  const was = { chosen: 4, shown: 2 }
+
+  it('is set aside for a song newly chosen with the keys', () => {
+    expect(hoverAfter(was, { chosen: 5, shown: 2 }, hover)).toBeNull()
+    expect(hoverAfter({ chosen: null, shown: 2 }, { chosen: 4, shown: 2 }, hover)).toBeNull()
+  })
+
+  it('is set aside for each flight to a song, the same song again included', () => {
+    expect(hoverAfter(was, { chosen: 4, shown: 3 }, hover)).toBeNull()
+    expect(hoverAfter({ chosen: null, shown: 3 }, { chosen: null, shown: 4 }, hover)).toBeNull()
+  })
+
+  it('stays while the choice is unchanged', () => {
+    expect(hoverAfter(was, { chosen: 4, shown: 2 }, hover)).toBe(hover)
+  })
+
+  it('stays when the keys let go of their song, which lights nothing new', () => {
+    expect(hoverAfter(was, { chosen: null, shown: 2 }, hover)).toBe(hover)
+  })
+})
+
+describe('what both skies draw alike', () => {
+  it('writes a colour at an opacity as both canvases take it', () => {
+    expect(skyRgba('#04050b', 0.68)).toBe('rgba(4,5,11,0.68)')
+  })
+
+  it('lifts a lit cover a little, and never below 52', () => {
+    expect(spotlightSide(20)).toBe(52)
+    expect(spotlightSide(100)).toBeCloseTo(115)
   })
 })

@@ -73,4 +73,19 @@ describe('Popover beside its control', () => {
     await act(() => jest.advanceTimersByTime(2000))
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('takes its panel away when closed before it measured', async () => {
+    const menu = (open: boolean) => (
+      <OverlayProvider>
+        <Popover open={open} onClose={jest.fn()} anchorRef={anchorRef} testID="menu">
+          <Text>Play next</Text>
+        </Popover>
+      </OverlayProvider>
+    )
+    const { rerender } = await render(menu(true))
+    // Pressed again, or Escape, before the panel laid out.
+    await rerender(menu(false))
+    await act(() => jest.advanceTimersByTime(2000))
+    expect(screen.queryByTestId('menu', { includeHiddenElements: true })).toBeNull()
+  })
 })

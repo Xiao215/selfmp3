@@ -35,7 +35,7 @@ export interface DesktopBridge {
   /** Constant for the life of the process, so the page may read it once. */
   readonly info: DesktopInfo
 
-  /** The keychain. Tokens go here and nowhere else. */
+  /** The keychain, for the tokens the page keeps itself (`apps/desktop/src/main/secrets.ts`). */
   readonly secrets: {
     get(key: string): Promise<string | null>
     set(key: string, value: string): Promise<void>

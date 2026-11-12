@@ -32,10 +32,14 @@ function main(): void {
       logger.info(`listening on ${address.url}${address.tailscale ? '  (tailscale)' : ''}`)
     }
     // The public address is not one of those: nothing here listens on it, and
-    // whatever does forwards to one of the lines above. It is published all the
-    // same, so it belongs in the same part of the log.
-    const addresses = publishedAddresses(config.host, config.port, config.publicUrl)
+    // whatever does forwards to one of the lines above. It is the one published
+    // (`publishedAddresses`), so it belongs in the same part of the log.
     if (config.publicUrl) sayWhatThePublicAddressIs(config.publicUrl, logger)
+    // Who else can reach this is every address it listens on, published or not.
+    const addresses = [
+      ...listenAddresses(config.host, config.port),
+      ...publishedAddresses(config.host, config.port, config.publicUrl),
+    ]
 
     /*
      * Say plainly who else can reach this, and what stands in their way.
@@ -58,9 +62,9 @@ function main(): void {
         'given it with the sync',
     )
     /*
-     * The token itself, for the two cases nothing hands it to: this page opened
-     * from another computer, and an extension pointed at a LAN address — on a
-     * machine with one library, which is the only one these make sense on. It
+     * The token itself, for the one case nothing hands it to: an extension
+     * pointed at a LAN address, on a machine with one library, which is the
+     * only one that makes sense on. It
      * is a secret in a log, which is worth a moment's thought — but this log is
      * on the machine whose data directory holds every token there is, and
      * anyone who can read one can read the other.

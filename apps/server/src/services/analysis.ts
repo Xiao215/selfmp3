@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { messageOf, ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
+import { DAY_MS, messageOf, ANALYSIS_VERSION, type AnalysisStatus } from '@selfmp3/shared'
 import { stagingDir, type Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -19,6 +19,7 @@ import {
 import { analyzePcmInWorker } from './analysisWorker.js'
 import { ffmpegFailure, runFfmpeg } from './ffmpeg.js'
 import type { MotionStore } from './motionStore.js'
+import { utcDay } from './metrics.js'
 import { ModelUnavailableError, type SoundService } from '../sound/sound.js'
 import { Gate } from '../util/gate.js'
 
@@ -98,11 +99,6 @@ class NotFetchedError extends Error {}
 
 /** Today's downloads for the loop are spent; it comes back tomorrow. */
 class DownloadsSpentError extends Error {}
-
-/** The day as Backblaze counts it: `2026-10-07`, in UTC. */
-function utcDay(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
 /** A song's audio as a path ffmpeg can read, and how to be rid of it afterwards. */
 interface LocalFile {
@@ -351,10 +347,11 @@ export class AnalysisService {
    * the day's downloads are spent, and after `BUCKET_RETRY_MS` otherwise.
    */
   #comeBackForPassedOver(): void {
-    const today = utcDay()
+    // The day as Backblaze counts it: `2026-10-07`, in UTC.
+    const today = utcDay(Date.now())
     const at =
       this.#downloads.spentOn(today) >= BUCKET_DOWNLOADS_PER_DAY
-        ? Date.parse(`${today}T00:00:00Z`) + 86_400_000 + 60_000
+        ? Date.parse(`${today}T00:00:00Z`) + DAY_MS + 60_000
         : Date.now() + BUCKET_RETRY_MS
     this.#wakeAt(at, () => this.#notFetched.clear())
   }
@@ -560,7 +557,7 @@ export class AnalysisService {
       }
     }
 
-    const today = utcDay()
+    const today = utcDay(Date.now())
     if (this.#downloads.spentOn(today) >= BUCKET_DOWNLOADS_PER_DAY) {
       throw new DownloadsSpentError('today’s downloads from the bucket are spent')
     }

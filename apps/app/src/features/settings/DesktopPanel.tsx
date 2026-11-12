@@ -18,9 +18,13 @@ export function DesktopPanel(): ReactNode {
 
   useEffect(() => {
     let alive = true
-    void loginItem.get().then(value => {
-      if (alive) setOpen(value)
-    })
+    // A shell that does not answer leaves the toggle off, as it draws while it waits.
+    loginItem.get().then(
+      value => {
+        if (alive) setOpen(value)
+      },
+      () => undefined,
+    )
     return () => {
       alive = false
     }
@@ -34,8 +38,12 @@ export function DesktopPanel(): ReactNode {
           label="Open at login"
           onChange={next => {
             setOpen(next)
-            // What the OS ends up with, not what was asked: it can refuse.
-            void loginItem.set(next).then(setOpen)
+            // What the OS ends up with, not what was asked: it can refuse, or
+            // the shell can fail to ask, when the toggle goes back to what it has.
+            loginItem
+              .set(next)
+              .catch(() => loginItem.get())
+              .then(setOpen, () => setOpen(null))
           }}
           testID="setting-login-item"
         />

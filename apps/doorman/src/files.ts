@@ -29,6 +29,7 @@ import {
   methodNotAllowed,
   noContent,
   notFound,
+  redact,
 } from './http.js'
 import type { Bucket } from './bucket.js'
 import type { Session } from './sessions.js'
@@ -45,9 +46,8 @@ import { tallyOf } from './tally.js'
  * `format.json` is the doorman's own, written when a bucket is connected, and
  * no device may replace or delete it. A file named by the hash of its bytes
  * is deleted once no song names it (docs/SYNC.md), which the server asks for
- * after the snapshot without the song is up.
- * And what a file says about itself — its type and encoding — is held to
- * the few shapes the library uses.
+ * after the snapshot without the song is up. And what a file says about
+ * itself — its type and encoding — is held to the few shapes the library uses.
  *
  * Every write and delete of a snapshot or a log file moves the account's
  * change counter (changes.ts), and says so in its answer, so devices can tell
@@ -298,9 +298,7 @@ async function counted(
     const { before, after } = await changesOf(ctx, session).bump()
     response.headers.set(CHANGES_HEADER, `${before} ${after}`)
   } catch (error) {
-    ctx.log.warn('the change counter could not be moved', {
-      message: messageOf(error),
-    })
+    ctx.log.warn('the change counter could not be moved', { message: redact(messageOf(error)) })
   }
   return response
 }

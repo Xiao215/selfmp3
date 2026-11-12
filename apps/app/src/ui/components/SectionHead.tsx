@@ -2,12 +2,11 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { hitSlopFor, leading, space, type, iconSize } from '@selfmp3/client'
+import { hitSlopFor, leading, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useContentWidthValue } from '../../shell/contentWidth'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { label, sectionTitle } from '../surfaces'
-import { ChevronDown, ChevronRight } from './Icons'
 import { Press } from './Press'
 
 /**
@@ -20,8 +19,6 @@ import { Press } from './Press'
  * - `aside`: quiet words about the section beside its name ("12 songs you
  *   liked…", "120 BPM, bright"); on a phone they go under it, where there is
  *   room for them.
- * - `collapsible`: the name folds the section away and back, with a chevron
- *   that says which, as Forgotten gems does.
  * - `end`: buttons in place of the link, at the far end.
  * - `look="label"`: the quiet sentence-case name (`label()` in surfaces), for a
  *   quiet group inside a sheet or a list — Import's lists, a room's shelves —
@@ -33,7 +30,6 @@ export function SectionHead({
   aside,
   action,
   end,
-  collapsible,
   look = 'section',
   testID,
   titleTestID,
@@ -45,7 +41,6 @@ export function SectionHead({
   aside?: string
   action?: { label: string; onPress: () => void; accessibilityLabel?: string } | null
   end?: ReactNode
-  collapsible?: { collapsed: boolean; onToggle: () => void }
   look?: 'section' | 'label'
   /** The link's, for a flow to press it. */
   testID?: string
@@ -85,36 +80,18 @@ export function SectionHead({
     <View
       style={[
         styles.head,
-        // Words alone line up on their baseline; beside a face or a chevron, on their middle.
-        lead || collapsible || end ? styles.headCentred : null,
+        // Words alone line up on their baseline; beside a face or buttons, on their middle.
+        lead || end ? styles.headCentred : null,
         // A phone has no room for words and buttons on one line: the buttons go under.
         !wide && aside && end ? styles.headStacked : null,
         linkBeside && action && !end ? styles.headLinkBeside : null,
         style,
       ]}
     >
-      {collapsible ? (
-        <Press
-          feedback="dim"
-          onPress={() => collapsible.onToggle()}
-          accessibilityRole="button"
-          accessibilityLabel={title}
-          accessibilityState={{ expanded: !collapsible.collapsed }}
-          style={styles.start}
-        >
-          {collapsible.collapsed ? (
-            <ChevronRight size={iconSize.button} tone="textMuted" />
-          ) : (
-            <ChevronDown size={iconSize.button} tone="textMuted" />
-          )}
-          {named}
-        </Press>
-      ) : (
-        <View style={styles.start}>
-          {lead}
-          {named}
-        </View>
-      )}
+      <View style={styles.start}>
+        {lead}
+        {named}
+      </View>
       {end ? <View style={styles.end}>{end}</View> : null}
       {action && !end ? (
         <Press

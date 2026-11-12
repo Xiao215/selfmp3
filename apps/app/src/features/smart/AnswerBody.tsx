@@ -64,7 +64,7 @@ export const TAKES_KEYS: ReadonlySet<Answer['kind']> = new Set([
 
 /**
  * What one reply to Ask shows (S1, docs/features/ai.md): its own words, then
- * each card in the order asked. A turn of the Ask page (`AskScreen`) draws it
+ * each card in the order asked. A turn of the Ask page (`TurnStage`) draws it
  * under what was asked.
  *
  * Several cards read as parts of one answer, not a chat: one column, each
@@ -79,7 +79,6 @@ export function AnswerBody({
   text,
   outcomes,
   onSettle,
-  onOpenPage,
   listHeight,
   onKeys,
   onAsk,
@@ -93,7 +92,6 @@ export function AnswerBody({
   outcomes: Readonly<Record<number, string>>
   /** A proposal acted on or put aside: what came of it ("Fixed 31 songs", `CLOSED`). */
   onSettle: (index: number, outcome: string) => void
-  onOpenPage: () => void
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
   onAsk?: (text: string) => void
@@ -136,7 +134,6 @@ export function AnswerBody({
                 onDone={done =>
                   SETTLES.has(card.kind) && done ? onSettle(index, done) : undefined
                 }
-                onOpenPage={onOpenPage}
                 listHeight={listHeight}
                 onKeys={index === takesKeys ? onKeys : undefined}
                 onAsk={onAsk}
@@ -186,7 +183,6 @@ function AnswerCard({
   answer,
   text,
   onDone,
-  onOpenPage,
   listHeight,
   onKeys,
   onAsk,
@@ -199,7 +195,6 @@ function AnswerCard({
   text: string
   /** Done with the card: a proposal says what came of it ("Fixed 31 songs", `CLOSED`). */
   onDone: (outcome?: string) => void
-  onOpenPage: () => void
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
   onAsk?: (text: string) => void
@@ -217,13 +212,12 @@ function AnswerCard({
           answer={answer}
           text={text}
           onPlayed={onDone}
-          onOpen={onOpenPage}
           playNow={playNow}
           onOpenHere={onOpenList}
         />
       )
     case 'together':
-      return <TogetherAnswer answer={answer} text={text} onDone={onDone} onOpen={onOpenPage} />
+      return <TogetherAnswer answer={answer} text={text} onDone={onDone} />
     case 'find':
       return <Found answer={answer} text={text} onDone={onDone} />
     case 'explore': {

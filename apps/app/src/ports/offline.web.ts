@@ -49,7 +49,7 @@ function streamUrlFor(songId: number): string {
 
 /**
  * How a song's copy is looked up: by its path alone, as the service worker
- * looks it up (sw.ts, `handleAudio`).
+ * looks it up (sw/audio.ts, `handleAudio`).
  *
  * The key is the stream address, and its query carries the song's revision
  * and, from a server, the token. Matched whole, a copy kept before either
@@ -99,38 +99,6 @@ export async function cachedSongIds(): Promise<Set<number>> {
   } catch {
     return new Set()
   }
-}
-
-export async function isCached(songId: number): Promise<boolean> {
-  if (!offlineStorageAvailable()) return false
-  try {
-    const cache = await caches.open(AUDIO_CACHE)
-    return (await cache.match(streamUrlFor(songId), ANY_VERSION)) !== undefined
-  } catch {
-    return false
-  }
-}
-
-/**
- * How much room each of these songs is taking, by id. A song this device does
- * not hold is left out, which is how a caller tells the two apart; one stored
- * without a length counts as nothing rather than as missing.
- */
-export async function cachedBytes(ids: Iterable<number>): Promise<Map<number, number>> {
-  const bytes = new Map<number, number>()
-  if (!offlineStorageAvailable()) return bytes
-  try {
-    const cache = await caches.open(AUDIO_CACHE)
-    for (const songId of ids) {
-      const response = await cache.match(streamUrlFor(songId), ANY_VERSION)
-      if (!response) continue
-      const length = Number(response.headers.get('content-length') ?? Number.NaN)
-      bytes.set(songId, Number.isFinite(length) ? length : 0)
-    }
-  } catch {
-    // An unreadable cache is holding nothing, as far as a budget is concerned.
-  }
-  return bytes
 }
 
 /**

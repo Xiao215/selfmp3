@@ -120,14 +120,14 @@ export const BUCKET_HOLD_MS = 10 * 60_000
 /**
  * How many songs a device that streams from the bucket keeps whole for having
  * played them, so a replay or a seek is not another read: a tab's service
- * worker (apps/app/sw/sw.ts) and the desktop shell (apps/desktop/src/main/stream.ts).
+ * worker (apps/app/sw/audio.ts) and the desktop shell (apps/desktop/src/main/stream.ts).
  */
 export const PLAYED_KEPT = 10
 
 /**
  * Set on the answer a song gets when the bucket was asked for it and nothing
  * answered: the doorman down, or this device unable to reach it. Sent by the
- * browser's service worker (apps/app/sw/sw.ts) and the desktop shell
+ * browser's service worker (apps/app/sw/bucket.ts) and the desktop shell
  * (apps/desktop/src/main/stream.ts), each in front of an `<audio>` element
  * that hears only "not supported" and asks the address why
  * (apps/app/src/ports/engine.web.ts). Without it, "not on this device" read
@@ -135,6 +135,9 @@ export const PLAYED_KEPT = 10
  * that was fine.
  */
 export const UNANSWERED_HEADER = 'x-selfmp3-unanswered'
+/** The words of that answer, the same from the service worker and the desktop shell. */
+export const UNANSWERED_TEXT =
+  'This song is not on this device, and your storage cannot be reached.'
 
 /**
  * How far past what has arrived a range may start and still wait for the
@@ -239,6 +242,8 @@ export const DOORMAN_PATHS = {
   rooms: ROOMS,
   shared: SHARED,
   share: SHARE,
+  /** Files that left your bucket: your links that lend one say so (`ShareGone`). */
+  shareGone: `${SHARE}/gone`,
 
   /** One page of a folder: `/v1/list?prefix=log/&cursor=…`. */
   listing: (prefix: string, cursor?: string | null): string =>
@@ -295,7 +300,7 @@ export function signInStartUrl(
 /**
  * Where a device keeps the doorman session, and each song's bucket files, in
  * its own store (packages/replica's `DeviceStore`). The browser's service
- * worker reads both straight out of IndexedDB (apps/app/sw/sw.ts) to fetch a
+ * worker reads both straight out of IndexedDB (apps/app/sw/bucket.ts) to fetch a
  * song from the bucket, so the replica's writer and the worker's reader have
  * to name them alike.
  */

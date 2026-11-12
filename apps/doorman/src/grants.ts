@@ -4,13 +4,23 @@ import {
   DoormanError,
   DoormanGrantRequestSchema,
   HUB_CHECK_PATH,
+  messageOf,
   type DoormanGrant,
   type DoormanGrantMade,
   type DoormanGrants,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
-import { forbidden, json, methodNotAllowed, notFound, readJson } from './http.js'
+import {
+  forbidden,
+  json,
+  mayReach,
+  methodNotAllowed,
+  noContent,
+  notFound,
+  readJson,
+  redact,
+} from './http.js'
 import { secureHex } from './encoding.js'
 import { getRecord, putRecord } from './kv.js'
 import type { Session } from './sessions.js'
@@ -35,8 +45,7 @@ import type { Session } from './sessions.js'
  *
  * Ending a grant tells its server, at the address it gave (`server`), so it
  * lets the library go at once instead of at its next look at the bucket, up
- * to ten minutes on (`tellServer`). Every grant has kept that address since
- * grants began, so there is nothing to move.
+ * to ten minutes on (`tellServer`).
  */
 
 /** More than anyone has servers. A new grant for a server already listed replaces it. */
@@ -113,10 +122,14 @@ async function list(ctx: Context): Promise<Response> {
 
 /**
  * `DELETE /v1/grants/<id>` — take a grant back. A device does it from
- * Settings; a server does it with its own grant when it lets the account go.
+ * Settings; a server does it with its own grant when it lets the account go,
+ * and may end no other: which servers are let in is the account's to say.
  */
 async function end(ctx: Context, id: string): Promise<Response> {
   const session = await requireSession(ctx)
+  if (session.grant !== undefined && session.grant !== id) {
+    throw forbidden('a server can end only its own grant')
+  }
   const stored = await read(ctx, session.sub)
   const grant = stored.find(candidate => candidate.id === id)
   if (!grant) throw notFound('no such grant')
@@ -128,7 +141,7 @@ async function end(ctx: Context, id: string): Promise<Response> {
   await ctx.sessions.endByHash(grant.hash)
   // A server letting the account go itself needs no telling.
   if (session.grant !== grant.id) tellServer(ctx, grant)
-  return new Response(null, { status: 204 })
+  return noContent()
 }
 
 /** How long the doorman waits on a server it is telling. Nobody waits on it. */
@@ -152,6 +165,8 @@ function tellServer(ctx: Context, grant: StoredGrant): void {
     return
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return
+  // No real server's address is off the public internet to a doorman there.
+  if (!mayReach(url.hostname, ctx.env.DEV === 'true')) return
   const told = ctx
     .fetch(url.href, {
       method: 'POST',
@@ -167,11 +182,22 @@ function tellServer(ctx: Context, grant: StoredGrant): void {
       (error: unknown) => {
         ctx.log.warn('could not tell a server its grant was taken back', {
           server: url.host,
-          message: error instanceof Error ? error.message : String(error),
+          message: redact(messageOf(error)),
         })
       },
     )
   ctx.waitUntil(told)
+}
+
+/** Take one grant off the account's list, whose session is ending anyway. */
+export async function unlistGrant(ctx: Context, sub: Session['sub'], id: string): Promise<void> {
+  const stored = await read(ctx, sub)
+  if (!stored.some(grant => grant.id === id)) return
+  await write(
+    ctx,
+    sub,
+    stored.filter(grant => grant.id !== id),
+  )
 }
 
 /**

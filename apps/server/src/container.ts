@@ -278,7 +278,11 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   // A song held twice, folded into the copy kept: when this server is asked
   // (`POST /api/songs/merge`), and when another device's log says so.
   const songMerge = new SongMerge({
-    db,
+    songs,
+    tags,
+    playlists,
+    stats,
+    cloud: cloudRepo,
     sync: syncRepo,
     copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
   })
@@ -447,6 +451,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     covers,
     ytdlp,
     throttle,
+    listen,
     cloud: cloudSync,
     keepAwake,
     tagWriter: new TagWriter({ logger }),
@@ -497,6 +502,12 @@ export function createContainer(configured: Config, options: ContainerOptions = 
         syncRepo.keepEmptiedTag(id)
         tagRemoval.remove(id)
       },
+    },
+    playlists: {
+      keptHolding: ids => playlists.keptHolding(ids),
+      // Marked as a device's `playlistEmptied` marks one, so it goes again
+      // once a song another device puts back is taken out.
+      letGoEmptied: ids => playlists.letGoEmptied(ids, clock.tick()),
     },
     cloud: cloudRepo,
     lyrics,

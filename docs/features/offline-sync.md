@@ -8,20 +8,23 @@ on the device, and how a play or an edit made with no connection still counts. A
 imported on another device turns up here by itself, and every song heard on a train is in
 the play counts, Stats, the Report and forgotten gems like any other.
 
-Files:
+**Where:** downloads are kept by the phone app and the desktop app; a browser tab streams and
+keeps only the last few songs it played (decided 2026-09-12, see
+[desktop-app.md](desktop-app.md)). Plays and edits made offline count on every device, the
+web included. The files:
 
 | What | Where |
 |---|---|
 | The listening outbox, shared rules | `packages/shared/src/outbox.ts`, `packages/client/src/listens/outbox.ts` |
 | …kept on the device (a JSON file, IndexedDB in a browser) | `apps/app/src/offline/listenOutbox.ts` (+ `.web.ts`) |
-| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts`; a browser's held edits, kept through a reload: `apps/app/src/offline/waitingEdits.ts` (+ `.model.ts`), `editKeys` in `packages/client/src/queries/queries.ts` |
+| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts`; a browser's held edits, kept through a reload: `apps/app/src/offline/waitingEdits.ts` (+ `.model.ts`), `editKeys` in `packages/client/src/queries/mutations.ts` |
 | Automatic downloads | `apps/app/src/offline/DownloadsProvider.tsx` |
 | Per-device preferences, connection type | `packages/client/src/downloads/syncPolicy.ts`, `apps/app/src/offline/connectionKind.ts` |
 | Download, prune | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
 | Which address a song plays and draws from | `apps/app/src/api/mediaAddress.model.ts`, `apps/app/src/ports/bucketMedia.ts` (+ `.web.ts`), `apps/app/sw/sw.ts` |
 | Row mark, status line | `apps/app/src/ui/components/SongRow.tsx`, `apps/app/src/ui/components/SyncStatus.tsx` |
 | What the counts mean | `downloadTally` in `packages/client/src/downloads/downloadIndex.ts` |
-| Late plays on the server | `apps/server/src/services/cloudIngest.ts`, `repositories/stats.ts`, `services/playsArchive.ts` |
+| Late plays on the server | `apps/server/src/services/plays.ts` (one rule for a play, from the route or a device's log), `services/cloudIngest.ts`, `repositories/stats.ts`, `services/playsArchive.ts` |
 | Tests | `packages/shared/src/outbox.test.ts`, `apps/server/src/repositories/plays.test.ts`, `packages/client/src/downloads/downloadIndex.test.ts`, `apps/app/src/features/settings/OfflinePanel.test.tsx`, `apps/app/src/ui/components/SongMenu.test.tsx` |
 
 ## Plays made offline
@@ -35,8 +38,9 @@ listening outbox sends again when the app comes back to the foreground.
 Each play carries two things:
 
 - **`playedAt`** — when it happened. The server stores that rather than the time the play
-  arrived, so Tuesday's listening lands on Tuesday. A time in the future (a phone clock
-  running fast) is treated as now.
+  arrived, so Tuesday's listening lands on Tuesday. A time up to a day in the future (a phone
+  clock running fast) is treated as now; one further ahead, or before 2000, is refused, as
+  is a play too short to count (`impossiblePlay` in `repositories/stats.ts`).
 - **`clientId`** — unique per play. A play sent twice is recorded once: the device's copy of
   the library remembers the ids it has counted, and the server has a partial unique index on
   `play_events.client_id`.

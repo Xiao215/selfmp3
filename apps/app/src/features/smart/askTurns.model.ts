@@ -1,4 +1,4 @@
-import type { AskObject, AskTurn } from '@selfmp3/shared'
+import { plural, type AskObject, type AskTurn } from '@selfmp3/shared'
 
 /** One thing asked on the Ask page, and what came of it once it has come. */
 export interface Turn {
@@ -55,6 +55,22 @@ export function retried(turns: readonly Turn[], id: number): readonly Turn[] {
  */
 export function afterStop(typed: string, stopped: string): string {
   return typed.trim() === '' ? stopped : typed
+}
+
+/**
+ * What the field says. Wearing a list's chip (`changing`, its songs as the
+ * list counts them): which songs "these" means, and asking about it or them;
+ * the chip already says which. Without: a first question, or a follow-up.
+ */
+export function fieldWords(
+  changing: number | null,
+  turns: number,
+): { chip: string | null; placeholder: string } {
+  if (changing === 1) return { chip: 'this song', placeholder: 'Ask about it…' }
+  if (changing !== null) {
+    return { chip: `these ${plural(changing, 'song', 'songs')}`, placeholder: 'Ask about them…' }
+  }
+  return { chip: null, placeholder: turns === 0 ? 'Ask anything…' : 'Ask a follow-up…' }
 }
 
 /** Where a line sits in the log's lines, and what of them is in view. */

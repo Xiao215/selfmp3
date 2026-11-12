@@ -21,20 +21,38 @@ import {
   glowReach,
   GLOW_STOPS,
   haloReach,
+  NAME_GAP,
+  NAME_SPILL,
+  NAMES_FROM,
+  namedCovers,
+  pointsIn,
   ringRadius,
   SKY_EDGE,
   SKY_INK,
   SKY_TOP,
+  skyRgba,
   songUnder,
+  SPOTLIGHT_DIM,
+  SPOTLIGHT_INSET,
+  spotlightSide,
+  TWINKLE_FRAME_MS,
+  addressesOf,
+  COVERS_KEPT,
+  GLOW_SIDE,
   starAlpha,
   starLook,
+  skyGrid,
+  hoverAfter,
   type DeepStar,
+  type LitBy,
+  type SkyGrid,
   type SkyLayerProps,
   type SkyPoint,
   type StarLook,
 } from './sky.model'
 import {
   tileSide,
+  toMap,
   toScreen,
   type FieldSize,
   type LiveView,
@@ -52,7 +70,9 @@ import {
  * CSS rule (react-native-unistyles turns each distinct style into one); a few
  * minutes of zooming filled Chrome's memory until the tab died. Here nothing
  * a song is drawn with is a style, and the only things kept are a glow per
- * colour and the few covers on screen.
+ * colour and the covers on screen. A frame looks only at the songs on screen
+ * (`skyGrid`), so a library many times larger costs a frame no more where it
+ * is not in view.
  */
 export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | null> }): ReactNode {
   const { field, pointerRef } = props
@@ -60,13 +80,22 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   const art = useArt(128)
   const accent = useUnistyles().theme.colors.accent
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
-  // A cover that arrives asks for the sky to be drawn again.
-  const [covers, setCovers] = useState(0)
   useFieldPointer(pointerRef, setHover)
+  // A song the keys choose or the page flies to is newer than a pointer
+  // resting on the field (`hoverAfter`).
+  const litBy: LitBy = { chosen: props.chosen ?? null, shown: props.shown ?? 0 }
+  const [litWas, setLitWas] = useState(litBy)
+  if (litBy.chosen !== litWas.chosen || litBy.shown !== litWas.shown) {
+    setLitWas(litBy)
+    setHover(before => hoverAfter(litWas, litBy, before))
+  }
   const byId = useMemo(() => new Map(props.points.map(point => [point.id, point])), [props.points])
+  const grid = useMemo(() => skyGrid(props.points), [props.points])
 
-  const latest = useRef({ props, hover, art, byId, accent })
+  const latest = useRef({ props, hover, art, byId, grid, accent })
   const frame = useRef<number | null>(null)
+  // A cover that arrives asks for the sky to be drawn again.
+  const again = useRef(() => {})
   // A frame to draw, at most one a frame: asked for by every render, with the
   // newest props kept for it, and by every frame of a move, which reads where
   // the map is from `live` without a render.
@@ -77,14 +106,35 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
       const canvas = canvasRef.current
       const ctx = canvas?.getContext('2d')
       if (!canvas || !ctx) return
-      const { props: now, hover: pointer, art: artOf, byId: placed, accent: ink } = latest.current
-      draw(ctx, canvas, now, now.live.now(), placed, ink, pointer, song =>
-        coverImage(artOf(song), () => setCovers(n => n + 1)),
+      const { props: now, hover: pointer, art: artOf, byId: placed, grid: cells } = latest.current
+      const addresses = addressesOf(artOf)
+      coverFrame++
+      coverLoads = 0
+      draw(
+        ctx,
+        canvas,
+        now,
+        now.live.now(),
+        placed,
+        cells,
+        latest.current.accent,
+        pointer,
+        song => {
+          // Worked out once a song and kept until the covers change, not every
+          // frame for every cover on screen.
+          let uri = addresses.get(song.id)
+          if (uri === undefined && !addresses.has(song.id)) {
+            uri = artOf(song)
+            addresses.set(song.id, uri)
+          }
+          return coverImage(uri, () => again.current())
+        },
       )
     })
   }, [])
   useLayoutEffect(() => {
-    latest.current = { props, hover, art, byId, accent }
+    latest.current = { props, hover, art, byId, grid, accent }
+    again.current = paint
     paint()
   })
   useEffect(() => props.live.watch(paint), [props.live, paint])
@@ -94,8 +144,6 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
     },
     [],
   )
-  void covers
-
   return (
     <>
       <DeepSky field={field} live={props.live} still={props.still ?? false} />
@@ -111,9 +159,6 @@ const FILL = {
   height: '100%',
   display: 'block',
 } as const
-
-/** The deep sky is drawn again this often while it twinkles and the map holds still. */
-const TWINKLE_FRAME_MS = 40
 
 /**
  * The ground behind the songs: the night, its dust, and the deep sky (K3),
@@ -260,7 +305,6 @@ function useGround(field: FieldSize): HTMLCanvasElement | null {
 
 /** One glow a colour: a small picture of the falloff, drawn at each star's size. */
 const glows = new Map<string, HTMLCanvasElement>()
-const GLOW_SIDE = 64
 
 function glowOf(glow: string): HTMLCanvasElement {
   const key = glow
@@ -271,42 +315,45 @@ function glowOf(glow: string): HTMLCanvasElement {
   const ctx = canvas.getContext('2d')!
   const half = GLOW_SIDE / 2
   const fill = ctx.createRadialGradient(half, half, 0, half, half, half)
-  for (const [offset, opacity] of GLOW_STOPS) fill.addColorStop(offset, withAlpha(glow, opacity))
+  for (const [offset, opacity] of GLOW_STOPS) fill.addColorStop(offset, skyRgba(glow, opacity))
   ctx.fillStyle = fill
   ctx.fillRect(0, 0, GLOW_SIDE, GLOW_SIDE)
   glows.set(key, canvas)
   return canvas
 }
 
-function withAlpha(hex: string, alpha: number): string {
-  const n = parseInt(hex.slice(1, 7), 16)
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`
-}
-
-/**
- * The covers asked for, by address, the most recent last: at most this many
- * kept, the oldest let go. A screenful of covers at the closest zoom is about
- * sixty, so this holds a few screens of looking about.
- */
-const COVERS_KEPT = 240
-const coverCache = new Map<string, HTMLImageElement>()
+// The covers asked for, by address, the most recent last (`COVERS_KEPT`):
+// never one drawn in the frame being drawn. A screenful of covers at the
+// closest zoom is about sixty, so the cap holds a few screens of looking
+// about; further out, a crowd of a few thousand small covers is all kept while
+// it is on screen. (Until 2026-10-31 the cap held whatever was on screen too:
+// past 240 covers in view, each frame let go of covers it then asked for
+// again, and a large library moved at a few frames a second.)
+/** At most this many covers start loading a frame, so a zoom into a crowd does not ask for them all at once. */
+const COVER_LOADS_A_FRAME = 24
+const coverCache = new Map<string, { image: HTMLImageElement; frame: number }>()
+let coverFrame = 0
+let coverLoads = 0
 
 function coverImage(uri: string | null | undefined, arrived: () => void): HTMLImageElement | null {
   if (!uri) return null
   const kept = coverCache.get(uri)
   if (kept) {
     coverCache.delete(uri)
+    kept.frame = coverFrame
     coverCache.set(uri, kept)
-    return kept.complete && kept.naturalWidth > 0 ? kept : null
+    return kept.image.complete && kept.image.naturalWidth > 0 ? kept.image : null
   }
+  if (coverLoads >= COVER_LOADS_A_FRAME) return null
+  coverLoads++
   const image = new window.Image()
   image.decoding = 'async'
   image.addEventListener('load', arrived, { once: true })
   image.src = uri
-  coverCache.set(uri, image)
-  if (coverCache.size > COVERS_KEPT) {
-    const oldest = coverCache.keys().next().value
-    if (oldest !== undefined) coverCache.delete(oldest)
+  coverCache.set(uri, { image, frame: coverFrame })
+  for (const [oldest, entry] of coverCache) {
+    if (coverCache.size <= COVERS_KEPT || entry.frame === coverFrame) break
+    coverCache.delete(oldest)
   }
   return null
 }
@@ -327,9 +374,9 @@ function flare(
     [0, reach],
   ] as const) {
     const stroke = ctx.createLinearGradient(spot.x - dx, spot.y - dy, spot.x + dx, spot.y + dy)
-    stroke.addColorStop(0, withAlpha(color, 0))
-    stroke.addColorStop(0.5, withAlpha(color, 0.9))
-    stroke.addColorStop(1, withAlpha(color, 0))
+    stroke.addColorStop(0, skyRgba(color, 0))
+    stroke.addColorStop(0.5, skyRgba(color, 0.9))
+    stroke.addColorStop(1, skyRgba(color, 0))
     ctx.strokeStyle = stroke
     ctx.beginPath()
     ctx.moveTo(spot.x - dx, spot.y - dy)
@@ -355,11 +402,12 @@ function draw(
   props: SkyLayerProps,
   view: MapView,
   byId: ReadonlyMap<number, SkyPoint>,
+  grid: SkyGrid,
   accent: string,
   pointer: { x: number; y: number } | null,
   cover: (song: Song) => HTMLImageElement | null,
 ): void {
-  const { field, base, points, regions, lens, takes, stroke, playing, lit, panel } = props
+  const { field, base, regions, lens, takes, stroke, playing, lit, panel } = props
   const { pulse, songs } = props
   const { width, height } = field
   const dpr = dprOf()
@@ -390,8 +438,8 @@ function draw(
         middle.y + dy,
         size,
       )
-      cloud.addColorStop(0, withAlpha(color, lens === null ? 0.16 : 0.24))
-      cloud.addColorStop(1, withAlpha(color, 0))
+      cloud.addColorStop(0, skyRgba(color, lens === null ? 0.16 : 0.24))
+      cloud.addColorStop(1, skyRgba(color, 0))
       ctx.fillStyle = cloud
       ctx.fillRect(middle.x + dx - size, middle.y + dy - size, size * 2, size * 2)
     }
@@ -402,26 +450,46 @@ function draw(
   // a place of a few hundred songs summed to one white blur. Close in, each
   // opens into its cover, the most played first (`starLook`).
   const tile = tileSide(view.scale)
-  const margin = tile + 24
-  // The star under the pointer, named before it is pressed; else the one the
-  // pointer is on in the tray's list. Once its cover is open it is lit and
-  // the rest of the sky dims round it (H3).
+  // Past the field's edge by as far as a glow or a flare reaches in.
+  const margin = tile + 72
+  const near = (x0: number, y0: number, x1: number, y1: number): SkyPoint[] => {
+    const a = toMap(view, base, { x: x0, y: y0 })
+    const b = toMap(view, base, { x: x1, y: y1 })
+    return pointsIn(grid, {
+      x0: Math.min(a.x, b.x),
+      y0: Math.min(a.y, b.y),
+      x1: Math.max(a.x, b.x),
+      y1: Math.max(a.y, b.y),
+    })
+  }
+  // The star under the pointer, named before it is pressed; else the song the
+  // keys chose; else the one the pointer is on in the tray's list (a song lit
+  // there lets go of the keys' one, so the newer of those two is named).
+  // Once its cover is open it is lit and the rest of the sky dims round it (H3).
+  const reachUnder = Math.max(14, tile / 2 + 4)
+  const chosen = props.chosen == null ? null : (byId.get(props.chosen) ?? null)
   const under =
-    (pointer ? songUnder(points, at, pointer, Math.max(14, tile / 2 + 4)) : null) ??
+    (pointer
+      ? songUnder(
+          near(
+            pointer.x - reachUnder,
+            pointer.y - reachUnder,
+            pointer.x + reachUnder,
+            pointer.y + reachUnder,
+          ),
+          at,
+          pointer,
+          reachUnder,
+        )
+      : null) ??
+    chosen ??
     (lit === null ? null : (byId.get(lit) ?? null))
   const underOpen = under !== null && starLook(under, view.scale).share > 0.5
   const shade = (point: SkyPoint): number => (underOpen && point !== under ? SPOTLIGHT_DIM : 1)
   const shown: { point: SkyPoint; x: number; y: number; look: StarLook }[] = []
-  for (const point of points) {
+  const dotPaths = new Map<string, Path2D>()
+  for (const point of near(-margin, -margin, width + margin, height + margin)) {
     const spot = at(point)
-    if (
-      spot.x < -margin ||
-      spot.y < -margin ||
-      spot.x > width + margin ||
-      spot.y > height + margin
-    ) {
-      continue
-    }
     const look = starLook(point, view.scale)
     const reach = glowReach(point, look.r, view.scale, base)
     const alpha = starAlpha(point, lens) * shade(point)
@@ -430,18 +498,46 @@ function draw(
     if (look.star > 0.01) {
       ctx.globalAlpha = alpha * look.star
       if (point.flare) flare(ctx, spot, flareReach(point, look.r, view.scale, base), point.core)
-      ctx.fillStyle = point.core
-      ctx.beginPath()
-      ctx.arc(spot.x, spot.y, look.r * CORE, 0, Math.PI * 2)
-      ctx.fill()
+      // Over all the glows, one path a colour and step of brightness rather
+      // than a fill a star: a whole library in view is thousands of stars.
+      const key = `${point.core} ${Math.max(1, Math.round(alpha * look.star * DOT_STEPS))}`
+      let dots = dotPaths.get(key)
+      if (!dots) {
+        dots = new Path2D()
+        dotPaths.set(key, dots)
+      }
+      const r = look.r * CORE
+      dots.moveTo(spot.x + r, spot.y)
+      dots.arc(spot.x, spot.y, r, 0, Math.PI * 2)
     }
     // The lit cover is drawn last, over everything, by `spotlight`.
     if (look.cover > 0.01 && !(underOpen && point === under)) {
       shown.push({ point, x: spot.x, y: spot.y, look })
     }
   }
+  for (const [key, dots] of dotPaths) {
+    const [core, steps] = key.split(' ')
+    ctx.globalAlpha = Number(steps) / DOT_STEPS
+    ctx.fillStyle = core!
+    ctx.fill(dots)
+  }
   // The most played on top.
   shown.sort((a, b) => a.point.bright - b.point.bright)
+  // Close enough, open covers wear their names where they have the room.
+  const named =
+    tile >= NAMES_FROM
+      ? namedCovers(
+          shown
+            .filter(({ look }) => look.share > 0.9)
+            .map(({ point, x, y, look }) => ({
+              id: point.id,
+              x,
+              y,
+              side: look.side,
+              bright: point.bright,
+            })),
+        )
+      : null
   for (const { point, x, y, look } of shown) {
     const song = songs.get(point.id)
     const dim = (lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1) * shade(point)
@@ -481,13 +577,21 @@ function draw(
       ctx.arc(x + shine.dx, y + shine.dy, 1.6, 0, Math.PI * 2)
       ctx.fill()
     }
-    // Close enough, each open cover wears its name.
-    if (song && look.share > 0.9 && tile >= NAMES_FROM) {
+  }
+  if (named && named.size > 0) {
+    ctx.fillStyle = SKY_INK
+    ctx.font = `600 10px ${FONT}`
+    ctx.textAlign = 'center'
+    for (const { point, x, y, look } of shown) {
+      const song = songs.get(point.id)
+      if (!song || !named.has(point.id)) continue
+      const dim = (lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1) * shade(point)
       ctx.globalAlpha = look.cover * dim * 0.92
-      ctx.fillStyle = SKY_INK
-      ctx.font = `600 10px ${FONT}`
-      ctx.textAlign = 'center'
-      ctx.fillText(fitText(ctx, song.title, side + 16), x, y + half + 12)
+      ctx.fillText(
+        fitText(ctx, song.title, look.side + NAME_SPILL),
+        x,
+        y + look.side / 2 + NAME_GAP + 9,
+      )
     }
   }
   ctx.globalAlpha = 1
@@ -502,10 +606,10 @@ function draw(
         else ctx.lineTo(spot.x, spot.y)
       })
       ctx.closePath()
-      ctx.fillStyle = withAlpha(take.tone, 0.07)
+      ctx.fillStyle = skyRgba(take.tone, 0.07)
       ctx.fill()
       ctx.setLineDash([6, 5])
-      ctx.strokeStyle = withAlpha(take.tone, 0.9)
+      ctx.strokeStyle = skyRgba(take.tone, 0.9)
       ctx.lineWidth = 1.8
       ctx.stroke()
       ctx.setLineDash([])
@@ -520,7 +624,7 @@ function draw(
         else ctx.lineTo(spot.x, spot.y)
         first = false
       }
-      ctx.strokeStyle = withAlpha(take.tone, 0.85)
+      ctx.strokeStyle = skyRgba(take.tone, 0.85)
       ctx.lineWidth = 1.4
       ctx.stroke()
     }
@@ -532,7 +636,7 @@ function draw(
       ctx.beginPath()
       ctx.arc(spot.x, spot.y, 2.2, 0, Math.PI * 2)
       ctx.fill()
-      ctx.strokeStyle = withAlpha(take.tone, 0.55)
+      ctx.strokeStyle = skyRgba(take.tone, 0.55)
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.arc(spot.x, spot.y, ringRadius(place, view.scale, 5.5), 0, Math.PI * 2)
@@ -550,7 +654,7 @@ function draw(
     })
     ctx.setLineDash([2, 7])
     ctx.lineCap = 'round'
-    ctx.strokeStyle = withAlpha(accent, 0.95)
+    ctx.strokeStyle = skyRgba(accent, 0.95)
     ctx.lineWidth = 3
     ctx.stroke()
     ctx.setLineDash([])
@@ -564,7 +668,7 @@ function draw(
   if (now && nowSong && !(underOpen && under === now)) {
     const spot = at(now)
     const big = Math.max(22, starLook(now, view.scale).side * 1.15)
-    ctx.fillStyle = withAlpha(accent, 0.25)
+    ctx.fillStyle = skyRgba(accent, 0.25)
     ctx.beginPath()
     ctx.arc(spot.x, spot.y, big * 1.05, 0, Math.PI * 2)
     ctx.fill()
@@ -586,7 +690,7 @@ function draw(
   }
 
   if (pulse) {
-    ctx.fillStyle = withAlpha(accent, 0.35)
+    ctx.fillStyle = skyRgba(accent, 0.35)
     ctx.beginPath()
     ctx.arc(pulse.x, pulse.y, 16, 0, Math.PI * 2)
     ctx.fill()
@@ -615,6 +719,31 @@ function draw(
     ctx.stroke()
     tooltip(ctx, song, spot, Math.max(14, starLook(under, view.scale).side / 2 + 8), field)
   }
+
+  // The keys' song wears the focus ring, in the accent, as anything the
+  // keyboard is on does: drawn on its own, so the pointer over another star
+  // names that one and the ring stays where the keys are.
+  if (chosen) {
+    const spot = at(chosen)
+    const look = starLook(chosen, view.scale)
+    ctx.strokeStyle = accent
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    if (look.share > 0.5) {
+      // Just outside its cover, spotlit (and so larger) when it is the one named.
+      const side = (chosen === under ? spotlightSide(look.side) : look.side) + FOCUS_GAP * 2
+      ctx.roundRect(
+        spot.x - side / 2,
+        spot.y - side / 2,
+        side,
+        side,
+        look.corner * (side / look.side),
+      )
+    } else {
+      ctx.arc(spot.x, spot.y, ringRadius(chosen, view.scale, 7), 0, Math.PI * 2)
+    }
+    ctx.stroke()
+  }
 }
 
 /**
@@ -632,7 +761,7 @@ function spotlight(
   image: HTMLImageElement | null,
   clear: number,
 ): void {
-  const side = Math.max(SPOTLIGHT_COVER, look.side * 1.15)
+  const side = spotlightSide(look.side)
   const half = side / 2
   const halo = side * 1.6
   ctx.globalAlpha = 0.9
@@ -643,7 +772,7 @@ function spotlight(
   // fill is left at the cover's soft edge as a light outline (2026-10-26).
   const inset = image ? SPOTLIGHT_INSET : 0
   ctx.save()
-  ctx.shadowColor = withAlpha(point.glow, 0.6)
+  ctx.shadowColor = skyRgba(point.glow, 0.6)
   ctx.shadowBlur = 22
   ctx.beginPath()
   ctx.roundRect(
@@ -683,22 +812,31 @@ function spotlight(
   ctx.restore()
 }
 
-/** How bright the rest of the sky stays while a cover is lit. */
-const SPOTLIGHT_DIM = 0.3
-/** The lit cover is at least this wide. */
-const SPOTLIGHT_COVER = 52
-/** How far inside a lit cover's edge its glow is cast from. */
-const SPOTLIGHT_INSET = 2
+/** A star's dot is drawn at one of this many steps of brightness. */
+const DOT_STEPS = 12
+
+/** How far outside the keys' lit cover its focus ring is drawn. */
+const FOCUS_GAP = 3
 
 const FONT = '-apple-system, system-ui, "PingFang SC", "Hiragino Sans", sans-serif'
-/** Covers this wide wear their titles underneath. */
-const NAMES_FROM = 30
 
+/**
+ * Text cut to a width with an ellipsis, kept by font, width and text: cutting
+ * measures the text once a letter, and the same names are drawn every frame.
+ */
+const fitted = new Map<string, string>()
 function fitText(ctx: CanvasRenderingContext2D, text: string, width: number): string {
-  if (ctx.measureText(text).width <= width) return text
+  const key = `${ctx.font}\u0000${Math.round(width)}\u0000${text}`
+  const kept = fitted.get(key)
+  if (kept !== undefined) return kept
   let cut = text
-  while (cut.length > 1 && ctx.measureText(`${cut}…`).width > width) cut = cut.slice(0, -1)
-  return `${cut}…`
+  if (ctx.measureText(text).width > width) {
+    while (cut.length > 1 && ctx.measureText(`${cut}…`).width > width) cut = cut.slice(0, -1)
+    cut = `${cut}…`
+  }
+  if (fitted.size > 4000) fitted.clear()
+  fitted.set(key, cut)
+  return cut
 }
 
 /** The title and artist in a small dark card beside the star (`gap` clear of it), kept inside the field. */

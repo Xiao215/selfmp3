@@ -34,7 +34,7 @@ interface MetadataSource {
     readonly refetch: () => unknown
   }
   readonly apply: {
-    readonly mutate: (input: ApplyMetadata, options: { onSuccess: () => void }) => void
+    readonly mutate: (input: ApplyMetadata, options?: { onSuccess: () => void }) => void
     readonly isPending: boolean
     readonly isError: boolean
     readonly error: Error | null
@@ -103,7 +103,7 @@ export function useMetadataSource(
           {
             onSuccess: () => {
               void client.invalidateQueries({ queryKey: queryKeys.metadataLookup(songId) })
-              options.onSuccess()
+              options?.onSuccess()
             },
           },
         ),

@@ -108,15 +108,17 @@ export function run(
     const stdoutLines = lineSplitter(onLine)
     const stderrLines = lineSplitter(onLine)
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf8')
+    // Decoded by the streams, which hold back a character a chunk ends inside
+    // of: decoded chunk by chunk, it came out as three replacement marks.
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (text: string) => {
       if (stdout.length < MAX_STDOUT_BYTES) stdout += text
       else truncated = true
       stdoutLines.push(text)
     })
 
-    child.stderr.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf8')
+    child.stderr.on('data', (text: string) => {
       if (stderr.length < MAX_OUTPUT_BYTES) stderr += text
       stderrLines.push(text)
     })
@@ -248,6 +250,16 @@ export function ytdlpAgeDays(version: string | null, now = new Date()): number |
 
 /** Past this many days, yt-dlp is old enough to be the reason things fail. */
 export const YTDLP_STALE_DAYS = 30
+
+/** A track's audio as yt-dlp found it (`findAudio`). */
+export interface FoundAudio {
+  /** Good for hours, and only from this machine. */
+  readonly url: string
+  /** What a download of it would be named with: m4a, webm, mp3. */
+  readonly ext: string
+  /** The year a download writes into the file's tags, or null when it writes none. */
+  readonly year: number | null
+}
 
 /**
  * Whether one entry of a flat listing is a video.
@@ -479,24 +491,31 @@ export class YtDlpService {
   }
 
   /**
-   * A direct link to a track's audio, for listening before importing it.
+   * Where a track's audio is, for listening before importing it, and what a
+   * download of it would have written into the file.
    *
    * m4a first, as for downloads, and here for a second reason: Safari cannot
    * play webm. YouTube only honours the link from the machine that asked for
-   * it, and for a few hours.
+   * it, and for a few hours — long enough for an import soon after to fetch
+   * the same file instead of asking again (importQueue.ts).
+   *
+   * Not paced: someone pressed play and is listening for it, and the lookup
+   * alone is seconds on a Pi. It takes nothing from the budget either, so a
+   * review listened through does not hold up the downloads that follow. A
+   * refusal still cuts the budget (`#failure`): YouTube does not care which
+   * of them asked.
    */
-  async audioUrl(url: string, signal?: AbortSignal): Promise<string> {
+  async findAudio(url: string, signal?: AbortSignal): Promise<FoundAudio> {
     onlyMusicSites(url)
-    if (asksYouTube(url)) {
-      await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
-    }
     const result = await run(
       'yt-dlp',
       [
         ...BASE_ARGS,
         '--format',
         'bestaudio[ext=m4a]/bestaudio',
-        '--get-url',
+        // The date is the one RELEASE_DATE_ARGS leaves in a download's tags.
+        '--print',
+        '%(ext)s\t%(release_date,release_year,upload_date|)s\t%(urls)s',
         '--no-playlist',
         '--no-warnings',
         ...(await this.#cookieArgs()),
@@ -508,12 +527,14 @@ export class YtDlpService {
     if (result.code !== 0) {
       throw this.#failure(summarizeError(result.stderr, 'could not read that link'))
     }
-    const direct = result.stdout
+    const found = result.stdout
       .split('\n')
-      .map(line => line.trim())
-      .find(line => /^https?:\/\//.test(line))
-    if (!direct) throw new Error('yt-dlp found no audio for that link')
-    return direct
+      .map(line => line.trim().split('\t'))
+      .find(([, , link]) => link !== undefined && /^https?:\/\//.test(link))
+    if (!found) throw new Error('yt-dlp found no audio for that link')
+    const [ext = '', date = '', link = ''] = found
+    const year = /^\d{4}/.exec(date)?.[0]
+    return { url: link, ext: ext || 'm4a', year: year ? Number(year) : null }
   }
 
   /**

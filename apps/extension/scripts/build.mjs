@@ -83,6 +83,22 @@ await build({
   logLevel: 'info',
 })
 
+/*
+ * And the one script in YouTube Music's own world, which writes each Up next
+ * row's video where the content script can read it (src/content/videoIds.ts).
+ * Classic for the same reason, and smaller still: it imports nothing.
+ */
+await build({
+  entryPoints: [join(root, 'src', 'content', 'pageWorld.ts')],
+  outfile: join(out, 'page-world.js'),
+  bundle: true,
+  platform: 'browser',
+  format: 'iife',
+  target: 'chrome120',
+  sourcemap: true,
+  logLevel: 'info',
+})
+
 await build({
   entryPoints: {
     popup: join(root, 'src', 'popup', 'popup.css'),

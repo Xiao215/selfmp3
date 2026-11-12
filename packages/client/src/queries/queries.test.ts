@@ -6,14 +6,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Library, Playlist, PlaylistSongs, Settings, Song } from '@selfmp3/shared'
 import type { Api } from '../api/api.js'
 import { configureClient } from '../runtime.js'
+import { queryKeys } from './keys.js'
 import {
-  queryKeys,
   useBulkDeleteSongs,
   useCreateTag,
-  useLibrary,
   useChangeSongTags,
   useUpdateSettings,
-} from './queries.js'
+} from './mutations.js'
+import { useLibrary } from './queries.js'
 
 /*
  * What an edit asks for again, checked at the cache: a playlist's member list

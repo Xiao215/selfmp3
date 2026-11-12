@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   RECENT_BUDGET_BYTES,
-  budgetFor,
   budgetForDisk,
-  parseKept,
   parseKeptFiles,
-  serialiseKept,
   serialiseKeptFiles,
   toEvict,
   type RecentCopy,
@@ -34,7 +31,7 @@ describe('letting go of songs kept because they were played', () => {
     expect(toEvict(copies, 4_000_000)).toEqual([1, 2])
   })
 
-  it('decides the same way in two tabs when two were played in the same millisecond', () => {
+  it('decides the same way every time when two were played in the same millisecond', () => {
     const copies = [copy(9, 10), copy(2, 10), copy(5, 10)]
     expect(toEvict(copies, 4_000_000)).toEqual([2, 5])
   })
@@ -47,39 +44,12 @@ describe('letting go of songs kept because they were played', () => {
     const copies = [copy(1, 10, 0), copy(2, 20, 600_000_000)]
     expect(toEvict(copies, 500_000_000)).toEqual([1, 2])
   })
-
-  describe('how much of a device it may use', () => {
-    it('is the cap on a browser that will not say how much room there is', () => {
-      expect(budgetFor(null)).toBe(RECENT_BUDGET_BYTES)
-      expect(budgetFor(0)).toBe(RECENT_BUDGET_BYTES)
-      expect(budgetFor(Number.POSITIVE_INFINITY)).toBe(RECENT_BUDGET_BYTES)
-    })
-
-    it('is the cap on a roomy device, and a share of a small one', () => {
-      expect(budgetFor(100 * 1024 * 1024 * 1024)).toBe(RECENT_BUDGET_BYTES)
-      expect(budgetFor(400 * 1024 * 1024)).toBe(100 * 1024 * 1024)
-    })
-  })
-})
-
-describe('the kept list as stored', () => {
-  it('round-trips, and drops anything malformed', () => {
-    const kept = new Map([
-      [3, 30],
-      [7, 70],
-    ])
-    expect(parseKept(serialiseKept(kept))).toEqual(kept)
-    expect(parseKept('{"3":30,"x":1,"8":"soon"}')).toEqual(new Map([[3, 30]]))
-    expect(parseKept('not json')).toEqual(new Map())
-    expect(parseKept(null)).toEqual(new Map())
-  })
 })
 
 /**
- * The same cache on a device that keeps files.
+ * The cache as files.
  *
- * Two things differ from a browser, and both are ways to lose track of a
- * file: the budget comes from free space, which the cache itself eats, and a
+ * Two things are ways to lose track of a file: the budget comes from free space, which the cache itself eats, and a
  * copy is found by a name that stops being derivable once its song is gone.
  */
 describe('a cache kept as files', () => {

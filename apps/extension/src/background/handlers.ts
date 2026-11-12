@@ -5,7 +5,12 @@ import {
   type Api,
   type ServerConnection,
 } from '@selfmp3/client/core'
-import { DEFAULT_LOCAL_SERVER_URL, linkIdentity, type ImportJob } from '@selfmp3/shared'
+import {
+  DEFAULT_LOCAL_SERVER_URL,
+  linkIdentity,
+  youtubeWatchUrl,
+  type ImportJob,
+} from '@selfmp3/shared'
 import { z } from 'zod'
 import { BridgeError, type Handlers, type Status } from '../bridge.js'
 import type { Cloud } from './cloud.js'
@@ -58,9 +63,13 @@ const LAST_TAGS_KEY = 'last-tags'
 
 const LastTagsSchema = z.record(z.array(z.number().int()))
 
-async function lastTagsFor(store: KeyValueStore, identity: ServerConnection): Promise<number[]> {
+async function lastTags(store: KeyValueStore): Promise<z.infer<typeof LastTagsSchema>> {
   const parsed = LastTagsSchema.safeParse(await store.read(LAST_TAGS_KEY))
-  return parsed.success ? (parsed.data[identity.baseUrl] ?? []) : []
+  return parsed.success ? parsed.data : {}
+}
+
+async function lastTagsFor(store: KeyValueStore, identity: ServerConnection): Promise<number[]> {
+  return (await lastTags(store))[identity.baseUrl] ?? []
 }
 
 async function rememberTags(
@@ -68,9 +77,7 @@ async function rememberTags(
   identity: ServerConnection,
   tagIds: readonly number[],
 ): Promise<void> {
-  const parsed = LastTagsSchema.safeParse(await store.read(LAST_TAGS_KEY))
-  const kept = parsed.success ? parsed.data : {}
-  await store.write(LAST_TAGS_KEY, { ...kept, [identity.baseUrl]: [...tagIds] })
+  await store.write(LAST_TAGS_KEY, { ...(await lastTags(store)), [identity.baseUrl]: [...tagIds] })
 }
 
 /** The server this extension imports through, if one was typed in. */
@@ -314,6 +321,18 @@ export function createHandlers({
       return (await library.get(identity, api)).links[key] ?? null
     },
 
+    // The same index as `songFor`, read once for a whole page of rows.
+    async owned({ videoIds }) {
+      const { api, identity } = await answering()
+      const { links } = await library.get(identity, api)
+      return {
+        videoIds: videoIds.filter(id => {
+          const key = linkIdentity(youtubeWatchUrl(id))
+          return key !== null && key in links
+        }),
+      }
+    },
+
     async enqueue({ request, label }) {
       const { api, identity } = await direct()
       const result = await api.importEnqueue(request)
@@ -392,11 +411,14 @@ export function forPages(handlers: Handlers, watcher: JobWatcher | undefined): H
   }
 }
 
+/** The words for no server answering, whichever way it was found out. */
+const NOT_ANSWERING = 'Your server isn’t answering.'
+
 /** Any failure, in words a page can show. */
 export function explain(error: unknown): { message: string; status: number } {
   if (error instanceof BridgeError) return { message: error.message, status: error.status }
   if (error instanceof ApiError) {
-    if (error.isOffline) return { message: 'Your server isn’t answering.', status: 0 }
+    if (error.isOffline) return { message: NOT_ANSWERING, status: 0 }
     if (error.status === 401) {
       return {
         message: 'Your server refused the extension’s token. Set it again in the options.',
@@ -409,4 +431,15 @@ export function explain(error: unknown): { message: string; status: number } {
     message: error instanceof Error ? error.message : 'Something went wrong.',
     status: 500,
   }
+}
+
+/**
+ * Any failure, as the pill is told it (bridge.ts, `servePage`). A content
+ * script is treated as the YouTube page it runs in and never learns the
+ * server's address, so a refusal that names one — a typed-in server that is
+ * asleep — is said the way any server not answering is.
+ */
+export function explainToPage(error: unknown): { message: string; status: number } {
+  const explained = explain(error)
+  return explained.status === 0 ? { message: NOT_ANSWERING, status: 0 } : explained
 }

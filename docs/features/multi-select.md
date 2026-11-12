@@ -5,6 +5,11 @@ next or a playlist, tagging them, sharing them, keeping them on the device, or d
 from the library. Library, Search, a tag's, an artist's or a combination's page, a playlist
 and an Ask answer all select the same way.
 
+**Where:** the phone, the computer, the web and the desktop app. A computer adds the circle
+waiting under the pointer, modifier clicks, the keyboard and dragging; a phone selects by
+holding a row, and an iPad or iPhone with a hardware keyboard has ⌘A and Escape only (below).
+The code is in `apps/app/src/selection/` and the files in the table.
+
 | What | Where |
 |---|---|
 | The selection's rules | `packages/client/src/selection/selection.ts` |
@@ -83,7 +88,8 @@ scrolling box with nothing in it that takes Tab.
 
 The arrows then move from row to row, skipping an artist page's album heads, and scroll the
 row out from under a bar pinned at the top. ↑ and ↓ land on the row itself, wherever in the row
-focus was. ← and → move along the row's own controls in the order they are drawn, stopping at
+focus was; past the first row or the last they are the page's, so Search's ↓ goes on to Ask,
+a See all or the field. ← and → move along the row's own controls in the order they are drawn, stopping at
 either end (`controlsOf`); Enter presses the one you are on, so → to the ⋯ and Enter opens the
 song's menu. ⇧F10 opens that menu from anywhere in the row, beside the ⋯; a keyboard's menu key
 is a right-click already, and opens it where the row is.
@@ -184,7 +190,10 @@ More.
   2026-10-26): what you ticked is not a list to play.
 - **Remove from this playlist** happens at once, with **Undo** for five seconds that puts the
   songs back in their places (`usePlaylistRemoval`); a song's menu removes one song the same
-  way. A playlist that fills from tags has no membership to edit, so it offers none.
+  way. Nothing is sent until the Undo has gone. Taking out a playlist's last songs takes the
+  playlist too, and the toast says so, but only if it is still empty when the removal lands
+  (`playlistEmptied`, [SYNC.md](../SYNC.md)), so a song another device just put in keeps it.
+  A playlist that fills from tags has no membership to edit, so it offers none.
 - **More** is the song menu's own items for every song ticked (`songActions`): Like all /
   Unlike, **Tags…**, Add to playlist, Add to Up next, Share (with a bucket to lend from; see
   [share-links.md](share-links.md)), Download / remove downloads on an installed app (with
@@ -245,7 +254,8 @@ tags.
 song: its cover, lyrics, motion curve, lyrics-index rows, any copy of its audio still on the
 server's disk, and its files in the bucket, which are put in the cloud trash and deleted once
 the snapshot without the song is up and no other song names them. A tag the removed songs were
-the last songs of goes too. The rows go 50 at a time, with the event loop let go between, and
+the last songs of goes too, and so does a playlist you made that they leave with no songs and
+no import on its way to fill it (kept aside, as `playlistEmptied` keeps one). The rows go 50 at a time, with the event loop let go between, and
 files are tidied after the rows are gone; a merge takes its copies' rows inside its own
 transaction, so a second merge of the same songs finds nothing to fold.
 

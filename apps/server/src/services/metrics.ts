@@ -1,7 +1,5 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import Database from 'better-sqlite3'
 import {
+  DAY_MS,
   IMPORT_FAILURES,
   IMPORT_ORIGINS,
   IMPORT_TIME_BANDS_MS,
@@ -12,17 +10,13 @@ import {
   type ImportOrigin,
   type UsageReport,
 } from '@selfmp3/shared'
+import type { ImportLogRow, MetricsRepository } from '../repositories/metrics.js'
 
 /**
- * What this server counts for its owner's admin page (docs/features/admin.md).
- *
- * One database beside hub.json, `metrics.db`, shared by every library here:
- *
- *   import_log    one row per import that finished, worked or failed: where
- *                 from, how long each step took, and why it failed. No
- *                 library, no address, no song.
- *   daily_totals  a count per day and name: Smart requests, YouTube asking
- *                 the server to slow down, 500s, and what devices report.
+ * What this server counts for its owner's admin page (docs/features/admin.md),
+ * kept in `metrics.db` beside hub.json (repositories/metrics.ts): a row per
+ * finished import, and a count per day and name — Smart requests, YouTube
+ * asking the server to slow down, 500s, and what devices report.
  *
  * Totals only, so nothing here can be broken down by person later. Both are
  * kept a year (`DAYS_KEPT`), let go once a day.
@@ -60,57 +54,18 @@ export const METRIC = {
   appError: (code: string): string => `apperror.${code}`,
 } as const
 
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS import_log (
-    id           INTEGER PRIMARY KEY,
-    day          TEXT    NOT NULL,
-    finished_at  TEXT    NOT NULL,
-    source       TEXT    NOT NULL,
-    worked       INTEGER NOT NULL CHECK (worked IN (0, 1)),
-    failure      TEXT,
-    total_ms     INTEGER NOT NULL,
-    steps        TEXT    NOT NULL,
-    attempts     INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_import_log_day ON import_log(day);
-  CREATE TABLE IF NOT EXISTS daily_totals (
-    day    TEXT    NOT NULL,
-    name   TEXT    NOT NULL,
-    count  INTEGER NOT NULL,
-    PRIMARY KEY (day, name)
-  ) WITHOUT ROWID;
-`
-
-interface ImportRow {
-  day: string
-  source: string
-  worked: number
-  failure: string | null
-  total_ms: number
-  steps: string
-  attempts: number
-}
-
 export class ServerMetrics {
-  readonly #db: Database.Database
+  readonly #repo: MetricsRepository
   readonly #now: () => number
   readonly #onFailure: (error: unknown) => void
   #prunedDay = ''
 
-  /** `dir`: the server's data folder; `null` keeps everything in memory (tests). */
   constructor(
-    dir: string | null,
+    repo: MetricsRepository,
     now: () => number = () => Date.now(),
     onFailure: (error: unknown) => void = () => undefined,
   ) {
-    if (dir !== null) fs.mkdirSync(dir, { recursive: true })
-    // A count is not worth holding every request for: better-sqlite3 would
-    // wait up to 5 s on the event loop for a lock held elsewhere.
-    this.#db = new Database(dir === null ? ':memory:' : path.join(dir, 'metrics.db'), {
-      timeout: 250,
-    })
-    this.#db.pragma('journal_mode = WAL')
-    this.#db.exec(SCHEMA)
+    this.#repo = repo
     this.#now = now
     this.#onFailure = onFailure
   }
@@ -118,21 +73,16 @@ export class ServerMetrics {
   recordImport(finished: FinishedImport): void {
     const total = Object.values(finished.steps).reduce((sum, ms) => sum + ms, 0)
     this.#write(() => {
-      this.#db
-        .prepare(
-          `INSERT INTO import_log (day, finished_at, source, worked, failure, total_ms, steps, attempts)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          utcDay(finished.finishedAt.getTime()),
-          finished.finishedAt.toISOString(),
-          sourceOf(finished.url),
-          finished.worked ? 1 : 0,
-          finished.worked ? null : (finished.failure ?? 'other'),
-          Math.round(total),
-          JSON.stringify(finished.steps),
-          finished.attempts,
-        )
+      this.#repo.insertImport({
+        day: utcDay(finished.finishedAt.getTime()),
+        finished_at: finished.finishedAt.toISOString(),
+        source: sourceOf(finished.url),
+        worked: finished.worked ? 1 : 0,
+        failure: finished.worked ? null : (finished.failure ?? 'other'),
+        total_ms: Math.round(total),
+        steps: JSON.stringify(finished.steps),
+        attempts: finished.attempts,
+      })
       this.#prune()
     })
   }
@@ -145,13 +95,7 @@ export class ServerMetrics {
   /** Add to a day's totals, several names at once. */
   add(day: string, counts: Readonly<Record<string, number>>): void {
     this.#write(() => {
-      const upsert = this.#db.prepare(
-        `INSERT INTO daily_totals (day, name, count) VALUES (?, ?, ?)
-         ON CONFLICT (day, name) DO UPDATE SET count = count + excluded.count`,
-      )
-      this.#db.transaction(() => {
-        for (const [name, by] of Object.entries(counts)) if (by > 0) upsert.run(day, name, by)
-      })()
+      this.#repo.addTotals(day, counts)
       this.#prune()
     })
   }
@@ -183,23 +127,9 @@ export class ServerMetrics {
     const beforeFrom = utcDay(this.#now() - (2 * days - 1) * DAY_MS)
     const window = dayList(from, days)
 
-    const rows = this.#db
-      .prepare<[string, string], ImportRow>(
-        `SELECT day, source, worked, failure, total_ms, steps, attempts
-         FROM import_log WHERE day >= ? AND day <= ? ORDER BY day`,
-      )
-      .all(from, to)
-    const before = this.#db
-      .prepare<[string, string], { done: number | null; failed: number | null }>(
-        `SELECT SUM(worked) AS done, SUM(1 - worked) AS failed
-         FROM import_log WHERE day >= ? AND day < ?`,
-      )
-      .get(beforeFrom, from)
-    const totals = this.#db
-      .prepare<[string, string], { day: string; name: string; count: number }>(
-        `SELECT day, name, count FROM daily_totals WHERE day >= ? AND day <= ?`,
-      )
-      .all(from, to)
+    const rows = this.#repo.importsBetween(from, to)
+    const before = this.#repo.importCountsBetween(beforeFrom, from)
+    const totals = this.#repo.totalsBetween(from, to)
 
     const worked = rows.filter(row => row.worked === 1)
     const times = worked.map(row => row.total_ms).sort((a, b) => a - b)
@@ -211,20 +141,21 @@ export class ServerMetrics {
     }
     const stepTimes = new Map<TimedStep, number[]>()
     for (const row of worked) {
-      for (const [step, ms] of Object.entries(parseSteps(row.steps))) {
-        const list = stepTimes.get(step as TimedStep) ?? []
+      for (const [step, ms] of parseSteps(row.steps)) {
+        const list = stepTimes.get(step) ?? []
         list.push(ms)
-        stepTimes.set(step as TimedStep, list)
+        stepTimes.set(step, list)
       }
     }
 
-    const byDay = (pick: (row: ImportRow) => boolean) =>
+    const byDay = (pick: (row: ImportLogRow) => boolean) =>
       window.map(day => {
         const today = rows.filter(row => row.day === day && pick(row))
         const done = today.filter(row => row.worked === 1).length
         return { day, done, failed: today.length - done }
       })
-    const isYouTube = (row: ImportRow) => row.source === 'youtube' || row.source === 'youtube-music'
+    const isYouTube = (row: ImportLogRow) =>
+      row.source === 'youtube' || row.source === 'youtube-music'
 
     const named = (prefix: string) => {
       const found = new Map<string, number>()
@@ -266,7 +197,7 @@ export class ServerMetrics {
       to,
       imports: {
         byDay: byDay(() => true),
-        before: { done: before?.done ?? 0, failed: before?.failed ?? 0 },
+        before,
         bands,
         medianMs: quantile(times, 0.5),
         p90Ms: quantile(times, 0.9),
@@ -324,10 +255,6 @@ export class ServerMetrics {
     }
   }
 
-  close(): void {
-    this.#db.close()
-  }
-
   /** A count written, or, when it cannot be, said and let go. */
   #write(write: () => void): void {
     try {
@@ -342,9 +269,7 @@ export class ServerMetrics {
     const today = utcDay(this.#now())
     if (this.#prunedDay === today) return
     this.#prunedDay = today
-    const oldest = utcDay(this.#now() - DAYS_KEPT * DAY_MS)
-    this.#db.prepare('DELETE FROM import_log WHERE day < ?').run(oldest)
-    this.#db.prepare('DELETE FROM daily_totals WHERE day < ?').run(oldest)
+    this.#repo.pruneBefore(utcDay(this.#now() - DAYS_KEPT * DAY_MS))
   }
 }
 
@@ -390,8 +315,7 @@ export function failureOf(message: string): ImportFailure {
   return 'other'
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
+/** The day `ms` falls on in UTC, `2026-10-07`: the day the admin page and Backblaze both count by. */
 export function utcDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
 }
@@ -407,16 +331,17 @@ function quantile(sorted: readonly number[], q: number): number | null {
   return Math.round(sorted[at] ?? 0)
 }
 
-function parseSteps(text: string): Partial<Record<TimedStep, number>> {
+/** A row's step times, in `TIMED_IMPORT_STEPS` order; a step it never reached is left out. */
+function parseSteps(text: string): [TimedStep, number][] {
   try {
     const parsed = JSON.parse(text) as Record<string, unknown>
-    const steps: Partial<Record<TimedStep, number>> = {}
+    const steps: [TimedStep, number][] = []
     for (const step of TIMED_IMPORT_STEPS) {
       const ms = parsed[step]
-      if (typeof ms === 'number' && Number.isFinite(ms)) steps[step] = ms
+      if (typeof ms === 'number' && Number.isFinite(ms)) steps.push([step, ms])
     }
     return steps
   } catch {
-    return {}
+    return []
   }
 }

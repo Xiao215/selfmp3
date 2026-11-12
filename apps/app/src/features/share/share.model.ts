@@ -1,4 +1,6 @@
 import {
+  DAY_MS,
+  DoormanError,
   formatShareStart,
   parseShareStart,
   plural,
@@ -16,14 +18,40 @@ import type { RoomTrack } from '../../player/roomTracks'
  * where it is in its life, the line under it, its songs as tracks.
  */
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /** Playing; on its last day (D1), when it says so and Get it leads; or over (E1). */
 type ShareStage = 'live' | 'lastDay' | 'ended'
 
 export function shareStage(link: Pick<ShareLink, 'endsAt' | 'ended'>, now: number): ShareStage {
   if (link.ended || now >= link.endsAt) return 'ended'
   return link.endsAt - now <= SHARE_LAST_DAY_MS ? 'lastDay' : 'live'
+}
+
+/**
+ * Why a link's page has no link to show: cut short when it was copied, or its
+ * key not the link's (torn); the doorman saying there is no such link, which
+ * is one forgotten after it ended (gone); or no answer at all — no network,
+ * the doorman failing or busy — when the link may well still be there, and
+ * opens once it is asked again.
+ */
+export type LinkTrouble = 'torn' | 'gone' | 'unreachable'
+
+export function linkTrouble(id: string | null, key: string | null, error: unknown): LinkTrouble {
+  if (!id || !key) return 'torn'
+  if (error instanceof DoormanError && error.status === 403) return 'torn'
+  if (error instanceof DoormanError && error.gone) return 'gone'
+  return 'unreachable'
+}
+
+/**
+ * The song a list's address names (`?s=<entry>`) when its sender has removed
+ * it: the page opens on another, and says why.
+ */
+export function goneAskedFor(
+  link: Pick<ShareLink, 'kind' | 'entries'>,
+  s: string | undefined,
+): ShareLink['entries'][number] | null {
+  if (link.kind !== 'list' || !s) return null
+  return link.entries.find(entry => entry.id === s && entry.gone) ?? null
 }
 
 /** "20 Oct", in the reader's own way of writing a date. */
@@ -182,6 +210,13 @@ export function sentSections(
 
 /** How many ended links show before the rest fold away under "Show 3 more" (J2). */
 export const ENDED_SHOWN = 5
+
+/** Every friend's ask for a link of yours again, with the link it is for (F1). */
+export function asksOf(
+  links: readonly ShareSummary[] | undefined,
+): { link: ShareSummary; ask: ShareSummary['asks'][number] }[] {
+  return (links ?? []).flatMap(link => link.asks.map(ask => ({ link, ask })))
+}
 
 /** The line under Links you shared's title (F): "11 links · 3 playing". */
 export function sentCountLine(links: readonly ShareSummary[], now: number): string {

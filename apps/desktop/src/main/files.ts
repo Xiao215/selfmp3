@@ -5,7 +5,7 @@ import { mkdir, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/pro
 import { join } from 'node:path'
 
 import { app, net, shell } from 'electron'
-import { createThrottle } from '@selfmp3/shared'
+import { codeOf, createThrottle } from '@selfmp3/shared'
 import {
   fileNameSchema,
   type DownloadRequest,
@@ -259,7 +259,7 @@ export async function move(from: FileKind, to: FileKind, name: string): Promise<
   try {
     await rename(source, target)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    if (codeOf(error) === 'ENOENT') return null
     throw error
   }
   return statOne(to, name)

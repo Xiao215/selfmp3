@@ -21,7 +21,7 @@ import {
   type,
   useLibrary,
 } from '@selfmp3/client'
-import { usePlayer } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -30,7 +30,8 @@ import { Play, X } from '../../ui/components/Icons'
 import { PlayButton } from '../../ui/components/Button'
 import { Press } from '../../ui/components/Press'
 import { useLayoutValue } from '../../shell/useLayout'
-import { useFade } from '../../ui/motion'
+import { useFade, useKeptWhileClosing } from '../../ui/motion'
+import { Fold } from '../../ui/components/Fold'
 import { MOVE_MS } from '../../ui/motion.model'
 import { ART, ToastButton, ToastCard } from '../../ui/components/ToastHost'
 import { useDeviceContext } from './DevicesProvider'
@@ -84,14 +85,14 @@ const snapshot = (): Offer | null => current
 export function ResumeToast(): ReactNode {
   const { theme } = useUnistyles()
   const { deviceId, devices, heard } = useDeviceContext()
-  const player = usePlayer()
+  const playing = usePlayerPlaying()
+  const playingSongId = usePlayingSongId()
   const library = useLibrary()
   const memory = usePlaybackMemoryState()
   const wide = useLayoutValue(layout => layout.wide)
   const resume = useResumeOffer()
   const offer = useSyncExternalStore(subscribe, snapshot, snapshot)
   // Playing here is an answer.
-  const playing = player.isPlaying
   useLayoutEffect(() => {
     if (playing) setOffer(null)
   }, [playing])
@@ -99,10 +100,10 @@ export function ResumeToast(): ReactNode {
   // A launch-time decision: re-deciding as devices come and go would pop a
   // toast up an hour into a session.
   const decided = useRef(false)
-  const playerRef = useRef(player)
+  const playerRef = useRef({ playing, songId: playingSongId })
   useEffect(() => {
-    playerRef.current = player
-  }, [player])
+    playerRef.current = { playing, songId: playingSongId }
+  }, [playing, playingSongId])
 
   useEffect(() => {
     // After this device's own coming back has settled, never before: see `PlaybackMemory`.
@@ -122,14 +123,14 @@ export function ResumeToast(): ReactNode {
     const timer = setTimeout(() => {
       decided.current = true
       const now = playerRef.current
-      if (now.isPlaying) return
+      if (now.playing) return
       // Ages are `lastSeenAt`, the server's clock, so "now" is too.
       const picked = pickResumeState(devices, {
         thisDeviceId: deviceId,
         now: serverTime(heard, Date.now()),
       })
       if (!picked) return
-      if (picked.state.songId === (now.current?.id ?? null)) return
+      if (picked.state.songId === now.songId) return
       if (!songs.some(song => song.id === picked.state.songId)) return
       setOffer({ device: picked, at: Date.now() })
     }, 0)
@@ -170,7 +171,9 @@ export function ResumeToast(): ReactNode {
  */
 export function ResumeCard(): ReactNode {
   const { theme } = useUnistyles()
-  const resume = useResumeOffer()
+  const offered = useResumeOffer()
+  // Kept as it folds away, taken or declined, so it leaves with its song.
+  const resume = useKeptWhileClosing(offered !== null, offered)
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const [hovered, setHovered] = useState(false)
   // Tabbed to, it shows as it does under the pointer.
@@ -179,44 +182,46 @@ export function ResumeCard(): ReactNode {
   if (!resume) return null
   const { song, from } = resume
   return (
-    <View
-      style={styles.card}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-      testID="sidebar-resume"
-    >
-      <Cover uri={resume.art} title={song.album || song.title} size={CARD_ART} />
-      <View style={styles.cardWords}>
-        <Text style={styles.cardFrom} numberOfLines={1}>
-          From {from}
-        </Text>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {song.title}
-        </Text>
+    <Fold open={offered !== null}>
+      <View
+        style={styles.card}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        testID="sidebar-resume"
+      >
+        <Cover uri={resume.art} title={song.album || song.title} size={CARD_ART} />
+        <View style={styles.cardWords}>
+          <Text style={styles.cardFrom} numberOfLines={1}>
+            From {from}
+          </Text>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {song.title}
+          </Text>
+        </View>
+        <PlayButton
+          size={CARD_PLAY}
+          label={resume.label}
+          icon={<Play size={14} color={theme.colors.onPrimary} />}
+          onPress={resume.take}
+          testID="sidebar-resume-play"
+        />
+        <Animated.View style={[styles.close, { opacity: close }]}>
+          <Press
+            feedback="dim"
+            onPress={resume.decline}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            accessibilityRole="button"
+            accessibilityLabel={`Don't continue from ${from}`}
+            hitSlop={hitSlopFor(CLOSE)}
+            style={styles.closeButton}
+            testID="sidebar-resume-dismiss"
+          >
+            <X size={iconSize.tiny} tone="textSecondary" />
+          </Press>
+        </Animated.View>
       </View>
-      <PlayButton
-        size={CARD_PLAY}
-        label={resume.label}
-        icon={<Play size={14} color={theme.colors.onPrimary} />}
-        onPress={resume.take}
-        testID="sidebar-resume-play"
-      />
-      <Animated.View style={[styles.close, { opacity: close }]}>
-        <Press
-          feedback="dim"
-          onPress={resume.decline}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          accessibilityRole="button"
-          accessibilityLabel={`Don't continue from ${from}`}
-          hitSlop={hitSlopFor(CLOSE)}
-          style={styles.closeButton}
-          testID="sidebar-resume-dismiss"
-        >
-          <X size={iconSize.tiny} tone="textSecondary" />
-        </Press>
-      </Animated.View>
-    </View>
+    </Fold>
   )
 }
 
@@ -230,7 +235,7 @@ function useResumeOffer(): {
   decline: () => void
 } | null {
   const { heard } = useDeviceContext()
-  const player = usePlayer()
+  const player = usePlayerCommands()
   const library = useLibrary()
   const artFor = useArt(ROW_COVER_SIZE)
   const offer = useSyncExternalStore(subscribe, snapshot, snapshot)

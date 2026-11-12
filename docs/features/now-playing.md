@@ -3,6 +3,11 @@
 A page for the song that is playing: its artwork, what the app knows about it, and its
 lyrics — or, for a song with no words, something to look at instead.
 
+**Where:** the phone, the computer, the web and the desktop app, at `/now-playing`. A wide screen
+has Stage and Focus; a phone has its own page (below), with no visual for a song without
+words (Xiao, 2026-10-09). The code is in `apps/app/src/features/nowPlaying/` (files at the
+end).
+
 ## Opening it
 
 | From | Does |
@@ -10,7 +15,7 @@ lyrics — or, for a song with no words, something to look at instead.
 | The artwork, title and artist in the player bar | Opens **Stage**; again closes it |
 | ⤢ on the lyrics' top-right corner, ⤡ in Focus | Switches between the two |
 | The ⌄ in the corner, or Escape | Steps back one level: Focus → Stage → closed |
-| The title (ⓘ on a phone) | Opens the song's own page, `/song/<id>` |
+| The title (Song details in ⋯ on a phone) | Opens the song's own page, `/song/<id>` |
 
 The page covers the library, not the player bar, so play and pause never move under your
 hand. The view underneath stays mounted — its scroll position, search and filters are
@@ -94,16 +99,20 @@ neither falls back to a stand-in drawn from its tempo and energy.
 
 ## On the phone
 
-No tabs at the top (docs/ui-mock `P21`): the ⌄, the words "Now playing", and ⓘ, which opens
-the song's own page. While a sleep timer runs, "Now playing" becomes "Stops in 12 min" (or
-"Stops after this song"), and tapping it changes the timer. The cover breathes — a little
-smaller while paused, full size while playing — with the title and the artists (each a
-link) under it, and the heart, **Up next** and ⋯ beside them; then the tags, the scrubber and
-the round Play, low on the page where a thumb is. There is no foot (picked 2026-10-12,
-canvas `P4fvs9Sc86E42KpePUVufn`: A4, B1, C1, D1, E1).
+No tabs at the top (docs/ui-mock `P21`): the ⌄ on the left; in the middle, where the music
+is playing from ("From Library", "From night"), which opens that list; and Together and ⋯ on
+the right. While a sleep timer runs, the middle is a pill saying "Stops in 12 min" (or "Stops
+after this song"), and tapping it changes the timer; in a room, it is the room's pill and
+Together steps aside (when the timer or tagging has the middle, the room's faces stand in for
+Together instead). The cover breathes — a little smaller while paused, and slowly in and out while it rests
+there (`PAUSED_BREATH`; still under Reduce Motion), full size while playing — with the title and the artists (each a link) under it, and the heart and
+**Up next** beside them; then the tags, the scrubber and the round Play, low on the page where
+a thumb is. There is no foot (picked 2026-10-12, canvas `P4fvs9Sc86E42KpePUVufn`: A4, B1, C1,
+D1, E1; ⋯ moved to the top right on 2026-11-10).
 
-⋯ is the song menu every song has, less what the page shows itself or already is: no heart,
-Tags or Song details (the page has them) and no Add to Up next (the song is playing). It ends
+⋯ is the song menu every song has, less what the page shows itself or already is: no heart
+or Tags (the page has them) and no Add to Up next (the song is playing). It keeps Song
+details, which opens the song's own page, since the phone's page has no other way there. It ends
 with a short "This player" group — **Sleep timer**, saying how long is left, which opens the
 sleep sheet, and Devices — then Delete from library…. There are no page dots: the gestures are
 up and down, not sideways. Swiping up or a tap on the cover opens the lyrics on their own
@@ -118,7 +127,7 @@ Up next — a tag, the source line — take the page down before the page they o
 
 | What | Where |
 |---|---|
-| Page | `apps/app/src/features/nowPlaying/NowPlayingScreen.tsx` (route `apps/app/app/now-playing.tsx`), `NowPlayingStage.tsx` |
+| Page | `apps/app/src/features/nowPlaying/NowPlayingScreen.tsx` (route `apps/app/app/now-playing.tsx`), `NowPlayingStage.tsx`; the phone's breathing cover in `BreathingCover.tsx` |
 | Lyrics, visual, status line | `nowPlaying/StageLyrics.tsx`, `SongVisual.tsx` (+ `.web.tsx`) |
 | Lyrics state, cover colours, Stage ↔ Focus | `nowPlaying/useSongWords.ts`, `useCoverPalette.ts`, `stageMove.model.ts` |
 | Up next | `apps/app/src/features/queue/` (`QueueSheet.tsx`, `QueueRail.tsx`, `queue.model.ts`) |

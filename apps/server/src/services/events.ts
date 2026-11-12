@@ -42,6 +42,14 @@ export interface EventSink {
  */
 export const MAX_QUEUED_BYTES = 1024 * 1024
 
+/**
+ * How many streams may be open at once. Far more than one household's tabs
+ * and phones; past it the oldest is closed, and its client reconnects on its
+ * own. Without a cap, one device with a token could open streams until the
+ * process ran out of sockets and memory for everyone.
+ */
+export const MAX_STREAMS = 200
+
 interface Subscriber {
   readonly sink: EventSink
   /**
@@ -99,6 +107,11 @@ export class EventHub {
    */
   subscribe(sink: EventSink, deviceIds: readonly string[]): () => void {
     const subscriber: Subscriber = { sink, deviceIds: new Set(deviceIds) }
+    for (const oldest of this.#subscribers) {
+      if (this.#subscribers.size < MAX_STREAMS) break
+      this.#drop(oldest)
+      this.#logger.debug('too many event streams; closed the oldest', { open: MAX_STREAMS })
+    }
     this.#subscribers.add(subscriber)
     this.#safeWrite(subscriber, encodeSsePreamble())
     this.#ensureKeepalive()
@@ -160,15 +173,10 @@ export class EventHub {
 
   #safeWrite(subscriber: Subscriber, chunk: string): boolean {
     if ((subscriber.sink.writableLength ?? 0) > MAX_QUEUED_BYTES) {
-      this.#subscribers.delete(subscriber)
+      this.#drop(subscriber)
       this.#logger.debug('event stream not reading; dropped', {
         deviceIds: [...subscriber.deviceIds],
       })
-      try {
-        subscriber.sink.end?.()
-      } catch {
-        // Already gone.
-      }
       return false
     }
     try {
@@ -181,6 +189,15 @@ export class EventHub {
         message: messageOf(error),
       })
       return false
+    }
+  }
+
+  #drop(subscriber: Subscriber): void {
+    this.#subscribers.delete(subscriber)
+    try {
+      subscriber.sink.end?.()
+    } catch {
+      // Already gone.
     }
   }
 

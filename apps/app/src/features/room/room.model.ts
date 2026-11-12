@@ -1,10 +1,14 @@
 import {
   canAct,
+  canPlayAgain,
+  DOORMAN_ERROR,
+  DoormanError,
   playedEntries,
   plural,
   ROOM_MAX_WAITING,
   roomPosition,
   roomTitle,
+  RoomSongSchema,
   shuffleArray,
   nearestFirst,
   soundCentre,
@@ -14,6 +18,7 @@ import {
   type RoomSong,
   type RoomState,
 } from '@selfmp3/shared'
+import { z } from 'zod'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
 import type { RoomStart } from './roomSheets.store'
@@ -51,6 +56,11 @@ export function youMay(state: RoomState, type: RoomAction['type']): boolean {
   return you !== undefined && canAct(state, you, type)
 }
 
+/** May you bring a song at all: one of yours, one played again, or a link. */
+export function mayBring(state: RoomState): boolean {
+  return youMay(state, 'add') || youMay(state, 'again') || youMay(state, 'addLink')
+}
+
 /**
  * What a press of Previous, play/pause or Next on a player that follows the
  * room does (player/roomTransport.ts): the room action it asks for, or what
@@ -63,14 +73,31 @@ export function followerPress(
   onRoomSong: boolean,
 ): { readonly act: 'skip' | 'pause' | 'play' } | { readonly say: string } | null {
   if (isHost(state) || state.mode !== 'everyone' || !onRoomSong) return null
-  const host = state.members.find(member => member.kind === 'host')?.name ?? 'the host'
+  const host = hostOf(state)?.name ?? 'the host'
   if (step === 'previous') return { say: 'A room only goes forward' }
-  if (step === 'next')
-    return youMay(state, 'skip') ? { act: 'skip' } : { say: `Only ${host} can skip` }
-  const act = state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
-  return youMay(state, act)
-    ? { act }
-    : { say: `Only ${host} can ${act === 'pause' ? 'pause' : 'play'} the room` }
+  const act =
+    step === 'next' ? 'skip' : state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
+  if (!youMay(state, act)) {
+    return { say: act === 'skip' ? `Only ${host} can skip` : `Only ${host} can ${act} the room` }
+  }
+  const away = hostAway(state)
+  return away ? { say: away } : { act }
+}
+
+function hostOf(state: RoomState): RoomMember | undefined {
+  return state.members.find(member => member.kind === 'host')
+}
+
+/**
+ * What to say instead of asking the host's player for a skip, a pause or a
+ * play while it is away (its socket closed): only it does what is asked, so
+ * nothing would happen now, and what was asked is dropped rather than done
+ * when it is back (`freshWant`). Null for the host, or with their player here.
+ */
+export function hostAway(state: RoomState): string | null {
+  const host = hostOf(state)
+  if (!host || isHost(state) || host.online) return null
+  return `${host.name}’s player is away`
 }
 
 /** The people still in the room, the host first. */
@@ -195,6 +222,131 @@ export function positionNow(state: RoomState, offset: number, now: number): numb
   return roomPosition(state.playing, now + offset)
 }
 
+/**
+ * How long the room's song may stand past its end before its host is taken
+ * to be away though the doorman still has their socket: a phone that walked
+ * out of signal keeps it open for a minute or more, while a host that is
+ * there moves the room on within a second or two.
+ */
+const HOST_LATE_SECONDS = 10
+
+/** What a follower's player is doing, as `followPlan` reads it. */
+interface FollowerPlayer {
+  readonly currentId: number | null
+  /**
+   * Where the room was on its song, by the room's clock, when this player
+   * left it: ran out on it, or went on from it by itself to what the room
+   * has next. Null while it has not.
+   */
+  readonly leftAt: number | null
+  /** Whether the room's song can play on this device: a link may play on the host's only. */
+  readonly playsHere: boolean
+}
+
+/** How far the room's clock may go back on a song this player left before it is taken as played again. */
+const LEFT_SLACK_SECONDS = 2
+
+/**
+ * Whether the room's song has played to its end without the host's player
+ * moving the room on, which only it does: `ending` while it may yet, `away`
+ * once the host is gone (their socket closed, or late past
+ * `HOST_LATE_SECONDS`). Null while the song plays or is paused.
+ *
+ * A link's length is not known (`lookUpLink`), so for one the end is this
+ * player's: it ran out on the song, or went on by itself to what the room
+ * has next — when the link could play here at all, since one that cannot is
+ * passed over at once — and the room's clock went on from there since (not
+ * back: the host played it again). How late the host is then counts from
+ * `outSince`, when this device first saw it (local clock). A song whose
+ * length is known ends by the room's clock, or for this player when it left
+ * the song a moment before the clock got there.
+ */
+function playedOut(
+  state: RoomState,
+  offset: number,
+  now: number,
+  player: FollowerPlayer,
+  outSince: number | null,
+): 'ending' | 'away' | null {
+  const playing = state.playing
+  if (!playing || playing.pausedAt !== null) return null
+  const duration = state.entries.find(entry => entry.id === playing.entryId)?.song.duration ?? 0
+  const position = positionNow(state, offset, now)
+  // This player left the song — on it (ran out), or on what comes next — and
+  // the room's clock is still where it left it or past.
+  const next = state.order[0]
+  const onIt = player.currentId === roomTrackId(playing.entryId)
+  const wentOn = player.playsHere && next !== undefined && player.currentId === roomTrackId(next)
+  const left =
+    (onIt || wentOn) && player.leftAt !== null && position >= player.leftAt - LEFT_SLACK_SECONDS
+  let late: boolean
+  if (duration > 0) {
+    const over = position - duration
+    // A player a hair ahead of the room's clock finishes first: it is let be,
+    // not pulled back for the song's last moment.
+    if (over < 0 && !(left && over >= -LEFT_SLACK_SECONDS)) return null
+    late = over >= HOST_LATE_SECONDS
+  } else {
+    if (!left) return null
+    late = outSince !== null && now - outSince >= HOST_LATE_SECONDS * 1000
+  }
+  return hostOf(state)?.online === false || late ? 'away' : 'ending'
+}
+
+/**
+ * What a player that follows the room (on everyone's phones, not the host's)
+ * does now:
+ * - `stop`: nothing plays in the room: a song of the room's stops.
+ * - `wait`: the room's song has ended and only the host moves it on. It is
+ *   not played again from past its end, which ends at once and pulls the
+ *   player into the next song for a moment at every check; once the host is
+ *   `away`, the room's sound stops until they are back, with a word saying
+ *   whom it waits for.
+ * - `load`: the player is on another song: the room's, at the room's place.
+ * - `keep`: on the room's song: the room's list after it, playing or paused
+ *   as the room is, at its place.
+ */
+type FollowPlan =
+  | { readonly kind: 'stop' }
+  | { readonly kind: 'wait'; readonly away: string | null }
+  | {
+      readonly kind: 'load'
+      readonly ids: readonly number[]
+      readonly position: number
+      readonly autoplay: boolean
+    }
+  | {
+      readonly kind: 'keep'
+      readonly upcoming: readonly number[]
+      readonly playing: boolean
+      readonly position: number
+    }
+
+export function followPlan(
+  state: RoomState,
+  offset: number,
+  now: number,
+  player: FollowerPlayer,
+  outSince: number | null = null,
+): FollowPlan {
+  if (!state.playing) return { kind: 'stop' }
+  const out = playedOut(state, offset, now, player, outSince)
+  if (out) return { kind: 'wait', away: out === 'away' ? waitingLine(state) : null }
+  const id = roomTrackId(state.playing.entryId)
+  const upcoming = state.order.map(roomTrackId)
+  const position = positionNow(state, offset, now)
+  const playing = state.playing.pausedAt === null
+  if (player.currentId !== id) {
+    return { kind: 'load', ids: [id, ...upcoming], position, autoplay: playing }
+  }
+  return { kind: 'keep', upcoming, playing, position }
+}
+
+/** Whom a room whose host is away waits for. */
+function waitingLine(state: RoomState): string {
+  return `Waiting for ${hostOf(state)?.name ?? 'the host'}`
+}
+
 // --- tracks ---------------------------------------------------------------------
 
 interface TrackSources {
@@ -243,8 +395,11 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
  * - `advance`: the player ran out on the room's last song, and a song has
  *   been added since: go on to it.
  * - `resume`: the player has nothing loaded — the app was opened again, a
- *   page reloaded — while the room is on a song: take it up where the room
- *   says it is, rather than telling the room nothing plays.
+ *   page reloaded — while the room is on a song, or this tab has just taken
+ *   the room over from the host's other tab (`tookLead`) whatever it was
+ *   playing: take it up where the room says it is, rather than telling the
+ *   room nothing plays. Also when the player went back to a played song of
+ *   someone who left, which the room will not play again (`canPlayAgain`).
  * - `none`: the player is busy with something of your own, or there is
  *   nothing to play.
  */
@@ -264,18 +419,23 @@ export function hostPlan(
     readonly ranOut: boolean
     /** The room was opened to play over your own music (`RoomStartHint`). */
     readonly takeOver?: boolean
+    /** This tab took the room over from another of the host's (`leadRoom`) and has yet to take it up. */
+    readonly tookLead?: boolean
   },
 ): HostPlan {
   const upcoming = state.order.map(roomTrackId)
   const onRoomSong =
     player.currentId !== null &&
     state.entries.some(entry => roomTrackId(entry.id) === player.currentId)
+  if (onRoomSong && state.playing && !mayReport(state, entryOfTrack(state, player.currentId))) {
+    return { kind: 'resume', ids: [roomTrackId(state.playing.entryId), ...upcoming] }
+  }
   if (onRoomSong) {
     return player.ranOut && upcoming.length > 0
       ? { kind: 'advance', upcoming }
       : { kind: 'follow', upcoming }
   }
-  if (player.currentId === null && state.playing !== null) {
+  if ((player.currentId === null || player.tookLead) && state.playing !== null) {
     return { kind: 'resume', ids: [roomTrackId(state.playing.entryId), ...upcoming] }
   }
   if (state.playing === null && (!player.playing || player.takeOver) && upcoming.length > 0) {
@@ -311,6 +471,7 @@ export function needsReport(
   player: { readonly entryId: string | null; readonly playing: boolean; readonly position: number },
 ): boolean {
   const playing = state.playing
+  if (!mayReport(state, player.entryId)) return false
   if ((playing?.entryId ?? null) !== player.entryId) return true
   if (!playing) return false
   if ((playing.pausedAt === null) !== player.playing) return true
@@ -319,9 +480,39 @@ export function needsReport(
   )
 }
 
-/** A request from a member the host's player has not acted on yet. */
-export function freshWant(state: RoomState, lastSeq: number): RoomState['want'] {
-  return state.want && state.want.seq > lastSeq ? state.want : null
+/**
+ * Whether the room would take this entry as what the host's player is on: not
+ * a played song of someone who left (`canPlayAgain`), which it refuses.
+ */
+function mayReport(state: RoomState, entryId: string | null): boolean {
+  const entry = entryId === null ? undefined : state.entries.find(other => other.id === entryId)
+  return !entry || entry.playedAt === null || canPlayAgain(state, entry)
+}
+
+/**
+ * How old, on the doorman's clock, a request may be when the host's player
+ * hears it and still be done. A host there hears one within a second; one
+ * that comes in after its line was down — half a minute on, say — would skip
+ * whatever plays by then, so it is let go (the asker was told the host's
+ * player is away once the doorman knew, `hostAway`).
+ */
+const WANT_FRESH_MS = 5000
+
+/**
+ * A request from a member the host's player has not taken in yet, and
+ * whether to act on it. One with no stamp (`RoomWantSchema`) is done if it
+ * came while this device could hear the room (`heard`: its line live).
+ */
+export function freshWant(
+  state: RoomState,
+  lastSeq: number,
+  clock: { readonly offset: number; readonly now: number; readonly heard: boolean },
+): { readonly want: NonNullable<RoomState['want']>; readonly act: boolean } | null {
+  const want = state.want
+  if (!want || want.seq <= lastSeq) return null
+  const act =
+    want.at === undefined ? clock.heard : clock.now + clock.offset - want.at <= WANT_FRESH_MS
+  return { want, act }
 }
 
 // --- keep it going ------------------------------------------------------------------
@@ -329,11 +520,15 @@ export function freshWant(state: RoomState, lastSeq: number): RoomState['want'] 
 /**
  * Songs to add when the list runs low, taking turns between the people whose
  * songs are in the room: from shelves, and songs that played, leaving out the
- * last few to play so nothing comes straight back. As actions the host sends.
+ * last few to play so nothing comes straight back, and the songs of anyone
+ * who left. As actions the host sends.
  *
  * With `closeness` — how near a song sounds to what just played
  * (`soundTarget`) — each person's turn is the nearest of theirs; a song with
  * no vector comes after those that have one, in no particular order.
+ *
+ * `refused` names played entries the room would not take again
+ * (`sendKeepGoing`): a shared playlist's song it no longer lends.
  */
 export function keepGoingPicks(
   state: RoomState,
@@ -341,6 +536,7 @@ export function keepGoingPicks(
   options: {
     readonly random?: () => number
     readonly closeness?: (song: RoomSong) => number | null
+    readonly refused?: ReadonlySet<string>
   } = {},
 ): RoomAction[] {
   const random = options.random ?? Math.random
@@ -368,6 +564,8 @@ export function keepGoingPicks(
   }
   const seen = new Set<string>()
   for (const entry of playedEntries(state)) {
+    // Someone who left lends nothing new, nor a playlist that let it go.
+    if (!canPlayAgain(state, entry) || options.refused?.has(entry.id)) continue
     const key = keyOf(entry.song)
     if (seen.has(key)) continue
     seen.add(key)
@@ -392,6 +590,35 @@ export function keepGoingPicks(
     if (!any) break
   }
   return picks
+}
+
+/**
+ * Autoplay's picks, sent one at a time: how many the room took. A song it
+ * refuses to play again (403, `room_forbidden`: its owner left, or its
+ * playlist no longer lends it) goes in `refused`, so it is not asked for
+ * again; anything else refused may do next time.
+ */
+export async function sendKeepGoing(
+  picks: readonly RoomAction[],
+  act: (action: RoomAction) => Promise<unknown>,
+  refused: Set<string>,
+): Promise<number> {
+  let taken = 0
+  for (const action of picks) {
+    try {
+      await act(action)
+      taken++
+    } catch (error) {
+      if (
+        action.type === 'again' &&
+        error instanceof DoormanError &&
+        error.code === DOORMAN_ERROR.roomForbidden
+      ) {
+        refused.add(action.entryId)
+      }
+    }
+  }
+  return taken
 }
 
 /**
@@ -431,26 +658,27 @@ function keyOf(song: RoomSong): string {
 // --- after ----------------------------------------------------------------------
 
 /** A room that ended, as Recently played keeps it. */
-export interface PastRoom {
-  readonly code: string
-  readonly title: string
-  readonly endedAt: number
-  readonly people: readonly {
-    readonly name: string
-    readonly colour: number
-    readonly picture: string | null
-  }[]
+export const PastRoomSchema = z.object({
+  code: z.string(),
+  title: z.string(),
+  endedAt: z.number(),
+  people: z.array(
+    z.object({ name: z.string(), colour: z.number(), picture: z.string().nullable() }),
+  ),
   /** The shared playlist it was kept as, when it was (features/shared). */
-  readonly shared: string | null
-  readonly songs: readonly {
-    readonly song: RoomSong
-    readonly by: string
-    readonly colour: number
-    readonly picture: string | null
-    /** Brought by you, from your own library. */
-    readonly mine: boolean
-  }[]
-}
+  shared: z.string().nullable(),
+  songs: z.array(
+    z.object({
+      song: RoomSongSchema,
+      by: z.string(),
+      colour: z.number(),
+      picture: z.string().nullable(),
+      /** Brought by you, from your own library. */
+      mine: z.boolean(),
+    }),
+  ),
+})
+export type PastRoom = z.infer<typeof PastRoomSchema>
 
 /**
  * Rooms remembered before faces had pictures, or before a room said which

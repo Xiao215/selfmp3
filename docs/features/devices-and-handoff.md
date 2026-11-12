@@ -14,6 +14,11 @@ against whichever answers.
 Listening with friends is a different thing, built on the doorman rather than the server:
 see [listen-together.md](listen-together.md).
 
+**Where:** the phone, the computer, the web and the desktop app, every one of them a device;
+the server holds presence (`apps/server/src/services/devices.ts`, `events.ts`). With no
+server in reach there is nothing to hand off to. The files are listed under
+[Where the code lives](#where-the-code-lives).
+
 ---
 
 ## What you get
@@ -98,13 +103,17 @@ HTTP), it reconnects by itself, it survives Tailscale Funnel and any proxy witho
 handling, and it needs no dependency. The compression middleware skips `/api/events`, since a
 buffered stream is not a stream. A stream that stops reading — more than a megabyte waiting to
 go to it — is dropped (`MAX_QUEUED_BYTES`); its client reconnects and the replay catches it up.
+At most 200 streams are open at once (`MAX_STREAMS`): past that the oldest is closed and its
+client reconnects the same way, so one device with a token cannot open streams without end.
 
 The library version starts each boot from the server's clock, so a device reconnecting after
 a restart is never told a number it saw before for a different library. A browser replaces a
-stream it gave up on (a 502 while the server restarted closes an `EventSource` for good), and a
-tab hidden for thirty seconds that is not playing closes its stream until it is looked at: a
+stream it gave up on (a 502 while the server restarted closes an `EventSource` for good). A
 browser allows six connections to one address over plain HTTP, and six tabs' streams took them
-all. The phone's reader opens a fresh connection once one has carried 128 KB past the replay,
+all, so a browser's tabs share one stream (`ports/events.web.ts`): the tab holding a Web Lock
+reads it, names every tab on it, and passes each event to the others over a
+`BroadcastChannel`. A tab hidden for thirty seconds that is not playing leaves it until it is
+looked at (`useStreamWanted`). The phone's reader opens a fresh connection once one has carried 128 KB past the replay,
 and never sooner than ten seconds after it opened.
 
 Polling `GET /api/devices` (every 15 seconds) is the fallback, and switches itself off while
@@ -211,9 +220,10 @@ does start playing, because someone on another device just asked for it — but 
 has never played audio in that tab may still refuse until you tap once, which is the autoplay
 policy, not a bug.
 
-**Two tabs on the same machine are two devices only in different browsers.** The id lives in
-`localStorage`, so a second tab in the same browser profile shares it and both tabs will act
-on a command sent to it. A different browser, or a private window, is a different device.
+**Every open tab is its own device.** Tabs of one browser profile share the stored id, so
+each takes a numbered slot on it (`ports/tabSlots.model.ts`, above): a command sent to the
+second tab reaches only that tab. A different browser, or a private window, starts from an id
+of its own.
 
 **Positions are extrapolated, not simulated.** Another device reports every ten seconds;
 between reports its position advances by the wall clock, so "Play here" starts where it is now

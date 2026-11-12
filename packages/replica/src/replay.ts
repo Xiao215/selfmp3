@@ -80,7 +80,8 @@ export function latestStamp(snapshot: CloudSnapshot | null): string | null {
     see(song.tagStamps)
   }
   for (const tag of snapshot?.tags ?? []) see(tag.stamps)
-  for (const playlist of snapshot?.playlists ?? []) {
+  // One kept aside keeps its stamps, and a song put back must pass them.
+  for (const playlist of [...(snapshot?.playlists ?? []), ...(snapshot?.emptiedPlaylists ?? [])]) {
     see(playlist.stamps)
     see(playlist.songStamps)
   }

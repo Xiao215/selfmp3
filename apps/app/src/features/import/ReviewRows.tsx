@@ -23,7 +23,6 @@ import {
 } from '@selfmp3/client'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, rowTitle, textColumn } from '../../ui/surfaces'
-import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { Sparkle } from '../../ui/components/Icons'
@@ -34,6 +33,8 @@ import type { ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
 import { useToneColors } from '../../ui/useSongColor'
 import { ListenBar, ListenCover, type useListen } from './ImportListen'
+import { SourceChoice } from './SourceChoice'
+import { SuggestedName, SuggestionLine, SuggestionWhy, UseSuggestion } from './ReviewSuggestion'
 import { chooseSourceIn, lookAgainIn, renameIn, toggleChosenIn } from './importDraft'
 import type { DraftList, DraftSource } from './importDraft.model'
 import {
@@ -45,7 +46,6 @@ import {
 } from './listen.model'
 import { chosenState, rowState, sourceWords, type Rename, type RowState } from './review.model'
 import {
-  changesWords,
   suggestionChanges,
   suggestionFor,
   type NameChange,
@@ -190,8 +190,7 @@ export function useReviewRows({
     if (next === 'wait') return
     setOpening(null)
     if (next === 'open') setOpen(opening)
-    // The preview's url and status are what decide; the object changes every tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the preview's url and status are what decide; the object changes every tick.
   }, [opening, listeningUrl, listeningStatus])
   // Ticking is separate from hearing: an unticked song still plays and still
   // opens, so you can listen before deciding, and an open row stays open.
@@ -369,50 +368,6 @@ interface RowProps {
 }
 
 /**
- * The model's names for a row (A9), under it where it has no columns — a
- * phone's row, or its open card: the sparkle, each name it would change with
- * what it is (Title, Artist, Album), why, and Use, which renames the row as
- * typing would. The names it keeps are left out. Only a row coming in has
- * one; a song the library has is not offered it.
- */
-function SuggestionLine({
-  suggestion,
-  index,
-  onUse,
-  wide,
-}: {
-  suggestion: NameSuggestion
-  index: number
-  onUse: (index: number, names: Rename) => void
-  /** In a phone's open card: no room kept for the box. */
-  wide: boolean
-}): ReactNode {
-  const changes = suggestionChanges(suggestion)
-  return (
-    <View
-      style={[styles.suggestion, wide && styles.suggestionWide]}
-      testID={`import-suggestion-${index}`}
-    >
-      <Sparkle size={iconSize.sub} />
-      <View style={styles.suggestionWords}>
-        {changes.map(change => (
-          <View key={change.name} style={styles.suggestionChange}>
-            <Text style={styles.suggestionLabel} numberOfLines={1}>
-              {change.label}
-            </Text>
-            <SuggestedName change={change} />
-          </View>
-        ))}
-        <Text style={styles.suggestionWhy} numberOfLines={1}>
-          {suggestion.why}
-        </Text>
-      </View>
-      <UseSuggestion suggestion={suggestion} changes={changes} index={index} onUse={onUse} />
-    </View>
-  )
-}
-
-/**
  * The model's names for a row on a computer's grid, each under the column it
  * would replace — a new title under the title, a new artist under Artist —
  * with the columns it keeps left empty, why under them, and Use under the
@@ -447,9 +402,7 @@ function SuggestionGridRow({
             {under('artist', styles.colArtist)}
             {under('album', styles.colAlbum)}
           </View>
-          <Text style={styles.suggestionWhy} numberOfLines={1}>
-            {suggestion.why}
-          </Text>
+          <SuggestionWhy why={suggestion.why} />
         </View>
         {showFrom ? <View style={styles.colFrom} /> : null}
         <View style={styles.colEnd}>
@@ -457,45 +410,6 @@ function SuggestionGridRow({
         </View>
       </View>
     </View>
-  )
-}
-
-/**
- * A name the model would give, in the sparkle's accent so the sparkle, the
- * names and Use read as one thing; what leaving it empty would mean ("No
- * album") stays quiet.
- */
-function SuggestedName({ change }: { change: NameChange }): ReactNode {
-  return (
-    <Text style={[styles.suggestionName, change.empty && styles.suggestionEmpty]} numberOfLines={1}>
-      {change.words}
-    </Text>
-  )
-}
-
-/** Use, the sparkle on a small accent pill: all three of the model's names at once, as one rename. */
-function UseSuggestion({
-  suggestion,
-  changes,
-  index,
-  onUse,
-}: {
-  suggestion: NameSuggestion
-  changes: readonly NameChange[]
-  index: number
-  onUse: (index: number, names: Rename) => void
-}): ReactNode {
-  const { title, artist, album } = suggestion
-  return (
-    <Button
-      label="Use"
-      icon={<Sparkle tone="onAccent" />}
-      variant="primary"
-      size="small"
-      onPress={() => onUse(index, { title, artist, album })}
-      accessibilityLabel={`Use the suggested ${changesWords(changes)}`}
-      testID={`import-suggestion-use-${index}`}
-    />
   )
 }
 
@@ -549,112 +463,6 @@ function FromWords({ words, warn }: { words: string | null; warn: boolean }): Re
   )
 }
 
-/**
- * Where an open row's song comes from, to change (docs/features/import-sources.md).
- *
- * A song listed by 网易云 has both: 网易云's own file, when it gives the
- * whole song out, or the same song found on YouTube. A song known only by
- * its name — a Spotify list, a list of names — has YouTube's match, which is
- * looked for again by its name as it stands, for a match that was not the
- * song or a name fixed by hand. A pasted YouTube link has nothing to choose.
- */
-function SourceChoice({
-  item,
-  index,
-  onSource,
-  onLookAgain,
-}: {
-  item: ImportPreviewItem
-  index: number
-  onSource: (index: number, source: ImportSource) => void
-  onLookAgain: (index: number) => void
-}): ReactNode {
-  const match = item.youtube?.match ?? null
-  const youtubeWords =
-    match === 'looking'
-      ? 'Looking…'
-      : match === 'none'
-        ? 'Not found'
-        : match === 'unsure'
-          ? 'Not sure it’s the song'
-          : match === 'sure'
-            ? 'Found'
-            : 'Find it there'
-  if (item.netease) {
-    const free = item.netease.free
-    return (
-      <View style={styles.choice} accessibilityRole="radiogroup" accessibilityLabel="Download from">
-        <SourceOption
-          name="网易云"
-          words={free ? 'The whole song' : 'Only a preview there (VIP)'}
-          on={item.source === 'netease'}
-          disabled={!free}
-          onPress={() => onSource(index, 'netease')}
-        />
-        <SourceOption
-          name="YouTube"
-          words={youtubeWords}
-          on={item.source === 'youtube'}
-          disabled={false}
-          onPress={() => onSource(index, 'youtube')}
-        />
-        {item.source === 'youtube' && (match === 'none' || match === 'unsure') ? (
-          <Button label="Look again" variant="text" onPress={() => onLookAgain(index)} />
-        ) : null}
-      </View>
-    )
-  }
-  if (!item.youtube) return null
-  return (
-    <View style={styles.found}>
-      <Text style={[styles.foundWords, match === 'unsure' && styles.warn]} numberOfLines={1}>
-        {match === 'looking'
-          ? 'Looking for it on YouTube…'
-          : match === 'none'
-            ? 'Not found on YouTube. Fix its name, then look again.'
-            : match === 'unsure'
-              ? 'Found on YouTube, but not sure it’s the song: have a listen.'
-              : 'Found on YouTube.'}
-      </Text>
-      {match === 'looking' ? null : (
-        <Button label="Look again" variant="text" onPress={() => onLookAgain(index)} />
-      )}
-    </View>
-  )
-}
-
-/** One place a song can come from, in `SourceChoice`. */
-function SourceOption({
-  name,
-  words,
-  on,
-  disabled,
-  onPress,
-}: {
-  name: string
-  words: string
-  on: boolean
-  disabled: boolean
-  onPress: () => void
-}): ReactNode {
-  return (
-    <Press
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: on, disabled }}
-      accessibilityLabel={`${name}: ${words}`}
-      wrap={styles.optionPlace}
-      style={[styles.option, on && styles.optionOn, disabled && styles.dim]}
-    >
-      <Text style={[styles.optionName, on && styles.optionNameOn]}>{name}</Text>
-      <Text style={[styles.optionWords, on && styles.optionWordsOn]} numberOfLines={1}>
-        {words}
-      </Text>
-    </Press>
-  )
-}
-
 /** A field on an open row: a title or an artist, named the way `P30` names it. */
 function NameField({
   label,
@@ -676,11 +484,7 @@ function NameField({
       {...NO_AUTOFILL}
       style={[
         styles.input,
-        label === 'Title'
-          ? styles.inputTitle
-          : label === 'Artist'
-            ? styles.inputArtist
-            : styles.inputAlbum,
+        label === 'Title' ? styles.inputTitle : styles.inputName,
         wide ? styles.fieldWide : styles.inputPhone,
         wide && focused && styles.fieldFocused,
       ]}
@@ -1213,23 +1017,6 @@ const styles = StyleSheet.create(theme => ({
   endStack: { alignItems: 'flex-end', gap: 3, maxWidth: 130 },
   endWords: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
   warn: { color: theme.colors.warning },
-  // The open row's choice of where the song comes from: two options side by side.
-  choice: { flexDirection: 'row', alignItems: 'center', gap: space.tight, flexWrap: 'wrap' },
-  optionPlace: { flexGrow: 1, flexBasis: 0, minWidth: 120, maxWidth: 260 },
-  option: {
-    gap: 1,
-    paddingHorizontal: space.md,
-    paddingVertical: 7,
-    borderRadius: radius.item,
-    backgroundColor: theme.colors.surface0,
-  },
-  optionOn: { backgroundColor: theme.colors.textPrimary },
-  optionName: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '700' },
-  optionNameOn: { color: theme.colors.surface0 },
-  optionWords: { color: theme.colors.textSecondary, fontSize: type.tiny },
-  optionWordsOn: { color: withAlpha(theme.colors.surface0, 0.7) },
-  found: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  foundWords: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
   endText: { textAlign: 'right' },
   names2: { flex: 3.2, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GAP },
   gridRowWrap: { borderRadius: 10, marginBottom: 2 },
@@ -1237,30 +1024,9 @@ const styles = StyleSheet.create(theme => ({
   lit: { backgroundColor: theme.colors.surface1 },
   barRow: { paddingTop: space.xs, paddingBottom: space.roomy },
   suggestionRow: { paddingBottom: space.sm, marginTop: -space.xs },
-  // The model's names for a row: the sparkle, the names it changes and why, and Use.
-  suggestion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingLeft: 34 + space.sm,
-    paddingBottom: space.sm,
-  },
-  suggestionWide: { paddingLeft: 0, paddingBottom: 0 },
-  suggestionWords: { flex: 1, minWidth: 0, gap: 1 },
-  suggestionChange: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  // Wide enough for ARTIST, as the open card's field labels are.
-  suggestionLabel: {
-    ...groupLabel(theme.colors),
-    width: 52,
-    fontSize: type.tiny,
-    letterSpacing: 0.7,
-  },
-  suggestionName: { flexShrink: 1, color: theme.colors.accentStrong, fontSize: type.sub },
-  suggestionEmpty: { color: theme.colors.textMuted },
   // On a computer: the sparkle where the cover is, and the names on the row's own columns.
   suggestionMark: { alignItems: 'center' },
   suggestionColumns: { flexDirection: 'row', alignItems: 'center', gap: GAP },
-  suggestionWhy: { color: theme.colors.textMuted, fontSize: type.tiny },
   dim: { opacity: OPACITY.disabled },
   // The boxes, sized as the library's rows size theirs (`SongRow`).
   select: {
@@ -1333,8 +1099,7 @@ const styles = StyleSheet.create(theme => ({
   },
   inputPhone: { flex: 1, minWidth: 0 },
   inputTitle: { fontSize: type.body, fontWeight: '600' },
-  inputArtist: { fontSize: type.body },
-  inputAlbum: { fontSize: type.body },
+  inputName: { fontSize: type.body },
   barBlock: { gap: space.xs },
   times: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   time: { color: theme.colors.textSecondary, fontSize: type.tiny, fontVariant: ['tabular-nums'] },

@@ -705,6 +705,9 @@ input {
 .plot .marker-label {
   fill: var(--text-secondary);
   font-weight: 600;
+  stroke: var(--surface1);
+  stroke-width: 4px;
+  paint-order: stroke;
 }
 .plot .hit {
   fill: transparent;

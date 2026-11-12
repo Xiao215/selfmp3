@@ -173,7 +173,7 @@ export const LentFileSchema = z.union([
   }),
   z.object({ listen: z.string().url() }),
 ])
-type LentFile = z.infer<typeof LentFileSchema>
+export type LentFile = z.infer<typeof LentFileSchema>
 
 /** A refusal's code, by what was refused. */
 const ROOM_REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> = {
@@ -340,8 +340,22 @@ export class Room {
         return answer(403, DOORMAN_ERROR.roomForbidden, 'sign in as yourself to bring your songs')
       }
     }
-    const next = applyRoomAction(doc, member, input.action, this.#runtime.now(), this.#newId)
+    let made: string | null = null
+    const newId = (): string => (made = this.#newId())
+    const next = applyRoomAction(doc, member, input.action, this.#runtime.now(), newId)
     if (isRoomRefusal(next)) return refusal(next)
+    if (input.action.type === 'again' && made !== null) {
+      // A shared playlist's song played again is lent as the first was, and
+      // still only while the playlist has it (rooms.ts asks on every read).
+      const secrets = await this.#secrets()
+      const lend = secrets.entryLends?.[input.action.entryId]
+      if (lend) {
+        await this.#runtime.storage.put<Secrets>('secrets', {
+          ...secrets,
+          entryLends: { ...secrets.entryLends, [made]: lend },
+        })
+      }
+    }
     await this.#save(next, input.action.type === 'kick' ? input.action.member : null)
     return Response.json(this.#stateFor(next, member))
   }
@@ -363,7 +377,9 @@ export class Room {
     const found = await this.#member(url)
     if (found instanceof Response) return found
     const part = RoomFilePartSchema.safeParse(url.searchParams.get('part'))
-    const entry = canReadEntry(found.doc, found.member, url.searchParams.get('entry') ?? '')
+    const entry = part.success
+      ? canReadEntry(found.doc, found.member, url.searchParams.get('entry') ?? '', part.data)
+      : null
     if (!part.success || !entry) {
       return answer(404, DOORMAN_ERROR.roomMissing, 'that song is not in the room')
     }
@@ -620,6 +636,18 @@ function send(socket: RoomSocket, message: RoomServerMessage): void {
   }
 }
 
+/** A hibernating socket as the room sees it: its member is the tag it was accepted with. */
+function socketOf(state: DurableObjectState, ws: WebSocket): RoomSocket {
+  return {
+    member: state.getTags(ws)[0] ?? '',
+    send: text => ws.send(text),
+    close: (code, reason) => ws.close(code, reason),
+  }
+}
+
+/** `WebSocket.READY_STATE_OPEN`, which only the Workers runtime defines. */
+const SOCKET_OPEN = 1
+
 /**
  * The Durable Object class, exported from index.ts by the name wrangler.toml
  * binds (`Room`). It hands the runtime's storage, alarm and hibernating
@@ -632,11 +660,6 @@ export class RoomObject {
 
   constructor(state: DurableObjectState) {
     this.#state = state
-    const socketOf = (ws: WebSocket): RoomSocket => ({
-      member: state.getTags(ws)[0] ?? '',
-      send: text => ws.send(text),
-      close: (code, reason) => ws.close(code, reason),
-    })
     this.#room = new Room({
       storage: {
         get: key => state.storage.get(key),
@@ -649,7 +672,13 @@ export class RoomObject {
         state.acceptWebSocket(pair[1], [member])
         return new Response(null, { status: 101, webSocket: pair[0] })
       },
-      sockets: () => state.getWebSockets().map(socketOf),
+      // Only the open ones: a socket is still listed, closing, in its own
+      // `webSocketClose`, and the others would hear its member is still here.
+      sockets: () =>
+        state
+          .getWebSockets()
+          .filter(ws => ws.readyState === SOCKET_OPEN)
+          .map(ws => socketOf(state, ws)),
       now: () => Date.now(),
     })
   }
@@ -660,14 +689,7 @@ export class RoomObject {
 
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
     if (typeof message !== 'string') return
-    this.#room.message(
-      {
-        member: this.#state.getTags(ws)[0] ?? '',
-        send: text => ws.send(text),
-        close: (code, reason) => ws.close(code, reason),
-      },
-      message,
-    )
+    this.#room.message(socketOf(this.#state, ws), message)
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
@@ -677,6 +699,11 @@ export class RoomObject {
       // Already closed.
     }
     await this.#room.closed()
+  }
+
+  /** A socket that broke rather than closed: gone all the same. */
+  async webSocketError(ws: WebSocket): Promise<void> {
+    await this.webSocketClose(ws, 1011, 'the socket broke')
   }
 
   alarm(): Promise<void> {

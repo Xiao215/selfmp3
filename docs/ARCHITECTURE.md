@@ -68,7 +68,7 @@ apps/app                 one Expo app for iOS, Android and the web (Foundations 
   src/offline/           downloads, the saved library, the listen outbox
   src/shell/             the width-decided frame: tab bar or sidebar, mini player or bar
   src/ui/                components, icons, the Unistyles theme
-  sw/sw.ts               service worker, bundled to public/sw.js by esbuild
+  sw/                    service worker: sw.ts, audio.ts and bucket.ts, bundled to public/sw.js by esbuild
   public/                manifest, icons: copied into the web export as they are
   targets/widget/        the iOS home-screen widgets, in SwiftUI
 
@@ -116,8 +116,9 @@ other — fails silently on a phone, weeks later.
 
 A route validates input and returns a value. A service holds behaviour. A repository holds
 SQL. **No SQL exists outside `repositories/`**, so a schema change has one blast radius.
-Routes never touch the database directly, so any route can be tested by handing it a
-container built on an in-memory SQLite.
+Routes never write SQL themselves, so any route can be tested by handing it a container
+built on a fresh database in a temporary folder (`SELFMP3_DATA_DIR`, with
+`SELFMP3_CLOUD_DIR=bucket` so the API has a bucket to answer from).
 
 ### The composition root
 
@@ -131,9 +132,9 @@ a one-line change.
 `StorageDriver` — `exists`, `stat`, `read`, `write`, `delete`, `list`, `rangeSource`,
 `localPath` — is the inbox folder; `CloudStore` — `head`, `get`, `put`, `list`, `delete`,
 `range`, and the change counter — is the bucket. Local disk implements the first; the
-doorman's store (`bucket/doorman.ts`, what a workspace uses, through its grant),
-`S3CloudStore` (a bucket reached with its own key) and a folder (`bucket/local.ts`, for the
-dev profile and the verify lanes) implement the second, and the sync cannot tell them apart.
+doorman's store (`bucket/doorman.ts`, what a workspace uses, through its grant) and a folder
+(`bucket/local.ts`, for the dev profile and the verify lanes) implement the second, and the
+sync cannot tell them apart.
 `localPath` always has an answer, so tools that need a real filesystem path (ffmpeg, the tag
 reader) take the file where it is.
 
@@ -177,7 +178,7 @@ already been thrown away. A counter is lossy the moment you write it.
 
 The events go to the bucket too, so the server is not the only place they are kept: one
 gzipped file a month, `lyrics/<sha256>.plays`, named in the snapshot, this month's at most
-once an hour (`services/playsArchive.ts`, `#uploadPlays` in `services/cloudSync.ts`). A
+once an hour (`services/playsArchive.ts`, `uploadPlays` in `services/cloudLibraryFiles.ts`). A
 workspace taking on a library reads them back before it publishes anything. Stats are still
 worked out on the server, from its `play_events`, which is why a device asks the server for
 them directly.
@@ -274,9 +275,9 @@ What only the server can do, a device asks it for directly: Import (yt-dlp runs
 there), Stats and the Report (worked out from `play_events`), metadata lookup
 (the server asks iTunes and MusicBrainz), Ask and the other smart features, and
 presence for handoff. The device finds the server by the addresses in its
-bucket's snapshot — its LAN addresses and its public `https://` one
-(`SELFMP3_PUBLIC_URL`, a Tailscale Funnel on Xiao's Pi) are raced, and the first
-to answer as the server the snapshot names wins (`connection/useServerDirect.ts`;
+bucket's snapshot — its public `https://` one alone when it has one
+(`SELFMP3_PUBLIC_URL`, a Tailscale Funnel on Xiao's Pi), else its LAN addresses,
+raced — and the first to answer as the server the snapshot names wins (`connection/useServerDirect.ts`;
 docs/SYNC.md, "An answer has to be from the right server"). When none answers, the screen
 is still drawn and says why (`connection/ServerAway.tsx`); an import is left in
 the bucket for the server to take later. The bucket answers everything else, so
@@ -307,7 +308,7 @@ Joining needs no button. A signed-in device whose bucket names no server joins
 the shared one, whose address the app knows as it knows the doorman's
 (`DEFAULT_SERVER_URL` in `packages/shared/src/cloud.ts`;
 `packages/replica/src/sharedServer.ts`). Who may sign in at all is the doorman's
-to decide: its owners, and a list the owner keeps in Settings.
+to decide: its owners, and a list the owner keeps on the admin page's People tab.
 
 With a folder for a bucket (`SELFMP3_CLOUD_DIR`: the dev profile, the verify
 lanes) there are no accounts, and the hub holds one library in the data folder
@@ -402,13 +403,14 @@ phone, Playwright on the web. Nothing UI-shaped is left with zero coverage.
 | Audio, native | react-native-track-player 5 | Already in place. Gapless, lock screen, Android Auto. It is an alpha: its iOS half is patched at `pod install` (`apps/app/patches`, applied by `plugins/withPlayerPatches.js`) for a deadlock that stopped every animation in the app. **Fallback:** `expo-audio`, which in SDK 57 does background playback and lock-screen controls on both platforms; it lacks a native queue (so gapless) and Android Auto, and it is a second `engine.native.ts`, not a rewrite. |
 | Listening before importing, native | `expo-audio`, a player of its own | A preview on the review is not a song in track-player's one queue, and the web plays it in an audio element apart from the player (`ports/listen.web.ts`); the phone does the same through `expo-audio` (`ports/listen.ts`), told to leave the audio session, which is track-player's, alone, and given each stream through `preload` so opening it never holds the JavaScript thread. The playing row's colour comes from the server (`GET /api/import/cover-tone`, services/previewCoverTone.ts), which reads the cover as it reads the library's. Not a second engine: no queue, no lock screen. |
 | Offline, web | Cache API + service worker | Behind the offline port; the desktop app keeps files instead, through its bridge. |
-| Service worker build | esbuild | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
+| Service worker build | esbuild | The worker is `sw/sw.ts` and the few modules beside it, with no runtime dependencies, bundled to one `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
 | Offline, native | files + JSON index | Behind the same port. |
 | Icons | `react-native-svg` | One file for all three platforms. |
 | Hardware keyboard, iOS | **A local Expo module**, `apps/app/modules/key-commands` (Swift over `expo-modules-core`) | React Native delivers no key presses on iOS. The module puts `UIKeyCommand`s with a `discoverabilityTitle` on the root view controller, so holding ⌘ lists them, sends each press to JavaScript as `{ input, modifiers }`, withdraws the ones a text field must keep while one is being typed in, and says whether a keyboard is attached (`GCKeyboard`). Autolinked from `modules/`; iOS only, so Android and the web never build it. Passed over in September 2026: `react-native-key-command` (Expensify) needs an `AppDelegate` patch, has no config plugin and no `discoverabilityTitle`; `react-native-keyevent` is unmaintained; `react-native-keyboard-controller` is the soft keyboard only; `react-native-external-keyboard` is focus-scoped. |
 | Turning an iPad | **A local Expo module**, `apps/app/modules/turn-cover` (Swift) | UIKit lays React Native's views out again at the new size inside the turn, before JavaScript hears of it, so the computer's layout was drawn squeezed into the upright window until the phone's was ready. A child of the root view controller hears `viewWillTransition`, covers the window with the old frame fading into the page's ground, and takes the cover down once JavaScript says it has drawn for the new size (`src/ports/turnCover.ts`), or after 2.5 s regardless. iOS only. |
 | Installing a newer iPhone build | **A local Expo module**, `apps/app/modules/home-screen` (Swift) | iOS downloads a build opened from inside the app (`itms-services://`) but puts it in only once the app has left the screen, so Install from the app looked like nothing. The module suspends the app as the Home gesture would (UIApplication's own `suspend`, not public API; fine for an ad hoc build), and `src/features/settings/AppUpdate.tsx` says what is happening around it. iOS only. |
 | Installing a newer Android build | **`expo-intent-launcher`**, with `expo-file-system` | The app downloads the APK into its cache and opens the system installer on the file's content URI (`src/ports/appUpdate.ts`); `REQUEST_INSTALL_PACKAGES` in the manifest is what lets an app hand the installer a package. A local module was not worth it for one intent. |
+| Many-shape drawing, native | **`@shopify/react-native-skia` 2.6** (Expo SDK 57's version) | The sound map's sky: thousands of stars and covers, moved and pinched at the screen's rate. Recorded as an `SkPicture` and moved on the native side from a Reanimated shared value, so a move costs React nothing and a pinch stays sharp ([features/sound-map.md](features/sound-map.md)). It replaced `react-native-svg` plus rasterized views there (2026-10-31), which built thousands of native views at every settle. The browser keeps its own `<canvas>`: Skia on the web is CanvasKit, several megabytes of WebAssembly for what canvas 2D already does. Adds a few megabytes to each phone build; a new native module, so the simulator and phone builds must be made again once. |
 | Canvas work | A port twin per platform, sharing its model | The song visual is a canvas in a browser (`SongVisual.web.tsx`) and views moved by Reanimated on a phone (`SongVisual.tsx`), and both step the same `visualMotion.model.ts`. Expo DOM components (`'use dom'`) were the plan; a webview turned out to cost more than a second drawing, and nothing in the app uses one. |
 | Tests | vitest for packages and model files, jest-expo + RNTL for the app, Maestro and Playwright for flows | See foundation 8. Vitest cannot yet run React Native components; Jest stays for those. |
 | Repo tooling | npm workspaces, as now | pnpm + Turborepo is the 2026 default, and it is deliberately not adopted here: `docs/MOBILE.md` records how fragile the lockfile already is around React singletons, and a solo project gains nothing from a cached task graph. Revisit only when CI time hurts. |

@@ -14,6 +14,7 @@ import {
   type SourceLine,
 } from './lists.model'
 import { noteListSaved } from './recentLists.store'
+import { playlistLink } from '../tag/placeLinks'
 
 /**
  * Up next's Save (docs/features/lists.md): what plays now, kept as a playlist.
@@ -109,11 +110,7 @@ export function useSaveUpNext(): {
             also: [
               {
                 label: 'Open',
-                onPress: () =>
-                  router.navigate({
-                    pathname: '/playlists/[id]',
-                    params: { id: String(created.id) },
-                  }),
+                onPress: () => router.navigate(playlistLink(created.id)),
               },
             ],
           },

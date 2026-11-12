@@ -1,4 +1,5 @@
 import { usualSlot, type Song, type UsualHours } from '@selfmp3/shared'
+import { dayPart } from './home.model'
 
 /**
  * Home's hour tile, "Usually at this hour" (docs/features/wrapped-and-gems.md):
@@ -15,22 +16,14 @@ export const USUAL_LEAST_HERE = 5
 /** A song of no known length counts as this long. */
 const UNKNOWN_SECONDS = 240
 
-/** The tile's name, by the hour: the day's five parts, as the greeting cuts them. */
+/** The tile's name, by the hour: the day's five parts, as the greeting cuts them (`dayPart`). */
 export function usualName(hour: number): string {
-  if (hour >= 5 && hour < 8) return 'Early morning'
-  if (hour >= 8 && hour < 12) return 'Morning'
-  if (hour >= 12 && hour < 17) return 'Afternoon'
-  if (hour >= 17 && hour < 22) return 'Evening'
-  return 'Late night'
+  return dayPart(hour).usual
 }
 
-/** Each part of the day's colour, as a tag's hue: dawn, sun, sky, dusk, night. */
+/** That part of the day's colour, as a tag's hue. */
 export function usualHue(hour: number): number {
-  if (hour >= 5 && hour < 8) return 340
-  if (hour >= 8 && hour < 12) return 85
-  if (hour >= 12 && hour < 17) return 220
-  if (hour >= 17 && hour < 22) return 40
-  return 265
+  return dayPart(hour).hue
 }
 
 /**

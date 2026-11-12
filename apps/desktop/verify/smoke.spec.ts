@@ -63,11 +63,7 @@ test.describe('the shell', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
 
-      const info = await page.evaluate(
-        () =>
-          (window as unknown as { selfmp3Desktop: { info: Record<string, unknown> } })
-            .selfmp3Desktop.info,
-      )
+      const info = await page.evaluate(() => window.selfmp3Desktop.info)
 
       expect(info['platform']).toBe(process.platform)
       expect(String(info['version'])).toMatch(/^\d+\.\d+\.\d+$/)
@@ -155,17 +151,7 @@ test.describe('the shell', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
       const round = await page.evaluate(async () => {
-        const desktop = (
-          window as unknown as {
-            selfmp3Desktop: {
-              secrets: {
-                get(k: string): Promise<string | null>
-                set(k: string, v: string): Promise<void>
-                remove(k: string): Promise<void>
-              }
-            }
-          }
-        ).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         await desktop.secrets.set('smoke.token', 'a-token')
         const read = await desktop.secrets.get('smoke.token')
         await desktop.secrets.remove('smoke.token')
@@ -185,11 +171,7 @@ test.describe('the shell', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
       const refused = await page.evaluate(async () => {
-        const desktop = (
-          window as unknown as {
-            selfmp3Desktop: { secrets: { set(k: string, v: string): Promise<void> } }
-          }
-        ).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         try {
           await desktop.secrets.set('../../etc/passwd', 'no')
           return false
@@ -294,7 +276,7 @@ test.describe('files on disk', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const result = await page.evaluate(async url => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         const seen: number[] = []
         const stop = desktop.onProgress(progress => seen.push(progress.bytesWritten))
         const done = await desktop.files.download({ id: 't1', kind: 'songs', name: '1.m4a', url })
@@ -375,7 +357,7 @@ test.describe('files on disk', () => {
 
       const result = await page.evaluate(
         async urls => {
-          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          const desktop = window.selfmp3Desktop
 
           // Cancel part-way through: what is on disk is then a .part, and `stat`
           // — which is what the index trusts — says nothing.
@@ -440,7 +422,7 @@ test.describe('files on disk', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
       const refused = await page.evaluate(async () => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         const results: boolean[] = []
         for (const name of ['../secrets.json', 'a/b.m4a', '..', '.hidden']) {
           try {
@@ -465,7 +447,7 @@ test.describe('files on disk', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const result = await page.evaluate(async url => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
 
         // What the page would get on its own: no header, and — from a secure
         // app:// origin — not even a request. Either way, no picture.
@@ -547,7 +529,7 @@ test.describe('files on disk', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const result = await page.evaluate(async () => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         return { list: await desktop.files.list('songs'), usage: await desktop.files.usage() }
       })
 
@@ -587,7 +569,7 @@ test.describe('files on disk', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const wrote = await page.evaluate(async text => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
 
         // The approach the channel exists to avoid: a blob URL never leaves
         // the renderer.
@@ -619,7 +601,7 @@ test.describe('files on disk', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const afterRelaunch = await page.evaluate(async () => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         const back = await fetch(desktop.mediaUrl('songs', 'downloads.json'))
         return {
           text: await back.text(),
@@ -641,7 +623,7 @@ test.describe('files on disk', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const downloaded = await page.evaluate(async url => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         const done = await desktop.files.download({ id: 't4', kind: 'songs', name: '4.m4a', url })
         return done.state
       }, `${origin}/api/stream/1`)
@@ -652,7 +634,7 @@ test.describe('files on disk', () => {
       served = false
 
       const offline = await page.evaluate(async url => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         // Gone: nothing is coming over the network any more.
         const reachable = await fetch(url)
           .then(() => true)
@@ -697,7 +679,7 @@ test.describe('files on disk', () => {
  * All of it read from the main process, because that is where it lives. What
  * cannot be checked here is what any of it looks like — the Dock menu is
  * macOS-only and this is Linux — so these test that the wiring carries, and
- * the plan's by-hand list covers the rest.
+ * docs/PREPROD.md's by-hand checks cover the rest.
  */
 test.describe('an application, not a page', () => {
   test('a menu item sends its command to the page', async () => {
@@ -708,9 +690,9 @@ test.describe('an application, not a page', () => {
 
       // The page listens the way the app itself does, through the bridge.
       await page.evaluate(() => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         const seen: string[] = []
-        ;(window as unknown as { seen: string[] }).seen = seen
+        window.seen = seen
         desktop.onCommand(command => seen.push(command))
       })
 
@@ -737,7 +719,7 @@ test.describe('an application, not a page', () => {
 
       expect(clicked).toEqual(['Space', 'CmdOrCtrl+0'])
       await expect
-        .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
+        .poll(() => page.evaluate(() => window.seen))
         .toEqual(['play-pause', 'now-playing'])
     } finally {
       await app.close()
@@ -756,9 +738,9 @@ test.describe('an application, not a page', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('domcontentloaded')
       await page.evaluate(() => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         const seen: string[] = []
-        ;(window as unknown as { seen: string[] }).seen = seen
+        window.seen = seen
         desktop.onCommand(command => seen.push(command))
       })
 
@@ -783,7 +765,7 @@ test.describe('an application, not a page', () => {
 
       expect(chose).toBe('clicked')
       await expect
-        .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
+        .poll(() => page.evaluate(() => window.seen))
         .toEqual(['now-playing', 'play-pause'])
     } finally {
       await app.close()
@@ -883,7 +865,7 @@ test.describe('an application, not a page', () => {
         })
       const tell = (state: { shuffle: boolean; repeat: string; liked: boolean | null }) =>
         page.evaluate(async next => {
-          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          const desktop = window.selfmp3Desktop
           await desktop.setMenuState(next)
         }, state)
 
@@ -921,7 +903,7 @@ test.describe('an application, not a page', () => {
         )
       const tell = (colour: string) =>
         page.evaluate(async next => {
-          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          const desktop = window.selfmp3Desktop
           await desktop.setWindowGround(next)
         }, colour)
       // The app gives the window its theme's ground as it mounts (Shell's
@@ -949,9 +931,9 @@ test.describe('an application, not a page', () => {
       const page = await app.firstWindow()
       await page.waitForLoadState('load')
       await page.evaluate(() => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         const seen: string[] = []
-        ;(window as unknown as { seen: string[] }).seen = seen
+        window.seen = seen
         desktop.onDeepLink(url => seen.push(url))
         history.pushState(null, '', '/playlists')
         history.replaceState(null, '', '/library')
@@ -961,9 +943,7 @@ test.describe('an application, not a page', () => {
       await app.evaluate(({ app: electronApp }) => {
         electronApp.emit('open-url', { preventDefault: () => {} }, 'selfmp3://now-playing')
       })
-      await expect
-        .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
-        .toEqual(['selfmp3://now-playing'])
+      await expect.poll(() => page.evaluate(() => window.seen)).toEqual(['selfmp3://now-playing'])
     } finally {
       await app.close()
     }
@@ -1019,7 +999,7 @@ test.describe('an application, not a page', () => {
       const tell = async (playing: boolean): Promise<boolean> => {
         await page.evaluate(
           async state => {
-            const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+            const desktop = window.selfmp3Desktop
             await desktop.setPlaybackState(state)
           },
           { playing, title: playing ? 'A song' : null, artist: playing ? 'Someone' : null },
@@ -1059,7 +1039,7 @@ test.describe('an application, not a page', () => {
       await page.waitForLoadState('domcontentloaded')
 
       const status = await page.evaluate(async () => {
-        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const desktop = window.selfmp3Desktop
         return desktop.updates.check()
       })
 
@@ -1190,7 +1170,7 @@ test.describe('streams from the bucket', () => {
 
       const result = await page.evaluate(
         async ({ doormanUrl, key }) => {
-          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          const desktop = window.selfmp3Desktop
           await desktop.bucket.use({ doormanUrl, token: 't' })
           const url = desktop.bucket.streamUrl(key)
 
@@ -1261,7 +1241,7 @@ test.describe('streams from the bucket', () => {
 
       const result = await page.evaluate(
         async ({ doormanUrl, capped, song: songKey }) => {
-          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          const desktop = window.selfmp3Desktop
           const heard: string[] = []
           const stop = desktop.bucket.onCapped(message => heard.push(message))
 
@@ -1373,12 +1353,7 @@ test.describe('connects and plays', () => {
        * build reads it, hence the window loading from the web dev server.
        */
       await page.evaluate(async baseUrl => {
-        const desktop = (
-          window as unknown as {
-            selfmp3Desktop: { secrets: { set(k: string, v: string): Promise<void> } }
-          }
-        ).selfmp3Desktop
-        await desktop.secrets.set('selfmp3.baseUrl', baseUrl)
+        await window.selfmp3Desktop.secrets.set('selfmp3.baseUrl', baseUrl)
         // The one-time guides seen, so none darkens the window over the row this presses.
         window.localStorage.setItem('selfmp3.guides', '*')
       }, String(appApi))
@@ -1413,9 +1388,26 @@ test.describe('connects and plays', () => {
   })
 })
 
+/**
+ * What a page evaluation finds on `window`: the bridge, as much of it as these
+ * tests call, and what a listener set up in one evaluation heard, for a later
+ * one to read.
+ */
+declare global {
+  interface Window {
+    selfmp3Desktop: DesktopForTest
+    seen: string[]
+  }
+}
+
 /** Only what these tests call, so the page evaluations can be typed at all. */
 interface DesktopForTest {
   info: Record<string, unknown>
+  secrets: {
+    get(key: string): Promise<string | null>
+    set(key: string, value: string): Promise<void>
+    remove(key: string): Promise<void>
+  }
   onDeepLink(listener: (url: string) => void): () => void
   mediaUrl(kind: string, name: string): string
   bucket: {

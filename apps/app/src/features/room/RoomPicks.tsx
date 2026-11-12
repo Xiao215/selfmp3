@@ -2,8 +2,15 @@ import { createContext, useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { artistOr, plural, type RoomSong, type RoomState, type Song } from '@selfmp3/shared'
-import { space, useLibrary } from '@selfmp3/client'
+import {
+  artistOr,
+  canPlayAgain,
+  plural,
+  type RoomSong,
+  type RoomState,
+  type Song,
+} from '@selfmp3/shared'
+import { failureText, space, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { library as cloudLibrary } from '../../replica'
@@ -70,7 +77,8 @@ export function MyLibraryPicker({
 export function RoomShelves({ state }: { state: RoomState }): ReactNode {
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
   const mayAdd = youMay(state, 'again')
-  const played = playedRows(state)
+  // Songs of someone who left are not theirs to lend any more.
+  const played = playedRows(state).filter(row => canPlayAgain(state, row.entry))
   const act = (key: string, action: Parameters<typeof roomAct>[0]): void => {
     void roomAct(action).then(() => setAdded(before => new Set([...before, key])), sayRoomFailure)
   }
@@ -202,7 +210,11 @@ function ShelfPicker({ state }: { state: RoomState }): ReactNode {
             key={`playlist-${playlist.id}`}
             label={playlist.name}
             onPress={() =>
-              void cloudLibrary.cloudPlaylistSongs(playlist.id).then(ids => put(playlist.name, ids))
+              void cloudLibrary.cloudPlaylistSongs(playlist.id).then(
+                ids => put(playlist.name, ids),
+                (error: unknown) =>
+                  showToast(failureText('Couldn’t read that playlist', error), 'error'),
+              )
             }
           />
         ))}

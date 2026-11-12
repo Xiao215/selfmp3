@@ -3,7 +3,7 @@ import { CameWithSchema, CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { HASH_FILE_NAME } from '../doormanWire.js'
 import { HueSchema, IdSchema } from './common.js'
-import { DoormanStorageSchema, SignInAttemptSchema, SignInCodeSchema } from './doorman.js'
+import { DoormanStorageSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
 import { ArtistNamesSchema } from './artist.js'
 import {
@@ -357,8 +357,9 @@ export type CloudUids = z.infer<typeof CloudUidsSchema>
 /**
  * Where the server that writes the snapshots can be reached directly, for what
  * only it can do: reading a link, and playing a song before it is imported.
- * The addresses are the ones it listens on; a device tries them and talks to
- * the first that answers. Only whoever can read the bucket sees this, and the
+ * The addresses are its public one alone when it has one, else the ones it
+ * listens on (`apps/server/src/services/addresses.ts`); a device tries them and
+ * talks to the first that answers. Only whoever can read the bucket sees this, and the
  * token is the one every device of theirs already carries to that server.
  */
 export const CloudServerSchema = z.object({
@@ -430,6 +431,12 @@ export const CloudSnapshotSchema = z.object({
    */
   emptiedTags: z.array(CloudTagSchema).optional(),
   /**
+   * Kept playlists that went with their last songs (`playlistEmptied`), as
+   * they were then, stamps and all. A song put in one, by a change that
+   * arrives late and wins, brings it back.
+   */
+  emptiedPlaylists: z.array(CloudPlaylistSchema).optional(),
+  /**
    * Songs folded into another copy of themselves (`songMerged`): the extra
    * copy's uid, and the song it went into. A late play, tag or playlist place
    * that names the extra copy lands on the song kept.
@@ -442,7 +449,7 @@ export const CloudSnapshotSchema = z.object({
 })
 export type CloudSnapshot = z.infer<typeof CloudSnapshotSchema>
 
-// --- The server's own API for managing its connection to the bucket ------------
+// --- Connecting a bucket, and how a server's library stands with it ------------
 
 /**
  * Connecting to a bucket. For B2 the region is worked out from the endpoint,
@@ -472,19 +479,6 @@ export const CloudConnectSchema = z.object({
 })
 export type CloudConnect = z.infer<typeof CloudConnectSchema>
 
-/**
- * Start signing this server in with Google through the doorman. The browser
- * makes the attempt id, opens the doorman's sign-in page with it straight
- * away (a window opened after an await is a popup, and gets blocked), and
- * tells the server, which waits for Google to finish and keeps the session.
- */
-export const CloudSignInSchema = z.object({ attempt: SignInAttemptSchema })
-export type CloudSignIn = z.infer<typeof CloudSignInSchema>
-
-/** The code the doorman showed once Google signed you in (doorman.ts): what claims the session. */
-export const CloudSignInCodeSchema = z.object({ code: SignInCodeSchema })
-export type CloudSignInCode = z.infer<typeof CloudSignInCodeSchema>
-
 export const CloudAccountSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
@@ -493,20 +487,13 @@ export const CloudAccountSchema = z.object({
 export type CloudAccount = z.infer<typeof CloudAccountSchema>
 
 export const CloudStatusSchema = z.object({
-  /**
-   * The doorman this server signs in through, or null when none is set up — then
-   * the only way in is connecting a bucket directly with its key.
-   */
+  /** The doorman this server reaches the bucket through, or null when none is set up. */
   doormanUrl: z.string().nullable(),
-  /** The Google account signed in through the doorman. */
+  /** The Google account whose library this is, through the doorman. */
   account: CloudAccountSchema.nullable(),
-  /** Waiting for Google to finish a sign-in started from this server. */
-  signingIn: z.boolean(),
-  /** Google has finished; the code it showed is wanted, to claim the session. */
-  signInNeedsCode: z.boolean(),
-  /** A bucket is in use: connected directly, or belonging to the signed-in account. */
+  /** A bucket is in use: the account's, or a folder standing in for one. */
   connected: z.boolean(),
-  /** Where it is connected to. The key itself is never sent back. */
+  /** Where it is connected to. */
   target: DoormanStorageSchema.nullable(),
   /** This server's name in the bucket. */
   deviceId: z.string().nullable(),

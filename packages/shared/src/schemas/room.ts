@@ -182,12 +182,17 @@ export type RoomPlaying = z.infer<typeof RoomPlayingSchema>
 
 /**
  * A member asking the host's player for something it alone can do. Numbered,
- * so the host's device acts on each once, however often it hears the state.
+ * so the host's device acts on each once, however often it hears the state;
+ * and stamped with the doorman's clock, so a host that hears it only after
+ * being away lets it go rather than skipping whatever plays by then. The
+ * stamp may be missing: a room a doorman kept before it stamped them, or a
+ * doorman not yet redeployed, still reads.
  */
 export const RoomWantSchema = z.object({
   seq: z.number().int().positive(),
   kind: z.enum(['skip', 'pause', 'play']),
   by: RoomIdSchema,
+  at: z.number().optional(),
 })
 export type RoomWant = z.infer<typeof RoomWantSchema>
 

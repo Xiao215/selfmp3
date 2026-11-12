@@ -89,6 +89,20 @@ export function randomToken(): string {
   return toBase64Url(randomBytes(32))
 }
 
+/**
+ * Whether a secret someone sent is the one held, in time that does not depend
+ * on where the two first differ: both are hashed first, so the comparison is
+ * of two equal-length digests with every byte looked at.
+ */
+export async function sameSecret(sent: string, held: string): Promise<boolean> {
+  const digest = async (text: string) =>
+    new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(text)))
+  const [a, b] = await Promise.all([digest(sent), digest(held)])
+  let differ = 0
+  for (let i = 0; i < a.length; i += 1) differ |= (a[i] ?? 0) ^ (b[i] ?? 0)
+  return differ === 0
+}
+
 export async function sha256Hex(text: string): Promise<string> {
   return toHex(await crypto.subtle.digest('SHA-256', utf8(text)))
 }

@@ -56,9 +56,8 @@ export const PAUSE_MS = 15 * 60 * 1000
  * The queue and the person spend from one bucket, and a long queue drained it
  * to the last token: pasting a link while forty songs were downloading was
  * told to try again in a minute, by the very downloads it had asked for. A
- * look-up, a preview or a listen may now borrow — take a token the bucket
- * does not have — and the queue, which has nowhere to be, waits that much
- * longer for its next. Keeping tokens back for a person instead stalled the
+ * look-up may now borrow — take a token the bucket does not have — and the
+ * queue, which has nowhere to be, waits that much longer for its next. Keeping tokens back for a person instead stalled the
  * queue for minutes after every burst, waiting to be that far above empty.
  * Five is a handful of look-ups in a row before anyone waits.
  */

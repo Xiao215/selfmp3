@@ -52,6 +52,7 @@ import {
 } from './tag.model'
 import { rowTitle } from '../../ui/surfaces'
 import { useShownScheme } from '../../ui/theme/unistyles'
+import { Fold } from '../../ui/components/Fold'
 
 /**
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
@@ -166,7 +167,7 @@ export function PlacePage({
     const link = combinedLink(together)
     router.push({ pathname: '/combined', params: { ...link.params } })
   }
-  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`).
+  // The head grows out of the tile that opened it (`useHeroGrow`).
   const hero = useHeroGrow(wide)
   const heroRef = hero.heroRef
   const listActions = useListActions(ids, {
@@ -175,15 +176,7 @@ export function PlacePage({
     shareAs: title,
     togetherAs: title,
   })
-  // Back, on a phone, from a place that grew out of its tile: the opening in reverse.
   const backShown = usePageBack('/').shown
-  const back = (): void => {
-    if (!router.canGoBack()) {
-      router.replace('/')
-      return
-    }
-    hero.back(() => router.back())
-  }
 
   const listHead = (
     <ListHead
@@ -196,7 +189,7 @@ export function PlacePage({
       topBar={
         <>
           {/* None on a computer for a place the sidebar opened (J1). */}
-          {backShown ? <BackButton to="/" onPress={back} /> : <View />}
+          {backShown ? <BackButton to="/" /> : <View />}
           <MoreMenu
             name={title}
             items={[...listActions, ...keepItem, ...menuItems]}
@@ -222,24 +215,25 @@ export function PlacePage({
             </View>
           </View>
           <Text style={listHeadText.summary}>{summary}</Text>
-          {combining && onMatch ? (
-            // One switch, never a third chip state: any of them, or songs that are all of them.
-            <Segmented
-              label="Songs with"
-              size="small"
-              value={match}
-              onChange={onMatch}
-              options={MATCH_OPTIONS}
-              style={styles.match}
-            />
-          ) : null}
-          {combining ? (
+          {/* Folds in as a second place is added, and away as it goes. */}
+          <Fold open={combining}>
+            {onMatch ? (
+              // One switch, never a third chip state: any of them, or songs that are all of them.
+              <Segmented
+                label="Songs with"
+                size="small"
+                value={match}
+                onChange={onMatch}
+                options={MATCH_OPTIONS}
+                style={styles.match}
+              />
+            ) : null}
             <Chips
               chosen={chosen}
-              onRemove={entry => onChange(togglePlace(chosen, entry))}
+              onRemove={entry => onChange?.(togglePlace(chosen, entry))}
               onAdd={() => setAdding(true)}
             />
-          ) : null}
+          </Fold>
         </>
       }
       actions={

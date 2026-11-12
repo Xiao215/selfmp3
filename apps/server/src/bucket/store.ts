@@ -1,15 +1,4 @@
-import { createHash } from 'node:crypto'
-import { Readable } from 'node:stream'
-import type { S3Client } from '@aws-sdk/client-s3'
-import {
-  bucketUnreachable,
-  messageOf,
-  classifyBucketRefusal,
-  type BucketRefusal,
-  type BucketRefusalKind,
-} from '@selfmp3/shared'
-import type { CloudConnection } from '../repositories/cloud.js'
-import { errorName, errorStatus, isNotFound, loadS3, streamToBuffer, type S3Module } from './s3.js'
+import type { BucketRefusalKind } from '@selfmp3/shared'
 
 /**
  * The cloud bucket, as the sync sees it: a handful of operations on keys
@@ -44,10 +33,9 @@ export interface CloudStore {
   /**
    * Where the bucket's change counter stands — the doorman's `/v1/changes`,
    * which moves whenever a snapshot or a log file is written or deleted — or
-   * null for a bucket that keeps none: one reached with its own key, or a
-   * folder. With a counter, a listing of `log/` that would find what the last
-   * one did need not be made (docs/SYNC.md, "Caps"); without, only listing
-   * tells.
+   * null for a bucket that keeps none: a folder standing in for one. With a
+   * counter, a listing of `log/` that would find what the last one did need
+   * not be made (docs/SYNC.md, "Caps"); without, only listing tells.
    */
   changes(): Promise<string | null>
   /**
@@ -70,6 +58,13 @@ export interface CloudStore {
     end: number,
     signal?: AbortSignal,
   ): Promise<NodeJS.ReadableStream | null>
+  /**
+   * These files were deleted from the bucket: every share link that lends one
+   * says its song is gone now, rather than when someone next presses Play
+   * (docs/features/share-links.md). Only a bucket reached through the doorman
+   * has links to tell.
+   */
+  unlend?(keys: readonly string[]): Promise<void>
 }
 
 /**
@@ -86,207 +81,7 @@ export class CloudError extends Error {
   }
 }
 
-/** Any S3-compatible bucket: B2, R2, MinIO, AWS. */
-export class S3CloudStore implements CloudStore {
-  readonly description: string
-  readonly #connection: CloudConnection
-  #ready: Promise<{ s3: S3Module; client: S3Client }> | null = null
-
-  constructor(connection: CloudConnection) {
-    this.#connection = connection
-    const host = hostOf(connection.endpoint)
-    const folder = connection.prefix
-      ? `${connection.bucket}/${connection.prefix}`
-      : connection.bucket
-    this.description = `${host} · ${folder}`
-  }
-
-  #client(): Promise<{ s3: S3Module; client: S3Client }> {
-    this.#ready ??= loadS3().then(s3 => ({
-      s3,
-      client: new s3.S3Client({
-        region: this.#connection.region,
-        endpoint: this.#connection.endpoint,
-        forcePathStyle: true,
-        credentials: {
-          accessKeyId: this.#connection.keyId,
-          secretAccessKey: this.#connection.applicationKey,
-        },
-        // Newer SDKs add CRC checksums to every upload by default, and not
-        // every S3-compatible service accepts them. Content-MD5, sent below,
-        // is the integrity check they all understand.
-        requestChecksumCalculation: 'WHEN_REQUIRED',
-        responseChecksumValidation: 'WHEN_REQUIRED',
-      }),
-    }))
-    return this.#ready
-  }
-
-  #key(key: string): string {
-    return this.#connection.prefix ? `${this.#connection.prefix}/${key}` : key
-  }
-
-  async head(key: string): Promise<CloudObject | null> {
-    const { s3, client } = await this.#client()
-    try {
-      const head = await client.send(
-        new s3.HeadObjectCommand({ Bucket: this.#connection.bucket, Key: this.#key(key) }),
-      )
-      return { key, size: head.ContentLength ?? 0 }
-    } catch (error) {
-      if (isNotFound(error)) return null
-      throw this.#explain(error)
-    }
-  }
-
-  async get(key: string): Promise<Buffer | null> {
-    const { s3, client } = await this.#client()
-    try {
-      const object = await client.send(
-        new s3.GetObjectCommand({ Bucket: this.#connection.bucket, Key: this.#key(key) }),
-      )
-      return await streamToBuffer(object.Body)
-    } catch (error) {
-      if (isNotFound(error)) return null
-      throw this.#explain(error)
-    }
-  }
-
-  async range(
-    key: string,
-    start: number,
-    end: number,
-    signal?: AbortSignal,
-  ): Promise<NodeJS.ReadableStream | null> {
-    const { s3, client } = await this.#client()
-    try {
-      const object = await client.send(
-        new s3.GetObjectCommand({
-          Bucket: this.#connection.bucket,
-          Key: this.#key(key),
-          Range: `bytes=${start}-${end}`,
-        }),
-        { abortSignal: signal },
-      )
-      const body = object.Body
-      return body instanceof Readable ? body : Readable.from([await streamToBuffer(body)])
-    } catch (error) {
-      if (isNotFound(error)) return null
-      throw this.#explain(error)
-    }
-  }
-
-  async put(key: string, body: Buffer, options: CloudPutOptions): Promise<void> {
-    const { s3, client } = await this.#client()
-    try {
-      await client.send(
-        new s3.PutObjectCommand({
-          Bucket: this.#connection.bucket,
-          Key: this.#key(key),
-          Body: body,
-          ContentType: options.contentType,
-          ContentMD5: createHash('md5').update(body).digest('base64'),
-          ...(options.contentEncoding ? { ContentEncoding: options.contentEncoding } : {}),
-        }),
-      )
-    } catch (error) {
-      throw this.#explain(error)
-    }
-  }
-
-  async list(prefix: string): Promise<CloudObject[]> {
-    const { s3, client } = await this.#client()
-    const root = this.#connection.prefix ? `${this.#connection.prefix}/` : ''
-    const objects: CloudObject[] = []
-    let token: string | undefined
-
-    try {
-      do {
-        const page = await client.send(
-          new s3.ListObjectsV2Command({
-            Bucket: this.#connection.bucket,
-            Prefix: root + prefix,
-            MaxKeys: 1000,
-            ...(token ? { ContinuationToken: token } : {}),
-          }),
-        )
-        for (const item of page.Contents ?? []) {
-          const full = item.Key
-          if (full === undefined || !full.startsWith(root)) continue
-          objects.push({ key: full.slice(root.length), size: item.Size ?? 0 })
-        }
-        token = page.IsTruncated ? page.NextContinuationToken : undefined
-      } while (token)
-    } catch (error) {
-      throw this.#explain(error)
-    }
-
-    return objects
-  }
-
-  /** A bucket reached with its own key keeps no counter: the doorman's is only for what goes through it. */
-  changes(): Promise<string | null> {
-    return Promise.resolve(null)
-  }
-
-  followOwn(held: string): string {
-    return held
-  }
-
-  async delete(key: string): Promise<void> {
-    const { s3, client } = await this.#client()
-    try {
-      await client.send(
-        new s3.DeleteObjectCommand({ Bucket: this.#connection.bucket, Key: this.#key(key) }),
-      )
-    } catch (error) {
-      if (isNotFound(error)) return
-      throw this.#explain(error)
-    }
-  }
-
-  /** Turn an SDK error into one that says what to do about it. */
-  #explain(error: unknown): CloudError {
-    if (error instanceof CloudError) return error
-    const host = hostOf(this.#connection.endpoint)
-    const status = errorStatus(error)
-    const refused: BucketRefusal =
-      status === undefined &&
-      (NETWORK_CODES.has(errorCode(error)) || errorName(error) === 'TimeoutError')
-        ? bucketUnreachable(host)
-        : classifyBucketRefusal(
-            // The SDK names its error after S3's code, and carries S3's message as its own.
-            { status, code: errorName(error) || null, message: messageOf(error) },
-            {
-              bucket: this.#connection.bucket,
-              host,
-              secrets: [this.#connection.applicationKey, this.#connection.keyId],
-            },
-          )
-    return new CloudError(refused.kind, refused.message)
-  }
-}
-
-/** Node's words for a bucket it could not reach at all. */
-const NETWORK_CODES: ReadonlySet<string> = new Set([
-  'ENOTFOUND',
-  'ECONNREFUSED',
-  'ECONNRESET',
-  'ETIMEDOUT',
-  'EAI_AGAIN',
-  'ENETUNREACH',
-])
-
 /** `https://s3.us-west-004.backblazeb2.com` → `s3.us-west-004.backblazeb2.com`, for messages. */
 export function hostOf(url: string): string {
   return url.replace(/^https?:\/\//, '')
-}
-
-function errorCode(error: unknown): string {
-  if (typeof error !== 'object' || error === null) return ''
-  const code = (error as { code?: unknown }).code
-  if (typeof code === 'string') return code
-  // Node's fetch hides the socket error one level down.
-  const cause = (error as { cause?: { code?: unknown } }).cause
-  return typeof cause?.code === 'string' ? cause.code : ''
 }

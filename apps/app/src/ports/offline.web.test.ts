@@ -77,15 +77,6 @@ async function offline() {
 }
 
 describe('the browser audio cache', () => {
-  it('counts a copy kept under an older revision as kept, and sizes it', async () => {
-    const { cachedBytes, isCached } = await offline()
-    await cache.put(`${ORIGIN}/api/stream/7?v=r1`, song('abcd'))
-    revs.set(7, 'r2')
-
-    expect(await isCached(7)).toBe(true)
-    expect((await cachedBytes([7])).get(7)).toBe(4)
-  })
-
   it('removes every copy of a song, whatever revision it was kept under', async () => {
     const { cachedSongIds, uncacheSong } = await offline()
     await cache.put(`${ORIGIN}/api/stream/7?v=r1`, song('abcd'))

@@ -1,14 +1,5 @@
-import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
-import { space } from '@selfmp3/client'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { PageHeader } from '../../ui/components/PageHeader'
-import { ScrollView } from '../../ui/components/Scroll'
-import { pageFrame } from '../../ui/surfaces'
-import { useLayoutFlags } from '../../shell/useLayout'
 import { loginItem } from '../../ports/loginItem'
 import { downloadsHere } from '../../ports/deviceDownloads'
 import { macApp } from '../../ports/macApp'
@@ -20,39 +11,23 @@ import { DeviceImportsPanel } from './DeviceImportsPanel'
 import { GetAppPanel } from './GetAppPanel'
 import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
-import { StackedRows } from './SettingsParts'
-import { SETTINGS_WIDTH } from './SettingsScreen'
+import { SettingsPage } from './SettingsPage'
 import { ShortcutsPanel } from './ShortcutsPanel'
 import { RememberedCard } from './SmartPanel'
 import type { Confirming } from './settings.model'
 
 /**
  * Settings' own pages (B, 2026-10-26), each reached by a row on Settings and
- * going back to it: the same column, the same cards.
+ * going back to it.
  */
-function SettingsPage({ title, children }: { title: string; children: ReactNode }): ReactNode {
-  const { wide } = useLayoutFlags()
-  return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.content, pageFrame(wide)]}>
-        <StackedRows value={!wide}>
-          <View style={styles.column}>
-            <PageHeader title={title} back={{ to: '/settings', testID: 'settings-page-back' }} />
-            {children}
-          </View>
-        </StackedRows>
-        <ChromeSpacer />
-      </ScrollView>
-    </SafeAreaView>
-  )
-}
+const BACK = { to: '/settings', testID: 'settings-page-back' } as const
 
 /** Settings › Account: the storage, the computers, and leaving the storage. */
 export function AccountScreen(): ReactNode {
   const [confirming, setConfirming] = useState<Confirming>(null)
   return (
     <>
-      <SettingsPage title="Account">
+      <SettingsPage title="Account" back={BACK}>
         <AccountCards onConfirm={setConfirming} />
       </SettingsPage>
       <Confirmations confirming={confirming} onDone={() => setConfirming(null)} />
@@ -68,7 +43,7 @@ export function AccountScreen(): ReactNode {
 export function AdvancedScreen(): ReactNode {
   const shortcuts = useMenuCommands()
   return (
-    <SettingsPage title="Advanced">
+    <SettingsPage title="Advanced" back={BACK}>
       <LibraryPanel />
       <ImportingPanel />
       {/* This device's own downloading (docs/features/client-download.md): a phone, or a tab the extension runs in. */}
@@ -83,14 +58,8 @@ export function AdvancedScreen(): ReactNode {
 /** Settings › What Ask remembers. */
 export function RememberedScreen(): ReactNode {
   return (
-    <SettingsPage title="What Ask remembers">
+    <SettingsPage title="What Ask remembers" back={BACK}>
       <RememberedCard />
     </SettingsPage>
   )
 }
-
-const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  content: { paddingBottom: 40 },
-  column: { width: '100%', maxWidth: SETTINGS_WIDTH, gap: space.xl },
-}))

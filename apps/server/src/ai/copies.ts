@@ -14,7 +14,8 @@ import {
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { chunks, foldedBare as bare, pool } from './text.js'
+import { pool } from '../util/pool.js'
+import { chunks, foldedBare as bare } from './text.js'
 import { withoutVideoWords } from './tidy.js'
 
 /**

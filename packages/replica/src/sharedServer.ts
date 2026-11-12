@@ -4,6 +4,7 @@ import {
   DoormanGrantsSchema,
   type CloudServer,
   type DoormanGrants,
+  messageOf,
   refusalOf,
 } from '@selfmp3/shared'
 import { z } from 'zod'
@@ -183,7 +184,9 @@ export function createSharedServer(
     let under = joining.get(email)
     if (!under) {
       under = takeOver(session, named !== null && isShared(named))
-        .catch(() => {
+        .catch((error: unknown) => {
+          // Nobody is waiting to be told: the library goes on without a server.
+          platform.warn?.(`the shared computer could not be joined: ${messageOf(error)}`)
           nextTry.set(email, Date.now() + RETRY_MS)
           return null
         })

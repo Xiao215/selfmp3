@@ -496,6 +496,63 @@ export function keptSongs(here: Reviewed, leftOut: ReadonlySet<string>): number[
   return here.songIds.filter(id => !leftOut.has(leftOutKey(here.change.key, id)))
 }
 
+/** What a review has ticked: the changes taken, and the songs left out of them. */
+export interface Ticks {
+  readonly chosen: ReadonlySet<string>
+  readonly leftOut: ReadonlySet<string>
+}
+
+/** Whether a change is taken. One with no songs (a rename, a merge) is on or off as a whole. */
+export function isTicked(ticks: Ticks, here: Reviewed): boolean {
+  return (
+    ticks.chosen.has(here.change.key) &&
+    (here.songIds.length === 0 || keptSongs(here, ticks.leftOut).length > 0)
+  )
+}
+
+/** Whether a change is taken with every one of its songs. */
+export function isFullyTicked(ticks: Ticks, here: Reviewed): boolean {
+  return (
+    ticks.chosen.has(here.change.key) &&
+    keptSongs(here, ticks.leftOut).length === here.songIds.length
+  )
+}
+
+/** Ticks or unticks whole changes, with every song back in. */
+export function withTicked(ticks: Ticks, list: readonly Reviewed[], on: boolean): Ticks {
+  const chosen = new Set(ticks.chosen)
+  const leftOut = new Set(ticks.leftOut)
+  for (const here of list) {
+    if (on) chosen.add(here.change.key)
+    else chosen.delete(here.change.key)
+    for (const id of here.songIds) leftOut.delete(leftOutKey(here.change.key, id))
+  }
+  return { chosen, leftOut }
+}
+
+/** Leaves one song out of a change, or puts it back; a change with none left is unticked. */
+export function withSongTicked(ticks: Ticks, here: Reviewed, songId: number): Ticks {
+  const key = here.change.key
+  const chosen = new Set(ticks.chosen)
+  const leftOut = new Set(ticks.leftOut)
+  if (!isTicked(ticks, here)) {
+    // Ticking one song of an unticked change takes that song alone.
+    chosen.add(key)
+    for (const id of here.songIds) {
+      if (id === songId) leftOut.delete(leftOutKey(key, id))
+      else leftOut.add(leftOutKey(key, id))
+    }
+  } else if (leftOut.has(leftOutKey(key, songId))) leftOut.delete(leftOutKey(key, songId))
+  else {
+    leftOut.add(leftOutKey(key, songId))
+    if (here.songIds.every(id => leftOut.has(leftOutKey(key, id)))) {
+      chosen.delete(key)
+      for (const id of here.songIds) leftOut.delete(leftOutKey(key, id))
+    }
+  }
+  return { chosen, leftOut }
+}
+
 /**
  * The approved changes as one edit per song, a title and an artist fixed
  * together, a year as the number it is. `undo` writes each field back to what

@@ -43,6 +43,12 @@ import {
   tagsTitle,
   shortTidyApply,
   shortTidyTitle,
+  isTicked,
+  isFullyTicked,
+  withTicked,
+  withSongTicked,
+  type Reviewed,
+  type Ticks,
 } from './smart.model'
 
 const TAGS: Tag[] = [
@@ -728,5 +734,45 @@ describe('a short review, in words (AD1)', () => {
     expect(tagsApply(['add', 'merge'], 2)).toBe('Make 2 changes')
     expect(shortTidyApply(1)).toBe('Fix it')
     expect(shortTidyApply(3)).toBe('Fix 3 things')
+  })
+})
+
+describe('ticking a review', () => {
+  const rename: Reviewed = { change: { key: 'r', by: 'rule' }, songIds: [] }
+  const fix: Reviewed = { change: { key: 'f', by: 'model' }, songIds: [1, 2, 3] }
+  const none: Ticks = { chosen: new Set(), leftOut: new Set() }
+  const shown = (ticks: Ticks) => ({ chosen: [...ticks.chosen], leftOut: [...ticks.leftOut] })
+
+  it('takes a change with no songs as a whole, and one with songs while any is still in', () => {
+    const all = withTicked(none, [rename, fix], true)
+    expect([isTicked(all, rename), isFullyTicked(all, rename)]).toEqual([true, true])
+    const twoOut = { ...all, leftOut: new Set([leftOutKey('f', 1), leftOutKey('f', 2)]) }
+    expect([isTicked(twoOut, fix), isFullyTicked(twoOut, fix)]).toEqual([true, false])
+    expect(isTicked(none, fix)).toBe(false)
+  })
+
+  it('ticks or unticks whole changes with every song back in', () => {
+    const oneOut: Ticks = { chosen: new Set(['f']), leftOut: new Set([leftOutKey('f', 2)]) }
+    expect(shown(withTicked(oneOut, [fix], true))).toEqual({ chosen: ['f'], leftOut: [] })
+    expect(shown(withTicked(oneOut, [fix], false))).toEqual({ chosen: [], leftOut: [] })
+  })
+
+  it('takes one song alone from a change not ticked', () => {
+    expect(shown(withSongTicked(none, fix, 2))).toEqual({
+      chosen: ['f'],
+      leftOut: [leftOutKey('f', 1), leftOutKey('f', 3)],
+    })
+  })
+
+  it('leaves a song out and puts it back', () => {
+    const all = withTicked(none, [fix], true)
+    const oneOut = withSongTicked(all, fix, 2)
+    expect(shown(oneOut)).toEqual({ chosen: ['f'], leftOut: [leftOutKey('f', 2)] })
+    expect(shown(withSongTicked(oneOut, fix, 2))).toEqual({ chosen: ['f'], leftOut: [] })
+  })
+
+  it('unticks a change once its last song is left out', () => {
+    const lastIn = withSongTicked(none, fix, 3)
+    expect(shown(withSongTicked(lastIn, fix, 3))).toEqual({ chosen: [], leftOut: [] })
   })
 })

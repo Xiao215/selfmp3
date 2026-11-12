@@ -51,8 +51,10 @@ export function runFfmpeg(args: readonly string[], options: FfmpegOptions): Prom
     child.stdout.on('data', (chunk: Buffer) => {
       if (!settled) options.onStdout?.(chunk)
     })
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString('utf8')).slice(-tail)
+    // Decoded by the stream, so a song's name split across two chunks stays whole.
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (text: string) => {
+      stderr = (stderr + text).slice(-tail)
     })
     child.on('error', error =>
       settle(() => reject(new Error(`could not run ffmpeg: ${error.message}`))),

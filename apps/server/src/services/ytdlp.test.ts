@@ -105,6 +105,26 @@ describe('run', () => {
     expect(lines).toContain('WARNING: something to mention')
     expect(lines.map(parseProgress).filter(percent => percent !== null)).toEqual([12.5, 60, 100])
   })
+
+  it('reads a character that arrives split across two chunks whole', async () => {
+    // 夜 is three bytes: a pipe's chunk can end after the first of them, as
+    // one ending inside a long playlist's JSON of Chinese titles does.
+    const split = `
+const bytes = Buffer.from('夜に駆ける')
+process.stdout.write(bytes.subarray(0, 1))
+process.stderr.write(bytes.subarray(0, 1))
+setTimeout(() => {
+  process.stdout.write(bytes.subarray(1))
+  process.stderr.write(bytes.subarray(1))
+}, 50)
+`
+    const lines: string[] = []
+    const result = await run(process.execPath, ['-e', split], { onLine: line => lines.push(line) })
+
+    expect(result.stdout).toBe('夜に駆ける')
+    expect(result.stderr).toBe('夜に駆ける')
+    expect(lines).toEqual(['夜に駆ける', '夜に駆ける'])
+  })
 })
 
 describe('isVideoEntry', () => {

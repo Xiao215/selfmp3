@@ -112,15 +112,17 @@ export function run(
     const stdoutLines = lineSplitter(onLine)
     const stderrLines = lineSplitter(onLine)
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf8')
+    // Decoded by the streams, which hold back a character a chunk ends inside
+    // of: decoded chunk by chunk, it came out as three replacement marks.
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (text: string) => {
       if (stdout.length < MAX_STDOUT_BYTES) stdout += text
       else truncated = true
       stdoutLines.push(text)
     })
 
-    child.stderr.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf8')
+    child.stderr.on('data', (text: string) => {
       if (stderr.length < MAX_OUTPUT_BYTES) stderr += text
       stderrLines.push(text)
     })

@@ -469,6 +469,13 @@ function liveEdit(
   )
 }
 
+/** A playlist in a new order: the songs placed, in theirs, then the rest where they were. */
+function placedFirst(members: readonly Song[], placed: readonly Song[]): Song[] {
+  const ids = new Set<number>()
+  const first = placed.filter(song => !ids.has(song.id) && ids.add(song.id))
+  return [...first, ...members.filter(song => !ids.has(song.id))]
+}
+
 /** "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin by energy". */
 export async function playlistSongs(
   deps: DescribeDeps,
@@ -495,7 +502,13 @@ export async function playlistSongs(
     .filter((song): song is Song => song !== undefined)
 
   if (edit.op === 'sort') {
-    if (!edit.sortBy) {
+    // One edit whoever chose the order: a key puts the songs in order in code
+    // (the ones pointed at, or all of them), or the songs pointed at are the
+    // order itself, one only knowing the music can tell (a concert's setlist).
+    const inPlaylist = new Set(members.map(song => song.id))
+    const given = within?.filter(song => inPlaylist.has(song.id)) ?? null
+    const ordered = edit.sortBy ? sortSongs(given ?? members, edit.sortBy, edit.order) : given
+    if (!ordered || ordered.length === 0) {
       return instead(
         'Say what to sort it by: energy, tempo, title, artist, length, plays, or when they were added.',
       )
@@ -504,12 +517,9 @@ export async function playlistSongs(
       kind: 'playlistSongs',
       playlist: playlist.name,
       op: 'sort',
-      songs: sortSongs(members, edit.sortBy, edit.order).map(song => ({
-        songId: song.id,
-        why: null,
-      })),
+      songs: placedFirst(members, ordered).map(song => ({ songId: song.id, why: null })),
       understanding: null,
-      by: 'rule',
+      by: edit.sortBy ? 'rule' : 'model',
       sortBy: edit.sortBy,
       order: edit.order,
       unknown: [],

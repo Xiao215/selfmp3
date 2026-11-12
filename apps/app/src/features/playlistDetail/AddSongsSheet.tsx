@@ -67,12 +67,25 @@ export function AddSongsSheet({
     setError(null)
   }
 
+  const forget = (songId: number): void =>
+    setAdded(current => {
+      const next = new Set(current)
+      next.delete(songId)
+      return next
+    })
+
+  /*
+   * A send that fails takes its tick back, so the row says what the library
+   * has rather than "Added" over a song that is not there. The mutation's own
+   * toast says why; one held back while offline has not failed, and keeps it.
+   */
   const add = (song: Song): void => {
+    const failed = { onError: () => forget(song.id) }
     if (target.kind === 'existing') {
-      addToPlaylist.mutate({ playlistId: target.playlistId, songIds: [song.id] })
+      addToPlaylist.mutate({ playlistId: target.playlistId, songIds: [song.id] }, failed)
     }
     if (target.kind === 'tag') {
-      bulkTag.mutate({ songIds: [song.id], tagId: target.tagId, action: 'add' })
+      bulkTag.mutate({ songIds: [song.id], tagId: target.tagId, action: 'add' }, failed)
     }
     setAdded(current => new Set(current).add(song.id))
   }
@@ -83,13 +96,12 @@ export function AddSongsSheet({
    */
   const unpick = (song: Song): void => {
     if (target.kind === 'tag') {
-      bulkTag.mutate({ songIds: [song.id], tagId: target.tagId, action: 'remove' })
+      bulkTag.mutate(
+        { songIds: [song.id], tagId: target.tagId, action: 'remove' },
+        { onError: () => setAdded(current => new Set(current).add(song.id)) },
+      )
     }
-    setAdded(current => {
-      const next = new Set(current)
-      next.delete(song.id)
-      return next
-    })
+    forget(song.id)
   }
 
   const create = async (): Promise<void> => {

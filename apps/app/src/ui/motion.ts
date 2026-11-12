@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AccessibilityInfo, Animated, Easing } from 'react-native'
 import { nativeDriver } from '../ports/nativeDriver'
 import { motion } from '@selfmp3/client'
@@ -249,11 +249,21 @@ type EasingFunction = (t: number) => number
  * What was shown while `open`, kept as it closes: in the render, so the frame
  * that closes it already draws what it had, and a leaving thing never goes
  * blank on its way out.
+ *
+ * Kept in a ref, not state: callers hand a value worked out in their own
+ * render (`footNotice`, the resume offer), a new object every time, and state
+ * set to that on every render never settled — "Too many re-renders" the moment
+ * one was open.
  */
 export function useKeptWhileClosing<T>(open: boolean, value: T): T {
-  const [kept, setKept] = useState(value)
-  if (open && kept !== value) setKept(value)
-  return open ? value : kept
+  const kept = useRef(value)
+  // What the last open frame drew, once it is on screen: a render React throws
+  // away never gets to be what a closing thing says.
+  useLayoutEffect(() => {
+    if (open) kept.current = value
+  })
+  // eslint-disable-next-line react-hooks/refs -- read only on the frames that close it; state, set to a value made anew each render, never settles
+  return open ? value : kept.current
 }
 
 /**

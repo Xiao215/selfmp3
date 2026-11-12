@@ -83,7 +83,6 @@ module.exports = [
      * lint error rather than a linted file.
      */
     files: ['app/**/*.ts', 'app/**/*.tsx', 'src/**/*.ts', 'src/**/*.tsx'],
-    ignores: ['src/sw/**'],
     plugins: { '@typescript-eslint': typescript },
     languageOptions: {
       parser: typescriptParser,

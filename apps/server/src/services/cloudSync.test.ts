@@ -2936,6 +2936,9 @@ describe('CloudSyncService', () => {
     })
 
     it('publishes one snapshot for a run of imports, not one each', async () => {
+      // The run's own snapshot is not due while it lasts, however long two
+      // uploads take on a busy machine.
+      sync = makeSync({ importPacing: { first: 60_000, steps: [{ from: 0, every: 60_000 }] } })
       await connect()
       const before = snapshotKeys().length
       const a = addSong('A - One', 'one')

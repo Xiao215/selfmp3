@@ -11,27 +11,10 @@ import type { Db } from '../db/index.js'
 import { readStored } from '../db/rows.js'
 
 /**
- * All SQL for the cloud bucket: the connection, this server's name in the
+ * All SQL for the cloud bucket: the account's session, this server's name in the
  * bucket, and the bookkeeping that keeps the sync from re-reading files it
  * has already uploaded. See docs/SYNC.md.
  */
-
-/**
- * Where the bucket is and the key that opens it. Lives in `secrets`, and is
- * read back through this schema: a row this build cannot make sense of reads
- * as "not connected", never as a crash at boot.
- */
-const CloudConnectionSchema = z.object({
-  /** `https://s3.us-west-004.backblazeb2.com` */
-  endpoint: z.string(),
-  region: z.string(),
-  bucket: z.string(),
-  /** The folder everything goes under, without slashes at either end. Empty for the root. */
-  prefix: z.string(),
-  keyId: z.string(),
-  applicationKey: z.string(),
-})
-export type CloudConnection = Readonly<z.infer<typeof CloudConnectionSchema>>
 
 /** What was uploaded for one song, and from which state of it. */
 export interface CloudSongState {
@@ -220,7 +203,6 @@ function storedFingerprint(value: string): string | null {
   }
 }
 
-const CONNECTION_SECRET = 'cloud.connection'
 const DOORMAN_SECRET = 'cloud.doorman'
 const TARGET_SECRET = 'cloud.target'
 const DEVICE_SECRET = 'cloud.device'
@@ -277,7 +259,6 @@ export class CloudRepository {
   readonly #db: Db
   readonly #getSecret
   readonly #setSecret
-  readonly #deleteSecret
   readonly #songFiles
   readonly #songFile
   readonly #states
@@ -328,7 +309,6 @@ export class CloudRepository {
       INSERT INTO secrets (name, value) VALUES (?, ?)
       ON CONFLICT (name) DO UPDATE SET value = excluded.value
     `)
-    this.#deleteSecret = db.prepare('DELETE FROM secrets WHERE name = ?')
 
     this.#songFiles = db.prepare<[], SongFileRow>(`${SONG_FILE_SELECT} ORDER BY id`)
     this.#songFile = db.prepare<[number], SongFileRow>(`${SONG_FILE_SELECT} WHERE id = ?`)
@@ -489,44 +469,14 @@ export class CloudRepository {
 
   // --- The connection ------------------------------------------------------
 
-  connection(): CloudConnection | null {
-    const row = this.#getSecret.get(CONNECTION_SECRET)
-    return row ? readStored(CloudConnectionSchema, row.value) : null
-  }
-
-  /**
-   * Save a connection made directly with the bucket's key. It replaces any
-   * doorman sign-in: one way in at a time.
-   */
-  saveConnection(connection: CloudConnection): void {
-    this.#db.transaction(() => {
-      this.adoptTarget(connection)
-      this.#deleteSecret.run(DOORMAN_SECRET)
-      this.#setSecret.run(CONNECTION_SECRET, JSON.stringify(connection))
-    })()
-  }
-
-  /** Stop using the cloud, whichever way in. The bucket itself is left exactly as it is. */
-  clearConnection(): void {
-    this.#db.transaction(() => {
-      this.#deleteSecret.run(CONNECTION_SECRET)
-      this.#deleteSecret.run(DOORMAN_SECRET)
-      this.#deleteSecret.run(TARGET_SECRET)
-      this.#forgetUploads()
-    })()
-  }
-
   doormanSession(): DoormanSession | null {
     const row = this.#getSecret.get(DOORMAN_SECRET)
     return row ? readStored(DoormanSessionSchema, row.value) : null
   }
 
-  /** Signed in through the doorman. It replaces a direct connection. */
+  /** The account's session with the doorman: the grant the hub keeps for this library. */
   saveDoormanSession(session: DoormanSession): void {
-    this.#db.transaction(() => {
-      this.#deleteSecret.run(CONNECTION_SECRET)
-      this.#setSecret.run(DOORMAN_SECRET, JSON.stringify(session))
-    })()
+    this.#setSecret.run(DOORMAN_SECRET, JSON.stringify(session))
   }
 
   /**

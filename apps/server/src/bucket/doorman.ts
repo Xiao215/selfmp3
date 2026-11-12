@@ -85,10 +85,6 @@ export class DoormanClient {
     return DoormanMeSchema.parse(await response.json())
   }
 
-  async signOut(token: string): Promise<void> {
-    await this.request('POST', DOORMAN_PATHS.signOut, { token })
-  }
-
   /**
    * A grant for this server, made with the session a device handed it
    * (docs/features/shared-server.md): a session of the server's own for that

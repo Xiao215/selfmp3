@@ -1334,6 +1334,13 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_emptied_playlists_id ON emptied_playlists(id);
     `,
   },
+  {
+    // 60. A library reaches its bucket through the doorman alone, with the
+    // grant the hub keeps (docs/features/shared-server.md). The bucket key a
+    // server was once connected with directly is not kept.
+    name: 'no bucket key is kept',
+    sql: `DELETE FROM secrets WHERE name = 'cloud.connection';`,
+  },
 ]
 
 /** Bring the schema to the latest version. */

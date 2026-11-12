@@ -449,7 +449,7 @@ export const CloudSnapshotSchema = z.object({
 })
 export type CloudSnapshot = z.infer<typeof CloudSnapshotSchema>
 
-// --- The server's own API for managing its connection to the bucket ------------
+// --- Connecting a bucket, and how a server's library stands with it ------------
 
 /**
  * Connecting to a bucket. For B2 the region is worked out from the endpoint,
@@ -487,16 +487,13 @@ export const CloudAccountSchema = z.object({
 export type CloudAccount = z.infer<typeof CloudAccountSchema>
 
 export const CloudStatusSchema = z.object({
-  /**
-   * The doorman this server signs in through, or null when none is set up — then
-   * the only way in is connecting a bucket directly with its key.
-   */
+  /** The doorman this server reaches the bucket through, or null when none is set up. */
   doormanUrl: z.string().nullable(),
-  /** The Google account signed in through the doorman. */
+  /** The Google account whose library this is, through the doorman. */
   account: CloudAccountSchema.nullable(),
-  /** A bucket is in use: connected directly, or belonging to the signed-in account. */
+  /** A bucket is in use: the account's, or a folder standing in for one. */
   connected: z.boolean(),
-  /** Where it is connected to. The key itself is never sent back. */
+  /** Where it is connected to. */
   target: DoormanStorageSchema.nullable(),
   /** This server's name in the bucket. */
   deviceId: z.string().nullable(),

@@ -16,12 +16,12 @@ import {
   newestSnapshotKey,
   snapshotKey,
   type Change,
-  type CloudConnect,
   type CloudPlaylist,
   type CloudSnapshot,
   type CloudSong,
   type CloudTag,
   type DoormanMe,
+  type DoormanStorage,
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import { migrate } from '../db/migrate.js'
@@ -78,13 +78,18 @@ const wordsKeyOf = (text: string, romanized: string[] | null = null): string =>
 /** Copies the tests write a moment before a pass are sent, and let go, at once. */
 const AT_ONCE = { send: 0, letGo: 0 }
 
-const CONNECT: CloudConnect = {
-  endpoint: 's3.us-west-004.backblazeb2.com',
+/** The account's bucket, as the doorman describes it. */
+const STORAGE: DoormanStorage = {
+  endpoint: 'https://s3.us-west-004.backblazeb2.com',
+  region: 'us-west-004',
   bucket: 'my-music',
   prefix: 'selfmp3',
-  keyId: '004abcdef0123456789',
-  applicationKey: 'K004-secret',
+  keyIdHint: '004abc…',
 }
+const DOORMAN_URL = 'https://doorman.test'
+/** The session the hub keeps for the account: its grant. */
+const TOKEN = 'session-1'
+const ACCOUNT = { account: 'account-1', email: 'me@example.com', name: 'Me', picture: null }
 
 describe('CloudSyncService', () => {
   let root: string
@@ -102,12 +107,39 @@ describe('CloudSyncService', () => {
   let covers: CoverService
   let buckets: Map<string, MemoryCloudStore>
   let bucket: MemoryCloudStore
+  let doorman: FakeDoorman
   let sync: CloudSyncService
   /** The service `sync` is, with some of its dependencies changed. */
   let makeSync: (
     changed: Partial<ConstructorParameters<typeof CloudSyncService>[0]>,
   ) => CloudSyncService
   let clock: number
+
+  /**
+   * The doorman as the server sees it: each session belongs to an account,
+   * and an account's bucket is one of the memory buckets above, by name.
+   */
+  class FakeDoorman implements Doorman {
+    readonly url = DOORMAN_URL
+    readonly accounts = new Map<string, DoormanMe>()
+    meFailure: CloudError | null = null
+
+    me(token: string): Promise<DoormanMe> {
+      if (this.meFailure) return Promise.reject(this.meFailure)
+      const me = this.accounts.get(token)
+      return me ? Promise.resolve(me) : Promise.reject(new CloudError('auth', 'signed out'))
+    }
+
+    store(token: string): CloudStore {
+      const bucketName = this.accounts.get(token)?.storage?.bucket ?? ''
+      let store = buckets.get(bucketName)
+      if (!store) {
+        store = new MemoryCloudStore()
+        buckets.set(bucketName, store)
+      }
+      return store
+    }
+  }
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-cloud-lib-'))
@@ -176,7 +208,8 @@ describe('CloudSyncService', () => {
     // One bucket per name, so a test can point the server somewhere else.
     buckets = new Map()
     bucket = new MemoryCloudStore()
-    buckets.set(CONNECT.bucket, bucket)
+    buckets.set(STORAGE.bucket, bucket)
+    doorman = new FakeDoorman()
     clock = Date.parse('2026-09-11T10:00:00Z')
 
     const deps: ConstructorParameters<typeof CloudSyncService>[0] = {
@@ -193,14 +226,8 @@ describe('CloudSyncService', () => {
       sync: syncRepo,
       ingest,
       adopt,
-      openStore: connection => {
-        let store = buckets.get(connection.bucket)
-        if (!store) {
-          store = new MemoryCloudStore()
-          buckets.set(connection.bucket, store)
-        }
-        return store
-      },
+      doormanUrl: DOORMAN_URL,
+      openDoorman: () => doorman,
       debounceMs: 5,
       retryDelaysMs: [30],
       importPacing: { first: 40, steps: [{ from: 0, every: 120 }] },
@@ -250,10 +277,36 @@ describe('CloudSyncService', () => {
     )
   }
 
-  const connect = async (input: Partial<CloudConnect> = {}): Promise<void> => {
-    await sync.connect({ ...CONNECT, ...input })
-    await sync.whenIdle()
+  /**
+   * The account's session kept here, the way the hub keeps a grant, for the
+   * account's bucket: `STORAGE`, or that with some of it changed.
+   */
+  const signIn = (storage: Partial<DoormanStorage> = {}): void => {
+    const { email, name, picture } = ACCOUNT
+    const bucketOf = { ...STORAGE, ...storage }
+    doorman.accounts.set(TOKEN, { ...ACCOUNT, storage: bucketOf })
+    cloud.saveDoormanSession({
+      url: DOORMAN_URL,
+      token: TOKEN,
+      email,
+      name,
+      picture,
+      storage: bucketOf,
+    })
   }
+
+  /** Signed in and started, the way the hub starts a library, with its first pass done. */
+  const connectService = async (
+    service: CloudSyncService,
+    storage: Partial<DoormanStorage> = {},
+  ): Promise<void> => {
+    signIn(storage)
+    service.start()
+    await service.whenIdle()
+  }
+
+  const connect = (storage: Partial<DoormanStorage> = {}): Promise<void> =>
+    connectService(sync, storage)
 
   const pass = async (): Promise<void> => {
     await sync.syncNow()
@@ -427,83 +480,23 @@ describe('CloudSyncService', () => {
       })
     })
 
-    it('never sends the key back', async () => {
-      await connect()
-      const status = JSON.stringify(sync.status())
-      expect(status).not.toContain(CONNECT.applicationKey)
-      expect(status).not.toContain(CONNECT.keyId)
-      expect(sync.status().target).toMatchObject({
-        endpoint: 'https://s3.us-west-004.backblazeb2.com',
-        region: 'us-west-004',
-        bucket: 'my-music',
-        prefix: 'selfmp3',
-      })
-    })
-
-    it('refuses a bucket set up by a newer version, and saves nothing', async () => {
+    it('refuses to publish to a bucket set up by a newer version', async () => {
       bucket.objects.set('format.json', {
         body: Buffer.from(
           JSON.stringify({ app: 'self.mp3', format: 2, createdAt: '', createdBy: 'x' }),
         ),
         contentType: 'application/json',
       })
-      await expect(sync.connect(CONNECT)).rejects.toThrow(/newer version/)
-      expect(cloud.connection()).toBeNull()
-      expect(sync.connected).toBe(false)
+      addSong('A - One', 'one')
+      await connect()
+      expect(sync.status().lastError).toMatch(/newer version/)
+      expect(snapshotKeys()).toEqual([])
     })
 
     it('refuses a folder that already holds something else’s format.json', async () => {
       bucket.objects.set('format.json', { body: Buffer.from('{"hello":1}'), contentType: 'x' })
-      await expect(sync.connect(CONNECT)).rejects.toThrow(/not self\.mp3/)
-    })
-
-    it('says so when the bucket cannot be reached, and saves nothing', async () => {
-      bucket.goOffline()
-      await expect(sync.connect(CONNECT)).rejects.toBeInstanceOf(CloudError)
-      expect(cloud.connection()).toBeNull()
-    })
-
-    it('rejects an endpoint that is not an address', async () => {
-      await expect(sync.connect({ ...CONNECT, endpoint: 'my bucket' })).rejects.toThrow(
-        /not an address/,
-      )
-    })
-
-    it('needs a region where the address does not say it', async () => {
-      await expect(
-        sync.connect({ ...CONNECT, endpoint: 'https://abc.r2.cloudflarestorage.com' }),
-      ).rejects.toThrow(/region/)
-      await sync.connect({
-        ...CONNECT,
-        endpoint: 'https://abc.r2.cloudflarestorage.com',
-        region: 'auto',
-      })
-      expect(cloud.connection()?.region).toBe('auto')
-    })
-
-    it('picks the connection up again at startup', async () => {
-      addSong('Aurora Lane - Sunrise', 'audio-sunrise')
       await connect()
-      sync.stop()
-
-      const again = new CloudSyncService({
-        stillMs: AT_ONCE,
-        cloud,
-        songs,
-        tags,
-        playlists,
-        imports,
-        storage: new LocalStorageDriver(root),
-        covers,
-        lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
-        metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
-        logger: createLogger('silent'),
-        openStore: () => bucket,
-      })
-      again.start()
-      await again.whenIdle()
-      expect(again.status()).toMatchObject({ connected: true, songs: { inCloud: 1 } })
-      again.stop()
+      expect(sync.status().lastError).toMatch(/not self\.mp3/)
     })
   })
 
@@ -632,7 +625,8 @@ describe('CloudSyncService', () => {
           lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
           metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
           logger: createLogger('silent'),
-          openStore: () => bucket,
+          doormanUrl: DOORMAN_URL,
+          openDoorman: () => doorman,
           romanize: (_songId, text) => {
             asked.count++
             return Promise.resolve(answer(text))
@@ -641,7 +635,7 @@ describe('CloudSyncService', () => {
         extras.push(service)
         const run = async (): Promise<void> => {
           if (service.connected) await service.syncNow()
-          else await service.connect(CONNECT)
+          else await connectService(service)
           await service.whenIdle()
         }
         return { asked, run }
@@ -721,7 +715,8 @@ describe('CloudSyncService', () => {
           lyrics: new LyricsService(new LocalStorageDriver(root), createLogger('silent')),
           metadata: new MetadataService(new LocalStorageDriver(root), createLogger('silent')),
           logger: createLogger('silent'),
-          openStore: () => bucket,
+          doormanUrl: DOORMAN_URL,
+          openDoorman: () => doorman,
           motion: store,
           debounceMs: 5,
           enrichmentDeferMs: 10,
@@ -729,7 +724,7 @@ describe('CloudSyncService', () => {
         extras.push(service)
         const run = async (): Promise<void> => {
           if (service.connected) await service.syncNow()
-          else await service.connect(CONNECT)
+          else await connectService(service)
           await service.whenIdle()
         }
         const keyOf = (songId: number): string =>
@@ -1641,10 +1636,13 @@ describe('CloudSyncService', () => {
       buckets.set('their-music', other)
       const theirs = largerLibraryIn(other)
 
-      await connect({ bucket: 'their-music' })
+      // The account's bucket swapped, as the next start finds it.
+      const moved = makeSync({})
+      extras.push(moved)
+      await connectService(moved, { bucket: 'their-music' })
 
       expect(snapshotKeys(other)).toEqual([theirs])
-      expect(sync.status().lastError).toContain('refused to publish')
+      expect(moved.status().lastError).toContain('refused to publish')
     })
   })
 
@@ -2014,7 +2012,8 @@ describe('CloudSyncService', () => {
         ingest,
         adopt,
         analysed: songId => analysed.has(songId),
-        openStore: () => bucket,
+        doormanUrl: DOORMAN_URL,
+        openDoorman: () => doorman,
         debounceMs: 5,
         now: () => new Date((clock += 1000)),
         stillMs: AT_ONCE,
@@ -2054,8 +2053,7 @@ describe('CloudSyncService', () => {
       const id = addSong('A - One', 'one', { lyrics: '[00:01.00] la' })
       analysed.add(id)
 
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
 
       expect(here('A - One/A - One.m4a')).toBe(false)
       // The words and the folder go with it.
@@ -2084,8 +2082,7 @@ describe('CloudSyncService', () => {
       const words = '[00:01.00] la\n[00:02.00] la'
       const id = addSong('A - One', 'one', { lyrics: words })
       analysed.add(id)
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(here('A - One/A - One.lrc')).toBe(false)
       const key = latest().songs[0]?.lyrics?.key
       expect(key).toBeDefined()
@@ -2120,8 +2117,7 @@ describe('CloudSyncService', () => {
       const words = '[00:01.00] la\n[00:02.00] la'
       const id = addSong('A - One', 'one', { lyrics: words })
       analysed.add(id)
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(here('A - One/A - One.lrc')).toBe(false)
       const key = latest().songs[0]?.lyrics?.key ?? ''
       const reads = () => bucket.gets.filter(read => read === key).length
@@ -2138,8 +2134,7 @@ describe('CloudSyncService', () => {
 
       // A server with nothing kept yet reads them from the bucket once.
       const fresh = lettingGo({ kept: kept('another') })
-      await fresh.connect(CONNECT)
-      await fresh.whenIdle()
+      await connectService(fresh)
       for (let i = 0; i < 3; i++) await fresh.fetchLyrics(id)
       expect(reads()).toBe(1)
 
@@ -2155,8 +2150,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one', { lyrics: '[00:01.00] la la' })
       analysed.add(id)
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(latest().songs[0]?.lyrics).not.toBeNull()
 
       // Cleared by hand (PUT /songs/:id/lyrics with nothing): the sidecar is
@@ -2172,8 +2166,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one')
 
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(here('A - One/A - One.m4a')).toBe(true)
 
       analysed.add(id)
@@ -2189,8 +2182,7 @@ describe('CloudSyncService', () => {
       analysed.add(id)
       songs.coverToRead(id)
 
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(here('A - One/A - One.m4a')).toBe(true)
 
       songs.coverRead(id)
@@ -2202,8 +2194,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one')
       analysed.add(id)
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
 
       // A new cover changes what the bucket should have; until it is up, the
       // song is not settled, and an upload that fails keeps it that way.
@@ -2236,8 +2227,7 @@ describe('CloudSyncService', () => {
         // Written to after the sweep read it.
         fs.appendFileSync(copy('A - One'), ' and the rest')
 
-        await service.connect(CONNECT)
-        await service.whenIdle()
+        await connectService(service)
 
         expect(bucket.keys('audio/')).toEqual([])
         expect(here('A - One/A - One.m4a')).toBe(true)
@@ -2251,8 +2241,7 @@ describe('CloudSyncService', () => {
         const id = addSong('A - One', 'one')
         analysed.add(id)
 
-        await service.connect(CONNECT)
-        await service.whenIdle()
+        await connectService(service)
         expect(bucket.keys('audio/')).toEqual([])
 
         await vi.waitFor(() => expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`]), {
@@ -2283,8 +2272,7 @@ describe('CloudSyncService', () => {
         )
         analysed.add(id)
 
-        await service.connect(CONNECT)
-        await service.whenIdle()
+        await connectService(service)
 
         expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
         expect(here('A - One/A - One.m4a')).toBe(false)
@@ -2295,8 +2283,7 @@ describe('CloudSyncService', () => {
         const id = addSong('A - One', 'one')
         analysed.add(id)
 
-        await service.connect(CONNECT)
-        await service.whenIdle()
+        await connectService(service)
         expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
         expect(here('A - One/A - One.m4a')).toBe(true)
 
@@ -2308,8 +2295,7 @@ describe('CloudSyncService', () => {
       it('keeps it when it was written to after it was sent', async () => {
         const service = lettingGo()
         const id = addSong('A - One', 'one')
-        await service.connect(CONNECT)
-        await service.whenIdle()
+        await connectService(service)
         expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
 
         let readAgain = 0
@@ -2326,8 +2312,7 @@ describe('CloudSyncService', () => {
     it('keeps the copy of a song whose audio the bucket does not have, and sends it again', async () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one')
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
 
       // Sent and remembered as sent; then gone from the bucket (emptied by
       // hand, or a folder standing in for it that went away) before
@@ -2347,8 +2332,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one')
       analysed.add(id)
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(here('A - One/A - One.m4a')).toBe(false)
 
       expect((await service.fetchAudio(id))?.toString()).toBe('one')
@@ -2359,8 +2343,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'one')
       addSong('B - Two', 'two')
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(bucket.keys('audio/')).toEqual(
         [`audio/${sha('one')}.m4a`, `audio/${sha('two')}.m4a`].sort(),
       )
@@ -2381,8 +2364,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'one')
       addSong('B - Two', 'two')
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(bucket.unlent).toEqual([])
 
       await removalService().remove([gone])
@@ -2396,8 +2378,7 @@ describe('CloudSyncService', () => {
     it('still finishes the pass when the doorman will not hear of it', async () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'one')
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       // A doorman from before `/v1/share/gone` takes `gone` for a link's id.
       bucket.unlend = () => Promise.reject(new CloudError('other', 'no such link'))
 
@@ -2413,8 +2394,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'one')
       addSong('B - Two', 'two')
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
 
       // Removed, and the bucket not yet told: its newest snapshot still lists
       // the song. Looking again — *Publish now*, or a restart — reads that
@@ -2454,8 +2434,7 @@ describe('CloudSyncService', () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'same')
       addSong('B - Two', 'same')
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
 
       await removalService().remove([gone])
       await service.syncNow()
@@ -2467,8 +2446,7 @@ describe('CloudSyncService', () => {
     it('sends the same bytes up again when they arrive after their file was trashed', async () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'one')
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
 
       await removalService().remove([gone])
       await service.syncNow()
@@ -2497,8 +2475,7 @@ describe('CloudSyncService', () => {
         return put(key, body, options)
       }
       const service = lettingGo()
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
 
       expect(removed).toBe(true)
       expect(service.status()).toMatchObject({ lastError: null })
@@ -2509,8 +2486,7 @@ describe('CloudSyncService', () => {
     const tenLetGo = async (service: CloudSyncService): Promise<number[]> => {
       const ids = Array.from({ length: 10 }, (_, index) => addSong(`A - ${index}`, `song ${index}`))
       for (const id of ids) analysed.add(id)
-      await service.connect(CONNECT)
-      await service.whenIdle()
+      await connectService(service)
       expect(here('A - 0/A - 0.m4a')).toBe(false)
       expect(latest().songs).toHaveLength(10)
       return ids
@@ -2531,8 +2507,10 @@ describe('CloudSyncService', () => {
 
       // The same bucket (the fake opens it by name) under another endpoint.
       const service = lettingGo()
-      await service.connect({ ...CONNECT, endpoint: 's3.eu-central-003.backblazeb2.com' })
-      await service.whenIdle()
+      await connectService(service, {
+        endpoint: 'https://s3.eu-central-003.backblazeb2.com',
+        region: 'eu-central-003',
+      })
       addSong('B - New', 'new')
       await service.syncNow()
 
@@ -2746,14 +2724,14 @@ describe('CloudSyncService', () => {
         logger: createLogger('silent'),
         sync: syncRepo,
         ingest,
-        openStore: () => bucket,
+        doormanUrl: DOORMAN_URL,
+        openDoorman: () => doorman,
         debounceMs: 5,
         logPollMs: 20,
         now: () => new Date((clock += 1000)),
       })
       extras.push(watcher)
-      await watcher.connect(CONNECT)
-      await watcher.whenIdle()
+      await connectService(watcher)
 
       writeLog(PHONE, 1, [
         { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } },
@@ -2771,11 +2749,6 @@ describe('CloudSyncService', () => {
   describe('losing the connection', () => {
     it('stops the pass, says why, and finishes the job when the bucket is back', async () => {
       addSong('A - One', 'one')
-      bucket.goOffline()
-      await expect(sync.connect(CONNECT)).rejects.toThrow(/Could not reach/)
-
-      // Connected while online; the connection dropped afterwards.
-      bucket.comeBack()
       await connect()
       bucket.goOffline()
       addSong('B - Two', 'two')
@@ -3497,150 +3470,36 @@ describe('CloudSyncService', () => {
     })
   })
 
-  describe('pointing somewhere else', () => {
-    it('uploads the library again to a different bucket', async () => {
-      addSong('A - One', 'one')
-      await connect()
-      await connect({ bucket: 'another-bucket' })
-
-      const other = buckets.get('another-bucket')
-      expect(other?.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
-      expect(latest(other).songs).toHaveLength(1)
-    })
-
-    it('keeps what it knows when only the key changes', async () => {
-      addSong('A - One', 'one')
-      await connect()
-      const puts = bucket.puts.length
-      await connect({ keyId: '004-new-key-id', applicationKey: 'K004-new' })
-      expect(bucket.puts.slice(puts).filter(key => key.startsWith('audio/'))).toEqual([])
-    })
-
-    it('disconnecting leaves the bucket as it is', async () => {
-      addSong('A - One', 'one')
-      await connect()
-      const keys = bucket.keys()
-      sync.disconnect()
-      expect(bucket.keys()).toEqual(keys)
-      expect(sync.status()).toMatchObject({ connected: false, state: 'off', target: null })
-      expect(cloud.connection()).toBeNull()
-    })
-  })
-
   describe('the account’s session with the doorman', () => {
-    /**
-     * The doorman as the server sees it: each session belongs to an account,
-     * and an account's bucket is one of the memory buckets above, by name.
-     */
-    class FakeDoorman implements Doorman {
-      readonly url = 'https://doorman.test'
-      readonly accounts = new Map<string, DoormanMe>()
-      readonly signedOut: string[] = []
-      meFailure: CloudError | null = null
-
-      me(token: string): Promise<DoormanMe> {
-        if (this.meFailure) return Promise.reject(this.meFailure)
-        const me = this.accounts.get(token)
-        return me ? Promise.resolve(me) : Promise.reject(new CloudError('auth', 'signed out'))
-      }
-
-      signOut(token: string): Promise<void> {
-        this.signedOut.push(token)
-        return Promise.resolve()
-      }
-
-      store(token: string): CloudStore {
-        const bucketName = this.accounts.get(token)?.storage?.bucket ?? ''
-        let store = buckets.get(bucketName)
-        if (!store) {
-          store = new MemoryCloudStore()
-          buckets.set(bucketName, store)
-        }
-        return store
-      }
-    }
-
-    const STORAGE: NonNullable<DoormanMe['storage']> = {
-      endpoint: 'https://s3.us-west-004.backblazeb2.com',
-      region: 'us-west-004',
-      bucket: CONNECT.bucket,
-      prefix: 'selfmp3',
-      keyIdHint: '004abc…',
-    }
-    const TOKEN = 'session-1'
-    const ACCOUNT = { email: 'me@example.com', name: 'Me', picture: null }
-
-    /** The account's session kept here, the way the hub keeps a grant, and known to the doorman. */
-    const signedIn = (doorman: FakeDoorman): void => {
-      doorman.accounts.set(TOKEN, { ...ACCOUNT, storage: STORAGE })
-      cloud.saveDoormanSession({ url: doorman.url, token: TOKEN, ...ACCOUNT, storage: STORAGE })
-    }
-
-    const withDoorman = (doorman: FakeDoorman) => {
-      const storage = new LocalStorageDriver(root)
-      const logger = createLogger('silent')
-      const service = new CloudSyncService({
-        stillMs: AT_ONCE,
-        cloud,
-        songs,
-        tags,
-        playlists,
-        imports,
-        storage,
-        covers,
-        lyrics: new LyricsService(storage, logger, () => Promise.reject(new Error('offline'))),
-        metadata: new MetadataService(storage, logger),
-        logger,
-        openStore: connection => {
-          let store = buckets.get(connection.bucket)
-          if (!store) {
-            store = new MemoryCloudStore()
-            buckets.set(connection.bucket, store)
-          }
-          return store
-        },
-        doormanUrl: doorman.url,
-        openDoorman: () => doorman,
-        debounceMs: 5,
-        now: () => new Date((clock += 1000)),
-      })
-      extras.push(service)
-      return service
-    }
-
-    /** Started, with the doorman asked about the account, and the pass that follows done. */
-    const started = async (service: CloudSyncService): Promise<void> => {
-      service.start()
-      await new Promise(resolve => setTimeout(resolve, 20))
-      await service.whenIdle()
-    }
-
     it('publishes to the bucket that belongs to the account', async () => {
       addSong('A - One', 'one')
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
-      const service = withDoorman(doorman)
-      await started(service)
+      await connect()
 
-      expect(service.status()).toMatchObject({
-        doormanUrl: 'https://doorman.test',
+      expect(sync.status()).toMatchObject({
+        doormanUrl: DOORMAN_URL,
         account: { email: 'me@example.com' },
         connected: true,
-        target: { bucket: CONNECT.bucket, prefix: 'selfmp3' },
+        target: { bucket: STORAGE.bucket, prefix: 'selfmp3' },
         songs: { total: 1, inCloud: 1 },
       })
       expect(latest().songs).toHaveLength(1)
     })
 
+    /** Another start of the server, on the same database, with the session it kept. */
+    const restarted = (): CloudSyncService => {
+      const again = makeSync({})
+      extras.push(again)
+      again.start()
+      return again
+    }
+
     it('carries on after a restart with the account it was signed in to', async () => {
       addSong('A - One', 'one')
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
-      await started(withDoorman(doorman))
+      await connect()
       const puts = bucket.puts.length
 
-      const again = withDoorman(doorman)
-      await started(again)
+      const again = restarted()
+      await again.whenIdle()
       expect(again.status()).toMatchObject({
         connected: true,
         account: { email: 'me@example.com' },
@@ -3651,38 +3510,33 @@ describe('CloudSyncService', () => {
 
     it('uploads everything again when the account’s bucket has changed', async () => {
       addSong('A - One', 'one')
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
-      await started(withDoorman(doorman))
+      await connect()
 
       // Swapped for another bucket from another device.
       doorman.accounts.set(TOKEN, { ...ACCOUNT, storage: { ...STORAGE, bucket: 'new-bucket' } })
-      await started(withDoorman(doorman))
+      const again = restarted()
+      await new Promise(resolve => setTimeout(resolve, 20))
+      await again.whenIdle()
       expect(buckets.get('new-bucket')?.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+      expect(latest(buckets.get('new-bucket')).songs).toHaveLength(1)
     })
 
     it('says so when the doorman no longer knows the session', async () => {
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
+      signIn()
       doorman.meFailure = new CloudError('auth', 'Your Google sign-in has expired.')
-      const service = withDoorman(doorman)
-      service.start()
+      sync.start()
       await new Promise(resolve => setTimeout(resolve, 20))
-      expect(service.status()).toMatchObject({ state: 'error', lastError: /expired/ })
+      expect(sync.status()).toMatchObject({ state: 'error', lastError: /expired/ })
     })
 
     it('stops publishing, rather than retrying, when the session is refused mid-way', async () => {
       addSong('A - One', 'one')
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
-      const service = withDoorman(doorman)
-      await started(service)
+      await connect()
 
       bucket.failure = new CloudError('auth', 'Your Google sign-in has expired.')
       addSong('B - Two', 'two')
-      await service.syncNow()
-      await service.whenIdle()
-      expect(service.status()).toMatchObject({
+      await pass()
+      expect(sync.status()).toMatchObject({
         connected: false,
         state: 'error',
         account: { email: 'me@example.com' },
@@ -3692,49 +3546,17 @@ describe('CloudSyncService', () => {
 
     it('stops publishing when an idle look for other devices’ changes is refused', async () => {
       // How a server working for several accounts hears, with nothing to
-      // publish, that an account took its grant back.
+      // publish, that an account took its grant back. A quick poll.
       addSong('A - One', 'one')
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
-      // With the sync's own bookkeeping, which the log poll needs, and a quick poll.
-      sync = makeSync({
-        doormanUrl: doorman.url,
-        openDoorman: () => doorman,
-        logPollMs: 15,
-      })
-      const service = sync
-      await started(service)
+      sync = makeSync({ logPollMs: 15 })
+      await connect()
 
       bucket.failure = new CloudError('auth', 'Your Google sign-in has expired.')
-      await vi.waitFor(() => expect(service.status().connected).toBe(false), { timeout: 2_000 })
-      expect(service.status()).toMatchObject({
+      await vi.waitFor(() => expect(sync.status().connected).toBe(false), { timeout: 2_000 })
+      expect(sync.status()).toMatchObject({
         state: 'error',
         lastError: 'Your Google sign-in has expired.',
       })
-    })
-
-    it('signs out when disconnected, and forgets the session', async () => {
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
-      const service = withDoorman(doorman)
-      await started(service)
-
-      service.disconnect()
-      expect(doorman.signedOut).toEqual(['session-1'])
-      expect(service.status()).toMatchObject({ account: null, connected: false, state: 'off' })
-      expect(cloud.doormanSession()).toBeNull()
-    })
-
-    it('lets a direct connection replace the sign-in', async () => {
-      const doorman = new FakeDoorman()
-      signedIn(doorman)
-      const service = withDoorman(doorman)
-      await started(service)
-
-      await service.connect({ ...CONNECT, bucket: 'direct-bucket' })
-      await service.whenIdle()
-      expect(service.status()).toMatchObject({ account: null, target: { bucket: 'direct-bucket' } })
-      expect(cloud.doormanSession()).toBeNull()
     })
   })
 })

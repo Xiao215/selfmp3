@@ -33,10 +33,18 @@ interface DriveFile {
 interface UploadSession {
   /** The file to replace, or null to make one. */
   readonly id: string | null
-  readonly details: Record<string, unknown>
+  readonly details: Details
   readonly contentType: string | null
   readonly length: number | null
   readonly fields: string | null
+}
+
+/** What a request says a file is, as far as the fake reads it. */
+interface Details {
+  readonly name?: unknown
+  readonly parents?: unknown
+  readonly mimeType?: unknown
+  readonly appProperties?: unknown
 }
 
 type Clause = (file: DriveFile) => boolean
@@ -101,7 +109,7 @@ export class FakeDrive {
   /** Every folder marked as a library's root, oldest first. */
   roots(): DriveFile[] {
     return [...this.files.values()].filter(
-      file => file.mimeType === FOLDER_TYPE && file.appProperties.selfmp3 === 'library',
+      file => file.mimeType === FOLDER_TYPE && file.appProperties['selfmp3'] === 'library',
     )
   }
 
@@ -122,7 +130,7 @@ export class FakeDrive {
     if (pathname === '/drive/v3/files') {
       if (incoming.method === 'GET') return this.#search(url.searchParams)
       if (incoming.method === 'POST') {
-        const details = (await incoming.json().catch(() => null)) as Record<string, unknown> | null
+        const details = (await incoming.json().catch(() => null)) as Details | null
         if (!details) return driveError(400, 'parseError', 'Parse Error')
         const missing = this.#missingParent(details)
         if (missing) return missing
@@ -144,7 +152,7 @@ export class FakeDrive {
     return driveError(404, 'notFound', 'Not Found')
   }
 
-  #create(details: Record<string, unknown>, body: Uint8Array): DriveFile {
+  #create(details: Details, body: Uint8Array): DriveFile {
     const stamp = new Date(this.#time++).toISOString()
     const file: DriveFile = {
       id: `1dr-${++this.#ids}_Id`,
@@ -164,7 +172,7 @@ export class FakeDrive {
     return file
   }
 
-  #missingParent(details: Record<string, unknown>): Response | null {
+  #missingParent(details: Details): Response | null {
     const parents = Array.isArray(details.parents) ? (details.parents as string[]) : []
     const gone = parents.find(parent => !this.files.has(parent))
     return gone ? driveError(404, 'notFound', `File not found: ${gone}.`) : null
@@ -230,7 +238,7 @@ export class FakeDrive {
     }
 
     if (kind === 'resumable') {
-      const details = (await incoming.json().catch(() => null)) as Record<string, unknown> | null
+      const details = (await incoming.json().catch(() => null)) as Details | null
       if (!details) return driveError(400, 'parseError', 'Parse Error')
       const missing = this.#missingParent(details)
       if (missing) return missing
@@ -258,9 +266,9 @@ export class FakeDrive {
       if (!first || !second || parts?.length !== 2) {
         return driveError(400, 'badRequest', 'Bad multipart body.')
       }
-      let details: Record<string, unknown>
+      let details: Details
       try {
-        details = JSON.parse(new TextDecoder().decode(first.body)) as Record<string, unknown>
+        details = JSON.parse(new TextDecoder().decode(first.body)) as Details
       } catch {
         return driveError(400, 'parseError', 'Parse Error')
       }
@@ -273,7 +281,7 @@ export class FakeDrive {
 
   #store(
     id: string | null,
-    details: Record<string, unknown>,
+    details: Details,
     contentType: string | null,
     body: Uint8Array,
     fields: string | null,

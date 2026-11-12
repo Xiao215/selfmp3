@@ -5,6 +5,7 @@ import {
   DOORMAN_PATHS,
   DoormanClaimResultSchema,
   DoormanError,
+  DoormanDriveStartedSchema,
   DoormanMeSchema,
   SIGN_IN_TTL_MS,
   bucketCallOf,
@@ -111,7 +112,14 @@ export interface CloudSessionApi {
   connectStorage: (session: CloudSession, input: CloudConnect) => Promise<CloudSession>
   /** Connect a Backblaze bucket from its key alone: the doorman asks Backblaze for the rest. */
   connectBackblaze: (session: CloudSession, input: DoormanBackblazeConnect) => Promise<CloudSession>
-  /** Forget the account's bucket. The bucket and its files are left alone. */
+  /**
+   * Leave for Google's page that asks to keep the library in the account's
+   * own Google Drive. Nothing comes back here: the doorman connects it, and
+   * the browser returns to `returnTo` saying how it went (shared's
+   * `driveBackFromUrl`), after which `refreshSession` finds the storage.
+   */
+  beginDriveConnect: (session: CloudSession, returnTo: string | null) => Promise<void>
+  /** Forget the account's storage. It and its files are left alone. */
   disconnectStorage: (session: CloudSession) => Promise<CloudSession>
   /**
    * End the session at the doorman, and forget it here. One the doorman
@@ -377,6 +385,15 @@ export function createCloudSession(
         json: input,
       })
       return keepAnswer(session, response)
+    },
+
+    async beginDriveConnect(session: CloudSession, returnTo: string | null): Promise<void> {
+      const response = await doormanFetch(session, DOORMAN_PATHS.drive, {
+        method: 'POST',
+        json: { returnTo },
+      })
+      const { url } = DoormanDriveStartedSchema.parse(await response.json())
+      await platform.openSignIn(url)
     },
 
     async disconnectStorage(session: CloudSession): Promise<CloudSession> {

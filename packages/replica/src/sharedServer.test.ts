@@ -31,6 +31,7 @@ const WITH_BUCKET: CloudSession = {
   me: {
     ...ME.me,
     storage: {
+      kind: 'bucket' as const,
       endpoint: 'https://s3.us-west-004.backblazeb2.com',
       region: 'us-west-004',
       bucket: 'theirs',

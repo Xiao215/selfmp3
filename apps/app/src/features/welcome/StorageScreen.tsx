@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Linking, Text, View } from 'react-native'
+import { AppState, Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { iconSize, radius, space, type, textStyle } from '@selfmp3/client'
@@ -16,12 +16,21 @@ import { BucketAddressFields } from './BucketAddressFields'
 import { useCloudSession } from '../profile/useCloudSession'
 import { afterWelcome } from './firstSync.model'
 import { storedFirstSync } from './firstSyncMemory'
-import { BUCKET_GUIDE, BUCKET_GUIDE_URL, guideParts } from '@selfmp3/shared'
+import {
+  BUCKET_GUIDE,
+  BUCKET_GUIDE_URL,
+  DRIVE_REFUSAL_WORDS,
+  guideParts,
+  type DoormanStorage,
+} from '@selfmp3/shared'
+import { onSignInBack, signInReturnUrl } from '../../ports/signInReturn'
 import {
   addressReady,
   cloudConnectInput,
   backblazeReady,
+  driveArrived,
   TRYING,
+  WAITING_FOR_GOOGLE,
   type AddressFields,
   type StorageMode,
 } from './storage.model'
@@ -35,11 +44,19 @@ import { rowTitle, lineSub, hint, textColumn } from '../../ui/surfaces'
 
 /**
  * Where it lives: the page between the first Google sign-in on an account and
- * First sync, asking for the bucket the account has none of yet
+ * First sync, asking for the storage the account has none of yet
  * (`storage.model.ts` has the rules; the canvas "Your bucket, after sign-in",
  * option B, the picture).
  *
- * Two strings and a button. The key ID and the application key Backblaze
+ * It opens on Google Drive: one button, which leaves for Google's page asking
+ * whether self.mp3 may keep its own files in the account's Drive
+ * (docs/features/storage-providers.md). The doorman connects it when Google
+ * comes back, and the browser returns here saying only how it went
+ * (`ports/signInReturn`, target `storage`), so the page asks the doorman what
+ * the account has now. Where no link comes back — Google's page finished in
+ * another browser — the page asks again each time the app returns to the front.
+ *
+ * A bucket of the person's own is the other choice: two strings and a button. The key ID and the application key Backblaze
  * showed go to the doorman, which asks Backblaze which bucket the key opens
  * and where, tries the key against it, and keeps it sealed. Under them, for
  * someone who has no bucket yet, the steps on Backblaze (`BUCKET_GUIDE`), each
@@ -56,7 +73,7 @@ export function StorageScreen(): ReactNode {
   const { wide, finePointer } = useLayoutFlags()
   const { storageConnected } = useConnection()
 
-  const [mode, setMode] = useState<StorageMode>('backblaze')
+  const [mode, setMode] = useState<StorageMode>('drive')
   const [keyId, setKeyId] = useState('')
   const [applicationKey, setApplicationKey] = useState('')
   const [address, setAddress] = useState<AddressFields>({
@@ -74,6 +91,73 @@ export function StorageScreen(): ReactNode {
   const email = useCloudSession().data?.email ?? null
 
   const ready = mode === 'backblaze' ? backblazeReady(keyId, applicationKey) : addressReady(address)
+
+  /** The storage is there: the library comes down from it now, and the usual way on from Welcome takes over. */
+  const onward = useCallback((): void => {
+    storageConnected()
+    router.replace(afterWelcome(true, storedFirstSync(), installedApp, false))
+  }, [router, storageConnected])
+
+  // Whether Google's page is open somewhere, and what the account had when it was opened.
+  const [waiting, setWaiting] = useState(false)
+  const before = useRef<DoormanStorage | null>(null)
+
+  /** What the doorman says the account has now. `sure`: a link said Drive was connected. */
+  const look = useCallback(
+    async (sure: boolean): Promise<void> => {
+      const session = await cloud.loadSession()
+      if (!session) return
+      const { storage } = (await cloud.refreshSession(session)).me
+      if (sure ? storage !== null : driveArrived(before.current, storage)) onward()
+    },
+    [onward],
+  )
+
+  const connectDrive = (): void => {
+    if (busy || waiting) return
+    setError(null)
+    setWaiting(true)
+    void (async () => {
+      try {
+        const session = await cloud.loadSession()
+        if (!session) {
+          setError('Signed out meanwhile. Sign in again.')
+          setWaiting(false)
+          return
+        }
+        before.current = session.me.storage
+        await cloud.beginDriveConnect(session, signInReturnUrl('storage'))
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Could not open Google.')
+        setWaiting(false)
+      }
+    })()
+  }
+
+  useEffect(
+    () =>
+      onSignInBack('storage', back => {
+        setWaiting(false)
+        if (back.kind === 'refused') {
+          setError(DRIVE_REFUSAL_WORDS[back.refusal])
+          return
+        }
+        setError(null)
+        void look(true).catch((caught: unknown) => {
+          setError(caught instanceof Error ? caught.message : 'Could not connect.')
+        })
+      }),
+    [look],
+  )
+
+  useEffect(() => {
+    if (!waiting) return
+    const sub = AppState.addEventListener('change', state => {
+      // Offline, or the doorman is busy: the next time back will say.
+      if (state === 'active') void look(false).catch(() => undefined)
+    })
+    return () => sub.remove()
+  }, [waiting, look])
 
   const connect = (): void => {
     if (busy) return
@@ -99,10 +183,7 @@ export function StorageScreen(): ReactNode {
         } else {
           await cloud.connectStorage(session, cloudConnectInput(address))
         }
-        // The bucket is there: the library comes down from it now, and the
-        // usual way on from Welcome takes over.
-        storageConnected()
-        router.replace(afterWelcome(true, storedFirstSync(), installedApp, false))
+        onward()
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Could not connect.')
       } finally {
@@ -225,9 +306,11 @@ export function StorageScreen(): ReactNode {
       face="display"
       keyboard
       lead={
-        mode === 'backblaze'
-          ? 'Your music goes in a bucket you own. Paste the key for it; self.mp3 asks Backblaze which bucket it opens, and where.'
-          : 'Your music goes in a bucket you own. Its address, its name, and a key for it with read and write.'
+        mode === 'drive'
+          ? 'Your music goes in a folder called self.mp3 in your own Google Drive. Google asks once whether self.mp3 may keep its files there.'
+          : mode === 'backblaze'
+            ? 'Your music goes in a bucket you own. Paste the key for it; self.mp3 asks Backblaze which bucket it opens, and where.'
+            : 'Your music goes in a bucket you own. Its address, its name, and a key for it with read and write.'
       }
     >
       <View style={styles.account}>
@@ -237,41 +320,75 @@ export function StorageScreen(): ReactNode {
         <Button label="Sign out" variant="text" onPress={() => setLeaving(true)} />
       </View>
 
-      {mode === 'backblaze' ? backblazeFields : addressFields}
+      {mode === 'drive' ? null : mode === 'backblaze' ? backblazeFields : addressFields}
       {mode === 'backblaze' ? helper : null}
 
-      {busy ? (
+      {busy || waiting ? (
         <View style={styles.trying}>
           <Spinner tone="accent" />
-          <Text style={styles.tryingText}>{TRYING}</Text>
+          <Text style={styles.tryingText}>{waiting ? WAITING_FOR_GOOGLE : TRYING}</Text>
         </View>
       ) : null}
       {error ? <StatusLine>{error}</StatusLine> : null}
 
       <View style={[styles.actions, wide && styles.actionsWide]}>
-        <WhitePill
-          testID="storage-connect"
-          label={busy ? 'Connecting…' : 'Connect'}
-          busy={busy}
-          width={wide ? 240 : undefined}
-          onPress={connect}
-        />
-        <Button
-          testID="storage-mode"
-          label={
-            mode === 'backblaze'
-              ? 'Not Backblaze? Enter the address yourself'
-              : 'Back to a Backblaze key'
-          }
-          variant="text"
-          onPress={() => {
-            setError(null)
-            setMode(mode === 'backblaze' ? 'address' : 'backblaze')
-          }}
-        />
+        {mode === 'drive' ? (
+          <WhitePill
+            testID="storage-drive"
+            label={waiting ? 'Waiting for Google…' : 'Use Google Drive'}
+            busy={waiting}
+            width={wide ? 240 : undefined}
+            onPress={connectDrive}
+          />
+        ) : (
+          <WhitePill
+            testID="storage-connect"
+            label={busy ? 'Connecting…' : 'Connect'}
+            busy={busy}
+            width={wide ? 240 : undefined}
+            onPress={connect}
+          />
+        )}
+        {waiting ? (
+          <Button
+            testID="storage-drive-cancel"
+            label="Cancel"
+            variant="text"
+            onPress={() => setWaiting(false)}
+          />
+        ) : (
+          <>
+            {mode === 'drive' ? null : (
+              <Button
+                testID="storage-mode"
+                label={
+                  mode === 'backblaze'
+                    ? 'Not Backblaze? Enter the address yourself'
+                    : 'Back to a Backblaze key'
+                }
+                variant="text"
+                onPress={() => {
+                  setError(null)
+                  setMode(mode === 'backblaze' ? 'address' : 'backblaze')
+                }}
+              />
+            )}
+            <Button
+              testID="storage-kind"
+              label={mode === 'drive' ? 'Use your own bucket instead' : 'Use Google Drive instead'}
+              variant="text"
+              onPress={() => {
+                setError(null)
+                setMode(mode === 'drive' ? 'backblaze' : 'drive')
+              }}
+            />
+          </>
+        )}
         <View style={styles.footnote}>
           <OnboardingFootnote>
-            The key goes to the sign-in service, sealed. This {device} never keeps it.
+            {mode === 'drive'
+              ? 'self.mp3 can see only the files it puts there, and nothing else in your Drive.'
+              : `The key goes to the sign-in service, sealed. This ${device} never keeps it.`}
           </OnboardingFootnote>
         </View>
       </View>

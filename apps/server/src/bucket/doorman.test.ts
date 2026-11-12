@@ -21,6 +21,7 @@ const ME: DoormanMe = {
   name: 'Me',
   picture: null,
   storage: {
+    kind: 'bucket' as const,
     endpoint: 'https://s3.us-west-004.backblazeb2.com',
     region: 'us-west-004',
     bucket: 'my-music',

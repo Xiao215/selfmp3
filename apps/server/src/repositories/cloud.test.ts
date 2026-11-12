@@ -125,7 +125,7 @@ describe('the account’s session and the bucket it points at', () => {
     email: 'me@example.com',
     name: 'Me',
     picture: null,
-    storage: { ...target, region: 'us-west-004', keyIdHint: '004abc…' },
+    storage: { kind: 'bucket' as const, ...target, region: 'us-west-004', keyIdHint: '004abc…' },
   }
 
   it('keeps the session apart from settings, and reads it back whole', () => {

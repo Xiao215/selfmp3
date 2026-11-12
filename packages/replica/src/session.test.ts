@@ -217,6 +217,7 @@ describe('signing in', () => {
 describe('the bucket', () => {
   const session = { doormanUrl: DOORMAN, token: TOKEN, me: ME }
   const STORAGE = {
+    kind: 'bucket' as const,
     endpoint: 'https://s3.us-west-004.backblazeb2.com',
     region: 'us-west-004',
     bucket: 'my-music',
@@ -232,6 +233,18 @@ describe('the bucket', () => {
     expect(p.calls[0]?.url).toBe(`${DOORMAN}/v1/storage/backblaze`)
     expect(p.calls[0]?.init?.method).toBe('POST')
     expect(p.store.seen.get(SESSION_KEY)).toEqual(next)
+  })
+
+  it('asks the doorman for Google’s Drive page and opens it, keeping nothing', async () => {
+    const google = 'https://accounts.google.com/o/oauth2/v2/auth?state=abc'
+    const p = platform(() => reply(200, { url: google }))
+    const cloud = createCloudSession(p)
+    await cloud.beginDriveConnect(session, 'selfmp3://storage')
+    expect(p.calls[0]?.url).toBe(`${DOORMAN}/v1/storage/drive`)
+    expect(p.calls[0]?.init?.method).toBe('POST')
+    expect(JSON.parse(String(p.calls[0]?.init?.body))).toEqual({ returnTo: 'selfmp3://storage' })
+    expect(p.opened).toEqual([google])
+    expect(p.store.seen.has(SESSION_KEY)).toBe(false)
   })
 
   it('forgets the bucket at the doorman, and the session follows', async () => {

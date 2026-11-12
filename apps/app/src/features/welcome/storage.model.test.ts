@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import { afterWelcome, FIRST_SYNC_SEEN } from './firstSync.model'
 import {
+  STORAGE_ROUTE,
   addressReady,
   backblazeReady,
   cloudConnectInput,
+  driveArrived,
   needsRegion,
-  STORAGE_ROUTE,
   storageDue,
   whereItIs,
 } from './storage.model'
@@ -74,6 +75,7 @@ describe('the address way', () => {
 
 describe('where the bucket is, in words', () => {
   const storage = {
+    kind: 'bucket' as const,
     endpoint: 'https://s3.us-west-004.backblazeb2.com',
     region: 'us-west-004',
     bucket: 'selfmp3-xiao',
@@ -85,6 +87,10 @@ describe('where the bucket is, in words', () => {
     expect(whereItIs(storage)).toBe('selfmp3-xiao on Backblaze, us-west-004')
   })
 
+  it('names Google Drive by the folder the library is in', () => {
+    expect(whereItIs({ kind: 'drive', folder: '1AbC' })).toBe('self.mp3 in your Google Drive')
+  })
+
   it('names any other provider by its address', () => {
     expect(
       whereItIs({
@@ -93,6 +99,29 @@ describe('where the bucket is, in words', () => {
         region: 'auto',
       }),
     ).toBe('selfmp3-xiao at abc123.r2.cloudflarestorage.com')
+  })
+})
+
+describe('Google Drive arriving with no link to say so', () => {
+  const drive = { kind: 'drive' as const, folder: '1AbC' }
+  const bucket = {
+    kind: 'bucket' as const,
+    endpoint: 'https://s3.us-west-004.backblazeb2.com',
+    region: 'us-west-004',
+    bucket: 'selfmp3-xiao',
+    prefix: 'selfmp3',
+    keyIdHint: '004abc…',
+  }
+
+  it('is news on an account that had nothing, or a bucket', () => {
+    expect(driveArrived(null, drive)).toBe(true)
+    expect(driveArrived(bucket, drive)).toBe(true)
+  })
+
+  it('is not news while nothing has changed', () => {
+    expect(driveArrived(null, null)).toBe(false)
+    expect(driveArrived(bucket, bucket)).toBe(false)
+    expect(driveArrived(drive, drive)).toBe(false)
   })
 })
 

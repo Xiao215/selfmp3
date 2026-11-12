@@ -79,7 +79,9 @@ const wordsKeyOf = (text: string, romanized: string[] | null = null): string =>
 const AT_ONCE = { send: 0, letGo: 0 }
 
 /** The account's bucket, as the doorman describes it. */
-const STORAGE: DoormanStorage = {
+type BucketStorage = Extract<DoormanStorage, { kind: 'bucket' }>
+const STORAGE: BucketStorage = {
+  kind: 'bucket',
   endpoint: 'https://s3.us-west-004.backblazeb2.com',
   region: 'us-west-004',
   bucket: 'my-music',
@@ -281,7 +283,7 @@ describe('CloudSyncService', () => {
    * The account's session kept here, the way the hub keeps a grant, for the
    * account's bucket: `STORAGE`, or that with some of it changed.
    */
-  const signIn = (storage: Partial<DoormanStorage> = {}): void => {
+  const signIn = (storage: Partial<BucketStorage> = {}): void => {
     const { email, name, picture } = ACCOUNT
     const bucketOf = { ...STORAGE, ...storage }
     doorman.accounts.set(TOKEN, { ...ACCOUNT, storage: bucketOf })
@@ -298,14 +300,14 @@ describe('CloudSyncService', () => {
   /** Signed in and started, the way the hub starts a library, with its first pass done. */
   const connectService = async (
     service: CloudSyncService,
-    storage: Partial<DoormanStorage> = {},
+    storage: Partial<BucketStorage> = {},
   ): Promise<void> => {
     signIn(storage)
     service.start()
     await service.whenIdle()
   }
 
-  const connect = (storage: Partial<DoormanStorage> = {}): Promise<void> =>
+  const connect = (storage: Partial<BucketStorage> = {}): Promise<void> =>
     connectService(sync, storage)
 
   const pass = async (): Promise<void> => {
@@ -2508,6 +2510,7 @@ describe('CloudSyncService', () => {
       // The same bucket (the fake opens it by name) under another endpoint.
       const service = lettingGo()
       await connectService(service, {
+        kind: 'bucket' as const,
         endpoint: 'https://s3.eu-central-003.backblazeb2.com',
         region: 'eu-central-003',
       })

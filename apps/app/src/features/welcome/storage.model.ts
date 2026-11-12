@@ -1,15 +1,23 @@
-import { bucketPlace, parseEndpoint, type CloudConnect, type DoormanStorage } from '@selfmp3/shared'
+import {
+  DRIVE_FOLDER_NAME,
+  parseEndpoint,
+  storagePlace,
+  type CloudConnect,
+  type DoormanStorage,
+} from '@selfmp3/shared'
 
 /**
  * Where it lives, without the screen: the page after the first Google sign-in
- * on an account that has no bucket yet (docs/SYNC.md, "Each device").
+ * on an account that has no storage yet (docs/SYNC.md, "Each device").
  *
- * The bucket belongs to the Google account, not the device, so the page is
- * shown once per account: the second device signed in finds the bucket
- * already there and goes straight on. It is asked for again only when the
- * bucket is forgotten (Settings → Account → Storage).
+ * The storage belongs to the Google account, not the device, so the page is
+ * shown once per account: the second device signed in finds it already there
+ * and goes straight on. It is asked for again only when the storage is
+ * forgotten (Settings → Account → Storage).
  *
- * Two ways to fill it in. With a Backblaze key the person pastes two strings
+ * The page opens on Google Drive, which needs nothing but a yes on Google's
+ * own page (docs/features/storage-providers.md). A bucket of the person's own
+ * is the other choice, with two ways to fill it in. With a Backblaze key the person pastes two strings
  * and the doorman asks Backblaze for the rest — the bucket a key made for one
  * bucket opens, and the account's S3 address. With any other provider it is
  * the server's form: endpoint, region where the address does not name one,
@@ -19,9 +27,9 @@ import { bucketPlace, parseEndpoint, type CloudConnect, type DoormanStorage } fr
 
 export const STORAGE_ROUTE = '/storage'
 
-export type StorageMode = 'backblaze' | 'address'
+export type StorageMode = 'drive' | 'backblaze' | 'address'
 
-/** Signed in to an account with no bucket: the page is due. */
+/** Signed in to an account with no storage: the page is due. */
 export function storageDue(
   session: { readonly me: { readonly storage: unknown } } | null,
 ): boolean {
@@ -60,13 +68,31 @@ export function addressReady(fields: AddressFields): boolean {
   )
 }
 
-/** "selfmp3-xiao on Backblaze, us-west-004", or "my-music at r2.cloudflarestorage.com". */
+/**
+ * "self.mp3 in your Google Drive", "selfmp3-xiao on Backblaze, us-west-004", or
+ * "my-music at r2.cloudflarestorage.com".
+ */
 export function whereItIs(storage: DoormanStorage): string {
-  const { host } = bucketPlace(storage)
+  if (storage.kind === 'drive') return `${DRIVE_FOLDER_NAME} in your Google Drive`
+  const { host } = storagePlace(storage)
   return /\.backblazeb2\.com$/i.test(host)
     ? `${storage.bucket} on Backblaze, ${storage.region}`
     : `${storage.bucket} at ${host}`
 }
+
+/**
+ * Whether what the doorman now says is the Google Drive the page left for
+ * Google to connect, when no link came back to say so: the app was brought
+ * back by hand, or Google's page was finished in another browser. Storage
+ * that was there before the trip, unchanged, is not news.
+ */
+export function driveArrived(before: DoormanStorage | null, now: DoormanStorage | null): boolean {
+  if (now?.kind !== 'drive') return false
+  return before?.kind !== 'drive' || before.folder !== now.folder
+}
+
+/** What the page says while Google's page is open somewhere else. */
+export const WAITING_FOR_GOOGLE = 'Waiting for Google. Finish there, then come back here.'
 
 /** What the page says while the doorman tries the key. No step is invented: it is one request. */
 export const TRYING =

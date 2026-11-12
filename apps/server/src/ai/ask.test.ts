@@ -978,6 +978,50 @@ describe('ask, every kind of answer', () => {
     })
   })
 
+  it('puts a playlist in an order the agent gives, the songs it leaves out after', async () => {
+    const d = deps({
+      'ask-agent': [
+        calls(['find_songs', { as: 'r', playlist: 'running' }]),
+        calls(
+          respond({
+            cards: [
+              {
+                kind: 'playlist',
+                op: 'sort',
+                playlists: ['running'],
+                from: { set: 'r', pick: [3, 1] },
+              },
+            ],
+          }),
+        ),
+      ],
+    })
+    const reply = await ask(d, 'put running in the order they played it live')
+    expect(reply.cards[0]).toMatchObject({
+      kind: 'playlistSongs',
+      op: 'sort',
+      songs: [{ songId: 14 }, { songId: 7 }, { songId: 9 }],
+      sortBy: null,
+      by: 'model',
+    })
+  })
+
+  it('tells it when the order it gives holds none of the playlist’s songs', async () => {
+    const d = deps({
+      'ask-agent': [
+        calls(
+          ['find_songs', { as: 'z', artist: ['HOYO-MiX'] }],
+          respond({
+            cards: [{ kind: 'playlist', op: 'sort', playlists: ['running'], from: { set: 'z' } }],
+          }),
+        ),
+        calls(respond({ cards: [{ kind: 'playlist', op: 'sort', playlists: ['running'] }] })),
+      ],
+    })
+    await ask(d, 'order running like their live show')
+    expect(toolResults(d.llm, 1).at(-1)).toContain('from holds none of running’s songs')
+  })
+
   it('hands playback to the device, and asks which song in Up next when no place is said', async () => {
     const d = deps({
       'ask-agent': [

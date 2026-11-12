@@ -345,7 +345,10 @@ while it is. Its ✕ (or Esc) gives the conversation the page back, closed throu
 that only talk, until a newer list comes or a card opens one. Until then the page was always
 split, and before any list two thirds of it said where one would open. On a phone the
 conversation is the page; a list's card opens the list as a page of its own over it, whose
-‹ comes back to the same place in the conversation, and a new question comes back too.
+‹ comes back to the same place in the conversation, and a new question comes back too. It
+moves as the stack's pushed pages do (`usePushedPage`): the list slides in from the right
+while the conversation eases a little left under it, starting once the list has laid out,
+and ‹ runs the same move back.
 
 A reply made from earlier answers says so above its words (B1): "From “Calm study night”",
 or "From “A” and 2 more". It is the server's own account (`AskReply.from`: every earlier
@@ -472,7 +475,7 @@ draws is built in code from those, never copied from the model's words:
 | `library` | `from` (none for the whole library), `show`, `sort`, `order`, `limit` | `libraryAnswer` over the set: count, length, songs in order, artists (credited, joined spellings as one), albums, tags and how many different of each; a set `judge_each` made counts as judged |
 | `stats` | `range`, `about`, `limit` | the Stats page's numbers, ten unless said, fifty at most |
 | `tags`, `tidy`, `copies` | `proposal` | the review a propose call kept |
-| `playlist` | `op` delete or rename (`playlists`, `newName`); create (a songs card to save); add, remove (`from`); sort (`sort`, `order`) | names matched with `matchPlaylist`; songs in or out of a manual playlist checked against it; a live one answered with its rules (Playlists from the box, below) |
+| `playlist` | `op` delete or rename (`playlists`, `newName`); create (a songs card to save); add, remove (`from`); sort (`sort` and `order`, or `from` in the order wanted) | names matched with `matchPlaylist`; songs in or out of a manual playlist checked against it; a live one answered with its rules (Playlists from the box, below) |
 | `deleteSongs` | `from` | the songs, and every playlist they are on with how many of its songs they are, so the device can say which go too (Deleting songs, below) |
 | `playback` | `op`, `at` for a place in Up next | done on the device (Controlling what plays) |
 | `remember`, `open`, `getMusic`, `together` | a note; a place and a sentence; words to search and whether an album; songs for the room or none | as before (Remembered preferences, Getting music, Listening together) |
@@ -557,8 +560,12 @@ songs of a set the agent made: `find_songs` with conditions (a playlist's own so
 `playlist` condition), and `pick_by_taste` over them for words conditions cannot say ("the
 ones named for rain", "the ones that aren't game music"), its picks waiting with the sparkle;
 nothing is loosened, so a remove never reaches past what was asked. An add keeps only the songs
-not in it yet, a remove only those in it. A sort is code (`sortSongs`: a song without
-the value, never analysed or never played, goes last either way). A live playlist fills
+not in it yet, a remove only those in it. A sort is one edit whoever chose the order: with
+`sort` it is code (`sortSongs` over `from`'s songs or all of them: a song without the value,
+never analysed or never played, goes last either way); without, `from` is the order itself,
+written out by the agent for an order the library cannot compute (it looks the order up and
+sees the songs first, never answering in the reply that finds them). Either way the songs placed
+go first and the rest stay after, where they were; the card reads "Reorder" when no key chose. A live playlist fills
 itself from its rules, so nothing is proposed for it: the answer says what it holds,
 and for an add whether the songs meant are in it already ("All 17 of those songs are in chill
 · chinese already: it holds songs tagged 中文流行") or how many are not; when it follows tags,

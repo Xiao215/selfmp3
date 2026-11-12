@@ -86,7 +86,9 @@ export function PlaylistSongsAnswer({
     return (
       <>
         <AnswerHead>
-          Sort {name} {answer.sortBy ? sortWords(answer.sortBy, answer.order) : ''}
+          {answer.sortBy
+            ? `Sort ${name} ${sortWords(answer.sortBy, answer.order)}`
+            : `Reorder ${name}`}
         </AnswerHead>
         {same ? (
           <AnswerNote>It is in that order already.</AnswerNote>

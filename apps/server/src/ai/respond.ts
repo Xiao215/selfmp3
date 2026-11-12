@@ -653,14 +653,22 @@ async function playlistCard(context: Responding, card: CardArg, label: string): 
           `No playlist here is called “${asked[0] ?? ''}”.`,
         )
       }
-      if (card.op === 'sort' && !card.sort) {
+      if (card.op === 'sort' && !card.sort && !card.from) {
         return problem(
-          'sort needs sort: what to put the songs in order by.',
+          'sort needs sort (what to put the songs in order by) or from (its songs in the order wanted).',
           'Say what to sort it by.',
         )
       }
-      const within =
-        card.op === 'sort' ? null : card.from ? context.set.resolve(card.from).songs : null
+      const within = card.from ? context.set.resolve(card.from).songs : null
+      if (card.op === 'sort' && within && playlist.kind === 'manual') {
+        const members = new Set(playlist.songIds())
+        if (!within.some(song => members.has(song.id))) {
+          return problem(
+            `from holds none of ${playlist.name}’s songs; a sort puts the playlist’s own songs in order.`,
+            `None of those songs are in ${playlist.name}.`,
+          )
+        }
+      }
       if (card.op !== 'sort' && !within) {
         return problem(
           `${card.op} needs from: the songs to ${card.op}.`,

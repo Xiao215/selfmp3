@@ -361,7 +361,10 @@ export function importRoutes(container: Container): Router {
             pausedUntil: pacing.pausedUntil,
             ratchet: pacing.ratchet,
           },
-          run: importRun(container.imports.runFacts(), pacing.budgetPerHour),
+          run: importRun(container.imports.runFacts(), {
+            turnsMs: container.throttle.turnsWaitMs(container.importQueue.turnsWaiting),
+            concurrency: container.settings.get().importConcurrency,
+          }),
         }
       },
     ),

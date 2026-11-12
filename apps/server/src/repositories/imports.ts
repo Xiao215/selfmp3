@@ -134,6 +134,7 @@ export class ImportRepository {
   readonly #open
   readonly #finished
   readonly #nextQueued
+  readonly #queuedOwn
   readonly #countByStatus
   readonly #update
   readonly #resetRunning
@@ -219,6 +220,10 @@ export class ImportRepository {
        ORDER BY position, created_at
        LIMIT 1
     `)
+
+    this.#queuedOwn = db.prepare<[], Pick<ImportJobRow, 'url' | 'song_id'>>(
+      `SELECT url, song_id FROM import_jobs WHERE status = 'queued' AND NOT ${HELD}`,
+    )
 
     this.#countByStatus = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM import_jobs WHERE status = ?',
@@ -426,6 +431,11 @@ export class ImportRepository {
   nextQueued(): ImportJob | null {
     const row = this.#nextQueued.get()
     return row ? toJob(row) : null
+  }
+
+  /** Every job waiting its turn on this server — not one a device holds — as much as says whether it asks YouTube. */
+  queuedOwn(): { url: string; songId: number | null }[] {
+    return this.#queuedOwn.all().map(row => ({ url: row.url, songId: row.song_id }))
   }
 
   /** The next queued job, in the order they were asked for. */

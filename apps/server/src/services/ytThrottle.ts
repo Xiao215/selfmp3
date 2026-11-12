@@ -2,6 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import {
   budgetPerHour,
   waitMs,
+  turnsWaitMs,
   spend,
   penalize,
   resetRatchet,
@@ -66,6 +67,13 @@ export class YtThrottleService {
   waitMs(borrow = 0): number {
     const now = this.#now()
     return waitMs(this.#store.get(now), this.#signedIn(), now, borrow)
+  }
+
+  /** ms until `turns` requests' worth will have come in: 0 for none (`turnsWaitMs`). */
+  turnsWaitMs(turns: number): number {
+    if (turns <= 0) return 0
+    const now = this.#now()
+    return turnsWaitMs(this.#store.get(now), this.#signedIn(), now, turns)
   }
 
   status(): ThrottleStatus {

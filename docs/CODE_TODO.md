@@ -112,3 +112,13 @@ device's store, because the only data there is is the owner's.
   `start`; the sync's and the hub's tests drive passes one at a time through `syncNow`, and
   `verify` starts a pass over against the bucket the way a restart does, without making a
   second service on the same database.
+- **`repositories/cloud.ts` stays one repository**, though long: saving any bucket file's
+  state trashes the file it replaces, and `reconcileFiles` resets every kind in one
+  transaction, so split repositories would each need the others' tables.
+- **The hub lets a library go with `fs.rmSync`** (`#leave`, `apps/server/src/hub/hub.ts`):
+  it runs once per grant taken back, and the hub's tests read the folders as gone the moment
+  it returns.
+- **The scrapers read their pages through casts, not schemas** (`services/netease.ts`,
+  `services/youtubeMusic*.ts`, `services/spotify.ts`): each shape is someone else's and changes
+  without notice, so a field is read where it is found and a missing one is skipped,
+  where a schema would refuse the whole page.

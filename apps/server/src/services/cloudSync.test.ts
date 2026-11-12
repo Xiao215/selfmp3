@@ -15,14 +15,12 @@ import {
   logKey,
   newestSnapshotKey,
   snapshotKey,
-  parseEndpoint,
   type Change,
   type CloudConnect,
   type CloudPlaylist,
   type CloudSnapshot,
   type CloudSong,
   type CloudTag,
-  type DoormanClaimResult,
   type DoormanMe,
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
@@ -3529,75 +3527,21 @@ describe('CloudSyncService', () => {
     })
   })
 
-  describe('signing in through the doorman', () => {
-    /** The code the fake doorman shows when a test does not name one. */
-    const CODE = '7H3N9PQR'
+  describe('the account’s session with the doorman', () => {
     /**
-     * The doorman as the server sees it: Google "finishes" a sign-in when a test
-     * says so, each session belongs to an account, and an account's bucket is
-     * one of the memory buckets above, by name.
+     * The doorman as the server sees it: each session belongs to an account,
+     * and an account's bucket is one of the memory buckets above, by name.
      */
     class FakeDoorman implements Doorman {
       readonly url = 'https://doorman.test'
-      /** attempt → the session Google's sign-in produced, once it has. */
-      readonly finished = new Map<string, string>()
       readonly accounts = new Map<string, DoormanMe>()
       readonly signedOut: string[] = []
-      /** attempt → the code shown once Google finished. */
-      readonly codes = new Map<string, string>()
       meFailure: CloudError | null = null
-
-      finish(
-        attempt: string,
-        token: string,
-        storage: DoormanMe['storage'] = null,
-        code = CODE,
-      ): void {
-        this.accounts.set(token, { email: 'me@example.com', name: 'Me', picture: null, storage })
-        this.finished.set(attempt, token)
-        this.codes.set(attempt, code)
-      }
-
-      claim(attempt: string, code?: string): Promise<DoormanClaimResult> {
-        const token = this.finished.get(attempt)
-        const me = token ? this.accounts.get(token) : undefined
-        if (!token || !me) {
-          return code === undefined
-            ? Promise.resolve({ status: 'pending' })
-            : Promise.reject(new CloudError('other', 'wrong code'))
-        }
-        // Asked without a code, a finished sign-in only says a code is waiting.
-        if (code === undefined) return Promise.resolve({ status: 'code' })
-        if (code !== this.codes.get(attempt)) {
-          // A wrong code ends the attempt.
-          this.finished.delete(attempt)
-          return Promise.reject(new CloudError('other', 'That isn’t the code. Start again.'))
-        }
-        this.finished.delete(attempt)
-        return Promise.resolve({ status: 'signed-in', token, me })
-      }
 
       me(token: string): Promise<DoormanMe> {
         if (this.meFailure) return Promise.reject(this.meFailure)
         const me = this.accounts.get(token)
         return me ? Promise.resolve(me) : Promise.reject(new CloudError('auth', 'signed out'))
-      }
-
-      connectStorage(token: string, input: CloudConnect): Promise<DoormanMe> {
-        const me = this.accounts.get(token)
-        if (!me) return Promise.reject(new CloudError('auth', 'signed out'))
-        const next: DoormanMe = {
-          ...me,
-          storage: {
-            endpoint: parseEndpoint(input.endpoint)?.url ?? input.endpoint,
-            region: 'us-west-004',
-            bucket: input.bucket,
-            prefix: input.prefix,
-            keyIdHint: `${input.keyId.slice(0, 6)}…`,
-          },
-        }
-        this.accounts.set(token, next)
-        return Promise.resolve(next)
       }
 
       signOut(token: string): Promise<void> {
@@ -3623,9 +3567,16 @@ describe('CloudSyncService', () => {
       prefix: 'selfmp3',
       keyIdHint: '004abc…',
     }
-    const ATTEMPT = 'c'.repeat(32)
+    const TOKEN = 'session-1'
+    const ACCOUNT = { email: 'me@example.com', name: 'Me', picture: null }
 
-    const withDoorman = (doorman: FakeDoorman, now = () => new Date((clock += 1000))) => {
+    /** The account's session kept here, the way the hub keeps a grant, and known to the doorman. */
+    const signedIn = (doorman: FakeDoorman): void => {
+      doorman.accounts.set(TOKEN, { ...ACCOUNT, storage: STORAGE })
+      cloud.saveDoormanSession({ url: doorman.url, token: TOKEN, ...ACCOUNT, storage: STORAGE })
+    }
+
+    const withDoorman = (doorman: FakeDoorman) => {
       const storage = new LocalStorageDriver(root)
       const logger = createLogger('silent')
       const service = new CloudSyncService({
@@ -3651,120 +3602,45 @@ describe('CloudSyncService', () => {
         doormanUrl: doorman.url,
         openDoorman: () => doorman,
         debounceMs: 5,
-        signInPollMs: 1,
-        now,
+        now: () => new Date((clock += 1000)),
       })
       extras.push(service)
       return service
     }
 
-    /** Poll until `done` says so, or give up after a couple of hundred milliseconds. */
-    const until = async (done: () => boolean): Promise<void> => {
-      for (let tries = 0; tries < 100 && !done(); tries++) {
-        await new Promise(resolve => setTimeout(resolve, 2))
-      }
-    }
-
-    /** Google finishes, the poll sees the code is waiting, and the code is typed in. */
-    const claimWithCode = async (service: CloudSyncService, code = CODE): Promise<void> => {
-      await until(() => service.status().signInNeedsCode)
-      await service.enterSignInCode(code)
+    /** Started, with the doorman asked about the account, and the pass that follows done. */
+    const started = async (service: CloudSyncService): Promise<void> => {
+      service.start()
+      await new Promise(resolve => setTimeout(resolve, 20))
       await service.whenIdle()
     }
 
-    const signIn = async (service: CloudSyncService): Promise<void> => {
-      service.beginSignIn(ATTEMPT)
-      await claimWithCode(service)
-    }
-
-    it('asks for the code Google’s sign-in ended with, and claims the session with it', async () => {
-      const doorman = new FakeDoorman()
-      const service = withDoorman(doorman)
-
-      service.beginSignIn(ATTEMPT)
-      doorman.finish(ATTEMPT, 'session-1', STORAGE, '4F7K2QXM')
-      await until(() => service.status().signInNeedsCode)
-      // Starting the attempt was not enough: without the code, no session.
-      expect(service.status()).toMatchObject({
-        signingIn: true,
-        signInNeedsCode: true,
-        account: null,
-      })
-
-      await service.enterSignInCode('4F7K2QXM')
-      await service.whenIdle()
-      expect(service.status()).toMatchObject({
-        signingIn: false,
-        signInNeedsCode: false,
-        account: { email: 'me@example.com' },
-        connected: true,
-      })
-    })
-
-    it('ends the sign-in on a wrong code, and says so', async () => {
-      const doorman = new FakeDoorman()
-      const service = withDoorman(doorman)
-
-      service.beginSignIn(ATTEMPT)
-      doorman.finish(ATTEMPT, 'session-1', STORAGE, '4F7K2QXM')
-      await until(() => service.status().signInNeedsCode)
-      await expect(service.enterSignInCode('AAAAAAAA')).rejects.toThrow(/isn’t the code/)
-      expect(service.status()).toMatchObject({ signingIn: false, account: null, connected: false })
-      // And the right code afterwards finds nothing to claim.
-      await expect(service.enterSignInCode('4F7K2QXM')).rejects.toThrow(/Start it again/)
-    })
-
-    it('waits for Google, then publishes to the bucket that belongs to the account', async () => {
+    it('publishes to the bucket that belongs to the account', async () => {
       addSong('A - One', 'one')
       const doorman = new FakeDoorman()
+      signedIn(doorman)
       const service = withDoorman(doorman)
-
-      service.beginSignIn(ATTEMPT)
-      expect(service.status()).toMatchObject({ signingIn: true, account: null })
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
-      await claimWithCode(service)
+      await started(service)
 
       expect(service.status()).toMatchObject({
         doormanUrl: 'https://doorman.test',
-        signingIn: false,
         account: { email: 'me@example.com' },
         connected: true,
         target: { bucket: CONNECT.bucket, prefix: 'selfmp3' },
         songs: { total: 1, inCloud: 1 },
       })
       expect(latest().songs).toHaveLength(1)
-      // The session is kept for the next start, never a bucket key.
-      expect(cloud.doormanSession()).toMatchObject({ token: 'session-1', email: 'me@example.com' })
-      expect(cloud.connection()).toBeNull()
-    })
-
-    it('asks a new account to connect its bucket, then publishes to it', async () => {
-      addSong('A - One', 'one')
-      const doorman = new FakeDoorman()
-      const service = withDoorman(doorman)
-      doorman.finish(ATTEMPT, 'session-1')
-      await signIn(service)
-      expect(service.status()).toMatchObject({
-        account: { email: 'me@example.com' },
-        connected: false,
-      })
-
-      await service.connectStorage(CONNECT)
-      await service.whenIdle()
-      expect(service.status()).toMatchObject({ connected: true, songs: { inCloud: 1 } })
-      expect(latest().songs).toHaveLength(1)
     })
 
     it('carries on after a restart with the account it was signed in to', async () => {
       addSong('A - One', 'one')
       const doorman = new FakeDoorman()
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
-      await signIn(withDoorman(doorman))
+      signedIn(doorman)
+      await started(withDoorman(doorman))
       const puts = bucket.puts.length
 
       const again = withDoorman(doorman)
-      again.start()
-      await again.whenIdle()
+      await started(again)
       expect(again.status()).toMatchObject({
         connected: true,
         account: { email: 'me@example.com' },
@@ -3776,41 +3652,31 @@ describe('CloudSyncService', () => {
     it('uploads everything again when the account’s bucket has changed', async () => {
       addSong('A - One', 'one')
       const doorman = new FakeDoorman()
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
-      await signIn(withDoorman(doorman))
+      signedIn(doorman)
+      await started(withDoorman(doorman))
 
       // Swapped for another bucket from another device.
-      doorman.accounts.set('session-1', {
-        email: 'me@example.com',
-        name: 'Me',
-        picture: null,
-        storage: { ...STORAGE, bucket: 'new-bucket' },
-      })
-      const again = withDoorman(doorman)
-      again.start()
-      await new Promise(resolve => setTimeout(resolve, 20))
-      await again.whenIdle()
+      doorman.accounts.set(TOKEN, { ...ACCOUNT, storage: { ...STORAGE, bucket: 'new-bucket' } })
+      await started(withDoorman(doorman))
       expect(buckets.get('new-bucket')?.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
     })
 
     it('says so when the doorman no longer knows the session', async () => {
       const doorman = new FakeDoorman()
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
-      await signIn(withDoorman(doorman))
-
+      signedIn(doorman)
       doorman.meFailure = new CloudError('auth', 'Your Google sign-in has expired.')
-      const again = withDoorman(doorman)
-      again.start()
+      const service = withDoorman(doorman)
+      service.start()
       await new Promise(resolve => setTimeout(resolve, 20))
-      expect(again.status()).toMatchObject({ state: 'error', lastError: /expired/ })
+      expect(service.status()).toMatchObject({ state: 'error', lastError: /expired/ })
     })
 
     it('stops publishing, rather than retrying, when the session is refused mid-way', async () => {
       addSong('A - One', 'one')
       const doorman = new FakeDoorman()
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      signedIn(doorman)
       const service = withDoorman(doorman)
-      await signIn(service)
+      await started(service)
 
       bucket.failure = new CloudError('auth', 'Your Google sign-in has expired.')
       addSong('B - Two', 'two')
@@ -3829,17 +3695,15 @@ describe('CloudSyncService', () => {
       // publish, that an account took its grant back.
       addSong('A - One', 'one')
       const doorman = new FakeDoorman()
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      signedIn(doorman)
       // With the sync's own bookkeeping, which the log poll needs, and a quick poll.
       sync = makeSync({
         doormanUrl: doorman.url,
         openDoorman: () => doorman,
-        signInPollMs: 1,
         logPollMs: 15,
       })
       const service = sync
-      await signIn(service)
-      await service.whenIdle()
+      await started(service)
 
       bucket.failure = new CloudError('auth', 'Your Google sign-in has expired.')
       await vi.waitFor(() => expect(service.status().connected).toBe(false), { timeout: 2_000 })
@@ -3849,20 +3713,11 @@ describe('CloudSyncService', () => {
       })
     })
 
-    it('gives up waiting after ten minutes', async () => {
-      let time = Date.parse('2026-09-11T10:00:00Z')
-      const service = withDoorman(new FakeDoorman(), () => new Date(time))
-      service.beginSignIn(ATTEMPT)
-      time += 11 * 60_000
-      await until(() => !service.status().signingIn)
-      expect(service.status()).toMatchObject({ signingIn: false, account: null })
-    })
-
     it('signs out when disconnected, and forgets the session', async () => {
       const doorman = new FakeDoorman()
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      signedIn(doorman)
       const service = withDoorman(doorman)
-      await signIn(service)
+      await started(service)
 
       service.disconnect()
       expect(doorman.signedOut).toEqual(['session-1'])
@@ -3872,19 +3727,14 @@ describe('CloudSyncService', () => {
 
     it('lets a direct connection replace the sign-in', async () => {
       const doorman = new FakeDoorman()
-      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      signedIn(doorman)
       const service = withDoorman(doorman)
-      await signIn(service)
+      await started(service)
 
       await service.connect({ ...CONNECT, bucket: 'direct-bucket' })
       await service.whenIdle()
       expect(service.status()).toMatchObject({ account: null, target: { bucket: 'direct-bucket' } })
       expect(cloud.doormanSession()).toBeNull()
-    })
-
-    it('refuses to sign in with no doorman set up', () => {
-      expect(() => sync.beginSignIn(ATTEMPT)).toThrow(/No doorman/)
-      expect(sync.status().doormanUrl).toBeNull()
     })
   })
 })

@@ -3,7 +3,7 @@ import { CameWithSchema, CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { HASH_FILE_NAME } from '../doormanWire.js'
 import { HueSchema, IdSchema } from './common.js'
-import { DoormanStorageSchema, SignInAttemptSchema, SignInCodeSchema } from './doorman.js'
+import { DoormanStorageSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
 import { ArtistNamesSchema } from './artist.js'
 import {
@@ -479,19 +479,6 @@ export const CloudConnectSchema = z.object({
 })
 export type CloudConnect = z.infer<typeof CloudConnectSchema>
 
-/**
- * Start signing this server in with Google through the doorman. The browser
- * makes the attempt id, opens the doorman's sign-in page with it straight
- * away (a window opened after an await is a popup, and gets blocked), and
- * tells the server, which waits for Google to finish and keeps the session.
- */
-export const CloudSignInSchema = z.object({ attempt: SignInAttemptSchema })
-export type CloudSignIn = z.infer<typeof CloudSignInSchema>
-
-/** The code the doorman showed once Google signed you in (doorman.ts): what claims the session. */
-export const CloudSignInCodeSchema = z.object({ code: SignInCodeSchema })
-export type CloudSignInCode = z.infer<typeof CloudSignInCodeSchema>
-
 export const CloudAccountSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
@@ -507,10 +494,6 @@ export const CloudStatusSchema = z.object({
   doormanUrl: z.string().nullable(),
   /** The Google account signed in through the doorman. */
   account: CloudAccountSchema.nullable(),
-  /** Waiting for Google to finish a sign-in started from this server. */
-  signingIn: z.boolean(),
-  /** Google has finished; the code it showed is wanted, to claim the session. */
-  signInNeedsCode: z.boolean(),
   /** A bucket is in use: connected directly, or belonging to the signed-in account. */
   connected: z.boolean(),
   /** Where it is connected to. The key itself is never sent back. */

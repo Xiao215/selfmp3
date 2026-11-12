@@ -41,7 +41,6 @@ import {
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
-  SIGN_IN_TTL_MS,
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
@@ -207,14 +206,8 @@ const LOG_READS_AT_ONCE = 6
 /** Songs whose files are looked at together while a pass works out what changed. */
 const SIGNATURES_AT_ONCE = 16
 
-/** How often to ask the doorman whether Google has finished: for as long as a sign-in lasts (`SIGN_IN_TTL_MS`). */
-const SIGN_IN_POLL_MS = 2_000
-
 /** The part of the doorman the sync uses. Tests hand in a fake. */
-export type Doorman = Pick<
-  DoormanClient,
-  'url' | 'claim' | 'me' | 'connectStorage' | 'signOut' | 'store'
->
+export type Doorman = Pick<DoormanClient, 'url' | 'me' | 'signOut' | 'store'>
 
 interface Signatures {
   readonly audio: string
@@ -377,7 +370,6 @@ interface CloudSyncDeps {
    */
   readonly publishAnyway?: boolean
   readonly now?: () => Date
-  readonly signInPollMs?: number
   readonly logPollMs?: number
   /** How long a pass that did not get everything up waits before the next: a step per failure. */
   readonly retryDelaysMs?: readonly number[]
@@ -399,7 +391,6 @@ export class CloudSyncService {
   readonly #openStore: (connection: CloudConnection) => CloudStore
   readonly #doorman: Doorman | null
   readonly #now: () => Date
-  readonly #signInPollMs: number
   readonly #logPollMs: number
   readonly #retryDelaysMs: readonly number[]
   readonly #enrichmentDeferMs: number
@@ -421,9 +412,6 @@ export class CloudSyncService {
   #store: CloudStore | null = null
   /** Signed in through the doorman: the session, and what it last said about the account. */
   #session: DoormanSession | null = null
-  /** A sign-in started from this server that Google has not finished yet. */
-  #signIn: { attempt: string; until: number; needsCode: boolean } | null = null
-  #signInTimer: NodeJS.Timeout | null = null
   /** Bumped on every connect and disconnect, so a pass for an old bucket stops. */
   #generation = 0
   #formatChecked = false
@@ -566,7 +554,6 @@ export class CloudSyncService {
       }
     }, deps.importPacing)
     this.#now = deps.now ?? (() => new Date())
-    this.#signInPollMs = deps.signInPollMs ?? SIGN_IN_POLL_MS
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
     this.#retryDelaysMs = deps.retryDelaysMs ?? RETRY_DELAYS_MS
     this.#enrichmentDeferMs = deps.enrichmentDeferMs ?? ENRICHMENT_DEFER_MS
@@ -628,7 +615,6 @@ export class CloudSyncService {
   stop(): void {
     this.#stopped = true
     this.#clearTimers()
-    this.#stopSignIn()
   }
 
   /** Something in the library changed. Cheap to call as often as you like. */
@@ -747,7 +733,6 @@ export class CloudSyncService {
     await store.list(FORMAT_KEY)
     await this.#checkFormat(store)
 
-    this.#stopSignIn()
     this.#session = null
     this.#deps.cloud.saveConnection(connection)
     this.#useDirect(connection, store)
@@ -768,7 +753,6 @@ export class CloudSyncService {
       // Best effort: the session is forgotten here either way.
       this.#doorman.signOut(session.token).catch(() => undefined)
     }
-    this.#stopSignIn()
     this.#deps.cloud.clearConnection()
     this.#session = null
     this.#drop()
@@ -776,116 +760,7 @@ export class CloudSyncService {
     return this.status()
   }
 
-  // --- Signing in through the doorman ------------------------------------------
-
-  /**
-   * Wait for Google to finish a sign-in the browser has just started with
-   * this attempt id (it opens the doorman's page itself, so no popup is
-   * blocked). The doorman is asked every couple of seconds for ten minutes.
-   */
-  beginSignIn(attempt: string): CloudStatus {
-    this.#refuseWithFolder()
-    if (!this.#doorman) {
-      throw new CloudError('other', 'No doorman is set up for this server to sign in through.')
-    }
-    this.#stopSignIn()
-    this.#signIn = {
-      attempt,
-      until: this.#now().getTime() + SIGN_IN_TTL_MS,
-      needsCode: false,
-    }
-    this.#scheduleSignInPoll(0)
-    return this.status()
-  }
-
-  cancelSignIn(): CloudStatus {
-    this.#stopSignIn()
-    return this.status()
-  }
-
-  /**
-   * The code the doorman showed once Google had signed you in: what turns
-   * the attempt into a session (packages/shared/src/schemas/doorman.ts). A
-   * wrong one ends the attempt, and signing in starts again. Throws
-   * `CloudError`.
-   */
-  async enterSignInCode(code: string): Promise<CloudStatus> {
-    const signIn = this.#signIn
-    if (!signIn || !this.#doorman) {
-      throw new CloudError('other', 'That sign-in is over. Start it again.')
-    }
-    try {
-      const result = await this.#doorman.claim(signIn.attempt, code)
-      if (result.status !== 'signed-in') {
-        throw new CloudError('other', 'Google has not finished signing you in yet.')
-      }
-      // By attempt rather than by identity: the poll that runs alongside this
-      // replaces the whole object whenever anything about it changes, and then
-      // a sign-in that had just succeeded was left looking like one still
-      // waiting for its code.
-      if (this.#signIn?.attempt === signIn.attempt) this.#stopSignIn()
-      this.#logger.info('signed in to the cloud', { account: result.me.email })
-      this.#adoptAccount(result.token, result.me)
-      return this.status()
-    } catch (error) {
-      // The doorman forgets an attempt a wrong code was tried against.
-      if (this.#signIn?.attempt === signIn.attempt) this.#stopSignIn()
-      throw error
-    }
-  }
-
-  /**
-   * Connect a bucket to the signed-in Google account. The doorman tries the
-   * key before it keeps it, and says what was wrong if it was. Throws
-   * `CloudError`.
-   */
-  async connectStorage(input: CloudConnect): Promise<CloudStatus> {
-    const session = this.#session
-    if (!session || !this.#doorman) {
-      throw new CloudError('auth', 'Sign in with Google first.')
-    }
-    const me = await this.#doorman.connectStorage(session.token, input)
-    this.#adoptAccount(session.token, me)
-    return this.status()
-  }
-
-  #scheduleSignInPoll(delay: number): void {
-    this.#signInTimer = setTimeout(() => {
-      this.#signInTimer = null
-      void this.#pollSignIn()
-    }, delay)
-    this.#signInTimer.unref()
-  }
-
-  async #pollSignIn(): Promise<void> {
-    const signIn = this.#signIn
-    if (!signIn || !this.#doorman || this.#stopped) return
-    if (this.#now().getTime() > signIn.until) {
-      this.#signIn = null
-      return
-    }
-    // Google has finished and the code is on its way: nothing to ask until it comes.
-    if (signIn.needsCode) {
-      this.#scheduleSignInPoll(this.#signInPollMs)
-      return
-    }
-    try {
-      // Asked without a code, the doorman only ever says whether one is waiting.
-      const result = await this.#doorman.claim(signIn.attempt)
-      if (this.#signIn !== signIn) return
-      if (result.status === 'code') this.#signIn = { ...signIn, needsCode: true }
-    } catch (error) {
-      // Google takes its time and networks drop: keep asking until the deadline.
-      this.#logger.debug('sign-in not claimed yet', { message: messageOf(error) })
-    }
-    if (this.#signIn?.attempt === signIn.attempt) this.#scheduleSignInPoll(this.#signInPollMs)
-  }
-
-  #stopSignIn(): void {
-    if (this.#signInTimer) clearTimeout(this.#signInTimer)
-    this.#signInTimer = null
-    this.#signIn = null
-  }
+  // --- The account's session with the doorman -------------------------------
 
   /** Ask the doorman about the signed-in account, and use what it says. */
   async #refreshAccount(): Promise<void> {
@@ -960,8 +835,6 @@ export class CloudSyncService {
       account: session
         ? { email: session.email, name: session.name, picture: session.picture }
         : null,
-      signingIn: this.#signIn !== null,
-      signInNeedsCode: this.#signIn?.needsCode ?? false,
       connected: store !== null,
       target: store ? this.#target : null,
       deviceId: store ? this.#deviceId() : null,

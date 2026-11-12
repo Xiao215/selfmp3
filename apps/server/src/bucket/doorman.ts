@@ -4,7 +4,6 @@ import {
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanChangesSchema,
-  DoormanClaimResultSchema,
   DoormanError,
   DoormanGrantMadeSchema,
   DoormanListSchema,
@@ -12,9 +11,7 @@ import {
   SHARE_GONE_MOST,
   doormanRequest,
   parseChangesHeader,
-  type CloudConnect,
   type DoormanCall,
-  type DoormanClaimResult,
   type DoormanErrorCode,
   type DoormanGrantMade,
   type DoormanGrantRequest,
@@ -83,25 +80,8 @@ export class DoormanClient {
     this.#send = doormanRequest<Response, AbortSignal>(this.url, fetchImpl)
   }
 
-  /**
-   * How a sign-in stands, or with the code the doorman showed, the session.
-   * A wrong code throws, and the doorman forgets the attempt.
-   */
-  async claim(attempt: string, code?: string): Promise<DoormanClaimResult> {
-    const response = await this.request('POST', DOORMAN_PATHS.claim, {
-      json: code === undefined ? { attempt } : { attempt, code },
-    })
-    return DoormanClaimResultSchema.parse(await response.json())
-  }
-
   async me(token: string): Promise<DoormanMe> {
     const response = await this.request('GET', DOORMAN_PATHS.me, { token })
-    return DoormanMeSchema.parse(await response.json())
-  }
-
-  /** Connect a bucket to the signed-in Google account. The doorman tests it first. */
-  async connectStorage(token: string, input: CloudConnect): Promise<DoormanMe> {
-    const response = await this.request('PUT', DOORMAN_PATHS.storage, { token, json: input })
     return DoormanMeSchema.parse(await response.json())
   }
 

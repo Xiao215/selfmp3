@@ -127,10 +127,13 @@ export function withKeptSongs(core: YouTubeCore): DeviceDownloader {
 /** `promise`, or a rejection the moment `signal` aborts. */
 function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (!signal) return promise
-  signal.throwIfAborted()
+  const reason = (): Error =>
+    signal.reason instanceof Error ? signal.reason : new Error('aborted')
+  // Not `throwIfAborted`: this runs in the phone's app too, and Hermes has none.
+  if (signal.aborted) return Promise.reject(reason())
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => {
-      reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'))
+      reject(reason())
     }
     signal.addEventListener('abort', onAbort, { once: true })
     promise.then(

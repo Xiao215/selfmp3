@@ -231,7 +231,8 @@ export class DeviceImports {
           current.percent = percent
         },
       })
-      stop.signal.throwIfAborted()
+      // Taken from this device while it downloaded: nothing is sent. (Not `throwIfAborted`: Hermes has none.)
+      if (stop.signal.aborted) return
       const target = batch.api.importDeviceFileTarget(id, batch.lease)
       if (!target) throw new Error('there is no server to send the file to')
       const answer = await this.#deps.upload(target, file)

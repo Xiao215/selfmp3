@@ -1,5 +1,5 @@
 import type { RomanizedLyrics, Song } from '@selfmp3/shared'
-import { detectLyricsLanguage, messageOf } from '@selfmp3/shared'
+import { detectLyricsLanguage, messageOf, RomanizedLyricsSchema } from '@selfmp3/shared'
 import { CloudError } from '../bucket/store.js'
 import type { Logger } from '../logger.js'
 import { LyricsCache } from './lyricsCache.js'
@@ -30,7 +30,7 @@ export async function romanizedLines(
   text: string,
 ): Promise<string[] | null> {
   const hash = LyricsCache.hash(text)
-  const cached = await deps.lyricsCache.read<RomanizedLyrics>(songId, 'romanized', hash)
+  const cached = await deps.lyricsCache.read(songId, 'romanized', hash, RomanizedLyricsSchema)
   if (cached) return linesOf(cached)
   return romanizeAndKeep(deps, songId, text, hash)
 }
@@ -65,7 +65,7 @@ export async function keepRomanizedFromBucket(
   romanized: readonly string[],
 ): Promise<void> {
   const hash = LyricsCache.hash(text)
-  if (await deps.lyricsCache.read<RomanizedLyrics>(songId, 'romanized', hash)) return
+  if (await deps.lyricsCache.read(songId, 'romanized', hash, RomanizedLyricsSchema)) return
   const { synced, lines } = toLyricLines(text)
   if (lines.length !== romanized.length) return
   const language = detectLyricsLanguage(lines.map(line => line.text))
@@ -107,7 +107,7 @@ export async function romanizeLibrary(deps: {
       const text = await unattendedLyricText(deps, song)
       if (!text) continue
       const hash = LyricsCache.hash(text)
-      if (await deps.lyricsCache.read<RomanizedLyrics>(song.id, 'romanized', hash)) continue
+      if (await deps.lyricsCache.read(song.id, 'romanized', hash, RomanizedLyricsSchema)) continue
       if ((await romanizeAndKeep(deps, song.id, text, hash)) !== null) made++
     } catch (error) {
       // Words a song keeps only in the bucket are read from there, and a

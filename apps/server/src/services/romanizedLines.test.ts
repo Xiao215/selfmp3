@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { RomanizedLyrics, Song } from '@selfmp3/shared'
+import { RomanizedLyricsSchema, type RomanizedLyrics, type Song } from '@selfmp3/shared'
 import { CloudError } from '../bucket/store.js'
 import type { Config } from '../config.js'
 import { createLogger } from '../logger.js'
@@ -67,7 +67,7 @@ describe('keepRomanizedFromBucket', () => {
   }
   const text = '[00:01.00]你好\n[00:02.50]hello'
   const kept = (lyricsCache: LyricsCache): Promise<RomanizedLyrics | null> =>
-    lyricsCache.read<RomanizedLyrics>(4, 'romanized', LyricsCache.hash(text))
+    lyricsCache.read(4, 'romanized', LyricsCache.hash(text), RomanizedLyricsSchema)
 
   it('keeps the lines under the text, timed as the text is', async () => {
     const lyricsCache = cache()

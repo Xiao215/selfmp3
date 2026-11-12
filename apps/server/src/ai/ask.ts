@@ -1,9 +1,10 @@
-import type { AskReply, AskRequest, AskTurn, Song } from '@selfmp3/shared'
+import { CJK, type AskReply, type AskRequest, type AskTurn, type Song } from '@selfmp3/shared'
 import { rulesWords } from './askLibrary.js'
 import { askTools, libraryOf, type AskDeps } from './askTools.js'
 import { libraryShape, songTable } from './library.js'
 import { Remembered, tool, type LlmTool } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
+import { languageName, languageOf, localeLanguage, withoutNames, writtenInCJK } from './language.js'
 import { CARD_KINDS, respond, RespondArgs, RespondProblems, type Responding } from './respond.js'
 import { objectLines, type Held } from './scope.js'
 import { WorkingSet } from './workingSet.js'
@@ -40,7 +41,7 @@ const SYSTEM = `You are the request box of someone's own music app. They write o
 
 The rules:
 - Only their own songs. Every song you show comes from a tool's result or a set; never name a song of theirs you have not seen. Music they do not have is only talked about (a words card) or offered to get (getMusic).
-- It proposes, they approve. Tags, names, copies and playlists change only through the proposal cards.
+- It proposes, they approve. Tags, names, copies, playlists and the songs in their library change only through the proposal cards.
 - Answers are cards, chosen from the kinds below; say is a few words above them.
 
 Sets. Songs live in named sets. The request comes with some already: playing is the song playing on their device; each earlier answer that showed songs is a set named by its handle (t2.1 is the second turn's first card), its songs numbered as listed; screen is the answer on their screen now. A tool that finds or chooses songs keeps them under the name you give in as. Every argument that takes songs is a scope: set, then pick (places in its list, 1 for the first) or drop (places to leave out), or ids a result showed you, and filters over them. When their words point at songs rather than describe them, they mean the screen's songs, or the song playing when they speak of what is playing. When their words point at one song of a list that was offered as candidates or ordered best first, it is the first.
@@ -65,6 +66,7 @@ Cards (respond's cards, 1 to 4, in the order the request asks for its parts; sev
 - stats: their listening: range (7d, 30d, 90d, 365d, all), about (songs, artists, tags, totals), limit.
 - tags, tidy, copies: proposal, the as of the propose call that made it.
 - playlist: op delete or rename (playlists, newName); create (newName, from); add or remove (playlists with one name, from: the songs); sort (playlists, sort, order). A live playlist fills itself from its rules; its card says so.
+- deleteSongs: from, songs to delete from their library on every device. A playlist they leave with no songs goes with them, and this card says so, so it needs no playlist card of its own.
 - playback: op next, previous, restart, pause, resume, or upNext with at (1 the first in Up next, -1 the last).
 - remember: text, a standing preference as one short rule in their language, when they say how things should be done from now on.
 - open: place (import, stats, tags, library, playlists, settings) and text, when they want to go somewhere in the app.
@@ -76,11 +78,11 @@ Each card may carry note (why it is empty or short) and expect: what the request
 
 When they ask for something this box cannot do but the app can, say where in the app it is done, and offer nothing in its place that they did not ask for.
 
-Every word you write for them (say, text, note, a question and its options) is in the language of their newest words, whatever the earlier turns, the songs' names or the playlists are in.\n\nsay: at most three short sentences, or nothing when the cards say it all. Every number in it must come from a tool's result; when respond goes in the same reply as the calls whose results it shows, say nothing about what they found. Never say you did something that is only proposed.`
+Every word you write for them (say, text, note, a question and its options) is in the language named after the request, whatever the earlier turns, the songs' names or the playlists are in.\n\nsay: at most three short sentences, or nothing when the cards say it all. Every number in it must come from a tool's result; when respond goes in the same reply as the calls whose results it shows, say nothing about what they found. Never say you did something that is only proposed.`
 
 const WEB = `
 
-You may also search the web, for what neither their library nor the catalogue says. Say where an answer came from when it came from the web.`
+What the world knows about music (news, tours and concerts, releases, people and bands, a song's story, meaning or credits) comes from search_web, not 网易云, which only says what it lists: look it up when the answer may have changed since you learned it or you are not sure, and say it came from the web.`
 
 /**
  * The request as the agent reads it: what they say now, after the
@@ -121,8 +123,46 @@ export function followed(
       : 'Nothing from this conversation is on their screen now.',
     '',
     `Now they say: ${text}`,
-    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Write for them in the language of what they say now.)',
+    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed.)',
   ].join('\n')
+}
+
+/**
+ * The language to answer in (`language.ts`): their newest words', else the
+ * newest earlier request's that says, else the device's; null when nothing
+ * says, or when a few words in Latin letters were written on a device in
+ * Chinese, Japanese or Korean, and the model goes by their words.
+ */
+function replyLanguage(
+  text: string,
+  before: readonly AskTurn[],
+  locale: string | null | undefined,
+  names: readonly string[],
+): string | null {
+  const words = withoutNames(text, names)
+  const of = (said: string) => languageOf(withoutNames(said, names))
+  const told = languageOf(words)
+  if (told) return told
+  const earlier =
+    before
+      .map(turn => turn.asked)
+      .reverse()
+      .reduce<string | null>((found, asked) => found ?? of(asked), null) ?? localeLanguage(locale)
+  return earlier && writtenInCJK(earlier) && !CJK.test(words) && /\p{L}/u.test(words)
+    ? null
+    : earlier
+}
+
+/** The line after the request that says what language to write in. */
+function languageLine(language: string | null): string {
+  return language
+    ? `Write to them in ${languageName(language)}.`
+    : 'Write to them in the language of their newest words.'
+}
+
+/** The library's names, which say nothing of the language of the words around them. */
+function namesOf(songs: readonly Song[], others: readonly string[]): string[] {
+  return [...songs.flatMap(song => [song.title, song.artist, song.album]), ...others]
 }
 
 /** The request with their standing preferences after it, when they have any. */
@@ -131,25 +171,54 @@ export function withNotes(request: string, notes: readonly string[]): string {
   return `${request}\n\nTheir standing preferences (follow them unless these words say otherwise):\n${notes.map(note => `- ${note}`).join('\n')}`
 }
 
+interface Answered {
+  reply: AskReply | null
+  bounces: number
+}
+
+/**
+ * The reply built and checked: the first time a check fails it is thrown for
+ * the model to mend, and after that the reply is accepted as well as it can be.
+ */
+async function answer(context: Responding, args: RespondArgs, answered: Answered): Promise<void> {
+  try {
+    answered.reply = await respond(context, args, answered.bounces > 0)
+  } catch (caught) {
+    if (caught instanceof RespondProblems) answered.bounces++
+    throw caught
+  }
+}
+
 /** The agent's `respond`: the reply built and checked, one bounce, then accepted. */
-function respondTool(
-  context: Responding,
-  answered: { reply: AskReply | null; bounces: number },
-): LlmTool {
+function respondTool(context: Responding, answered: Answered): LlmTool {
   return tool({
     name: 'respond',
     description: `Answer them: say and the cards (${CARD_KINDS.join(', ')}), as the instructions describe. Call it last; nothing after it runs. When a check fails, its error says what, once; mend it or answer with what there is.`,
     parameters: RespondArgs,
     ends: true,
-    run: async args => {
-      try {
-        answered.reply = await respond(context, args, answered.bounces > 0)
-      } catch (caught) {
-        if (caught instanceof RespondProblems) answered.bounces++
-        throw caught
-      }
-    },
+    run: args => answer(context, args, answered),
   })
+}
+
+/**
+ * The same checks for the answer written as JSON once the tools are gone
+ * (`llm.ts`): before respond was the only way to answer while they were
+ * offered, half the answers came this way (2026-11-11), and without the checks
+ * one in the wrong language, or naming a number no result shows, went
+ * straight to the device.
+ */
+async function checkAnswer(
+  context: Responding,
+  args: RespondArgs,
+  answered: Answered,
+): Promise<string | null> {
+  try {
+    await answer(context, args, answered)
+    return null
+  } catch (caught) {
+    if (caught instanceof RespondProblems) return caught.message
+    throw caught
+  }
 }
 
 /**
@@ -193,6 +262,11 @@ export async function ask(
     : 'Nothing is playing.'
   const sets = set.listing()
   const request = withNotes(followed(text, before, where.screen, byId), deps.notes?.() ?? [])
+  const names = namesOf(library.songs, [
+    ...library.tags.map(tag => tag.name),
+    ...playlists.map(playlist => playlist.name),
+  ])
+  const language = replyLanguage(text, before, where.locale, names)
   const prompt = [
     libraryShape(library.songs, library.tags, library.names),
     '',
@@ -205,6 +279,8 @@ export async function ask(
     sets.length > 0 ? `Sets already named:\n${sets.join('\n')}` : 'No set is named yet.',
     '',
     `The request:\n${request}`,
+    '',
+    languageLine(language),
   ].join('\n')
 
   // What the model was shown, where every number it says must come from.
@@ -227,12 +303,14 @@ export async function ask(
     deps: all,
     set,
     words: text,
+    language,
+    names,
     playing,
     playlists,
     seen: () => shown.join('\n'),
     steps,
   }
-  const answered = { reply: null as AskReply | null, bounces: 0 }
+  const answered: Answered = { reply: null, bounces: 0 }
   steps.begin('Reading what you asked')
   // Not remembered: asked again, the same words are read again, so Try again can come out differently.
   const { value } = await deps.llm.generate({
@@ -244,10 +322,10 @@ export async function ask(
     prompt,
     schema: RespondArgs,
     tools: [...tools, respondTool(context, answered)],
+    check: args => checkAnswer(context, args, answered),
     maxRounds: ROUNDS,
     budgetMs: BUDGET_MS,
     timeoutMs: ROUND_MS,
-    webSearch: web,
   })
   reading()
   // Answered in words once the tools were gone: taken as well as it can be.

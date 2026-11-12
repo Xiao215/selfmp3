@@ -110,6 +110,162 @@ describe('openAiCompatible', () => {
     expect(repair.content).toMatch(/does not match/)
   })
 
+  it('says what its check found once, then takes the mended answer as it is', async () => {
+    const { fetch, calls } = fakeFetch(
+      reply('{"n": 1, "why": "first"}'),
+      reply('{"n": 1, "why": "still one"}'),
+    )
+    const checked: number[] = []
+    const { value } = await openAiCompatible(settings, { fetch, logger }).generate({
+      ...request,
+      check: answer => {
+        checked.push(answer.n)
+        return Promise.resolve(answer.n === 1 ? 'Say two, not one.' : null)
+      },
+    })
+
+    expect(value).toEqual({ n: 1, why: 'still one' })
+    expect(checked).toEqual([1])
+    const mend = (calls[1]!.body['messages'] as { role: string; content: string }[]).at(-1)!
+    expect(mend).toEqual({ role: 'user', content: 'Say two, not one.' })
+  })
+
+  it('does not check again an answer an ending tool gave, which checked it as it ran', async () => {
+    const { fetch } = fakeFetch(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'a',
+                    type: 'function',
+                    function: { name: 'answer', arguments: '{"n": 3, "why": "done"}' },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ),
+    )
+    const answer = tool({
+      name: 'answer',
+      description: 'Answer',
+      parameters: Answer,
+      ends: true,
+      run: args => args,
+    })
+    let checks = 0
+    const { value } = await openAiCompatible(settings, { fetch, logger }).generate({
+      ...request,
+      tools: [answer],
+      check: () => {
+        checks++
+        return Promise.resolve('never')
+      },
+    })
+    expect(value).toEqual({ n: 3, why: 'done' })
+    expect(checks).toBe(0)
+  })
+
+  describe('with a tool that answers', () => {
+    const answering = tool({
+      name: 'answer',
+      description: 'Answer',
+      parameters: Answer,
+      ends: true,
+      run: args => args,
+    })
+    const calling = (args: string) =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [
+                  { id: 'a', type: 'function', function: { name: 'answer', arguments: args } },
+                ],
+              },
+            },
+          ],
+        }),
+      )
+    type Sent = { role: string; content: string }[]
+
+    it('asks for no JSON while it may call: the call is the one way to answer', async () => {
+      const { fetch, calls } = fakeFetch(calling('{"n": 1, "why": "called"}'))
+      await openAiCompatible(settings, { fetch, logger }).generate({
+        ...request,
+        json: 'text',
+        tools: [answering],
+      })
+      expect(calls[0]!.body).not.toHaveProperty('response_format')
+      expect((calls[0]!.body['messages'] as Sent)[0]!.content).toBe('sys')
+    })
+
+    it('tells it once to call when it answers in words, then takes the tools away', async () => {
+      const { fetch, calls } = fakeFetch(
+        reply('Here it is.'),
+        reply('Still words.'),
+        reply('{"n": 2, "why": "as JSON"}'),
+      )
+      const { value } = await openAiCompatible(settings, { fetch, logger }).generate({
+        ...request,
+        json: 'text',
+        tools: [answering],
+      })
+      expect(value).toEqual({ n: 2, why: 'as JSON' })
+      const told = (calls[1]!.body['messages'] as Sent).at(-1)!
+      expect(told.content).toBe(
+        'Answer by calling answer: words written instead of a call never reach them.',
+      )
+      const closing = calls[2]!.body
+      expect(closing['tool_choice']).toBe('none')
+      expect(closing['response_format']).toEqual({ type: 'json_object' })
+      expect((closing['messages'] as Sent).at(-1)!.content).toContain(
+        'Reply with the arguments answer takes, as one JSON object',
+      )
+      expect((closing['messages'] as Sent).at(-1)!.content).toContain('JSON Schema ("test-task")')
+    })
+
+    it('asks for its arguments as JSON once its rounds are spent', async () => {
+      const looked = tool({ name: 'look', description: 'Look', parameters: Answer, run: () => 1 })
+      const { fetch, calls } = fakeFetch(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: 'l',
+                      type: 'function',
+                      function: { name: 'look', arguments: '{"n": 1, "why": "x"}' },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        ),
+        reply('{"n": 4, "why": "with what it has"}'),
+      )
+      const { value } = await openAiCompatible(settings, { fetch, logger }).generate({
+        ...request,
+        json: 'text',
+        tools: [looked, answering],
+        maxRounds: 1,
+      })
+      expect(value).toEqual({ n: 4, why: 'with what it has' })
+      expect((calls[1]!.body['messages'] as Sent).at(-1)!.content).toContain('No more tools')
+    })
+  })
+
   it('gives up after a second reply that does not fit', async () => {
     const { fetch } = fakeFetch(reply('not json'), reply('{"n": 1}'))
     await expect(

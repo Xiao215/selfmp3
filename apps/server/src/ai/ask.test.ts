@@ -157,10 +157,12 @@ describe('ask, music to play or keep', () => {
       brief: 'for reading',
       size: 2,
     })
-    // One round, and the brain is the smart tier with JSON as text.
+    // One round; while tools are offered respond is the one way to answer, so no schema is asked for.
     expect(d.llm.sent['ask-agent']).toHaveLength(1)
-    expect(d.llm.sent['ask-agent']![0]!.messages[0]!.content).toContain('JSON Schema ("ask-agent")')
-    expect(d.llm.sent['ask-agent']![0]).toMatchObject({ reasoning_effort: 'low' })
+    const sent = d.llm.sent['ask-agent']![0]!
+    expect(sent.messages[0]!.content).not.toContain('JSON Schema')
+    expect(sent).not.toHaveProperty('response_format')
+    expect(sent).toMatchObject({ reasoning_effort: 'low' })
   })
 
   it('plays the first songs in an order exactly, sorted in code with no pick', async () => {
@@ -529,15 +531,19 @@ describe('ask, checked before it reaches the device', () => {
     ])
   })
 
-  it('wants its words in the language of theirs', async () => {
+  it('wants its words in the language the request named', async () => {
     const d = deps({
       'ask-agent': [
         calls(respond({ cards: [{ kind: 'words', text: '这里不能打乱播放队列。' }] })),
         calls(respond({ cards: [{ kind: 'words', text: 'Shuffle is in the player.' }] })),
       ],
     })
-    const reply = await ask(d, 'shuffle my queue')
-    expect(toolResults(d.llm, 1).at(-1)).toContain('language of their newest words')
+    // Too few words to tell: the device's language is the one named.
+    const reply = await ask(d, 'shuffle my queue', { playing: null, screen: null, locale: 'en-CA' })
+    expect(d.llm.prompts['ask-agent']![0]).toMatch(/Write to them in English\.$/)
+    expect(toolResults(d.llm, 1).at(-1)).toContain(
+      'Your words are in Chinese: write say, text, notes and questions in English.',
+    )
     expect(reply.cards[0]).toMatchObject({ say: 'Shuffle is in the player.' })
   })
 
@@ -786,6 +792,141 @@ describe('ask, every kind of answer', () => {
     const toLive = await ask(d, 'add the genshin songs to genshin')
     expect(toLive.cards[0]).toMatchObject({ kind: 'explore' })
     expect(JSON.stringify(toLive.cards[0])).toContain('in genshin already')
+  })
+
+  it('proposes songs to delete with the playlists they are on, and says which songs it needs', async () => {
+    const d = deps({
+      'ask-agent': [
+        calls(
+          ['find_songs', { as: 'r', playlist: 'running' }],
+          respond({ cards: [{ kind: 'deleteSongs', from: { set: 'r' } }] }),
+        ),
+        calls(respond({ cards: [{ kind: 'deleteSongs' }] })),
+        calls(respond({ cards: [{ kind: 'deleteSongs' }] })),
+      ],
+    })
+    const reply = await ask(d, 'delete every song in running')
+    expect(reply.cards).toHaveLength(1)
+    const [card] = reply.cards
+    expect(card).toMatchObject({
+      kind: 'deleteSongs',
+      songs: [{ songId: 7 }, { songId: 9 }, { songId: 14 }],
+    })
+    if (card?.kind !== 'deleteSongs') throw new Error('not a delete')
+    // Every playlist they are on, and no other: running holds only these, so it would go too.
+    expect(card.playlists.find(each => each.name === 'running')).toEqual({
+      name: 'running',
+      live: false,
+      songIds: [7, 9, 14],
+      total: 3,
+    })
+    expect(card.playlists.every(each => each.songIds.length > 0)).toBe(true)
+    expect(card.playlists.map(each => each.name)).not.toContain('chill · chinese')
+
+    const none = await ask(d, 'delete them')
+    expect(none.cards).toEqual([
+      { kind: 'explore', say: 'I couldn’t tell which songs you mean.', songIds: [], get: null },
+    ])
+  })
+
+  it('sends an answer in another language than their words back once, then takes it', async () => {
+    const french = {
+      say: 'Je peux supprimer la playlist, mais pas les chansons de la bibliothèque depuis ici.',
+      cards: [{ kind: 'playlist', op: 'delete', playlists: ['running'] }],
+    }
+    const english = {
+      say: 'I can delete the playlist here, but not the songs in it.',
+      cards: [{ kind: 'playlist', op: 'delete', playlists: ['running'] }],
+    }
+    const asked = 'remove the running playlist and all the songs in it'
+    const d = deps({
+      'ask-agent': [
+        calls(respond(french)),
+        calls(respond(english)),
+        calls(respond(french)),
+        calls(respond(french)),
+      ],
+    })
+    const reply = await ask(d, asked)
+    expect(d.llm.prompts['ask-agent']![0]).toMatch(/Write to them in English\.$/)
+    expect(reply.say).toBe(english.say)
+    expect(toolResults(d.llm, 1).at(-1)).toContain(
+      'Your words are in French: write say, text, notes and questions in English.',
+    )
+    // Said back once only: the second answer is taken as it is.
+    const again = await ask(d, asked)
+    expect(again.say).toBe(french.say)
+    expect(again.cards[0]).toMatchObject({ kind: 'playlists', names: ['running'] })
+  })
+
+  it('searches the web as a tool of its own, and may say what the pages said', async () => {
+    const d = {
+      ...deps({
+        'ask-agent': [
+          calls(['search_web', { question: 'YOASOBI next concert' }]),
+          calls(
+            respond({
+              say: 'Their next concert is on 14 March, says their site.',
+              cards: [
+                { kind: 'words', text: 'From the web: YOASOBI play Tokyo Dome on 14 March.' },
+              ],
+            }),
+          ),
+        ],
+        'ask-web': [
+          {
+            answer: 'YOASOBI play Tokyo Dome on 14 March 2027.',
+            sources: [{ title: 'YOASOBI', url: 'https://www.yoasobi-music.jp' }],
+          },
+        ],
+      }),
+      web: () => true,
+    }
+    const steps: string[] = []
+    const reply = await ask(d, 'when is the next yoasobi concert', undefined, {
+      begin: doing => steps.push(doing),
+      update: () => undefined,
+      done: () => undefined,
+    })
+    // The agent's own call searches nothing: the web is the tool's.
+    expect(d.llm.sent['ask-agent']![0]).not.toHaveProperty('web_search_options')
+    expect(d.llm.sent['ask-web']![0]).toHaveProperty('web_search_options')
+    expect(d.llm.prompts['ask-web']![0]).toBe('Today is 2026-10-03.\n\nYOASOBI next concert')
+    expect(steps).toContain('Searching the web')
+    expect(toolResults(d.llm, 1)[0]).toContain('Tokyo Dome')
+    // 14, a number only the web said, stands.
+    expect(reply.say).toBe('Their next concert is on 14 March, says their site.')
+  })
+
+  it('offers no web search where it may not search', async () => {
+    const d = deps({ 'ask-agent': [calls(respond({ cards: [{ kind: 'words', text: 'Hi.' }] }))] })
+    await ask(d, 'hi there')
+    const offered = (
+      d.llm.sent['ask-agent']![0] as unknown as { tools: { function: { name: string } }[] }
+    ).tools.map(each => each.function.name)
+    expect(offered).not.toContain('search_web')
+  })
+
+  it('names no language for a few words in Latin letters on a device in Chinese', async () => {
+    const d = deps({ 'ask-agent': [calls(respond({ cards: [{ kind: 'words', text: 'Okay.' }] }))] })
+    await ask(d, 'play jazz', { playing: null, screen: null, locale: 'zh-Hans-CN' })
+    expect(d.llm.prompts['ask-agent']![0]).toMatch(
+      /Write to them in the language of their newest words\.$/,
+    )
+  })
+
+  it('tells it to answer by calling respond when it answers in words, once', async () => {
+    const english = {
+      say: 'I can delete the playlist here.',
+      cards: [{ kind: 'playlist', op: 'delete', playlists: ['running'] }],
+    }
+    const d = deps({ 'ask-agent': [english, calls(respond(english))] })
+    const reply = await ask(d, 'remove the running playlist please')
+    expect(reply.say).toBe(english.say)
+    expect(d.llm.sent['ask-agent']![1]!.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: 'Answer by calling respond: words written instead of a call never reach them.',
+    })
   })
 
   it('sorts a playlist in code', async () => {

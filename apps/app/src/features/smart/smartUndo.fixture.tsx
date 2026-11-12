@@ -105,6 +105,12 @@ export function fakeLibrary(songs: Song[]): FakeLibrary {
           net.songs = net.songs.filter(each => !merged.includes(each.id))
           return Promise.resolve(answer({ merged: merged.length }))
         }
+        if (path === '/api/songs/bulk/delete') {
+          const { songIds } = body as { songIds: number[] }
+          const removed = net.songs.filter(each => songIds.includes(each.id)).length
+          net.songs = net.songs.filter(each => !songIds.includes(each.id))
+          return Promise.resolve(answer({ removed, failed: [] }))
+        }
         if (path === '/api/songs/bulk/edit') {
           const { edits } = body as { edits: { songId: number; patch: Partial<Song> }[] }
           net.songs = net.songs.map(each => {

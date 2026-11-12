@@ -25,6 +25,7 @@ import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaybackAnswer } from './PlaybackAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
+import { DeleteSongsAnswer } from './DeleteSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
 import { RememberAnswer } from './RememberAnswer'
 import { SongsAnswerCard } from './SongsAnswerCard'
@@ -52,6 +53,7 @@ const SETTLES: ReadonlySet<Answer['kind']> = new Set([
   'remember',
   'playlists',
   'playlistSongs',
+  'deleteSongs',
 ])
 
 /** Cards a computer's keys work on while the field is empty: the reviews. */
@@ -60,6 +62,7 @@ export const TAKES_KEYS: ReadonlySet<Answer['kind']> = new Set([
   'tidy',
   'copies',
   'playlistSongs',
+  'deleteSongs',
 ])
 
 /**
@@ -292,6 +295,10 @@ function AnswerCard({
     case 'playlistSongs':
       return (
         <PlaylistSongsAnswer answer={answer} height={listHeight} onDone={onDone} onKeys={onKeys} />
+      )
+    case 'deleteSongs':
+      return (
+        <DeleteSongsAnswer answer={answer} height={listHeight} onDone={onDone} onKeys={onKeys} />
       )
     case 'library':
       return <LibraryAnswer answer={answer} text={text} height={listHeight} onDone={onDone} />

@@ -195,6 +195,7 @@ export const AskObjectKindSchema = z.enum([
   'tagChanges',
   'nameChanges',
   'copies',
+  'deleteSongs',
 ])
 export type AskObjectKind = z.infer<typeof AskObjectKindSchema>
 
@@ -244,6 +245,11 @@ export type AskTurnInput = z.input<typeof AskTurnSchema>
 export const AskContextSchema = z.object({
   playing: IdSchema.nullable().default(null),
   screen: AskHandleSchema.nullable().default(null),
+  /**
+   * The device's locale ("en-CA", "zh-Hans-CN"): the language Ask answers in
+   * when the words alone cannot tell (`language.ts` on the server).
+   */
+  locale: z.string().max(40).optional(),
 })
 export type AskContext = z.infer<typeof AskContextSchema>
 
@@ -530,6 +536,26 @@ export const AskCardSchema = z.discriminatedUnion('kind', [
     newName: z.string().nullable(),
     /** Names asked about that match no playlist. */
     unknown: z.array(z.string()),
+  }),
+  /**
+   * Songs to delete from the library on every device, as a proposal to
+   * approve (server ids), with the playlists they are on: each with the ones
+   * of these songs it holds and how many it holds in all, so the device can
+   * say which of them would be left with nothing — and go with the songs, as
+   * `playlistsEmptiedBy` takes them — for whichever songs stay ticked.
+   */
+  z.object({
+    kind: z.literal('deleteSongs'),
+    songs: z.array(DescribePickSchema).min(1),
+    playlists: z.array(
+      z.object({
+        name: z.string(),
+        /** Fills itself from tags: it is never emptied, it only shows fewer songs. */
+        live: z.boolean(),
+        songIds: z.array(IdSchema),
+        total: z.number().int().nonnegative(),
+      }),
+    ),
   }),
   /**
    * Songs added to or taken out of one manual playlist, or its songs put in a

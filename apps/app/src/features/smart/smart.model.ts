@@ -372,6 +372,8 @@ function cardLine(answer: AskCard): string {
         : 'A playlist to rename'
     case 'playlistSongs':
       return `A change to ${answer.playlist}`
+    case 'deleteSongs':
+      return `${songs(answer.songs.length)} to delete`
     case 'library':
       return songs(answer.count)
     case 'stats':
@@ -411,6 +413,8 @@ export function cardHeading(card: AskCard): string | null {
     case 'playlists':
     case 'playlistSongs':
       return 'Playlists'
+    case 'deleteSongs':
+      return 'Songs to delete'
     case 'library':
       return 'In your library'
     case 'stats':
@@ -944,6 +948,46 @@ export function playlistEditHere(
   }
   const adding = answer.op === 'add'
   return { songIds: mapped.filter(id => inIt.has(id) !== adding), why }
+}
+
+/** A delete card's songs on this device (server ids lined up here), and why each was chosen. */
+export function deleteSongsHere(
+  answer: Extract<AskCard, { kind: 'deleteSongs' }>,
+  onDevice: (serverId: number) => number | undefined,
+): { songIds: number[]; why: Map<number, string> } {
+  const why = new Map<number, string>()
+  const songIds = answer.songs.flatMap(pick => {
+    const id = onDevice(pick.songId)
+    if (id === undefined) return []
+    if (pick.why) why.set(id, pick.why)
+    return [id]
+  })
+  return { songIds, why }
+}
+
+/**
+ * What deleting the ticked songs does to the playlists they are on: the ones
+ * of theirs left with no songs, which go with them (`playlistsEmptiedBy`),
+ * and the rest, each with how many songs it loses. A playlist that fills from
+ * tags is never emptied, only thinned.
+ */
+export function playlistsAfterDelete(
+  playlists: Extract<AskCard, { kind: 'deleteSongs' }>['playlists'],
+  onDevice: (serverId: number) => number | undefined,
+  deleting: ReadonlySet<number>,
+): { emptied: string[]; thinned: { name: string; losing: number }[] } {
+  const emptied: string[] = []
+  const thinned: { name: string; losing: number }[] = []
+  for (const playlist of playlists) {
+    const losing = playlist.songIds.filter(id => {
+      const here = onDevice(id)
+      return here !== undefined && deleting.has(here)
+    }).length
+    if (losing === 0) continue
+    if (!playlist.live && losing >= playlist.total) emptied.push(playlist.name)
+    else thinned.push({ name: playlist.name, losing })
+  }
+  return { emptied, thinned }
 }
 
 /**

@@ -29,7 +29,7 @@ import { fillGaps } from './fill.js'
 import { haveTrack } from './getMusic.js'
 import { halfRemembered } from './halfRemembered.js'
 import { creditedArtists } from './library.js'
-import { tool, type LlmTool, type Remembered } from './llm.js'
+import { Remembered, tool, type LlmTool } from './llm.js'
 import type { CatalogueSearch, FindListings, FindNames } from './names.js'
 import type { MusicCatalogue } from './getMusic.js'
 import { NO_STEPS, type Steps } from './progress.js'
@@ -106,6 +106,7 @@ const ASK_TOOL_NAMES = [
   'propose_names',
   'album_tracks',
   'catalogue',
+  'search_web',
 ] as const
 export type AskToolName = (typeof ASK_TOOL_NAMES)[number]
 
@@ -124,6 +125,15 @@ const TRACKS_SHOWN = 60
 const LISTENING_POOL = 500
 
 type ToolDeps = AskDeps & { readonly remembered: Remembered }
+
+/** What `search_web` comes back with: the answer the pages give, and the pages. */
+const WebAnswer = z.object({
+  answer: z.string(),
+  sources: z.array(z.object({ title: z.string(), url: z.string() })).max(6),
+})
+const WEB_SYSTEM = `You look things up on the web for a music app's assistant. Search, read the pages that answer the question, and reply with what they say: a short, plain answer with its facts (names, dates, places, numbers) and the pages it came from. When the pages disagree, or none says, say so rather than filling it in.`
+/** A search and the pages it reads: about half a minute measured (2026-10-04). */
+const WEB_MS = 90_000
 
 /** The library as the tools read it, now. */
 export function libraryOf(deps: AskDeps): Library {
@@ -713,7 +723,7 @@ export function askTools(
   const catalogue = tool({
     name: 'catalogue',
     description:
-      'Songs 网易云, the music catalogue, lists for some words (a title, an artist, an album, in any language): the publisher’s own names, often in two languages, with album and length in seconds. Use it for what a song or album is called, who it is by, or what exists that they may not have.',
+      'Songs 网易云, the music catalogue, lists for some words (a title, an artist, an album, in any language): the publisher’s own names, often in two languages, with album and length in seconds. Use it for what a song or album is called, who it is by, or what exists that they may not have; it says what 网易云 lists, not what is known or happening about the music.',
     parameters: z.object({ words: z.string().min(1).max(120) }),
     run: async ({ words }) => {
       if (!search) throw new Error('网易云 cannot be reached from here.')
@@ -724,6 +734,37 @@ export function askTools(
         album: each.album,
         seconds: each.duration,
       }))
+      steps.done()
+      return found
+    },
+  })
+
+  const searchWeb = tool({
+    name: 'search_web',
+    description:
+      'Searches the web and reads the pages it finds, for what is true or happening beyond their library and 网易云’s listings: news, tours and concerts, new releases, charts, people and bands, a song’s story, meaning, credits or samples, anything that may have changed since you learned it. question: what to find out, in the words that would find it. Returns a short answer with the pages it came from; say that it came from the web. It takes about half a minute.',
+    parameters: z.object({ question: z.string().min(1).max(300) }),
+    run: async ({ question }) => {
+      steps.begin('Searching the web')
+      const today = new Date(library.now).toISOString().slice(0, 10)
+      const prompt = `Today is ${today}.\n\n${question}`
+      const found = await deps.remembered.get(
+        Remembered.key('ask-web', prompt),
+        async () =>
+          (
+            await deps.llm.generate({
+              task: 'ask-web',
+              tier: 'smart',
+              effort: 'low',
+              system: WEB_SYSTEM,
+              prompt,
+              schema: WebAnswer,
+              json: 'text',
+              webSearch: true,
+              timeoutMs: WEB_MS,
+            })
+          ).value,
+      )
       steps.done()
       return found
     },
@@ -741,10 +782,12 @@ export function askTools(
     propose_names: proposeNames,
     album_tracks: albumTracks,
     catalogue,
+    search_web: searchWeb,
   }
-  // A catalogue the server cannot reach is not offered at all.
+  // A catalogue the server cannot reach, or a web it may not search, is not offered at all.
   const reachable = (name: AskToolName): boolean =>
     (name !== 'album_tracks' || music !== undefined) &&
-    (name !== 'catalogue' || search !== undefined)
+    (name !== 'catalogue' || search !== undefined) &&
+    (name !== 'search_web' || deps.web?.() === true)
   return (options.only ?? ASK_TOOL_NAMES).filter(reachable).map(name => all[name])
 }

@@ -33,7 +33,7 @@ import { openAiCompatible, type Llm } from '../llm.js'
 import { llmFor, smartFeaturesFor, type SmartFeatures } from '../smart.js'
 import { calibrate } from './calibrate.js'
 import { loadCases, songNamed, type EvalCase } from './cases.js'
-import { cardsOf, checkTurn, withEvalFunctions } from './checks.js'
+import { cardsOf, checkTurn, withEvalFunctions, writtenWords } from './checks.js'
 import {
   cardWords,
   judgeConversation,
@@ -255,6 +255,8 @@ async function conversation(
         error,
         ms,
         calls: calls.length,
+        tasks: calls.map(call => call.task),
+        written: answer ? writtenWords(answer) : '',
         playing,
         screen: onScreen?.songIds ?? null,
         words: card => [answer?.say, cardWords(card.answer, song)].filter(Boolean).join('\n'),

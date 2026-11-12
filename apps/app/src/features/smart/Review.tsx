@@ -96,6 +96,10 @@ export interface ShortReview<T> {
   readonly why: (change: T) => string
   readonly song: (change: T) => Song | undefined
   readonly apply: (approved: readonly T[], leftOut: ReadonlySet<string>) => string
+  /** What applying the ticked ones does beyond them, said under the list. */
+  readonly after?: (approved: readonly T[], leftOut: ReadonlySet<string>) => string
+  /** Applying cannot be undone: the button is red. */
+  readonly danger?: boolean
 }
 
 /** What a change's row is drawn with: whether it is ticked, and which of its songs. */
@@ -577,6 +581,8 @@ export function Review<T extends Reviewed>({
     </>
   )
 
+  const afterText =
+    shortCard?.after && approved.length > 0 ? shortCard.after(approved, leftOut) : ''
   if (shortCard) {
     return (
       <View style={[styles.body, styles.card]} testID={`${testID}-review`}>
@@ -625,13 +631,14 @@ export function Review<T extends Reviewed>({
             )
           })}
         </View>
+        {afterText ? <AnswerNote>{afterText}</AnswerNote> : null}
         {small}
         {foot}
         <AnswerActions>
           {onClose ? <Button label="Close" onPress={() => onClose(CLOSED)} /> : null}
           <Button
             label={shortCard.apply(approved, leftOut)}
-            variant="primary"
+            variant={shortCard.danger ? 'danger' : 'primary'}
             disabled={approved.length === 0}
             busy={applying}
             onPress={() => void apply()}

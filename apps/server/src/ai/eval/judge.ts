@@ -217,6 +217,18 @@ export function cardWords(answer: AskCard, song: SongWords): string {
         .join('\n')}`
     case 'playlists':
       return `Proposes to ${answer.op} the playlists ${answer.names.join(', ')}${answer.newName ? ` → ${answer.newName}` : ''}${answer.unknown.length ? `; no playlist called ${answer.unknown.join(', ')}` : ''}`
+    case 'deleteSongs':
+      return [
+        'Proposes to delete these songs from the library:',
+        songs(
+          answer.songs.map(each => each.songId),
+          answer.songs.map(each => each.why),
+        ),
+        ...answer.playlists.map(
+          each =>
+            `Playlist ${each.name}${each.live ? ' (fills from tags)' : ''}: ${each.songIds.length} of its ${each.total} songs`,
+        ),
+      ].join('\n')
     case 'playlistSongs':
       return [
         `Proposes to ${answer.op === 'add' ? 'add to' : answer.op === 'remove' ? 'take out of' : 'put in order'} the playlist ${answer.playlist}${answer.sortBy ? ` by ${answer.sortBy} ${answer.order}` : ''} (chosen by ${answer.by}):`,

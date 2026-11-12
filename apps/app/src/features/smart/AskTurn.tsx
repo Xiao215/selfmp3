@@ -170,7 +170,12 @@ export const TurnStage = memo(function TurnStage({
         server.api!,
         {
           text: turn.asked,
-          context: { playing: turn.playing, screen: turn.screen },
+          context: {
+            playing: turn.playing,
+            screen: turn.screen,
+            // The language to answer in when the words alone cannot say.
+            locale: Intl.DateTimeFormat().resolvedOptions().locale,
+          },
           ticket: named,
           before: said,
         },

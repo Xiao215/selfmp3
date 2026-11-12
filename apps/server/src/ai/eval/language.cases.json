@@ -1,0 +1,170 @@
+[
+  {
+    "id": "lang-en-delete",
+    "class": "language",
+    "note": "2026-11-11: answered in Chinese, then in French one run in four, to English words about a library of Chinese and Japanese names.",
+    "turns": [
+      {
+        "text": "remove the running playlist and all the songs in it",
+        "expect": {
+          "cards": [["deleteSongs", "explore", "clarify"]],
+          "language": "en"
+        },
+        "judge": "In English. Proposes deleting the songs (one deleteSongs card, which takes the playlist with them), or says no playlist is called that."
+      }
+    ]
+  },
+  {
+    "id": "lang-en-count",
+    "class": "language",
+    "turns": [
+      {
+        "text": "how many songs do i have in my library",
+        "expect": {
+          "cards": ["library"],
+          "language": "en"
+        }
+      }
+    ]
+  },
+  {
+    "id": "lang-zh-count",
+    "class": "language",
+    "turns": [
+      {
+        "text": "我的音乐库里一共有多少首歌",
+        "expect": {
+          "cards": ["library"],
+          "language": "zh"
+        }
+      }
+    ]
+  },
+  {
+    "id": "lang-ja-count",
+    "class": "language",
+    "turns": [
+      {
+        "text": "ライブラリには全部で何曲ありますか",
+        "expect": {
+          "cards": ["library"],
+          "language": "ja"
+        }
+      }
+    ]
+  },
+  {
+    "id": "lang-fr-count",
+    "class": "language",
+    "turns": [
+      {
+        "text": "combien de chansons ai-je dans ma bibliothèque",
+        "expect": {
+          "cards": ["library"],
+          "language": "fr"
+        }
+      }
+    ]
+  },
+  {
+    "id": "lang-zh-mixed",
+    "class": "language",
+    "note": "Chinese around a word in Latin letters is Chinese.",
+    "turns": [
+      {
+        "text": "给我推荐几首适合学习的 lofi 风格的歌，说说为什么",
+        "expect": {
+          "language": "zh"
+        }
+      }
+    ]
+  },
+  {
+    "id": "lang-follow-short",
+    "class": "language",
+    "note": "A follow-up too short to tell keeps the language of the request before it.",
+    "turns": [
+      {
+        "text": "which artists do i have the most songs by",
+        "expect": {
+          "cards": ["library"],
+          "language": "en"
+        }
+      },
+      {
+        "text": "and albums?",
+        "expect": {
+          "cards": ["library"],
+          "language": "en"
+        }
+      }
+    ]
+  },
+  {
+    "id": "lang-switch",
+    "class": "language",
+    "note": "The newest words decide, not the earlier turns.",
+    "turns": [
+      {
+        "text": "how many songs did i add this year",
+        "expect": {
+          "cards": ["library"],
+          "language": "en"
+        }
+      },
+      {
+        "text": "那去年呢？用中文回答",
+        "expect": {
+          "cards": [["library", "explore"]],
+          "language": "zh"
+        }
+      }
+    ]
+  },
+  {
+    "id": "web-new-album",
+    "class": "web",
+    "note": "2026-11-11: questions about the world were looked up on 网易云, never the web.",
+    "turns": [
+      {
+        "text": "what is the newest album radiohead released and when did it come out",
+        "expect": {
+          "cards": ["explore"],
+          "language": "en",
+          "tasks": ["ask-web"]
+        },
+        "judge": "Names Radiohead's most recent album and its release date, and says it came from the web."
+      }
+    ]
+  },
+  {
+    "id": "web-zh-news",
+    "class": "web",
+    "turns": [
+      {
+        "text": "周杰伦最近有没有开演唱会或者出新专辑？",
+        "expect": {
+          "cards": ["explore"],
+          "language": "zh",
+          "tasks": ["ask-web"]
+        },
+        "judge": "In Chinese: what Jay Chou has done lately (concerts, a new album), from the web, saying so."
+      }
+    ]
+  },
+  {
+    "id": "web-tour",
+    "class": "web",
+    "turns": [
+      {
+        "text": "is yoasobi touring anywhere next year",
+        "expect": {
+          "cards": ["explore"],
+          "language": "en",
+          "tasks": ["ask-web"]
+        },
+        "judge": "What the web says of YOASOBI's upcoming tour dates, or that none are announced."
+      }
+    ]
+  }
+]

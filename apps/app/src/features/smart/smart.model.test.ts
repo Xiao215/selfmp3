@@ -22,7 +22,9 @@ import {
   onlyTags,
   parts,
   picksHere,
+  deleteSongsHere,
   playlistEditHere,
+  playlistsAfterDelete,
   sortWords,
   tickedAtFirst,
   tidyEdits,
@@ -774,5 +776,48 @@ describe('ticking a review', () => {
   it('unticks a change once its last song is left out', () => {
     const lastIn = withSongTicked(none, fix, 3)
     expect(shown(withSongTicked(lastIn, fix, 3))).toEqual({ chosen: [], leftOut: [] })
+  })
+})
+
+describe('deleting songs from Ask', () => {
+  // Server ids 1–4 are 101–104 here; 9 is not on this device.
+  const onDevice = (id: number): number | undefined => (id === 9 ? undefined : id + 100)
+  const answer = {
+    kind: 'deleteSongs' as const,
+    songs: [
+      { songId: 1, why: 'live' },
+      { songId: 2, why: null },
+      { songId: 9, why: null },
+    ],
+    playlists: [
+      { name: 'Concert', live: false, songIds: [1, 2], total: 2 },
+      { name: 'Favourites', live: false, songIds: [2], total: 30 },
+      { name: 'Jpop', live: true, songIds: [1, 2], total: 2 },
+    ],
+  }
+
+  it('lines the songs up on this device, leaving out ones it does not have', () => {
+    const here = deleteSongsHere(answer, onDevice)
+    expect(here.songIds).toEqual([101, 102])
+    expect(here.why.get(101)).toBe('live')
+  })
+
+  it('says which playlists go too and which only lose songs, for the songs still ticked', () => {
+    expect(playlistsAfterDelete(answer.playlists, onDevice, new Set([101, 102]))).toEqual({
+      emptied: ['Concert'],
+      thinned: [
+        { name: 'Favourites', losing: 1 },
+        // One that fills from tags is never emptied.
+        { name: 'Jpop', losing: 2 },
+      ],
+    })
+    // One song left out keeps Concert, and Favourites is not touched at all.
+    expect(playlistsAfterDelete(answer.playlists, onDevice, new Set([101]))).toEqual({
+      emptied: [],
+      thinned: [
+        { name: 'Concert', losing: 1 },
+        { name: 'Jpop', losing: 1 },
+      ],
+    })
   })
 })

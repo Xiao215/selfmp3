@@ -29,6 +29,7 @@ import { MAX_PICKS, groundPlan, songsFitting } from './describe.js'
 import { getMusic } from './getMusic.js'
 import type { Steps } from './progress.js'
 import { scriptOf } from './tagReview.js'
+import { languageName, languageOf, withoutNames } from './language.js'
 import { numbersIn } from './written.js'
 import { ScopeArg, type SetMeta, type WorkingSet } from './workingSet.js'
 
@@ -40,7 +41,7 @@ import { ScopeArg, type SetMeta, type WorkingSet } from './workingSet.js'
  * The model names what each card shows — a set it made or was given, a
  * proposal it made, a playlist, a playback op — and what the request needs of
  * it (`expect`); everything shown is built here from the sets and proposals,
- * never copied from the model's words. Four checks:
+ * never copied from the model's words. Five checks:
  *
  * 1. Grounding: every set, place, id, proposal and playlist named exists and
  *    was shown or held (`WorkingSet.resolve`, `matchPlaylist`).
@@ -50,10 +51,11 @@ import { ScopeArg, type SetMeta, type WorkingSet } from './workingSet.js'
  * 3. An empty card says why.
  * 4. Every number in `say` is one the request, the conversation or a tool's
  *    result holds (`written.ts`'s rule).
+ * 5. Its words are in the language named after the request (`languageProblem`).
  *
  * The first time a check fails, the call fails and the model reads what is
- * wrong (`llm.ts` sends a tool's error back). The second time — or when it
- * answers with no tools left — the reply is accepted as well as it can be:
+ * wrong (`llm.ts` sends a tool's error back, or for an answer written as JSON,
+ * the check's words). The second time the reply is accepted as well as it can be:
  * songs past the number asked for or by the wrong artist are left out, an
  * order is put right in code, and what is still short becomes the card's note.
  */
@@ -79,6 +81,7 @@ export const CARD_KINDS = [
   'tidy',
   'copies',
   'playlist',
+  'deleteSongs',
   'playback',
   'remember',
   'open',
@@ -130,6 +133,10 @@ export interface Responding {
   readonly set: WorkingSet
   /** Their newest words. */
   readonly words: string
+  /** The language the request named for the answer (`replyLanguage`), when one could be told. */
+  readonly language: string | null
+  /** The library's names, taken out of the answer's words before its language is told. */
+  readonly names: readonly string[]
   readonly playing: Song | undefined
   readonly playlists: readonly AskPlaylist[]
   /** Everything the model was told or shown, where a number in its words must come from. */
@@ -525,6 +532,8 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
     }
     case 'playlist':
       return playlistCard(context, card, label)
+    case 'deleteSongs':
+      return deleteSongsCard(context, card, label)
     case 'playback': {
       const op = AskPlaybackOpSchema.safeParse(card.op)
       if (!op.success) {
@@ -677,6 +686,46 @@ async function playlistCard(context: Responding, card: CardArg, label: string): 
   }
 }
 
+/**
+ * Songs to delete from the library: the songs `from` names, and every playlist
+ * they are on, so the card can say which would be left empty and go too. The
+ * card is the whole act, so a playlist they leave empty needs no card of its
+ * own: one deleted beside them would be asked about twice.
+ */
+function deleteSongsCard(context: Responding, card: CardArg, label: string): Made {
+  if (!card.from) {
+    return failed(
+      label,
+      'deleteSongs needs from: the songs to delete.',
+      'I couldn’t tell which songs you mean.',
+    )
+  }
+  const { songs, why } = scopeSongs(context, card.from)
+  if (songs.length === 0) {
+    return failed(
+      label,
+      'its from holds no songs; find the songs to delete first.',
+      card.note ?? 'I couldn’t find those songs.',
+    )
+  }
+  const ids = new Set(songs.map(song => song.id))
+  const playlists = context.playlists.flatMap(playlist => {
+    const on = playlist.songIds()
+    const songIds = on.filter(id => ids.has(id))
+    if (songIds.length === 0) return []
+    return [{ name: playlist.name, live: playlist.kind === 'live', songIds, total: on.length }]
+  })
+  return {
+    card: {
+      kind: 'deleteSongs',
+      songs: songs.map(song => ({ songId: song.id, why: why.get(song.id) ?? null })),
+      playlists,
+    },
+    problems: [],
+    notes: [],
+  }
+}
+
 /** The sentences of `say` whose numbers are all ones it was given, and the numbers that were not. */
 function grounded(say: string, seen: string): { kept: string; strange: number[] } {
   const known = new Set(numbersIn(seen))
@@ -690,11 +739,19 @@ function grounded(say: string, seen: string): { kept: string; strange: number[] 
   return { kept: kept.join(' ').trim(), strange }
 }
 
-/** Whether most of the letters in a text are Chinese, Japanese or Korean. */
-function mostlyCJK(text: string): boolean {
-  const letters = [...text].filter(char => /\p{L}/u.test(char))
-  const cjk = letters.filter(char => CJK.test(char))
-  return letters.length >= 4 && cjk.length > letters.length / 2
+/**
+ * Words written in another language than the one the request named
+ * (`language.ts`), when that can be told: a few words, or only names, are let be.
+ */
+function languageProblem(
+  language: string | null,
+  written: string,
+  names: readonly string[],
+): string | null {
+  if (!language) return null
+  const said = languageOf(withoutNames(written, names))
+  if (!said || said === language) return null
+  return `Your words are in ${languageName(said)}: write say, text, notes and questions in ${languageName(language)}.`
 }
 
 /** The numbers a reply's own cards hold, which its words may say. */
@@ -717,6 +774,8 @@ function cardNumbers(cards: readonly AskCard[]): string {
           return `${card.copies.copies.length} ${card.copies.looked}`
         case 'playlistSongs':
           return String(card.songs.length)
+        case 'deleteSongs':
+          return `${card.songs.length} ${card.playlists.map(each => each.songIds.length).join(' ')}`
         case 'stats':
           return `${card.plays} ${Math.round(card.minutes)} ${card.items.map(item => item.plays).join(' ')}`
         default:
@@ -764,11 +823,8 @@ export async function respond(
     say ?? '',
     ...args.cards.flatMap(card => [card.text ?? '', card.question ?? '', card.note ?? '']),
   ].join(' ')
-  if (!CJK.test(context.words) && mostlyCJK(written)) {
-    problems.push(
-      'Their words are not in Chinese or Japanese, but yours are: write say, text, notes and questions in the language of their newest words.',
-    )
-  }
+  const language = languageProblem(context.language, written, context.names)
+  if (language) problems.push(language)
   if (strange.length > 0) {
     problems.push(
       `say has ${strange.join(', ')}, which no result shows: say only numbers the results give, or none.`,

@@ -30,12 +30,12 @@ describe('smart features turned off in Settings', () => {
       let body = ''
       for await (const chunk of request) body += String(chunk)
       const sent = JSON.parse(body) as {
-        response_format: { json_schema?: { name: string } }
+        response_format?: { json_schema?: { name: string } }
         messages: { content: string }[]
       }
       // The schema's name, or for JSON asked as text, the name its prompt gives it.
       const task =
-        sent.response_format.json_schema?.name ??
+        sent.response_format?.json_schema?.name ??
         /JSON Schema \("([^"]+)"\)/.exec(sent.messages[0]?.content ?? '')?.[1]
       await thinking
       response.writeHead(200, { 'Content-Type': 'application/json' })
@@ -44,8 +44,15 @@ describe('smart features turned off in Settings', () => {
         response.end(JSON.stringify({ choices: [{ message: { content } }] }))
         return
       }
-      const content = JSON.stringify(agentReply)
-      response.end(JSON.stringify({ choices: [{ message: { content } }] }))
+      // Ask's agent answers by calling respond.
+      const call = {
+        id: 'r',
+        type: 'function',
+        function: { name: 'respond', arguments: JSON.stringify(agentReply) },
+      }
+      response.end(
+        JSON.stringify({ choices: [{ message: { content: null, tool_calls: [call] } }] }),
+      )
     })
     await new Promise<void>(resolve => model.listen(0, '127.0.0.1', resolve))
 

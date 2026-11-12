@@ -243,13 +243,18 @@ export function endpointLlm(
   let most = 0
   const fetch = async (_url: string, init?: RequestInit): Promise<Response> => {
     const body = JSON.parse(String(init?.body)) as Sent & {
-      response_format: { json_schema?: { name: string } }
+      response_format?: { json_schema?: { name: string } }
+      tools?: { function: { name: string } }[]
     }
-    // The schema's name, or for JSON asked as text, the name the prompt gives it.
+    // The schema's name, or for JSON asked as text, the name the words give it; a
+    // request that offers respond, whose schema is never sent while it may call, is Ask's agent.
+    const named = body.messages
+      .map(each => /JSON Schema \("([^"]+)"\)/.exec(each.content ?? '')?.[1])
+      .find(Boolean)
     const task =
-      body.response_format.json_schema?.name ??
-      /JSON Schema \("([^"]+)"\)/.exec(body.messages[0]?.content ?? '')?.[1] ??
-      '(unnamed)'
+      body.response_format?.json_schema?.name ??
+      named ??
+      (body.tools?.some(each => each.function.name === 'respond') ? 'ask-agent' : '(unnamed)')
     ;(prompts[task] ??= []).push(body.messages.find(each => each.role === 'user')?.content ?? '')
     ;(sent[task] ??= []).push(body)
     inFlight++

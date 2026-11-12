@@ -162,5 +162,18 @@ describe('the eval harness', () => {
     const moved = diff(run(true), run(false))
     expect(moved.indexOf('Regressions (1)')).toBeLessThan(moved.indexOf('Fixed (0)'))
     expect(moved).toContain('- a#1 “skip”: 1/1 (100%) → 0/1 (0%)')
+
+    // Asked several times, a case passes only when every run does.
+    const repeated: CaseResult[] = [
+      { id: 'a', class: 'playback', run: 1, turns: [turn(true)] },
+      { id: 'a', class: 'playback', run: 2, turns: [turn(false)] },
+      { id: 'b', class: 'playback', run: 1, turns: [turn(true)] },
+      { id: 'b', class: 'playback', run: 2, turns: [turn(true)] },
+    ]
+    const twice = summarize(header, repeated)
+    expect(twice).toContain(
+      'pass^2: 1/2 (50%) of cases passed every run; 2/2 (100%) passed at least once.',
+    )
+    expect(twice).toContain('Passed only sometimes: a (1 of 2).')
   })
 })

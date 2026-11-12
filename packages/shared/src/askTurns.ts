@@ -176,6 +176,8 @@ function cardRecap(answer: AskCard): string {
       return answer.op === 'sort'
         ? `Proposed putting ${answer.playlist} in order by ${answer.sortBy ?? 'name'}`
         : `Proposed ${answer.op === 'add' ? 'adding' : 'taking out'} ${plural(answer.songs.length, 'song', 'songs')} ${answer.op === 'add' ? 'to' : 'from'} ${answer.playlist}`
+    case 'deleteSongs':
+      return `Proposed deleting ${plural(answer.songs.length, 'song', 'songs')} from the library`
     case 'library': {
       const listed =
         answer.show === 'artists'
@@ -316,6 +318,8 @@ function cardObjects(answer: AskCard, handle: string, shown: ShownList | undefin
         answer.songs,
         { playlist: answer.playlist },
       )
+    case 'deleteSongs':
+      return object('deleteSongs', 'To delete', answer.songs)
     case 'tags':
       return object(
         'tagChanges',

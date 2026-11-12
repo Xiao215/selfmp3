@@ -131,7 +131,13 @@ request ──▶ build context ──▶ model call ──▶ check ──▶ f
   against their timeout. A task may ask for its JSON as text (`json: 'text'`: the schema in
   the system prompt, `response_format: json_object`), which through cli-bridge writes about
   half the output tokens of a `json_schema` and avoids the CLI's hidden re-ask (measured
-  2026-10-27: a router's p50 3.6 → 2.8 s); Ask's agent and the plans do. `effort` goes as
+  2026-10-27: a router's p50 3.6 → 2.8 s); Ask's agent and the plans do. A task whose tools
+  include one that answers (`ends`, Ask's `respond`) has one way to answer while tools are
+  offered, as OpenAI's agents stop at a named tool: no schema in its words and no
+  `response_format`, and words instead of a call are told once "Answer by calling respond";
+  only once the tools are gone (its rounds or time spent, or words a second time) is the
+  answer asked for as JSON, with the schema, in a closing message. Nothing forces the call
+  (`tool_choice: required`), which the Claude API refuses on its newest models. `effort` goes as
   `reasoning_effort`, `low` for the fast tier unless a task says. Quick tasks wait 30 s (the
   plans) and picks 60 s rather than the settings' 240. The log line carries each call's
   requests and tokens (in, out, cached), so a retry nobody asked for shows. No SDK: it is one
@@ -173,6 +179,15 @@ climbed when the one below cannot answer:
    shorter, and a number outside the table is caught by the check.
 4. **One song in depth** (its lyrics, say): only for a feature about one song. None built
    here climbs to it.
+
+What Ask's agent costs per request, measured through cli-bridge on the 103-song dev library
+(2026-11-11): 47.1k tokens in, nearly all cached. The CLI's own prompt is 0.6k, the system
+prompt 2.4k, the library and the request 0.6k, and the tools' definitions 43.6k: cli-bridge
+sends each tool's parameters twice, as text in the system prompt and nested in the one
+StructuredOutput schema it answers through. The scope and its filters repeat inside each tool
+(`pick_by_taste` is 11k characters of the 45k); zod's `reused: 'ref'` would cut them by a
+fifth, but a `#/$defs` reference breaks once cli-bridge nests the schema, so the saving is
+cli-bridge's to make (the parameters once, not twice).
 
 ### Tools, skills, MCP: where each fits
 
@@ -224,6 +239,7 @@ climbed when the one below cannot answer:
   | `propose_names({as, what: checkup/change/spellings/fill/copies, request, lookUp, scope, limit})` | `tidy`, `askedTidy`, `oneSpelling`, `fillGaps`, `findCopies`; kept under `as` | smart / fast |
   | `album_tracks({albums: [{album, artist}] ≤8})` | 网易云 album search + track list, each track matched with `haveTrack` (`getMusic.ts`): how many, which are theirs, which they lack | none |
   | `catalogue({words})` | 网易云 song search | none |
+  | `search_web({question})` | a model call of its own (`ask-web`, smart, `webSearch`) that searches and reads pages and answers with them: `{answer, sources}`, kept six hours; offered where the server may search the web | smart |
 
   Each description is written as general instructions (no sample requests), and each answer
   is bounded: 30 rows, 100 groups, 20 proposal lines, 60 track titles, 24k characters at
@@ -256,14 +272,18 @@ climbed when the one below cannot answer:
   library, does it say what it couldn't). `report.ts` writes
   `<results>/<date>-<sha>-fast-<model>.smart-<model>.jsonl` with a summary beside it (pass
   by class and by check, latency p50/p95, calls per turn, judge score) and how it moved from
-  the newest earlier run with the same models, regressions first:
+  the newest earlier run with the same models, regressions first; with `--repeat k`, pass^k
+  too, the share of cases that passed every run, and the ones that passed only sometimes (a
+  drift one run in four, like the French answers of 2026-11-11, passes a single run):
   `npx tsx apps/server/src/ai/eval/run.ts --fast sonnet --smart sonnet --judge opus` (also
   `--only <ids>`, `--class <classes>`, `--repeat N`, `--concurrency N`, 2 by default as the
   Pi's cli-bridge takes, `--against <results file>`, `--db`, `--cases`, `--endpoint`).
   The cases and the library stay outside the repository, being a person's music (by default
   `~/ask-eval-selfmp3/cases/*.json` and `prod.pristine.db`, which is only read); the
   repository's own `example.cases.json` shows the format and `run.test.ts` runs it against
-  a scripted model. A case is turns with `text`, the song `playing` by title, the `screen`
+  a scripted model. `language.cases.json` names no song, so it runs against any library: the
+  language answered in (`expect.language`, told by `languageOf`) and the web searched
+  (`expect.tasks: ["ask-web"]`). A case is turns with `text`, the song `playing` by title, the `screen`
   (the newest list by default for a follow-up), `expect` and a `judge` sentence saying what a
   right answer is with the facts it needs. Before its numbers are trusted the judge is held
   to a person's verdicts on earlier answers (`--calibrate <labels.json>`, `calibrate.ts`).
@@ -408,8 +428,9 @@ What it is shown each time: the library's shape (rung 2), the tags exactly, each
 its kind and a live one's rules in words ("live, holds songs tagged 中文流行", `rulesWords`), the
 song playing as a table row, the sets the request came with (`playing`, each earlier answer's
 handle, `screen`), the conversation before with each object's songs numbered and what a list was
-made from (`followed`, `objectLines`), standing preferences, and the newest words. The call
-also asks the endpoint for web search.
+made from (`followed`, `objectLines`), standing preferences, the newest words, and last the
+language to write in (Reply language). The web is a tool of its own (`search_web`), not
+something the agent's call asks the endpoint for.
 
 It **plans ahead**: the calls it can foresee go in one reply, in order, chained by the sets they
 name, ending with `respond` when it does not need to see their results — "calm piano for
@@ -435,6 +456,7 @@ draws is built in code from those, never copied from the model's words:
 | `stats` | `range`, `about`, `limit` | the Stats page's numbers, ten unless said, fifty at most |
 | `tags`, `tidy`, `copies` | `proposal` | the review a propose call kept |
 | `playlist` | `op` delete or rename (`playlists`, `newName`); create (a songs card to save); add, remove (`from`); sort (`sort`, `order`) | names matched with `matchPlaylist`; songs in or out of a manual playlist checked against it; a live one answered with its rules (Playlists from the box, below) |
+| `deleteSongs` | `from` | the songs, and every playlist they are on with how many of its songs they are, so the device can say which go too (Deleting songs, below) |
 | `playback` | `op`, `at` for a place in Up next | done on the device (Controlling what plays) |
 | `remember`, `open`, `getMusic`, `together` | a note; a place and a sentence; words to search and whether an album; songs for the room or none | as before (Remembered preferences, Getting music, Listening together) |
 | `words` | `text`, `from`, `get` | an answer in words with the songs it is about (kind `explore`), for questions about music itself and anything said rather than shown |
@@ -442,13 +464,19 @@ draws is built in code from those, never copied from the model's words:
 
 Each card may carry `expect`: what the request requires of its songs — how many, how long, by
 whom, the script of their names, the order. The model declares it; code checks it. `respond`
-checks four things before anything reaches the device: (1) grounding — every set, place, id,
+checks five things before anything reaches the device: (1) grounding — every set, place, id,
 proposal and playlist exists and was shown or held; (2) `expect` against the card's actual songs
 (the count and minutes, the artists through their credits and other names, a script the names
 plainly are not, the order by the library's own values); (3) an empty card says why (its note,
 or the condition that left none); (4) every number in `say` is one the request, the conversation
-or a tool's result holds (`written.ts`'s rule). The first failure goes back to the model as the
-call's error, saying what is wrong; it mends the call or answers with what there is. The second
+or a tool's result holds (`written.ts`'s rule); (5) its words are in the language named after
+the request (Reply language, below), as `languageOf` tells it with the library's names taken
+out; when none was named, or the words are too few to tell, they are let be. The first failure
+goes back to the model as the call's error, saying what is wrong; it mends the call or answers
+with what there is. The answer written as JSON once the tools are gone gets the same checks and
+the same one bounce (`generate`'s `check`). Until 2026-11-11 the agent could also answer in JSON
+while it could still call, which half its answers did, unchecked: that is how an English
+request got a Chinese or French answer. The second
 time the reply is accepted as well as it can be: songs past the number asked for, by another
 artist or plainly in another script are left out, an order is put right in code, a sentence of
 `say` with a number nothing showed is dropped, a list that came to nothing and says nothing is
@@ -525,6 +553,24 @@ checks against the playlist as it is now — an add keeps songs not in it, a rem
 still in it, a sort keeps a song added since at the end — and Undo puts back the songs and
 their order (a remove's Undo adds them, then restores the whole order).
 
+## Deleting songs
+
+"Remove the yoasobi concert playlist and all their concert songs": a `deleteSongs` card over
+the songs of a set the agent made (`find_songs` with a playlist, an artist, words in titles;
+`pick_by_taste` when only listening can tell). It is one card for the whole act, not a
+playlist card beside it, because deleting songs already takes a playlist you made that they
+leave with no songs (`playlistsEmptiedBy`, docs/SYNC.md): two cards would ask about the
+playlist twice, and cancelling its card while approving the songs would delete it anyway
+(Xiao picked B, 2026-11-11). A playlist delete alone never takes its songs.
+
+The server sends each playlist the songs are on with the ones of them it holds and its size
+(`deleteSongsCard` in `ai/respond.ts`). The device (`smart/DeleteSongsAnswer.tsx`) shows the
+songs as a review, ticked and open, and under them what the delete does for the songs still
+ticked: "“YOASOBI 5th ANNIVERSARY DOME LIVE” goes too: nothing would be left in it. Also
+takes 1 song out of “Favourites”." (`playlistsAfterDelete`). A playlist that fills from tags is
+only thinned. Delete asks the question every delete of songs asks (`RemoveSongs`, the
+selection bar's): they go from every device with their tags and plays, with no Undo.
+
 ## Questions about your library
 
 "How many YOASOBI songs do I have", "what did I add this week", "my longest song", "who is
@@ -595,6 +641,22 @@ to `/api/ai/refine`, so "play the 3rd one" or "add these to gym" came back as th
 changed (Xiao's "Ask decides"); until 2026-10-28 a change was its own call (`refine.ts`, one
 fast-tier plan of the filters changed), which is gone with the router.
 
+## Reply language
+
+Decided in code before the model is called, and named to it as the prompt's last line, "Write
+to them in English." (`replyLanguage` in `ask.ts`, `language.ts`; option B1 of the agent review,
+Xiao 2026-11-11). Left to the model ("the language of their newest words"), an English request
+behind tens of thousands of tokens of Chinese and Japanese names came back in French one time
+in four. The library's names in the words are taken out first (`withoutNames`: "play 群青 by
+YOASOBI" is English). Then writing systems: hangul is Korean; Han with a character only
+Chinese writes (的, 了, 这…) is Chinese; any kana is Japanese; other Han is Chinese. Four or
+more words in Latin letters go to `eld`, a language identifier over 60 languages, when it is
+sure; fewer are not told, since it is often sure and wrong on them ("shuffle my queue" is
+French to it, "calm piano" Italian). Words that say nothing take the newest earlier request's
+language, then the device's (`locale`, sent by the app from `Intl`); a few words in Latin
+letters on a device in Chinese, Japanese or Korean name none, and the model goes by the
+words. `respond` holds the answer to the language named (check 5).
+
 ## Looking things up
 
 A question the library's conditions can't put ("which albums do I have only part of", "what is
@@ -603,7 +665,8 @@ artist, who sang it), is the agent looking with its tools and answering in a `wo
 sentences and the songs they are about, every one a song it was shown or a set holds, and `get`
 for one song or album they don't have. "Which albums do I have only part of" reads the albums'
 track lists (`album_tracks`). About music itself it answers from what it knows as well, saying
-when that is from memory, and says whether you have it. Until 2026-10-28 this was the router's
+when that is from memory, and says whether you have it; what may have changed since the model
+learned it (news, tours, releases, people) it looks up with `search_web` (Searching the web). Until 2026-10-28 this was the router's
 `explore` action (`explore.ts`), the first user of Ask's tools.
 
 ## Getting music (`getMusic`)
@@ -620,12 +683,21 @@ song 网易云 only previews on YouTube instead. No model call beyond the agent'
 ## Searching the web
 
 Part of smart features, with no switch of its own (Xiao, 2026-10-24: smart features on means
-the model may look things up). Two things may search: Ask's agent (the call carries `web_search_options`), and the names pass for songs no
-catalogue has, a second model call per 15 songs with web search (at most 150 songs), whose
-names are the model's and wait unticked, with a note saying the web was searched. The
-endpoint does the searching: cli-bridge runs Claude Code's WebSearch and WebFetch for that
-request only; an endpoint without web search ignores the option. Tried 2026-10-04: a question
-looked up took 26 s and said where its answer came from.
+the model may look things up). Two things may search: Ask's agent, through its `search_web`
+tool, and the names pass for songs no catalogue has, a second model call per 15 songs with web
+search (at most 150 songs), whose names are the model's and wait unticked, with a note saying
+the web was searched. The endpoint does the searching: cli-bridge runs Claude Code's WebSearch
+and WebFetch for that request only; an endpoint without web search ignores the option. Tried
+2026-10-04: a question looked up took 26 s and said where its answer came from.
+
+`search_web` is a tool of the agent's like the others (2026-11-11): its own model call
+(`ask-web`) searches and reads, and answers with `{answer, sources}`, which the agent reads like
+any result, so a number from the web may stand in `say`, and the wait says "Searching the web".
+Until then the agent's own call carried `web_search_options` and the CLI's WebSearch was hidden
+from it among Claude Code's tools: told to search only "for what neither their library nor the
+catalogue says", it asked 网易云 about news and tours, and its web results were never in what it
+had been shown. The system prompt says what the web is for, and `catalogue`'s description that
+it says only what 网易云 lists.
 
 ## Remembered preferences
 
@@ -675,7 +747,8 @@ look at no others. Words that point at songs mean the screen's, or the song play
 speak of what is playing; one song of a list offered as candidates ("play it" after a find) is
 its first. A long conversation sends only its newest eight turns
 (`ASK_BEFORE_MAX`), and the one on the screen wherever it is. Replies are written in the
-language of the newest words. Until 2026-10-24 only the earlier questions were sent, as one
+language of the newest words, or the earlier ones when the newest are too few to tell (Reply
+language). Until 2026-10-24 only the earlier questions were sent, as one
 request to "answer all of it together"; until 2026-10-27 lists went back as ten titles, so a
 follow-up re-derived its songs from filters and "the second one" could not be found.
 

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
 import { detectScript, type AskCard, type AskReply } from '@selfmp3/shared'
+import { languageOf, withoutNames } from '../language.js'
 
 /**
  * What a turn of an eval case expects, and the checks that hold an answer to
@@ -65,6 +66,13 @@ export const ExpectSchema = z
     maxMs: z.number().optional(),
     /** The most model calls the turn may make. */
     maxCalls: z.number().int().optional(),
+    /** The language its words are in, as an ISO 639-1 code (`language.ts` tells it). */
+    language: z
+      .string()
+      .regex(/^[a-z]{2,3}$/)
+      .optional(),
+    /** Model calls the turn must make, by task (`ask-web`: it searched the web). */
+    tasks: z.array(z.string()).optional(),
   })
   .strict()
 type Expect = z.infer<typeof ExpectSchema>
@@ -108,6 +116,8 @@ function cardOf(answer: AskCard): Card {
       return card(answer.songIds)
     case 'playlistSongs':
       return card(answer.songs.map(each => each.songId))
+    case 'deleteSongs':
+      return card(answer.songs.map(each => each.songId))
     case 'tags':
       return card(unique(answer.review.changes.flatMap(change => change.songIds)))
     case 'tidy':
@@ -138,6 +148,10 @@ interface Answered {
   readonly error: string | null
   readonly ms: number
   readonly calls: number
+  /** The tasks of its model calls, in the order made. */
+  readonly tasks: readonly string[]
+  /** What the model wrote for them (`say`, words, questions), without the songs. */
+  readonly written: string
   readonly playing: number | null
   /** The songs on the screen when it was asked, in their order. */
   readonly screen: readonly number[] | null
@@ -172,6 +186,33 @@ export function withEvalFunctions(db: Database.Database): Database.Database {
   return db
 }
 
+/** The library copy's names, taken out of the words before their language is told. */
+function libraryNames(db: Database.Database): string[] {
+  return (
+    db
+      .prepare(
+        `SELECT title AS name FROM songs UNION SELECT artist FROM songs UNION SELECT album FROM songs UNION SELECT name FROM tags UNION SELECT name FROM playlists`,
+      )
+      .all() as { name: string | null }[]
+  ).flatMap(row => (row.name ? [row.name] : []))
+}
+
+/** What the model wrote for them in a reply: its words, a words answer's, a question back. */
+export function writtenWords(reply: AskReply): string {
+  return [
+    reply.say,
+    ...reply.cards.flatMap(card =>
+      card.kind === 'explore' || card.kind === 'open'
+        ? [card.say]
+        : card.kind === 'clarify'
+          ? [card.question, ...card.options]
+          : [],
+    ),
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
 export function checkTurn(db: Database.Database, expect: Expect, answered: Answered): Check[] {
   const checks: Check[] = []
   const add = (name: string, pass: boolean, detail: string) => checks.push({ name, pass, detail })
@@ -203,6 +244,18 @@ export function checkTurn(db: Database.Database, expect: Expect, answered: Answe
       answered.calls <= expect.maxCalls,
       `${answered.calls} calls (at most ${expect.maxCalls})`,
     )
+  if (expect.language !== undefined) {
+    const told = languageOf(withoutNames(answered.written, libraryNames(db)))
+    add(
+      'language',
+      told === null || told === expect.language,
+      told === null
+        ? 'too few words to tell'
+        : `${told} (wanted ${expect.language}): ${answered.written.slice(0, 120)}`,
+    )
+  }
+  for (const task of expect.tasks ?? [])
+    add('tasks', answered.tasks.includes(task), `${answered.tasks.join(', ')} (wanted ${task})`)
   for (const [at, want] of (expect.card ?? []).entries()) {
     const card = answered.cards[at]
     if (!card) {

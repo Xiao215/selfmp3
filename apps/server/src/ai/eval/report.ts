@@ -120,6 +120,29 @@ export function summarize(header: RunHeader, results: readonly CaseResult[]): st
   for (const [name, count] of [...checks].sort((a, b) => b[1].failed - a[1].failed))
     lines.push(`| ${name} | ${count.failed} | ${count.of} |`)
 
+  // pass^k: a case asked k times passes only when every one of its runs does, so a drift shows.
+  const runs = Math.max(1, ...results.map(result => result.run))
+  if (runs > 1) {
+    const byCase = new Map<string, CaseResult[]>()
+    for (const result of results) byCase.set(result.id, [...(byCase.get(result.id) ?? []), result])
+    const every = [...byCase].filter(([, each]) => each.every(result => result.turns.every(passes)))
+    const some = [...byCase].filter(([, each]) => each.some(result => result.turns.every(passes)))
+    lines.push(
+      '',
+      `pass^${runs}: ${share(every.length, byCase.size)} of cases passed every run; ${share(some.length, byCase.size)} passed at least once.`,
+    )
+    const flaky = [...byCase]
+      .filter(
+        ([, each]) =>
+          each.some(r => r.turns.every(passes)) && !each.every(r => r.turns.every(passes)),
+      )
+      .map(
+        ([id, each]) =>
+          `${id} (${each.filter(r => r.turns.every(passes)).length} of ${each.length})`,
+      )
+    if (flaky.length > 0) lines.push(`Passed only sometimes: ${flaky.join(', ')}.`)
+  }
+
   const ms = turns.map(turn => turn.ms)
   const calls = turns.map(turn => turn.calls.length)
   const failedCalls = turns.flatMap(turn => turn.calls).filter(call => !call.ok).length

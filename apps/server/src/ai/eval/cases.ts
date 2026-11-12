@@ -8,7 +8,9 @@ import { ExpectSchema } from './checks.js'
  * The eval's cases (AGENT-DESIGN 4): conversations with what each turn
  * should come to. They are written against one library and kept beside its
  * copy, outside the repository, since they name its songs; the repository
- * holds a small made-up set (`example.cases.json`) its test runs on.
+ * holds a small made-up set (`example.cases.json`) its test runs on, and
+ * cases that name no song (`language.cases.json`: the language answered in,
+ * the web searched), which run against any library.
  *
  * A file is a list of cases. A song is named by its title, or `title ·
  * artist` when the title is not enough, and found when the cases are loaded.

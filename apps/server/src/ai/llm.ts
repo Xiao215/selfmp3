@@ -37,6 +37,12 @@ import { sha256 } from '../util/hash.js'
  * its tool throwing, goes back as that call's result for the model to read,
  * never as the task's failure. A task's tools stop being offered after its
  * rounds or its time (`maxRounds`, `budgetMs`), so it answers with what it has.
+ * When one of them answers (`ends`, Ask's `respond`), calling it is the one
+ * way to answer while tools are offered, as OpenAI's agents stop at a named
+ * tool: the schema is not in the prompt and no `response_format` is sent, and
+ * words instead of a call are sent back once. Only once the tools are gone is
+ * the answer asked for as JSON, with the schema. Nothing forces the call
+ * (`tool_choice: required`): the Claude API refuses that on its newest models.
  * `webSearch` asks the endpoint to let the model search the web itself
  * (`web_search_options`); one that cannot ignores it.
  *
@@ -92,6 +98,13 @@ export interface GenerateRequest<T> {
   readonly webSearch?: boolean
   /** Aborted once nobody waits for the answer: the call in flight is dropped, and no more are made. */
   readonly signal?: AbortSignal
+  /**
+   * What is wrong with an answer that fits the schema, said back once for the
+   * model to mend, as a reply that does not fit is; null when it stands. Not
+   * asked of an answer an ending tool gave, whose own run checked it, nor of
+   * the mended one, which is taken as it is.
+   */
+  readonly check?: (value: T) => Promise<string | null>
 }
 
 /** Something the model may call: its arguments are checked against `parameters` before `run`. */
@@ -328,8 +341,11 @@ interface Sending {
   readonly task: string
   readonly model: string
   readonly messages: readonly ChatMessage[]
-  /** The schema for `response_format`, or null for JSON as text. */
-  readonly schema: Record<string, unknown> | null
+  /**
+   * What `response_format` asks for: this schema, any JSON object (the schema
+   * is in the words), or nothing, while an ending tool is the way to answer.
+   */
+  readonly format: Record<string, unknown> | 'object' | 'none'
   readonly timeoutMs: number
   readonly offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean }
   readonly effort: Effort | undefined
@@ -346,6 +362,22 @@ interface Replied {
 /** A system prompt that asks for JSON as text, with the schema it must fit (`json: 'text'`). */
 export function asksForText(system: string, task: string, schema: Record<string, unknown>): string {
   return `${system}\n\nReply with one JSON object and nothing else, no code fence, fitting this JSON Schema ("${task}"):\n${JSON.stringify(schema)}`
+}
+
+/**
+ * What a task with an answering tool is told once its tools are gone: answer
+ * with that tool's arguments, as JSON, in the schema when it goes as text.
+ */
+function closing(
+  ender: LlmTool,
+  task: string,
+  schema: Record<string, unknown>,
+  asText: boolean,
+): string {
+  const said = `No more tools: answer now with what you have. Reply with the arguments ${ender.name} takes, as one JSON object and nothing else, no code fence`
+  return asText
+    ? `${said}, fitting this JSON Schema ("${task}"):\n${JSON.stringify(schema)}`
+    : `${said}.`
 }
 
 /** The JSON Schema a request carries: no `$schema` key, which some endpoints refuse. */
@@ -399,7 +431,7 @@ export function openAiCompatible(
     task,
     model,
     messages,
-    schema,
+    format,
     timeoutMs,
     offer,
     effort,
@@ -416,12 +448,21 @@ export function openAiCompatible(
         body: JSON.stringify({
           model,
           messages,
-          response_format: schema
-            ? {
-                type: 'json_schema',
-                json_schema: { name: task.replace(/[^a-zA-Z0-9_-]/g, '_'), strict: true, schema },
-              }
-            : { type: 'json_object' },
+          ...(format === 'none'
+            ? {}
+            : {
+                response_format:
+                  format === 'object'
+                    ? { type: 'json_object' }
+                    : {
+                        type: 'json_schema',
+                        json_schema: {
+                          name: task.replace(/[^a-zA-Z0-9_-]/g, '_'),
+                          strict: true,
+                          schema: format,
+                        },
+                      },
+              }),
           ...(effort ? { reasoning_effort: effort } : {}),
           ...(offer.tools.length > 0
             ? {
@@ -484,36 +525,51 @@ export function openAiCompatible(
       const schema = jsonSchemaOf(request.schema)
       const asText = request.json === 'text'
       const effort = request.effort ?? (request.tier === 'fast' ? 'low' : undefined)
+      const tools = request.tools ?? []
+      // With a tool that answers, calling it is the one way to answer while tools are offered.
+      const ender = tools.find(each => each.ends)
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: asText ? asksForText(request.system, request.task, schema) : request.system,
+          content:
+            asText && !ender ? asksForText(request.system, request.task, schema) : request.system,
         },
         { role: 'user', content: request.prompt },
       ]
       // Every request's tokens, the hidden ones included: what the call cost.
       const tokens = { in: 0, out: 0, cached: 0, requests: 0 }
-      const tools = request.tools ?? []
       const maxRounds = request.maxRounds ?? DEFAULT_ROUNDS
       let rounds = 0
       let called = 0
       let failed = 0
       const toolNames: string[] = []
+      // Told to answer by calling, once, after answering in words while it could call.
+      let told = false
+      // The tools taken away and the answer asked for as JSON: nothing more may be called.
+      let closed = false
       // Within its rounds and its time, the model may call; after either, it answers.
       const mayCall = () =>
+        !closed &&
         rounds < maxRounds &&
         (request.budgetMs === undefined || Date.now() - started < request.budgetMs)
       for (let attempt = 1; attempt <= 2; attempt++) {
         let text: string
+        // Answered by an ending tool, which checked it as it ran.
+        let byTool = false
         // The model's tool calls, run and answered, until it replies or runs out of rounds.
         for (;;) {
+          const callable = mayCall()
+          if (ender && !callable && !closed) {
+            messages.push({ role: 'user', content: closing(ender, request.task, schema, asText) })
+            closed = true
+          }
           const reply = await ask({
             task: request.task,
             model,
             messages,
-            schema: asText ? null : schema,
+            format: ender && callable ? 'none' : asText ? 'object' : schema,
             timeoutMs: Math.min(request.timeoutMs ?? settings.timeoutMs, settings.timeoutMs),
-            offer: { tools, callable: mayCall(), webSearch: request.webSearch === true },
+            offer: { tools, callable, webSearch: request.webSearch === true },
             effort,
             stop: request.signal,
           })
@@ -521,7 +577,23 @@ export function openAiCompatible(
           tokens.out += reply.tokens.out
           tokens.cached += reply.tokens.cached
           tokens.requests++
-          if (reply.calls.length === 0 || !mayCall()) {
+          // Words where a call to the answering tool was wanted: told so once, then the tools go.
+          if (ender && callable && reply.calls.length === 0) {
+            rounds++
+            messages.push(
+              { role: 'assistant', content: reply.content },
+              {
+                role: 'user',
+                content: told
+                  ? closing(ender, request.task, schema, asText)
+                  : `Answer by calling ${ender.name}: words written instead of a call never reach them.`,
+              },
+            )
+            if (told) closed = true
+            told = true
+            continue
+          }
+          if (reply.calls.length === 0 || !callable) {
             text = reply.content
             break
           }
@@ -547,13 +619,20 @@ export function openAiCompatible(
           }
           if (ended) {
             text = JSON.stringify(ended.value)
+            byTool = true
             break
           }
         }
         let problem: string
+        // What the log says of it: a check's words name the library, so only that one failed.
+        let logged: string
         try {
           const parsed = request.schema.safeParse(parseReply(text))
-          if (parsed.success) {
+          const wrong =
+            parsed.success && request.check && !byTool && attempt === 1
+              ? await request.check(parsed.data)
+              : null
+          if (parsed.success && wrong === null) {
             const ms = Date.now() - started
             // What was asked and how long it took, never what was said: both
             // sides of the conversation are your library.
@@ -567,24 +646,31 @@ export function openAiCompatible(
               tokensOut: tokens.out,
               tokensCached: tokens.cached,
               ...(asText ? { json: 'text' } : {}),
+              ...(told ? { toldToCall: true } : {}),
               ...(tools.length > 0
                 ? { rounds, toolCalls: called, tools: toolNames, toolErrors: failed }
                 : {}),
             })
             return { value: parsed.data, ms }
           }
-          problem = issuesOf(parsed.error)
-        } catch {
-          problem = 'the reply was not JSON'
+          logged = parsed.success ? 'its check failed' : issuesOf(parsed.error)
+          problem = parsed.success
+            ? (wrong ?? '')
+            : `That reply does not match the required JSON schema (${issuesOf(parsed.error)}). Reply again with only the corrected JSON.`
+        } catch (caught) {
+          // A check that failed for another reason is no repair for the model to make.
+          if (!(caught instanceof SyntaxError)) throw caught
+          logged = 'the reply was not JSON'
+          problem =
+            'That reply does not match the required JSON schema (the reply was not JSON). Reply again with only the corrected JSON.'
         }
-        logger.warn('model reply did not fit', { task: request.task, model, attempt, problem })
-        messages.push(
-          { role: 'assistant', content: text },
-          {
-            role: 'user',
-            content: `That reply does not match the required JSON schema (${problem}). Reply again with only the corrected JSON.`,
-          },
-        )
+        logger.warn('model reply did not fit', {
+          task: request.task,
+          model,
+          attempt,
+          problem: logged,
+        })
+        messages.push({ role: 'assistant', content: text }, { role: 'user', content: problem })
       }
       throw new LlmError('invalid', `The model's answer to ${request.task} did not fit, twice`)
     },

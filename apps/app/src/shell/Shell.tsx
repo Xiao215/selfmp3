@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react'
 import { usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
+import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
@@ -33,6 +34,7 @@ import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useLayout, useLayoutValue } from './useLayout'
 import { ease, timing, useFade, usePresence } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
+import { useFadeMotion } from '../ui/rowMotion'
 import { motion, space } from '@selfmp3/client'
 import { pageKey, pageStepped, stepSide, type PageShown } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
@@ -179,6 +181,7 @@ function Frame({
   const pageTap = usePageTap(pageRef, wide && railCover > 0, closeQueueSheet)
   // A page that puts the tab bar away keeps the mini player (`pageChrome.ts`).
   const tabs = usePageTabs()
+  const chromeFade = useFadeMotion()
   const contentWidth = useDeferredValue(wide ? width - SIDEBAR_WIDTH - railRoom : null)
   // Told to the page's readers once it has settled: a store, so that a row
   // asking only whether its album column fits is not rendered for every pixel.
@@ -207,8 +210,30 @@ function Frame({
         {wide && railCover > 0 ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
       </View>
       {wide ? <BarSlot hidden={barHidden} /> : null}
-      {!wide && chrome ? <MiniPlayer /> : null}
-      {!wide && chrome && tabs ? <BottomNav /> : null}
+      {/* Faded in and out as a page that keeps the screen to itself comes and
+          goes, not cut; there from the first frame when the app opens. */}
+      <LayoutAnimationConfig skipEntering>
+        {!wide && chrome ? (
+          <Reanimated.View
+            key="player"
+            pointerEvents="box-none"
+            style={styles.chromeLayer}
+            {...chromeFade}
+          >
+            <MiniPlayer />
+          </Reanimated.View>
+        ) : null}
+        {!wide && chrome && tabs ? (
+          <Reanimated.View
+            key="tabs"
+            pointerEvents="box-none"
+            style={styles.chromeLayer}
+            {...chromeFade}
+          >
+            <BottomNav />
+          </Reanimated.View>
+        ) : null}
+      </LayoutAnimationConfig>
       {wide || covered ? null : <QueueSheet />}
       {/* On every compact page, chrome or not: a toast raised by a full-screen
           page (Now Playing, the import review) has nowhere else to land, and
@@ -446,6 +471,8 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     backgroundColor: theme.colors.surface0,
   },
+  // The mini player and the tab bar float over the page from the foot.
+  chromeLayer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   columns: {
     flex: 1,
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -337,6 +337,13 @@ function RootRoutes(): ReactNode {
     }
   }, [status, needsStorage, pathname, router])
 
+  // A swipe back on a phone changes the address only once the page has slid
+  // all the way off, half a second on; the page it reveals is where you are
+  // going from the moment the swipe begins, so its chrome is drawn from then
+  // (`useSwipingBackTo`), and taken away again if the swipe is let go.
+  const { swipingTo, listeners: screenListeners } = useSwipingBackTo(pathname)
+  const chromePath = swipingTo ?? pathname
+
   // On a computer Now Playing covers the sidebar and keeps the player bar.
   const stage = wide && pathname === '/now-playing'
   // The sidebar goes as the page starts up over it, which is later than the
@@ -346,11 +353,13 @@ function RootRoutes(): ReactNode {
   // the chrome away under it only made the page beneath taller, and a list
   // scrolled to its end was pulled back up by the difference when it closed.
   const covered = pathname === '/now-playing' && modalCoversScreen && !wide
-  const chrome = (stage || covered || !pageOwnsScreen(pathname, wide)) && status === 'ready'
+  const chrome = (stage || covered || !pageOwnsScreen(chromePath, wide)) && status === 'ready'
   // Every scrolling page leaves room at its foot for the chrome; the pages
   // that own the display must not keep a hole where the bar would have been.
-  const tabs = chrome && !pageHidesTabs(pathname, wide)
-  useEffect(() => {
+  const tabs = chrome && !pageHidesTabs(chromePath, wide)
+  // Before the frame is painted, so the tab bar and the mini player come back
+  // in the same frame as the page they belong to, not a frame or more after.
+  useLayoutEffect(() => {
     setPageChrome(chrome)
     setPageTabs(tabs)
   }, [chrome, tabs])
@@ -409,10 +418,16 @@ function RootRoutes(): ReactNode {
    */
   const fontScale = useFontScale()
 
-  return (
-    <Shell key={fontScale} chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
+  // Kept from render to render, so the chrome changing (a swipe back begun,
+  // the sign-in settled) draws the shell again and not every page in the stack.
+  const pages = useMemo(
+    () => (
       <ThemeProvider value={navTheme}>
-        <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
+        <Stack
+          screenOptions={screenOptions}
+          screenListeners={screenListeners}
+          screenLayout={keepNearTop}
+        >
           <Stack.Screen name="now-playing" options={nowPlaying} />
           {PLACES.map(name => (
             <Stack.Screen
@@ -426,6 +441,13 @@ function RootRoutes(): ReactNode {
           ))}
         </Stack>
       </ThemeProvider>
+    ),
+    [navTheme, screenOptions, screenListeners, nowPlaying],
+  )
+
+  return (
+    <Shell key={fontScale} chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
+      {pages}
       {/*
        * Nothing shows until it is decided where the library comes from — the
        * bucket, a server, or nowhere yet. The library is the first route, and a
@@ -461,3 +483,53 @@ function ThemedStatusBar(): ReactNode {
 }
 
 const styles = StyleSheet.create({ root: { flex: 1 } })
+
+/**
+ * Where a swipe back is taking you, while it is under way: the address of the
+ * page under the one being swiped off, from the moment iOS starts moving it
+ * (`transitionStart`, closing, on the page still on top), until the address
+ * catches up or the swipe is let go (`gestureCancel`). Null otherwise.
+ *
+ * Only the top page's own swipe counts. A page covered by a push hears the
+ * same "closing" as the new page slides over it, but it is no longer on top
+ * by then; a ‹ pressed has already changed the address, and the page going
+ * is no longer in the stack at all.
+ */
+function useSwipingBackTo(pathname: string): {
+  swipingTo: string | null
+  listeners: StackScreenListeners
+} {
+  const [swipingTo, setSwipingTo] = useState<string | null>(null)
+  // The address caught up: the swipe is over, whichever way it went.
+  const [seen, setSeen] = useState(pathname)
+  if (seen !== pathname) {
+    setSeen(pathname)
+    setSwipingTo(null)
+  }
+  const listeners = useMemo<StackScreenListeners>(
+    () =>
+      ({ navigation, route }) => ({
+        transitionStart: event => {
+          if (!event.data.closing) return
+          const state = navigation.getState()
+          const at = state.routes.findIndex(each => each.key === route.key)
+          const under = state.routes[at - 1]
+          if (at !== state.routes.length - 1 || !under) return
+          setSwipingTo(addressOf(under.name))
+        },
+        gestureCancel: () => setSwipingTo(null),
+      }),
+    [],
+  )
+  return { swipingTo, listeners }
+}
+
+type StackScreenListeners = (props: {
+  navigation: {
+    getState: () => { routes: readonly { key: string; name: string }[] }
+  }
+  route: { key: string }
+}) => {
+  transitionStart: (event: { data: { closing: boolean } }) => void
+  gestureCancel: () => void
+}

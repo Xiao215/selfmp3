@@ -58,6 +58,8 @@ export class FakeDrive {
   busy = false
   /** The account's Google storage is full: uploads are refused. */
   full = false
+  /** An upload is answered with Drive's default few fields, whatever was asked for. */
+  terse = false
   /** The clock files are stamped by, a millisecond on for each. */
   #time = Date.parse('2026-09-11T12:00:00Z')
   #ids = 0
@@ -106,6 +108,19 @@ export class FakeDrive {
     ).id
   }
 
+  /**
+   * Move a file or folder to the bin, as a person does in Drive: it and all
+   * inside it are still there by id, and no longer turn up in a search.
+   */
+  bin(id: string): void {
+    const file = this.files.get(id)
+    if (!file) return
+    file.trashed = true
+    for (const inside of [...this.files.values()]) {
+      if (inside.parents.includes(id) && !inside.trashed) this.bin(inside.id)
+    }
+  }
+
   /** Every folder marked as a library's root, oldest first. */
   roots(): DriveFile[] {
     return [...this.files.values()].filter(
@@ -148,6 +163,7 @@ export class FakeDrive {
       if (incoming.method === 'GET' && url.searchParams.get('alt') === 'media') {
         return media(file, incoming.headers.get('range'))
       }
+      if (incoming.method === 'GET') return json(pick(file, url.searchParams.get('fields')))
     }
     return driveError(404, 'notFound', 'Not Found')
   }
@@ -289,7 +305,7 @@ export class FakeDrive {
     if (this.full) return storageFull()
     if (id === null) {
       const made = this.#create({ ...details, mimeType: details.mimeType ?? contentType }, body)
-      return json(pick(made, fields))
+      return json(pick(made, this.terse ? null : fields))
     }
     const file = this.files.get(id)
     if (!file) return driveError(404, 'notFound', `File not found: ${id}.`)
@@ -299,7 +315,7 @@ export class FakeDrive {
     if (typeof details.mimeType === 'string') file.mimeType = details.mimeType
     else if (contentType) file.mimeType = contentType
     setProperties(file, details.appProperties)
-    return json(pick(file, fields))
+    return json(pick(file, this.terse ? null : fields))
   }
 }
 

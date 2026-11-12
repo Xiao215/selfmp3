@@ -95,7 +95,15 @@ export interface DriveDeps {
    * finding one is a call to Drive, and a song is read by many requests.
    */
   readonly found: Map<string, DriveFile>
+  /**
+   * Folders seen not to be in the bin, by id, and until when that is believed
+   * (`#alive`).
+   */
+  readonly alive: Map<string, number>
 }
+
+/** How long a folder seen out of the bin is taken to still be out of it. */
+const ALIVE_MS = 10 * 60_000
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
@@ -215,6 +223,7 @@ export class Drive implements Store {
     const at = parseCursor(cursor, sections.length)
     const section = sections[at.index]
     if (!section) return { objects: [], cursor: null }
+    await this.#alive(section.folder)
 
     const query = new URLSearchParams({
       q: section.only
@@ -271,6 +280,8 @@ export class Drive implements Store {
   async write(key: string, body: Upload, options: WriteOptions): Promise<void> {
     const place = this.#place(key)
     const [existing] = await this.#findAll(place)
+    // Never a new file into a folder in the bin, where no search would find it again.
+    if (!existing) await this.#alive(place.folder)
     const encoding = options.contentEncoding ?? null
     const details = {
       mimeType: options.contentType,
@@ -326,7 +337,11 @@ export class Drive implements Store {
     const written = FoundFileSchema.safeParse(
       parseJson(await readBytes(response.body, MAX_ANSWER_BYTES)),
     )
-    if (written.success) keep(this.#deps.found, cacheKey(place), fileFrom(written.data))
+    // Remembered only when Drive said all of what was asked: an answer with
+    // the id alone would be kept as a file of no size and no tag.
+    const whole =
+      written.success && written.data.size !== undefined && written.data.md5Checksum !== undefined
+    if (whole) keep(this.#deps.found, cacheKey(place), fileFrom(written.data))
     else this.#deps.found.delete(cacheKey(place))
   }
 
@@ -441,9 +456,43 @@ export class Drive implements Store {
     const remembered = this.#deps.found.get(cacheKey(place))
     if (remembered) return remembered
     const [file] = await this.#findAll(place)
-    if (!file) return null
+    if (!file) {
+      // Not there — or its folder is in the bin, which is not the same thing.
+      await this.#alive(place.folder)
+      return null
+    }
     keep(this.#deps.found, cacheKey(place), file)
     return file
+  }
+
+  /**
+   * Refuse a folder that is in Drive's bin. A folder moved there still exists,
+   * so nothing answers 404; its files only stop turning up in searches. Read
+   * as "no such file", a binned library would look empty, and new files would
+   * go into the bin after it, each resend leaving another. Asked of Drive at
+   * most once every ten minutes a folder, and only where it matters: before a
+   * listing, before a new file, and when a file is not found.
+   */
+  async #alive(folder: string): Promise<void> {
+    const now = Date.now()
+    if ((this.#deps.alive.get(folder) ?? 0) > now) return
+    const response = await this.#send(
+      'GET',
+      `${DRIVE_API}/files/${encodeURIComponent(folder)}?fields=trashed`,
+      { quick: true },
+    )
+    if (!response.ok) throw await explain(response, 'folder')
+    const answer = z
+      .object({ trashed: z.boolean().optional() })
+      .safeParse(parseJson(await readBytes(response.body, MAX_ANSWER_BYTES)))
+    if (answer.success && answer.data.trashed === true) {
+      throw new StoreError(
+        'missing',
+        'The self.mp3 folder is in your Google Drive’s bin. Put it back from there, or ' +
+          `${DRIVE_RECONNECT.charAt(0).toLowerCase()}${DRIVE_RECONNECT.slice(1)}`,
+      )
+    }
+    keep(this.#deps.alive, folder, now + ALIVE_MS)
   }
 
   /** Every file in the folder with the name, oldest first: the first is the file. */
@@ -477,7 +526,8 @@ export class Drive implements Store {
     const { refreshToken } = this.#target
     for (const again of [false, true]) {
       const headers = new Headers(options.headers)
-      headers.set('authorization', `Bearer ${await this.#deps.tokens.access(refreshToken)}`)
+      const accessToken = await this.#deps.tokens.access(refreshToken)
+      headers.set('authorization', `Bearer ${accessToken}`)
       const init: FetchInit = { method, headers, redirect: 'manual', cache: 'no-store' }
       if (options.quick) init.signal = AbortSignal.timeout(QUICK_TIMEOUT_MS)
       const { body } = options
@@ -495,7 +545,7 @@ export class Drive implements Store {
         body === undefined || typeof body === 'string' || body instanceof Uint8Array
       if (response.status !== 401 || again || !resendable) return response
       await discard(response)
-      await this.#deps.tokens.forget(refreshToken)
+      await this.#deps.tokens.forget(refreshToken, accessToken)
     }
     throw new StoreError('auth', `Google Drive refused self.mp3. ${DRIVE_RECONNECT}`)
   }

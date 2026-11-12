@@ -116,6 +116,7 @@ kept, and each has a test in `apps/doorman/src/drive.test.ts`:
 | `Content-Type` | Players | Drive's `mimeType`, set at upload |
 | `If-None-Match` on a write | Nobody (Backblaze ignores it) | Not there |
 | Delete | The server's trash, old snapshots, folded logs | `files.delete`, which skips the bin: the space comes back at once, with no lifecycle rule to set |
+| A deleted bucket answers `NoSuchBucket` | "Connect again", not an empty library | A folder gone answers 404. A folder in Drive's **bin** answers nothing unusual, so the driver asks whether a folder is binned (once every ten minutes each) before a listing, before a new file, and when a file is not found |
 | Read your own write | `format.json` is written and read back when connecting | By id, which Drive answers at once. A *search* just after a write may lag; the instance that wrote a file already has its id |
 
 **Uploads** are Drive's resumable kind for a stream (told the length, then sent the bytes,
@@ -152,6 +153,9 @@ Where to come back to was the choice:
   to register with Google.
 - **B. A callback of its own**, `/v1/storage/drive/callback`. Cleaner to read, and one more
   redirect address every doorman's owner must add by hand.
+
+A server's grant may do none of this: saying where an account's library is kept, and
+disconnecting it, need a device's own session (`requireDevice`).
 
 What is refused, each with words of its own (`DRIVE_REFUSAL_WORDS`): Cancel; the Drive box
 left unticked on Google's page; a different Google account than the one signed in (which is

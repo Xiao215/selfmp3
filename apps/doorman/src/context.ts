@@ -130,6 +130,21 @@ export async function requireSession(ctx: Context): Promise<Session> {
   return session
 }
 
+/**
+ * A session of a device's own, for what only the account itself may do: say
+ * where its library is kept. A server's grant is a session in the account's
+ * name too, but it is the server's, there to work in the storage, not to
+ * change it — or, by disconnecting a Google Drive, to end the account's
+ * access with Google.
+ */
+export async function requireDevice(ctx: Context): Promise<Session> {
+  const session = await requireSession(ctx)
+  if (session.grant !== undefined) {
+    throw new DoormanError(403, DOORMAN_ERROR.forbidden, 'a server cannot do this with its grant')
+  }
+  return session
+}
+
 /** The signed-in account's storage, ready to use. */
 export async function requireStore(ctx: Context, session: Session): Promise<Store> {
   const storage = await ctx.accounts.storage(session.sub)

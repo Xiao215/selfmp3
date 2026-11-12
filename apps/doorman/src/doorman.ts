@@ -127,6 +127,7 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
   const signingKeys = new Map<string, ArrayBuffer>()
   const googleTokens: GoogleTokenCache = new Map()
   const driveFiles: DriveDeps['found'] = new Map()
+  const driveFolders: DriveDeps['alive'] = new Map()
   let derived: { secret: string | undefined; keys: Promise<DoormanKeys> } | null = null
 
   /** SEAL_KEY's keys, derived once per instance. A missing or malformed one is the owner's to fix. */
@@ -161,6 +162,7 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
             fetch: fetcher,
             tokens: new GoogleTokens(fetcher, now, googleClientOf(env), googleTokens),
             found: driveFiles,
+            alive: driveFolders,
           },
         },
         // Without the runtime's (a test calling in), the work simply runs on.

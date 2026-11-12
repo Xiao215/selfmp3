@@ -235,6 +235,26 @@ describe('one library, one store', () => {
   })
 })
 
+describe('a server’s grant', () => {
+  it('may not say where the account’s library is kept, or end its storage', async () => {
+    const { h, token } = await signedIn()
+    await h.connectDrive(token)
+    const made = await h.call('/v1/grants', {
+      token,
+      json: { server: 'https://server.example', name: 'Pi' },
+    })
+    const grant = (await made.json()) as { token: string }
+
+    expect((await h.call('/v1/storage/drive', { token: grant.token, json: {} })).status).toBe(403)
+    expect((await h.connect(grant.token)).status).toBe(403)
+    expect((await h.connectBackblaze(grant.token)).status).toBe(403)
+    expect((await h.call('/v1/storage', { method: 'DELETE', token: grant.token })).status).toBe(403)
+    await h.settle()
+    expect(h.google.revoked).toEqual([])
+    expect((await storage(h, token))?.kind).toBe('drive')
+  })
+})
+
 describe('a server working in a Google Drive', () => {
   it('reads the account’s files with its grant, as it does a bucket’s', async () => {
     const { h, token } = await signedIn()

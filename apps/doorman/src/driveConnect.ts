@@ -11,7 +11,7 @@ import {
   type DriveRefusal,
 } from '@selfmp3/shared'
 import * as auth from './auth.js'
-import { requireSession, type Context } from './context.js'
+import { requireDevice, type Context } from './context.js'
 import { Drive, prepareDrive, type DriveTarget } from './drive.js'
 import { randomToken } from './encoding.js'
 import { DRIVE_SCOPE, GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
@@ -50,7 +50,7 @@ import { StoreError } from './store.js'
 
 /** `POST /v1/storage/drive { returnTo? }` → `{ url }` */
 export async function start(ctx: Context): Promise<Response> {
-  const session = await requireSession(ctx)
+  const session = await requireDevice(ctx)
   const input = await readJson(ctx.request, DoormanDriveStartSchema)
   const google = auth.googleClient(ctx)
   if (!google) throw notSetUp('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set.')

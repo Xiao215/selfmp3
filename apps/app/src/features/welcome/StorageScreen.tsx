@@ -28,7 +28,10 @@ import {
   addressReady,
   cloudConnectInput,
   backblazeReady,
+  CONNECTED_LOOKS_MS,
+  CONNECTED_NOT_SEEN,
   driveArrived,
+  FINISHING_DRIVE,
   TRYING,
   WAITING_FOR_GOOGLE,
   type AddressFields,
@@ -93,28 +96,53 @@ export function StorageScreen(): ReactNode {
   const ready = mode === 'backblaze' ? backblazeReady(keyId, applicationKey) : addressReady(address)
 
   /** The storage is there: the library comes down from it now, and the usual way on from Welcome takes over. */
+  const gone = useRef(false)
   const onward = useCallback((): void => {
+    // Once: a link back and the app coming to the front can both find Drive connected.
+    if (gone.current) return
+    gone.current = true
     storageConnected()
     router.replace(afterWelcome(true, storedFirstSync(), installedApp, false))
   }, [router, storageConnected])
 
   // Whether Google's page is open somewhere, and what the account had when it was opened.
   const [waiting, setWaiting] = useState(false)
+  // Google said yes and the doorman is being asked: nothing to press meanwhile.
+  const [finishing, setFinishing] = useState(false)
+  // The same, for a second press in the frame before `waiting` is drawn.
+  const leavingForGoogle = useRef(false)
   const before = useRef<DoormanStorage | null>(null)
 
-  /** What the doorman says the account has now. `sure`: a link said Drive was connected. */
+  /**
+   * What the doorman says the account has now. `sure`: a link said Drive was
+   * connected, so "nothing yet" is the doorman not having heard everywhere,
+   * and is asked again for a little while before it is believed.
+   */
   const look = useCallback(
     async (sure: boolean): Promise<void> => {
-      const session = await cloud.loadSession()
-      if (!session) return
-      const { storage } = (await cloud.refreshSession(session)).me
-      if (sure ? storage !== null : driveArrived(before.current, storage)) onward()
+      for (const wait of sure ? CONNECTED_LOOKS_MS : [0]) {
+        if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait))
+        const session = await cloud.loadSession()
+        if (!session) return
+        const { storage } = (await cloud.refreshSession(session)).me
+        if (sure ? storage !== null : driveArrived(before.current, storage)) {
+          onward()
+          return
+        }
+      }
+      if (sure) throw new Error(CONNECTED_NOT_SEEN)
     },
     [onward],
   )
 
+  const stopWaiting = useCallback((): void => {
+    leavingForGoogle.current = false
+    setWaiting(false)
+  }, [])
+
   const connectDrive = (): void => {
-    if (busy || waiting) return
+    if (busy || waiting || leavingForGoogle.current) return
+    leavingForGoogle.current = true
     setError(null)
     setWaiting(true)
     void (async () => {
@@ -122,14 +150,14 @@ export function StorageScreen(): ReactNode {
         const session = await cloud.loadSession()
         if (!session) {
           setError('Signed out meanwhile. Sign in again.')
-          setWaiting(false)
+          stopWaiting()
           return
         }
         before.current = session.me.storage
         await cloud.beginDriveConnect(session, signInReturnUrl('storage'))
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Could not open Google.')
-        setWaiting(false)
+        stopWaiting()
       }
     })()
   }
@@ -137,17 +165,24 @@ export function StorageScreen(): ReactNode {
   useEffect(
     () =>
       onSignInBack('storage', back => {
-        setWaiting(false)
         if (back.kind === 'refused') {
+          stopWaiting()
           setError(DRIVE_REFUSAL_WORDS[back.refusal])
           return
         }
         setError(null)
-        void look(true).catch((caught: unknown) => {
-          setError(caught instanceof Error ? caught.message : 'Could not connect.')
-        })
+        // Still waiting, now on the doorman: the page keeps saying so until it answers.
+        setFinishing(true)
+        void look(true)
+          .catch((caught: unknown) => {
+            setError(caught instanceof Error ? caught.message : 'Could not connect.')
+          })
+          .finally(() => {
+            setFinishing(false)
+            stopWaiting()
+          })
       }),
-    [look],
+    [look, stopWaiting],
   )
 
   useEffect(() => {
@@ -323,10 +358,12 @@ export function StorageScreen(): ReactNode {
       {mode === 'drive' ? null : mode === 'backblaze' ? backblazeFields : addressFields}
       {mode === 'backblaze' ? helper : null}
 
-      {busy || waiting ? (
+      {busy || waiting || finishing ? (
         <View style={styles.trying}>
           <Spinner tone="accent" />
-          <Text style={styles.tryingText}>{waiting ? WAITING_FOR_GOOGLE : TRYING}</Text>
+          <Text style={styles.tryingText}>
+            {finishing ? FINISHING_DRIVE : waiting ? WAITING_FOR_GOOGLE : TRYING}
+          </Text>
         </View>
       ) : null}
       {error ? <StatusLine>{error}</StatusLine> : null}
@@ -335,8 +372,8 @@ export function StorageScreen(): ReactNode {
         {mode === 'drive' ? (
           <WhitePill
             testID="storage-drive"
-            label={waiting ? 'Waiting for Google…' : 'Use Google Drive'}
-            busy={waiting}
+            label={finishing ? 'Connecting…' : waiting ? 'Waiting for Google…' : 'Use Google Drive'}
+            busy={waiting || finishing}
             width={wide ? 240 : undefined}
             onPress={connectDrive}
           />
@@ -349,12 +386,12 @@ export function StorageScreen(): ReactNode {
             onPress={connect}
           />
         )}
-        {waiting ? (
+        {finishing ? null : waiting ? (
           <Button
             testID="storage-drive-cancel"
             label="Cancel"
             variant="text"
-            onPress={() => setWaiting(false)}
+            onPress={stopWaiting}
           />
         ) : (
           <>

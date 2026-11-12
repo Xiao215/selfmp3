@@ -14,7 +14,9 @@ const SESSION = { doormanUrl: 'https://doorman.test', token: 't', me: { storage:
 const DRIVE = { kind: 'drive' as const, folder: '1AbC' }
 
 const mockBegin = jest.fn((..._args: unknown[]) => Promise.resolve())
-const mockRefresh = jest.fn(() => Promise.resolve({ ...SESSION, me: { storage: DRIVE } }))
+const mockRefresh = jest.fn((): Promise<{ me: { storage: typeof DRIVE | null } }> =>
+  Promise.resolve({ ...SESSION, me: { storage: DRIVE } }),
+)
 const mockBackblaze = jest.fn()
 jest.mock('../../replica', () => ({
   session: {
@@ -90,6 +92,42 @@ it('leaves for Google with the way back, and goes on once Drive is connected', a
   expect(mockRefresh).toHaveBeenCalled()
   expect(mockConnected).toHaveBeenCalledTimes(1)
   expect(mockReplace).toHaveBeenCalledTimes(1)
+})
+
+it('asks again while the doorman has not heard yet, and goes on once', async () => {
+  jest.useFakeTimers()
+  try {
+    mockRefresh.mockImplementationOnce(() => Promise.resolve({ ...SESSION, me: { storage: null } }))
+    await shown()
+    await fireEvent.press(screen.getByTestId('storage-drive'))
+    await act(async () => {
+      mockBack({ kind: 'connected' })
+    })
+    expect(mockConnected).not.toHaveBeenCalled()
+    expect(screen.getByText('Google said yes. Finding your storage…')).toBeTruthy()
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1000)
+    })
+    expect(mockRefresh).toHaveBeenCalledTimes(2)
+    // The same link arriving again changes nothing.
+    await act(async () => {
+      mockBack({ kind: 'connected' })
+    })
+    expect(mockConnected).toHaveBeenCalledTimes(1)
+    expect(mockReplace).toHaveBeenCalledTimes(1)
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
+it('opens Google once, however fast the button is pressed twice', async () => {
+  await shown()
+  const button = screen.getByTestId('storage-drive')
+  await act(async () => {
+    await Promise.all([fireEvent.press(button), fireEvent.press(button)])
+  })
+  expect(mockBegin).toHaveBeenCalledTimes(1)
 })
 
 it('says why, and stays, when the Drive box was left unticked', async () => {

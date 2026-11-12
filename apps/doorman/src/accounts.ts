@@ -96,11 +96,19 @@ export class Accounts {
    * A sealed record that will not open — SEAL_KEY was changed, or the record
    * was edited — counts as none: the device is asked to connect its storage
    * again, which replaces it, rather than being stuck with an error.
+   *
+   * `sure` asks KV again before saying none, past what this instance
+   * remembers. Google Drive is connected by a browser coming back from Google,
+   * which may reach another instance than the device's next question does;
+   * that instance would go on saying "none" for a minute to a device that was
+   * just told it is connected.
    */
-  async storage(sub: string): Promise<AccountStorage | null> {
-    const sealed = await this.#remembered(this.#cache.sealed, sub, () =>
-      this.#kv.get(bucketKey(sub)),
-    )
+  async storage(sub: string, sure = false): Promise<AccountStorage | null> {
+    let sealed = await this.#remembered(this.#cache.sealed, sub, () => this.#kv.get(bucketKey(sub)))
+    if (sealed === null && sure) {
+      sealed = await this.#kv.get(bucketKey(sub))
+      this.#set(this.#cache.sealed, sub, sealed)
+    }
     if (sealed === null) return null
     // Keyed by the account too, so a sealed value copied onto another
     // account's record is still refused here, as unseal would refuse it.
@@ -156,7 +164,7 @@ export class Accounts {
 
   /** Who is signed in and where their library is kept, for `/v1/me`. Never the key or the token. */
   async me(session: Session): Promise<DoormanMe> {
-    const storage = await this.storage(session.sub)
+    const storage = await this.storage(session.sub, true)
     return {
       account: await accountId(session.sub),
       email: session.email,

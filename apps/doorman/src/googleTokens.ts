@@ -79,25 +79,37 @@ export class GoogleTokens {
   /** An access token for the account the refresh token belongs to: in hand, or made now. */
   async access(refreshToken: string): Promise<string> {
     const id = await sha256Hex(refreshToken)
-    const held = this.#cache.get(id)
-    if (held) {
-      const token = await held.catch(() => null)
-      if (token && token.until > this.#now()) return token.token
-    }
-    // Kept while it is being made, so a burst of requests asks Google once.
-    const making = this.#refresh(refreshToken)
-    keep(this.#cache, id, making)
-    try {
-      return (await making).token
-    } catch (error) {
-      if (this.#cache.get(id) === making) this.#cache.delete(id)
-      throw error
+    for (;;) {
+      const held = this.#cache.get(id)
+      if (held) {
+        const token = await held.catch(() => null)
+        if (token && token.until > this.#now()) return token.token
+        // Another request waiting on the same one may have begun the next
+        // already: wait on that rather than asking Google a second time.
+        if (this.#cache.get(id) !== held) continue
+      }
+      // Kept while it is being made, so a burst of requests asks Google once.
+      const making = this.#refresh(refreshToken)
+      keep(this.#cache, id, making)
+      try {
+        return (await making).token
+      } catch (error) {
+        if (this.#cache.get(id) === making) this.#cache.delete(id)
+        throw error
+      }
     }
   }
 
-  /** Let go of the token in hand: Drive would not take it. */
-  async forget(refreshToken: string): Promise<void> {
-    this.#cache.delete(await sha256Hex(refreshToken))
+  /**
+   * Let go of an access token Drive would not take. Only that one: a request
+   * refused a moment after another's must not throw away the token the other
+   * has just had made.
+   */
+  async forget(refreshToken: string, refused: string): Promise<void> {
+    const id = await sha256Hex(refreshToken)
+    const held = this.#cache.get(id)
+    const token = held ? await held.catch(() => null) : null
+    if (this.#cache.get(id) === held && (!token || token.token === refused)) this.#cache.delete(id)
   }
 
   /**
@@ -109,7 +121,7 @@ export class GoogleTokens {
    * for the log.
    */
   async revoke(refreshToken: string): Promise<void> {
-    await this.forget(refreshToken)
+    this.#cache.delete(await sha256Hex(refreshToken))
     const response = await this.#fetch(GOOGLE_REVOKE_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

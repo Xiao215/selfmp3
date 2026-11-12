@@ -91,6 +91,20 @@ export function driveArrived(before: DoormanStorage | null, now: DoormanStorage 
   return before?.kind !== 'drive' || before.folder !== now.folder
 }
 
+/**
+ * How long to wait before each look at the doorman once a link has said Drive
+ * is connected. The doorman keeps the answer in one place and remembers
+ * "nothing" in others for up to a minute, so the first looks can still say so.
+ */
+export const CONNECTED_LOOKS_MS = [0, 1000, 2000, 4000, 8000, 15_000] as const
+
+/** What the page says while it waits for the doorman to say so too. */
+export const FINISHING_DRIVE = 'Google said yes. Finding your storage…'
+
+/** What the page says when every one of those looks found nothing. */
+export const CONNECTED_NOT_SEEN =
+  'Google Drive is connected, but it is not showing here yet. Try again in a moment.'
+
 /** What the page says while Google's page is open somewhere else. */
 export const WAITING_FOR_GOOGLE = 'Waiting for Google. Finish there, then come back here.'
 

@@ -66,6 +66,8 @@ describe('a file in Google Drive', () => {
     expect((await put(h, token, SONG, 'the whole song')).status).toBe(204)
     expect(calls(h)).toEqual([
       'GET /drive/v3/files search',
+      // A new file, so its folder is looked at once: it must not be in the bin.
+      'GET /drive/v3/files/<id>',
       'POST /upload/drive/v3/files resumable',
       'PUT /upload/drive/v3/files resumable',
     ])
@@ -264,6 +266,17 @@ describe('a file in Google Drive', () => {
     ])
   })
 
+  it('does not remember a file from an upload answer that left its size and tag out', async () => {
+    const { h, token } = await connected()
+    h.drive.terse = true
+    await put(h, token, SONG, '0123456789')
+    calls(h)
+    const head = await h.call(`/v1/files/${SONG}`, { method: 'HEAD', token })
+    expect(head.headers.get('content-length')).toBe('10')
+    expect(head.headers.get('etag')).toMatch(/^"/)
+    expect(calls(h)).toEqual(['GET /drive/v3/files search'])
+  })
+
   it('still refuses format.json to a device', async () => {
     const { h, token } = await connected()
     expect((await put(h, token, 'format.json', '{}', 'application/json')).status).toBe(403)
@@ -366,6 +379,18 @@ describe('Google’s tokens', () => {
     expect(h.google.refreshes).toBe(made + 1)
   })
 
+  it('asks Google once when many requests find the token run out together', async () => {
+    const { h, token } = await connected()
+    await put(h, token, SONG, 'abc')
+    const made = h.google.refreshes
+    h.clock.now += 56 * 60_000
+    const answers = await Promise.all(
+      Array.from({ length: 8 }, () => h.call(`/v1/files/${SONG}`, { token })),
+    )
+    expect(answers.map(answer => answer.status)).toEqual(Array.from({ length: 8 }, () => 200))
+    expect(h.google.refreshes).toBe(made + 1)
+  })
+
   it('says to connect again once Google has taken the access away', async () => {
     const { h, token } = await connected()
     await put(h, token, SONG, 'abc')
@@ -410,6 +435,24 @@ describe('what Drive refuses', () => {
     const body = ErrorBodySchema.parse(await response.json())
     expect(body.code).toBe('no_such_bucket')
     expect(body.error).toContain('no longer in your Google Drive')
+  })
+
+  it('says the folder is in the bin, rather than showing an empty library or writing into it', async () => {
+    const { h, token, root } = await connected()
+    await put(h, token, SONG, 'abc')
+    h.drive.bin(root)
+    const files = h.drive.files.size
+
+    const listed = await h.call('/v1/list?prefix=snapshots/', { token })
+    expect(listed.status).toBe(502)
+    const body = ErrorBodySchema.parse(await listed.json())
+    expect(body.code).toBe('no_such_bucket')
+    expect(body.error).toContain('in your Google Drive’s bin')
+
+    // A song not found is not "no such file", and a new one is not put in the bin after it.
+    expect((await h.call(`/v1/files/${COVER}`, { token })).status).toBe(502)
+    expect((await put(h, token, COVER, 'cover', 'image/jpeg')).status).toBe(502)
+    expect(h.drive.files.size).toBe(files)
   })
 
   it('says Drive could not be reached', async () => {

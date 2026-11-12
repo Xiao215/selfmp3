@@ -15,7 +15,7 @@ import {
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { Bucket, type BucketTarget } from './bucket.js'
-import { requireSession, type Context } from './context.js'
+import { requireDevice, requireSession, type Context } from './context.js'
 import type { Session } from './sessions.js'
 import { fromUtf8, toBase64, utf8 } from './encoding.js'
 import {
@@ -58,7 +58,7 @@ export async function me(ctx: Context): Promise<Response> {
 
 /** `PUT /v1/storage` — connect a bucket, or replace the one connected. */
 export async function connect(ctx: Context): Promise<Response> {
-  const session = await requireSession(ctx)
+  const session = await requireDevice(ctx)
   const target = targetFrom(await readJson(ctx.request, CloudConnectSchema), ctx.env.DEV === 'true')
   await tryThenKeep(ctx, session, target)
   return json(await ctx.accounts.me(session))
@@ -76,7 +76,7 @@ export async function connect(ctx: Context): Promise<Response> {
  * passes is sealed and kept.
  */
 export async function connectBackblaze(ctx: Context): Promise<Response> {
-  const session = await requireSession(ctx)
+  const session = await requireDevice(ctx)
   const input = await readJson(ctx.request, DoormanBackblazeConnectSchema)
   const found = await askBackblaze(ctx, input.keyId, input.applicationKey)
   const parsed = CloudConnectSchema.safeParse({
@@ -317,7 +317,7 @@ async function checkLifecycle(ctx: Context, key: BackblazeKey, prefix: string): 
 
 /** `DELETE /v1/storage` — forget the storage. It and its files are left alone. */
 export async function disconnect(ctx: Context): Promise<Response> {
-  const session = await requireSession(ctx)
+  const session = await requireDevice(ctx)
   const previous = await ctx.accounts.storage(session.sub)
   await ctx.accounts.disconnect(session.sub)
   letGo(ctx, previous, null)

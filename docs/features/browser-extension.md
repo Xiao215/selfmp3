@@ -180,7 +180,7 @@ the badge is only ever about what you did here.
 | Which way in wins — the server, or the bucket | `apps/extension/src/background/connection.ts` |
 | Your copy of the library, and the session behind it | `apps/extension/src/background/cloud.ts`, `cloudPlatform.ts` |
 | The typed door between the pages and that worker | `apps/extension/src/bridge.ts` |
-| The popup: what it shows, and what draws it | `apps/extension/src/popup/popup.model.ts`, `views.tsx` |
+| The popup: what it shows, and what draws it | `apps/extension/src/popup/popup.model.ts`, `views.tsx`, `forms.tsx` |
 | The pill: where it goes, what it is, when to look again | `apps/extension/src/content/` |
 | The checks on song rows: which rows, where the check goes, and the script that reads Up next's videos | `apps/extension/src/content/rows.ts`, `checks.ts`, `videoIds.ts` |
 | The badge and the notification | `apps/extension/src/background/jobs.model.ts`, `watcher.ts` |

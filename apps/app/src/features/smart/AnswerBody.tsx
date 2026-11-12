@@ -64,7 +64,7 @@ export const TAKES_KEYS: ReadonlySet<Answer['kind']> = new Set([
 
 /**
  * What one reply to Ask shows (S1, docs/features/ai.md): its own words, then
- * each card in the order asked. A turn of the Ask page (`AskScreen`) draws it
+ * each card in the order asked. A turn of the Ask page (`TurnStage`) draws it
  * under what was asked.
  *
  * Several cards read as parts of one answer, not a chat: one column, each

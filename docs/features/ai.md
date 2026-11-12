@@ -297,7 +297,8 @@ place named exactly what was typed leads the results, so "calm" opens the tag (D
 
 ### The Ask page
 
-`/ask?q=…` (`smart/AskScreen.tsx`). It is a workbench (Xiao picked S1, 2026-10-27, from a
+`/ask?q=…` (`smart/AskScreen.tsx`; a turn's request and answer in `AskTurn.tsx`, the field in
+`AskField.tsx`). It is a workbench (Xiao picked S1, 2026-10-27, from a
 third canvas round, after the chat column of 2026-10-24 — A1 B2 C1 D1 E1 F1 — the split of
 A2 that still left a chat column floating in an empty window until a list arrived, and R1's
 stage, whose answer sat against the page's left edge while its field sat in the middle).

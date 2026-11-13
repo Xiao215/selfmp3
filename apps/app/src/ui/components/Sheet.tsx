@@ -4,6 +4,7 @@ import { Animated, Keyboard, Pressable, Text, View } from 'react-native'
 import Reanimated, {
   Easing as ReanimatedEasing,
   FadeIn,
+  useAnimatedStyle,
   withDelay,
   withTiming,
   type EntryAnimationsValues,
@@ -22,7 +23,7 @@ import { Press } from './Press'
 import { floating, rowTitle, menuItem, menuItemDense } from '../surfaces'
 import { ease, nativeDriver, spring, timing, useMotionReduced } from '../motion'
 import { MOVE_MS, OPACITY, OVERSHOOT_S, overshootRange, PULL } from '../motion.model'
-import { useKeyboardLift } from '../../ports/keyboardLift'
+import { useKeyboardHeight, useKeyboardMoving } from '../../ports/keyboardLift'
 import { pressPutsKeyboardAway } from '../../ports/keyboard'
 import { ScrollView } from './Scroll'
 
@@ -279,22 +280,19 @@ export function Sheet({
     () => progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
     [progress],
   )
-  // Above the keyboard while one is up: a field in a sheet is near its top,
-  // and the rows it searches are what the keyboard would cover.
-  const keyboard = useKeyboardLift(mounted && !wide)
+  // The keyboard lifts the panel itself (`KeyboardRoom`); this only says
+  // whether it is what changed the panel's height.
+  const keyboardMoving = useKeyboardMoving(mounted && !wide)
   // The rise, plus whatever a finger has added to it. Rebuilt only when the
   // panel's own height — the distance — changes.
   const rise = useMemo(
     () =>
-      Animated.add(
-        Animated.add(
-          Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
-          keyboard.lift,
-        ),
-        grow,
-      ),
-    [progress, pull, panelHeight, keyboard.lift, grow],
+      Animated.add(Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull), grow),
+    [progress, pull, panelHeight, grow],
   )
+  // The home indicator's room under the items. A keyboard covers it, and above
+  // one the items need only `space.sm`: the rest sinks behind it (`KeyboardRoom`).
+  const footRoom = Math.max(insets.bottom, space.sm) + space.xs
   // A sheet whose content changes while it is up — Together growing into the
   // room it opened (M1) — eases to its new height from where its top was,
   // rather than jumping there. Not while the keyboard is up: the keyboard
@@ -307,7 +305,7 @@ export function Sheet({
       startRise()
       return
     }
-    if (before === 0 || keyboard.height > 0) return
+    if (before === 0 || keyboardMoving()) return
     const change = height - before
     if (Math.abs(change) < GROW_AT_LEAST) return
     grow.setValue(change)
@@ -383,46 +381,37 @@ export function Sheet({
           pointerEvents="box-none"
           style={styles.panelFrame}
         >
-          <Animated.View
-            {...a11y}
-            onLayout={event => onPanelLayout(event.nativeEvent.layout.height)}
-            style={[
-              styles.panel,
-              {
-                // The keyboard covers the home indicator's room; above it the
-                // panel needs none, and no taller than the window it leaves.
-                // Without one, never taller than the window less a strip of
-                // the page to tap it away by: a song's menu with Add to
-                // playlist open, or any menu in a short landscape window, ran
-                // off the top with no way to reach its first items.
-                paddingBottom:
-                  keyboard.height > 0 ? space.sm : Math.max(insets.bottom, space.sm) + space.xs,
-                maxHeight:
-                  keyboard.height > 0
-                    ? windowHeight - keyboard.height - insets.top - space.sm
-                    : Math.max(windowHeight - insets.top - TOP_GAP, 0) || undefined,
-                // In a browser, invisible and still until it has been measured,
-                // then up from below the foot, four points past its place, and
-                // back. On a phone the frame around it does the rise.
-                opacity: measured || RISE_ON_MOUNT ? 1 : 0,
-                transform: measured || RISE_ON_MOUNT ? [{ translateY: rise }] : undefined,
-              },
-            ]}
-          >
-            {/* The grabber and the title are the handle the sheet is pulled by. */}
-            <GestureDetector gesture={pullDown}>
-              <View style={styles.handle}>
-                <SheetGrabber style={styles.grabberGap} />
-                {head}
-              </View>
-            </GestureDetector>
-            {content}
-            {/* The panel carries on below its foot, out of sight until something
+          <KeyboardRoom room={windowHeight - insets.top} sink={footRoom - space.sm}>
+            <Animated.View
+              {...a11y}
+              onLayout={event => onPanelLayout(event.nativeEvent.layout.height)}
+              style={[
+                styles.panel,
+                {
+                  paddingBottom: footRoom,
+                  // In a browser, invisible and still until it has been measured,
+                  // then up from below the foot, four points past its place, and
+                  // back. On a phone the frame around it does the rise.
+                  opacity: measured || RISE_ON_MOUNT ? 1 : 0,
+                  transform: measured || RISE_ON_MOUNT ? [{ translateY: rise }] : undefined,
+                },
+              ]}
+            >
+              {/* The grabber and the title are the handle the sheet is pulled by. */}
+              <GestureDetector gesture={pullDown}>
+                <View style={styles.handle}>
+                  <SheetGrabber style={styles.grabberGap} />
+                  {head}
+                </View>
+              </GestureDetector>
+              {content}
+              {/* The panel carries on below its foot, out of sight until something
               lifts it: the keyboard, whose rounded and see-through edge
               otherwise showed the dimmed page under a sheet that had been
               shifted up whole, and the four points the rise overshoots. */}
-            <View pointerEvents="none" style={[styles.skirt, { height: windowHeight }]} />
-          </Animated.View>
+              <View pointerEvents="none" style={[styles.skirt, { height: windowHeight }]} />
+            </Animated.View>
+          </KeyboardRoom>
         </Reanimated.View>
       )}
     </>,
@@ -431,6 +420,50 @@ export function Sheet({
   )
 
   return null
+}
+
+/**
+ * The room a phone's sheet stands in, above the keyboard while one is up: a
+ * field in a sheet is near its top, and the rows it searches are what the
+ * keyboard would cover. Mounted only with the panel, so a closed sheet is not
+ * listening for the keyboard.
+ *
+ * It follows the keyboard's own frames on the UI thread, and the panel's foot
+ * sinks behind the keyboard rather than being cut away: the home indicator's
+ * room under the items (`sink`) is what the keyboard covers first, so the
+ * panel lifts by the rest. Cutting that room when the keyboard set off, and
+ * capping the panel at the room it would leave, moved the items down a step
+ * in the frame the keyboard started up.
+ *
+ * Never taller than the window (`room`) less a strip of the page to tap it
+ * away by — a song's menu with Add to playlist open, or any menu in a short
+ * landscape window, ran off the top with no way to reach its first items —
+ * and the strip narrows to `space.sm` as the keyboard lifts the panel, so a
+ * list under a search field keeps as many rows as it can.
+ */
+function KeyboardRoom({
+  room,
+  sink,
+  children,
+}: {
+  room: number
+  sink: number
+  children: ReactNode
+}): ReactNode {
+  const keyboard = useKeyboardHeight()
+  const leastGap = space.sm
+  const follow = useAnimatedStyle(() => {
+    const lift = Math.max(keyboard.value - sink, 0)
+    return {
+      maxHeight: Math.max(room - lift - Math.max(TOP_GAP - lift, leastGap), 0),
+      transform: [{ translateY: -lift }],
+    }
+  })
+  return (
+    <Reanimated.View pointerEvents="box-none" style={follow}>
+      {children}
+    </Reanimated.View>
+  )
 }
 
 /**
@@ -599,6 +632,8 @@ const styles = StyleSheet.create(theme => ({
     bottom: 0,
   },
   panel: {
+    // Gives way to `KeyboardRoom`'s cap, as the content in it gives way to the panel's.
+    flexShrink: 1,
     backgroundColor: theme.colors.surface1,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,

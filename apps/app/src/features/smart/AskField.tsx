@@ -48,7 +48,10 @@ export function AskField({
 }): ReactNode {
   const { theme } = useUnistyles()
   const accent = useAccent()
-  const [focused, setFocused] = useState(false)
+  // Focused from its first frame when it takes the focus as it appears: the
+  // focus event comes through JavaScript, and on a busy page the ring came
+  // up well after the caret.
+  const [focused, setFocused] = useState(autoFocus)
   const [value, setValue] = useState('')
   const typed = useRef(value)
   const change = (next: string): void => {

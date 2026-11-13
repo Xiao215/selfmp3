@@ -38,6 +38,8 @@ import { useFadeMotion } from '../ui/rowMotion'
 import { motion, space } from '@selfmp3/client'
 import {
   clearQuietStep,
+  PAGE_STEP_PHONE,
+  PAGE_STEP_WIDE,
   pageKey,
   pageStepped,
   stepIsQuiet,
@@ -51,10 +53,12 @@ import { closeQueueSheet } from '../features/queue/queueSheet.store'
 import { usePageTap } from './pageTap'
 import { RoomSheets } from '../features/room/RoomSheets'
 import { ShareSheet } from '../features/share/ShareSheet'
+import { SearchDoorLayer } from '../features/search/useSearchDoor'
 import { QueueSheet } from '../features/queue/QueueSheet'
 import { ContentWidthContext } from './contentWidth'
 import { createValueStore } from '../state/valueStore.model'
 import { MenuHosts } from './MenuHosts'
+import { KeyboardHold } from '../ports/keyboardHold'
 import { SIDEBAR_WIDTH } from './widths'
 
 /**
@@ -112,6 +116,8 @@ export function Shell({
       <MenuHosts />
       {/* Covers flying into the Up next button (`ui/coverFlight.ts`). */}
       <CoverFlight />
+      {/* Keeps the keyboard up while a page is pushed (`ports/keyboardHold.tsx`). */}
+      <KeyboardHold />
       {/* Hover captions in a browser; nothing on a phone. */}
       <TooltipHost />
       {/* A focused field in the accent, not the browser's own ring. */}
@@ -216,6 +222,9 @@ function Frame({
             between it and the sidebar is too narrow to read a message in. */}
         {wide && railCover > 0 ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
       </View>
+      {/* Home's search field rising into Search's, over the pages and
+          under the chrome, as the page it lands on is (`useSearchDoor`). */}
+      {wide ? null : <SearchDoorLayer />}
       {wide ? <BarSlot hidden={barHidden} /> : null}
       {/* Faded in and out as a page that keeps the screen to itself comes and
           goes, not cut; there from the first frame when the app opens. */}
@@ -356,10 +365,6 @@ function BarSlot({ hidden }: { hidden: boolean }): ReactNode {
     </Animated.View>
   )
 }
-
-/** How far a page steps in from: a phone's from the side, a computer's from below. */
-const PAGE_STEP_PHONE = 8
-const PAGE_STEP_WIDE = 6
 
 /**
  * The page, stepping in as it changes (docs/ui-mock `M2`, 4 and `M3`, 5): on a

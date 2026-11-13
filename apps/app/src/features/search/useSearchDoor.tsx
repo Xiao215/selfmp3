@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { StyleSheet as RNStyleSheet, View } from 'react-native'
 import Reanimated, {
@@ -20,10 +20,13 @@ import { quietNextStepTo } from '../../shell/pageStep'
 import { useLayoutValue } from '../../shell/useLayout'
 import { SearchField } from '../../ui/components/SearchField'
 import { useMotionReduced } from '../../ui/motion'
+import { useValueStore } from '../../state/useValueStore'
 import { EASE_OUT_POINTS, MOVE_MS } from '../../ui/motion.model'
 import { PAGE_TOP_PHONE } from '../../ui/surfaces'
+import { BeforeTypingCopy } from './SearchScreen'
 import {
   DOOR_HINT,
+  doorFlight,
   listenAsDoor,
   markDoorArrival,
   SEARCH_HINT,
@@ -51,8 +54,12 @@ type Flight = 'open' | 'back'
 /** How far Home's page drifts up as it fades from under the rising field. */
 const PAGE_DRIFT = 12
 
-/** How long Home waits, once Search has arrived over it, before putting its own field back. */
-const SETTLE_MS = 150
+/**
+ * How long after its move Home's field gives up on Search arriving and puts
+ * itself back, so a Search that never came (or was already open) cannot
+ * leave the field standing over the pages.
+ */
+const GIVE_UP_MS = 2000
 
 const MOVE = {
   duration: MOVE_MS.searchDoor,
@@ -69,16 +76,20 @@ const MOVE = {
  * Home: the field rises into its place there and narrows as Cancel comes in
  * beside it, while Home fades and drifts up from under it. The copy's field
  * is a real one and takes the focus straight away, so the keyboard comes up
- * with the move rather than after it. Once the move has landed Search
- * arrives, drawn exactly as the copy's last frame, and its own field takes
- * the focus and the keyboard over.
+ * with the move rather than after it, and what Search shows before anything
+ * is typed fades in under it on the way. Once the move has landed Search
+ * arrives, drawn exactly as the copy's last frame, and once it has finished
+ * arriving its own field takes the focus and the keyboard over.
+ *
+ * The copy is drawn over the pages by the shell (`SearchDoorLayer`), not in
+ * Home: a field inside Home loses the keyboard as Search is pushed over it.
  *
  * Coming back, Search asks for the copy to be set at the top while it is
  * still over Home. Home is revealed in that state and plays the move
  * backwards.
  *
- * `doorRef` and `doorStyle` go on a view around the field, `pageStyle` on a
- * view around the rest of the page, and `flight` over the page.
+ * `doorRef` and `doorStyle` go on a view around the field, and `pageStyle` on
+ * a view around the rest of the page.
  */
 export function useSearchDoor(
   openSearch: () => void,
@@ -88,7 +99,6 @@ export function useSearchDoor(
   doorStyle: ReturnType<typeof useAnimatedStyle>
   pageStyle: ReturnType<typeof useAnimatedStyle>
   open: () => void
-  flight: ReactNode
 } {
   const router = useRouter()
   const navigation = useNavigation()
@@ -110,8 +120,11 @@ export function useSearchDoor(
   /** Where Home's field was pressed, kept for the way back. */
   const pressedAt = useRef<FieldFrame | null>(null)
   const typed = useRef('')
+  const givingUp = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const rest = useCallback(() => {
+    if (givingUp.current !== null) clearTimeout(givingUp.current)
+    givingUp.current = null
     setFlight(null)
     placed.set(0)
     progress.set(0)
@@ -123,7 +136,8 @@ export function useSearchDoor(
     markDoorArrival()
     const words = typed.current.trim()
     router.navigate(words ? { pathname: '/search', params: { q: words } } : '/search')
-  }, [router])
+    givingUp.current = setTimeout(rest, GIVE_UP_MS)
+  }, [router, rest])
 
   /**
    * The copy's field is laid out where Search's will be: the move can start.
@@ -167,9 +181,7 @@ export function useSearchDoor(
     () =>
       listenAsDoor({
         settle: () => {
-          setTimeout(() => {
-            if (flightRef.current === 'open') rest()
-          }, SETTLE_MS)
+          if (flightRef.current === 'open') rest()
         },
         comeBack: () => {
           if (!moves || pressedAt.current === null) return false
@@ -200,6 +212,30 @@ export function useSearchDoor(
     [navigation, progress, rest],
   )
 
+  const onType = useCallback((text: string) => {
+    typed.current = text
+  }, [])
+  const drawn = useMemo(
+    () =>
+      flight === null ? null : (
+        <DoorFlight
+          rising={flight === 'open'}
+          progress={progress}
+          placed={placed}
+          way={way}
+          onLand={land}
+          onType={onType}
+        />
+      ),
+    [flight, progress, placed, way, land, onType],
+  )
+  // Before the frame is painted, so the copy and Home's own field never both
+  // show, or neither.
+  useLayoutEffect(() => {
+    doorFlight.set(drawn)
+  }, [drawn])
+  useLayoutEffect(() => () => doorFlight.set(null), [])
+
   const doorStyle = useAnimatedStyle(() => ({ opacity: 1 - placed.value }))
   const pageStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
@@ -211,26 +247,23 @@ export function useSearchDoor(
     doorStyle,
     pageStyle,
     open,
-    flight:
-      flight === null ? null : (
-        <DoorFlight
-          rising={flight === 'open'}
-          progress={progress}
-          placed={placed}
-          way={way}
-          onLand={land}
-          onType={text => {
-            typed.current = text
-          }}
-        />
-      ),
   }
+}
+
+/**
+ * Home's field on its way, over every page: the shell draws it above the
+ * stack, under the mini player and the tab bar as a page is.
+ */
+export function SearchDoorLayer(): ReactNode {
+  return useValueStore(doorFlight)
 }
 
 /**
  * The copy of Search's head the field travels through: laid out exactly as
  * Search lays its own out (`SearchScreen`'s head), with the field carried
- * from where it was pressed by a translation and a width.
+ * from where it was pressed by a translation and a width. Rising, Search's
+ * tags and recent songs fade in under it, drawn once the move is under way
+ * so drawing them never holds up its start.
  */
 function DoorFlight({
   rising,
@@ -254,6 +287,7 @@ function DoorFlight({
   const slot = useRef<View>(null)
   const landed = useRef(false)
   const [words, setWords] = useState('')
+  const [listsDrawn, setListsDrawn] = useState(false)
 
   const fieldStyle = useAnimatedStyle(() => {
     if (placed.value === 0) return { opacity: 0, width: '100%', transform: [] }
@@ -277,6 +311,9 @@ function DoorFlight({
   const searchHintStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0.35, 0.8], [0, 1], Extrapolation.CLAMP),
   }))
+  const listsStyle = useAnimatedStyle(() => ({
+    opacity: placed.value * interpolate(progress.value, [0.35, 1], [0, 1], Extrapolation.CLAMP),
+  }))
 
   return (
     <View style={RNStyleSheet.absoluteFill}>
@@ -287,7 +324,10 @@ function DoorFlight({
           onLayout={() => {
             if (landed.current) return
             landed.current = true
-            slot.current?.measureInWindow((x, y, width) => onLand({ x, y, width }))
+            slot.current?.measureInWindow((x, y, width) => {
+              onLand({ x, y, width })
+              if (rising) setListsDrawn(true)
+            })
           }}
         >
           <Reanimated.View style={fieldStyle}>
@@ -295,6 +335,9 @@ function DoorFlight({
               {...SEARCH_KEYBOARD}
               autoFocus={rising}
               editable={rising}
+              // Focused as it rises, as Search's is once it takes over:
+              // the ring follows no focus events that come late or in turn.
+              focusRing={rising}
               value={words}
               onChangeText={text => {
                 setWords(text)
@@ -321,6 +364,12 @@ function DoorFlight({
         </View>
         <Reanimated.Text style={[styles.cancel, cancelStyle]}>Cancel</Reanimated.Text>
       </View>
+      {/* Typed into on the way, Search arrives with results instead. */}
+      {listsDrawn && words === '' ? (
+        <Reanimated.View pointerEvents="none" style={[styles.lists, listsStyle]}>
+          <BeforeTypingCopy />
+        </Reanimated.View>
+      ) : null}
     </View>
   )
 }
@@ -339,6 +388,9 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.lg,
   },
   slot: { flex: 1 },
+  // On the page's own ground: Search arrives under it drawn the same, and
+  // its translucent parts (the playing song's wash) must not show twice.
+  lists: { flex: 1, backgroundColor: theme.colors.surface0 },
   cancel: { color: theme.colors.accent, fontSize: type.body, fontWeight: '600' },
   hints: {
     position: 'absolute',

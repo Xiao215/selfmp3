@@ -11,7 +11,7 @@ import {
 } from '@expo-google-fonts/instrument-serif'
 import { BricolageGrotesque_600SemiBold } from '@expo-google-fonts/bricolage-grotesque'
 import { StatusBar } from 'expo-status-bar'
-import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { failureText } from '@selfmp3/client'
@@ -198,7 +198,8 @@ export default function RootLayout(): ReactNode {
       // The size every screen lays out by, measured here (`shell/layoutSize.model.ts`).
       onLayout={event => setRootSize(event.nativeEvent.layout)}
     >
-      <SafeAreaProvider>
+      {/* Known before the first frame, so nothing is laid out once without them. */}
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         {/* A narrow desktop window's traffic lights, as a phone's status bar. */}
         <TitleBarRoom>
           <ThemedStatusBar />

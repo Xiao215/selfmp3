@@ -12,6 +12,7 @@ import { MOVE_MS } from '../motion.model'
 import { floating } from '../surfaces'
 import { activeTab, navGoes, navItemProps, TABS, type TabHref } from '../../shell/nav.model'
 import { NAV_ICON } from '../../shell/navIcons'
+import { stepAheadTo } from '../../shell/pageStep'
 import type { Music } from './Icons'
 import { useSlidingHighlight } from './SlidingHighlight'
 import { singularPlaces } from '../../ports/singularPlaces'
@@ -103,6 +104,8 @@ function BottomNavInner(): ReactNode {
                 // thread to build itself.
                 setGoing({ to: tab.href, from: pathname })
                 requestAnimationFrame(() => {
+                  // Told in the same callback, so the step and the page are drawn together.
+                  stepAheadTo(tab.href, pathname)
                   if (singularPlaces) router.navigate(tab.href)
                   else router.dismissTo(tab.href)
                 })

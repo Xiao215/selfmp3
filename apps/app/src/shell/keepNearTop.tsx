@@ -1,6 +1,11 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { ReactElement, ReactNode } from 'react'
+import { Animated, StyleSheet } from 'react-native'
 import { HiddenPage } from '../ports/hiddenPage'
+import { ease, timing } from '../ui/motion'
+import { MOVE_MS } from '../ui/motion.model'
+import { addressOf } from './backGesture'
+import { PAGE_STEP_PHONE, takeTabArrival } from './pageStep'
 
 /**
  * How many pages under the one on top stay drawn.
@@ -60,13 +65,31 @@ type Kept = 'gone' | 'hidden' | 'shown'
 
 function KeepNearTop({
   routeKey,
+  routeName,
   navigation,
   children,
 }: {
   routeKey: string
+  routeName: string
   navigation: StackNavigation
   children: ReactNode
 }): ReactNode {
+  // A tab's page brought by its tab pressed steps in itself, from its first
+  // frame (`pageStep.ts`). Asked once, as it mounts: the same page later is
+  // not arriving.
+  const [side] = useState(() => takeTabArrival(addressOf(routeName)))
+  const step = useMemo(() => {
+    if (side === null) return null
+    const value = new Animated.Value(0)
+    const offset = value.interpolate({
+      inputRange: [0, 1],
+      outputRange: [PAGE_STEP_PHONE * side, 0],
+    })
+    return { value, style: { opacity: value, transform: [{ translateX: offset }] } }
+  }, [side])
+  useLayoutEffect(() => {
+    if (step !== null) timing(step.value, 1, MOVE_MS.tab, undefined, { easing: ease.out })
+  }, [step])
   const subscribe = useCallback(
     (onChange: () => void) => navigation.addListener('state', onChange),
     [navigation],
@@ -78,7 +101,17 @@ function KeepNearTop({
     return onScreen(state.routes, index, state.index) ? 'shown' : 'hidden'
   }, [navigation, routeKey])
   const drawn = useSyncExternalStore(subscribe, kept, kept)
-  return drawn === 'gone' ? null : <HiddenPage hidden={drawn === 'hidden'}>{children}</HiddenPage>
+  if (drawn === 'gone') return null
+  return (
+    <HiddenPage hidden={drawn === 'hidden'}>
+      {/* Wrapped only when it steps, which a page knows from its first render to its last. */}
+      {step === null ? (
+        children
+      ) : (
+        <Animated.View style={[styles.page, step.style]}>{children}</Animated.View>
+      )}
+    </HiddenPage>
+  )
 }
 
 /** The stack's `screenLayout`: every page's content, drawn only near the top. */
@@ -87,13 +120,19 @@ export function keepNearTop({
   navigation,
   children,
 }: {
-  route: { key: string }
+  route: { key: string; name: string }
   navigation: unknown
   children: ReactElement
 }): ReactElement {
   return (
-    <KeepNearTop routeKey={route.key} navigation={navigation as StackNavigation}>
+    <KeepNearTop
+      routeKey={route.key}
+      routeName={route.name}
+      navigation={navigation as StackNavigation}
+    >
       {children}
     </KeepNearTop>
   )
 }
+
+const styles = StyleSheet.create({ page: { flex: 1 } })

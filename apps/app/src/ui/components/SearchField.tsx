@@ -32,10 +32,15 @@ import { NO_AUTOFILL } from '../noAutofill'
  * ref, for a screen that moves the focus itself. `trailing` takes the ×'s
  * place, for something a search may need to offer there instead (Ask's Stop,
  * the palette's count); `null` there means nothing at all.
+ *
+ * `focusRing` draws it focused whether or not it has the focus, for a copy
+ * standing in for a field that does: Home's field on its way up into
+ * Search's, which takes the focus over from it (`useSearchDoor`).
  */
 export function SearchField({
   inputRef,
   raised = false,
+  focusRing = false,
   trailing,
   onPress,
   style,
@@ -50,6 +55,7 @@ export function SearchField({
 }: Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
   inputRef?: Ref<TextInput>
   raised?: boolean
+  focusRing?: boolean
   trailing?: ReactNode
   /** Makes it a door: pressed, it opens the search that is elsewhere. */
   onPress?: () => void
@@ -58,7 +64,11 @@ export function SearchField({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const dense = useLayoutValue(layout => layout.dense)
-  const [focused, setFocused] = useState(false)
+  // Focused from its first frame when it takes the focus as it appears: the
+  // focus event comes through JavaScript, and on a busy page the ring came
+  // up well after the caret.
+  const [hasFocus, setFocused] = useState(input.autoFocus === true)
+  const focused = hasFocus || focusRing
   const box = [styles.field, dense && styles.fieldDense, raised && styles.fieldRaised]
 
   if (onPress) {

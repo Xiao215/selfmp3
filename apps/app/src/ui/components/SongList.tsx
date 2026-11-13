@@ -11,6 +11,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
+import { LayoutAnimationConfig } from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { useArrival } from '../motion'
@@ -122,7 +123,8 @@ export function SongList({
    * What this list is showing, as a string: the search text, the tags being
    * filtered by, the sort. When it changes, the first screen of rows fades up a
    * stagger apart instead of replacing the old ones in one frame, so a search
-   * reads as answering rather than flickering. Left out, nothing arrives ever.
+   * reads as answering rather than flickering. The list opening shows its rows
+   * at once. Left out, nothing arrives ever.
    */
   arrivalKey?: string
   /**
@@ -137,18 +139,23 @@ export function SongList({
    * plays its arrival as it mounts. Nothing is kept about which paint was the
    * one — React's own remount is the memory — and a row scrolled into view
    * later under the same key mounts a wrapper that plays nothing, since only
-   * the first screen (`ARRIVING`) is asked to.
+   * the first screen (`ARRIVING`) is asked to. The key the list opened with
+   * plays nothing: a page opening already moves in as a whole, and its rows
+   * rising a stagger apart on top of that read as the list arriving late.
    */
+  const [openedWith] = useState(arrivalKey)
+  const [answering, setAnswering] = useState(false)
+  if (!answering && arrivalKey !== openedWith) setAnswering(true)
   const renderItem = useMemo<FlatListProps<Song>['renderItem']>(
     () =>
-      arrivalKey === undefined
+      arrivalKey === undefined || !answering
         ? renderSong
         : info => (
             <Arriving key={arrivalKey} index={info.index}>
               {renderSong({ item: info.item, index: info.index })}
             </Arriving>
           ),
-    [arrivalKey, renderSong],
+    [answering, arrivalKey, renderSong],
   )
 
   // A computer's scrollbar over the list's right edge; a phone keeps its own.
@@ -233,8 +240,11 @@ export function SongList({
     averageItemLength,
   }) => listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false })
 
+  // What the list holds as it opens is simply there, `empty` too: a page that
+  // opens onto nothing shows it with the page, not fading in after. An empty
+  // state the list comes to later, a filter that matches nothing, still fades.
   return (
-    <>
+    <LayoutAnimationConfig skipEntering>
       <PinnedHeaderScope stayAfter={stayAfter}>
         <FlatList
           ref={listRef}
@@ -296,7 +306,7 @@ export function SongList({
         />
       </PinnedHeaderScope>
       {scrollbar.overlay}
-    </>
+    </LayoutAnimationConfig>
   )
 }
 

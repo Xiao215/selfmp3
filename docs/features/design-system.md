@@ -391,10 +391,18 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
 - Sheets (`Sheet`, Up next) come up from the foot with a four-point overshoot in 300 ms and
   go down in 220; the dim fades with them; a pull past `PULL.close` or a flick faster than
   `PULL.flick` sends any of them away. A computer's dialog, the confirm dialog included,
-  fades and settles from ten points below.
+  fades and settles from ten points below. On a phone a sheet follows the keyboard frame by
+  frame on the UI thread, its foot sinking behind it (`ports/keyboardLift.ts`).
+- A field on a page that pushes another keeps the keyboard up through the push: the focus
+  waits in a field the shell draws over the pages (`ports/keyboardHold.tsx`), and the next
+  page's field takes it once the push has finished (`ui/useFocusOnArrival.ts`). A field
+  focused during a push lost the keyboard to it, and it dropped and came back up.
 - A phone's tab pill springs to the new tab while its ink turns, and the page steps in 8
   points from that side, 200 ms; a computer's sidebar highlight springs and the page settles
   from 6 points below, 180 ms (`shell/pageStep.ts`, `ui/components/SlidingHighlight.tsx`).
+  A phone's tab page brought by its tab plays the step itself from its first frame
+  (`shell/keepNearTop.tsx`): the address changes only after the new page is drawn, and a
+  step taken from it showed the page whole for a frame first.
   The phone's stack pushes pages with iOS's own slide, the one the swipe back drags. A tag
   opened from its Home tile crossfades over 340 ms instead while its head grows out of the
   tile (`ui/coverHandoff.ts`); the grow starts with the navigator's `transitionStart`. Once
@@ -403,10 +411,14 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   dismissed.
 - Home's search field on a phone rises into Search's place at the top and narrows while
   Cancel slides in and Home fades and drifts up from under it, 320 ms. It takes the focus as
-  it starts, so the keyboard comes up with the move. Search arrives on the move's last frame
-  with no page step. Cancel fades what Search found, and Home plays the same move back down
-  (`features/search/useSearchDoor.tsx`, `searchDoor.ts`). Search can't be a transparent page
-  over Home, the way Now Playing is: pages opened from it would land under it.
+  it starts, so the keyboard comes up with the move, and Search's tags and recent songs fade
+  in under it on the way. Search arrives on the move's last frame with no page step, already
+  drawn. The moving field is drawn over the pages by the shell, not inside Home, so it keeps
+  the keyboard while Search is pushed; Search's field takes the focus over once the push has
+  finished, and the keyboard never drops. Cancel fades what Search found, and Home plays the
+  same move back down (`features/search/useSearchDoor.tsx`, `searchDoor.ts`). Search can't be
+  a transparent page over Home, the way Now Playing is: pages opened from it would land under
+  it.
 - Now Playing rises from the foot on the spring on a phone and in a browser, its cover
   travelling from where the mini player's or the bar's was (`ui/coverHandoff.ts`), and sinks
   back before the route changes; an iPad's stack slides it, 380 ms. The cover shrinks to

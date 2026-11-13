@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text } from 'react-native'
-import type { LayoutChangeEvent, StyleProp, TextStyle } from 'react-native'
+import type { StyleProp, TextStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { TypeStep } from '@selfmp3/client'
 import { headroom } from './surfaces'
@@ -16,6 +16,11 @@ import { linesAt, useFontScale } from './textScale'
  * the cover — the head's width less the cover and the gap, which stacking does
  * not change — so the answer does not flip back once the title has the whole
  * width. More than two lines there, and the cover goes above.
+ *
+ * The head is not seen until the copy is measured (`measured`): drawn beside
+ * its cover meanwhile, a long title showed there cut to three lines and then
+ * jumped above it a frame or two later. On a phone the copy is read before the
+ * first frame is drawn, so nothing waits.
  */
 export function useStackedTitle({
   title,
@@ -33,44 +38,47 @@ export function useStackedTitle({
   gap: number
 }): {
   stacked: boolean
-  /** On the view the cover and the title share. */
-  onHeadLayout: (event: LayoutChangeEvent) => void
-  /** The hidden copy, drawn anywhere inside that view. */
+  /** Whether the copy has been measured for this title, so the head can be shown. */
+  measured: boolean
+  /** The hidden copy, drawn anywhere inside the view the cover and the title share. */
   measure: ReactNode
 } {
   const fontScale = useFontScale()
-  const [width, setWidth] = useState(0)
-  const beside = Math.floor(width - cover - gap)
-  // A copy measured for another title, width or text size says nothing about this one.
-  const key = `${beside}\u0000${fontScale}\u0000${title}`
-  const [measured, setMeasured] = useState({ key: '', lines: 0 })
-  const lines = measured.key === key ? measured.lines : 0
+  // A copy measured for another title or text size says nothing about this
+  // one. The copy is drawn afresh for each (its `key`), so each is measured: a
+  // new title the same height as the last would lay out no differently.
+  const key = `${fontScale}\u0000${title}`
+  const [counted, setCounted] = useState({ key: '', lines: 0 })
+  const measured = counted.key === key
+  const count = (height: number): void =>
+    setCounted({ key, lines: linesAt(height, step, fontScale, headroom(step).paddingTop) })
+  const copy = useRef<Text>(null)
+  useLayoutEffect(() => {
+    copy.current?.measure((_x, _y, _width, height) => {
+      if (height > 0) {
+        setCounted({ key, lines: linesAt(height, step, fontScale, headroom(step).paddingTop) })
+      }
+    })
+  }, [key, step, fontScale])
   return {
-    stacked: lines > 2,
-    onHeadLayout: event => setWidth(event.nativeEvent.layout.width),
-    measure:
-      beside > 0 ? (
-        <Text
-          aria-hidden
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          pointerEvents="none"
-          onLayout={event =>
-            setMeasured({
-              key,
-              lines: linesAt(
-                event.nativeEvent.layout.height,
-                step,
-                fontScale,
-                headroom(step).paddingTop,
-              ),
-            })
-          }
-          style={[style, styles.copy, { width: beside }]}
-        >
-          {title}
-        </Text>
-      ) : null,
+    stacked: measured && counted.lines > 2,
+    measured,
+    measure: (
+      <Text
+        key={key}
+        ref={copy}
+        aria-hidden
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        pointerEvents="none"
+        onLayout={event => count(event.nativeEvent.layout.height)}
+        // As wide as the room beside the cover from the first layout: the
+        // view's width less the cover and the gap, with no wait for that width.
+        style={[style, styles.copy, { right: cover + gap }]}
+      >
+        {title}
+      </Text>
+    ),
   }
 }
 

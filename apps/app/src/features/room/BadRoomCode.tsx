@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- one field drawn as six boxes, which carry its focus ring themselves
 import { Text, TextInput, View } from 'react-native'
+import { holdKeyboard } from '../../ports/keyboardHold'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import {
@@ -49,6 +50,8 @@ export function BadRoomCode({ given, back }: { given: string; back: boolean }): 
 
   const join = (): void => {
     if (!valid) return
+    // The join page may want a name typed: the keyboard stays up for it.
+    holdKeyboard()
     router.replace({ pathname: '/join/[code]', params: { code } })
   }
 

@@ -68,7 +68,10 @@ export function TextField({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const dense = useLayoutValue(layout => layout.dense)
-  const [focused, setFocused] = useState(false)
+  // Focused from its first frame when it takes the focus as it appears: the
+  // focus event comes through JavaScript, and on a busy page the ring came
+  // up well after the caret.
+  const [focused, setFocused] = useState(input.autoFocus === true)
   const small = size === 'small'
 
   const field = (

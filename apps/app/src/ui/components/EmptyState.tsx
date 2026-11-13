@@ -22,7 +22,11 @@ import { lineSub } from '../surfaces'
  *
  * It fades in where the list was (a filter that matches nothing, a playlist
  * emptied in place) rather than replacing it in one frame. It does not fade
- * out: the songs that come back take its place at once.
+ * out: the songs that come back take its place at once. One that is there as
+ * its page opens should simply be there, not fade in after the page's own
+ * move: the fade is a Reanimated `entering`, so a `LayoutAnimationConfig
+ * skipEntering` mounted with the page skips it (`SongList` holds one for its
+ * `empty`).
  */
 export function EmptyState({
   icon,

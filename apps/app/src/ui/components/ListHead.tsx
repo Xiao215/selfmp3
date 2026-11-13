@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Image, Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
@@ -289,8 +289,9 @@ type NameStep = (typeof NAME_STEPS)[number]
  * How many lines it takes at each size is measured, by a hidden copy at each
  * size laid over it: a line count is the text's own layout, which a browser
  * does not report and a glyph count cannot guess (中文 and Latin differ by
- * half). Until the copies are measured it is drawn as before, two lines at
- * its size.
+ * half). The name is not seen until its copies are measured: drawn at the
+ * largest size and cut to two lines meanwhile, a long name showed that way
+ * and then shrank a frame or two later.
  *
  * `face` is the display face, or the serif an artist alone is named in;
  * `header` is false where something around it is the page's header already.
@@ -306,16 +307,31 @@ export function ListHeadName({
   header?: boolean
   testID?: string
 }): ReactNode {
-  const [width, setWidth] = useState(0)
   const fontScale = useFontScale()
-  // Copies measured for another name, width or text size say nothing about this one.
-  const key = `${width}\u0000${fontScale}\u0000${name}`
+  // Copies measured for another name or text size say nothing about this one.
+  // The copies are drawn afresh for each (their `key`), so each is measured: a
+  // new name the same height as the last would lay out no differently.
+  const key = `${fontScale}\u0000${name}`
   const [measured, setMeasured] = useState<{ key: string; lines: Lines }>({ key: '', lines: {} })
   const lines = measured.key === key ? measured.lines : {}
   const measure = (step: NameStep, height: number): void => {
     const count = linesAt(height, step, fontScale, headroom(step).paddingTop)
     setMeasured(was => ({ key, lines: { ...(was.key === key ? was.lines : {}), [step]: count } }))
   }
+  // On a phone the copies' layout can be read before the frame is drawn, so the
+  // name's first frame is already at its size. A browser answers later, and
+  // a width that changes after is told by the copies' own `onLayout`.
+  const copies = useRef<Partial<Record<NameStep, Text | null>>>({})
+  useLayoutEffect(() => {
+    const counts: Lines = {}
+    for (const each of NAME_STEPS) {
+      copies.current[each]?.measure((_x, _y, _width, height) => {
+        if (height > 0) counts[each] = linesAt(height, each, fontScale, headroom(each).paddingTop)
+        if (NAME_STEPS.every(step => counts[step] !== undefined))
+          setMeasured({ key, lines: counts })
+      })
+    }
+  }, [key, fontScale])
   const known = NAME_STEPS.every(step => lines[step] !== undefined)
   const step = known
     ? (NAME_STEPS.find(each => (lines[each] ?? Infinity) <= 2) ?? LAST_STEP)
@@ -329,32 +345,33 @@ export function ListHeadName({
   const styleAt = (at: NameStep) =>
     face === 'serif' ? [styles.nameSerif, serifSteps[at]] : nameStyles[at]
   return (
-    <View onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+    <View>
       <Text
-        style={styleAt(step)}
-        // Two lines before it is measured, as it was; at the last size, never cut.
+        style={[styleAt(step), !known && styles.nameUnseen]}
+        // Two lines while it is measured; at the last size, never cut.
         numberOfLines={known && step === LAST_STEP ? undefined : 2}
         accessibilityRole={header ? 'header' : undefined}
         testID={testID}
       >
         {name}
       </Text>
-      {width > 0
-        ? NAME_STEPS.map(each => (
-            <Text
-              key={each}
-              aria-hidden
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              pointerEvents="none"
-              onLayout={event => measure(each, event.nativeEvent.layout.height)}
-              style={[styleAt(each), styles.nameCopy]}
-              testID={testID && `${testID}-${each}`}
-            >
-              {name}
-            </Text>
-          ))
-        : null}
+      {NAME_STEPS.map(each => (
+        <Text
+          key={`${each}\u0000${key}`}
+          ref={node => {
+            copies.current[each] = node
+          }}
+          aria-hidden
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          pointerEvents="none"
+          onLayout={event => measure(each, event.nativeEvent.layout.height)}
+          style={[styleAt(each), styles.nameCopy]}
+          testID={testID && `${testID}-${each}`}
+        >
+          {name}
+        </Text>
+      ))}
     </View>
   )
 }
@@ -439,4 +456,5 @@ const styles = StyleSheet.create(theme => ({
   // A measuring copy: the name's width, out of sight and out of the way — of
   // a selection's too, which copied the name once for each copy.
   nameCopy: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0, userSelect: 'none' },
+  nameUnseen: { opacity: 0 },
 }))

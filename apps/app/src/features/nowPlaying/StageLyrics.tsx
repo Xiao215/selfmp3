@@ -81,6 +81,13 @@ const LyricsList = memo(function LyricsList({
   const contentRef = useRef<View>(null)
   const lineRefs = useRef<(View | null)[]>([])
   const [boxHeight, setBoxHeight] = useState(0)
+  /**
+   * Whether the words have been scrolled to the sung line once. Until then
+   * they are drawn but not seen: before the box has been measured they sit at
+   * its top with no room above them, and they landed there and then jumped
+   * to the sung line a frame or two later.
+   */
+  const [placed, setPlaced] = useState(false)
   const [hovered, setHovered] = useState<number | null>(null)
   const [layoutTick, setLayoutTick] = useState(0)
   // The words follow the song by scrolling, and a scroll is a move: with less
@@ -160,7 +167,10 @@ const LyricsList = memo(function LyricsList({
     }
     const line = lineRefs.current[index]
     const content = contentRef.current
-    if (!line || !content) return
+    if (!line || !content) {
+      setPlaced(true)
+      return
+    }
     // The words changed size — lyrics-only's larger type, romanization, a
     // font arriving — so every line moved: jump to the sung one rather than
     // glide the whole distance.
@@ -177,8 +187,9 @@ const LyricsList = memo(function LyricsList({
           y: Math.max(0, y + height / 2),
           animated: glide && !relaid && !reduced,
         })
+        setPlaced(true)
       },
-      () => undefined,
+      () => setPlaced(true),
     )
   }, [active, boxHeight, layoutTick, synced, reduced])
 
@@ -216,12 +227,14 @@ const LyricsList = memo(function LyricsList({
   }
   const blurring = focus && settled && synced !== null
   const reach = blurReach(boxHeight, fontSize)
+  // Words that are not timed stay where they are laid out, once there is room above them.
+  const seen = placed || (boxHeight > 0 && !synced)
 
   return (
     <FadeEdges style={styles.box}>
       <ScrollView
         ref={scrollRef}
-        style={styles.box}
+        style={[styles.box, !seen && styles.unseen]}
         contentContainerStyle={{
           paddingTop: boxHeight * (synced ? LYRIC_ANCHOR : 0.14),
           paddingBottom: boxHeight * 0.55,
@@ -369,6 +382,7 @@ const LyricLine = memo(function LyricLine({
 
 const styles = StyleSheet.create({
   box: { flex: 1, minHeight: 0 },
+  unseen: { opacity: 0 },
   // As wide as its words, not the column: on a wide window the empty space
   // right of a line would otherwise light it up and jump to it.
   line: { borderRadius: radius.cover, alignSelf: 'flex-start', maxWidth: '100%' },

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Text, type TextInput, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { space, type, type ServerConnection } from '@selfmp3/client'
@@ -12,6 +12,7 @@ import { NoticeCard } from '../../ui/components/NoticeCard'
 import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SearchField } from '../../ui/components/SearchField'
+import { useFocusOnArrival } from '../../ui/useFocusOnArrival'
 import { ImportFoot, useImportEnqueue, useImportPage } from './ImportPage'
 import { useFindSongs } from './useFindSongs'
 import { useSongSearch } from './useSongSearch'
@@ -58,6 +59,9 @@ export function ImportSearch({
   /** The words in the field: what Import's box sent, or the search this page was left with. */
   const [words, setWords] = useState(() => params.q ?? search?.query ?? '')
   const query = words.trim() || null
+  // Ready to type into when it opens with nothing to look for yet.
+  const field = useRef<TextInput>(null)
+  useFocusOnArrival(field, words === '')
   const searching = useSongSearch(source.lookUp, key, query, search?.query ?? null)
   // A 网易云 song it only previews, with no YouTube Music answer surely the same, is found as it shows.
   const finder = useFindSongs(source.lookUp, key, search?.review ?? null, 'search')
@@ -112,7 +116,7 @@ export function ImportSearch({
           onChangeText={setWords}
           placeholder="Songs on YouTube Music and 网易云"
           accessibilityLabel="Search for songs"
-          autoFocus={words === ''}
+          inputRef={field}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"

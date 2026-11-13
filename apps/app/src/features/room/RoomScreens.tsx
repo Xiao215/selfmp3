@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Text, type TextInput, View } from 'react-native'
+import { useFocusOnArrival } from '../../ui/useFocusOnArrival'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -74,6 +75,10 @@ export function JoinScreen(): ReactNode {
   const suggested = prefs.get(GUEST_NAME_KEY) ?? (me ? nameToJoinWith(me) : '')
   const name = typed ?? suggested
   const [busy, setBusy] = useState(false)
+  // With no name to suggest, the keyboard is up for one once the page is in;
+  // with one, a keyboard kept from the room code goes down.
+  const nameField = useRef<TextInput>(null)
+  useFocusOnArrival(nameField, !name)
 
   // Already in this room: straight to it.
   const already = code.success && room.pass?.code === code.data
@@ -132,7 +137,7 @@ export function JoinScreen(): ReactNode {
           onSubmitEditing={() => void join()}
           placeholder="Your name"
           limit={RoomMemberNameSchema}
-          autoFocus={!name}
+          inputRef={nameField}
           testID="room-join-name"
         />
         <Button

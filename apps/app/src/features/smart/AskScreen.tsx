@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Keyboard,
   KeyboardAvoidingView,
   Text,
   View,
@@ -257,10 +256,22 @@ export function AskScreen(): ReactNode {
     following.current =
       contentOffset.y + layoutMeasurement.height >= contentSize.height - FOLLOW_SLACK
   }, [])
-  useEffect(() => {
-    const shown = Keyboard.addListener('keyboardDidShow', toFoot)
-    return () => shown.remove()
-  }, [toFoot])
+  // The conversation made shorter while its end was in view — the keyboard
+  // coming up, on either phone — keeps its end in view, and moves to it as the
+  // keyboard rises: its new height is laid out as the keyboard sets off.
+  // Waiting for keyboardDidShow scrolled it once the keyboard had settled, a
+  // jerk after the move; keyboardWillShow came before the keyboard's room was
+  // taken, when the end was still where it had been.
+  const conversationHeight = useRef(0)
+  const resized = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { height } = event.nativeEvent.layout
+      const shorter = height < conversationHeight.current
+      conversationHeight.current = height
+      if (shorter) toFoot()
+    },
+    [toFoot],
+  )
   const laidOut = useCallback((id: number, event: LayoutChangeEvent) => {
     const { y, height } = event.nativeEvent.layout
     spans.current.set(id, { y, height })
@@ -405,6 +416,7 @@ export function AskScreen(): ReactNode {
           scrollEventThrottle={64}
           onScroll={scrolled}
           onContentSizeChange={toFoot}
+          onLayout={resized}
         >
           {!reachable ? (
             <ServerAway reach={server.reach} need="ai" testID="ask-server" />

@@ -146,8 +146,13 @@ function SongPage({ song }: { song: Song }): ReactNode {
         </View>
 
         <View
-          onLayout={head.onHeadLayout}
-          style={[styles.hero, wide && styles.heroWide, head.stacked && styles.heroStacked]}
+          style={[
+            styles.hero,
+            wide && styles.heroWide,
+            head.stacked && styles.heroStacked,
+            // Not seen until it is known whether the cover goes above the title.
+            !head.measured && styles.heroUnseen,
+          ]}
         >
           {head.measure}
           <View style={styles.cover}>
@@ -382,6 +387,7 @@ const styles = StyleSheet.create(theme => ({
   hero: { flexDirection: 'row', alignItems: 'flex-end', gap: space.lg },
   heroWide: { gap: HERO_GAP_WIDE },
   heroStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+  heroUnseen: { opacity: 0 },
   cover: {
     borderRadius: radius.card,
     ...artShadow(theme.colors),

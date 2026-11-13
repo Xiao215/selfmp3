@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
 import Reanimated, {
   Easing,
+  LayoutAnimationConfig,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -72,6 +73,7 @@ import {
   type SearchSection,
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
+import { useFocusOnArrival } from '../../ui/useFocusOnArrival'
 import { showToast } from '../../ui/toast'
 import { useFadeMotion } from '../../ui/rowMotion'
 import { playableLink } from '../room/linkSong'
@@ -218,9 +220,14 @@ export function SearchScreen(): ReactNode {
   // Home's when closed (`searchDoor.ts`): what is under the field fades,
   // the keyboard goes, and Home plays the rise backwards.
   const [fromDoor] = useState(takeDoorArrival)
-  useEffect(() => {
-    if (fromDoor) settleDoor()
-  }, [fromDoor])
+  // Home's field brought what is shown before typing in with it as it rose:
+  // it is already there, and does not fade in a second time.
+  const [drawnByDoor] = useState(() => fromDoor && query.trim() === '' && adding === null)
+  // Home's field keeps the keyboard while this page is pushed, which would
+  // have taken it from a field focused on the way, and hands it over once
+  // the push has finished. Taken in the middle, it dropped and rose again.
+  // Home's field goes once this one has the focus (`settleDoor`, onFocus).
+  useFocusOnArrival(field, fromDoor)
   const reduced = useMotionReduced()
   const [leaving, setLeaving] = useState(false)
   const shownBelow = useSharedValue(1)
@@ -299,7 +306,9 @@ export function SearchScreen(): ReactNode {
                 <SearchField
                   inputRef={field}
                   // A See all page is for reading what was found: no keyboard over it.
-                  autoFocus={opened === null}
+                  // From Home's field, the keyboard is handed over instead (above).
+                  autoFocus={opened === null && !fromDoor}
+                  onFocus={fromDoor ? settleDoor : undefined}
                   {...SEARCH_KEYBOARD}
                   // Empty as it goes back down, as Home's field is.
                   value={leaving ? '' : query}
@@ -384,69 +393,71 @@ export function SearchScreen(): ReactNode {
 
                 {bar.beforeList}
 
-                <Reanimated.View key={view} entering={viewIn} style={styles.view}>
-                  {!typed ? (
-                    adding ? (
-                      <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
-                    ) : (
-                      <BeforeTyping
-                        tags={empty.tags}
-                        recent={empty.recent}
+                <LayoutAnimationConfig skipEntering={drawnByDoor}>
+                  <Reanimated.View key={view} entering={viewIn} style={styles.view}>
+                    {!typed ? (
+                      adding ? (
+                        <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+                      ) : (
+                        <BeforeTyping
+                          tags={empty.tags}
+                          recent={empty.recent}
+                          selection={selection}
+                          listPadding={bar.listPadding}
+                        />
+                      )
+                    ) : section === 'songs' ? (
+                      <SongResults
+                        songs={found.songs}
+                        query={shown}
                         selection={selection}
                         listPadding={bar.listPadding}
+                        adds={adding ? adds : null}
                       />
-                    )
-                  ) : section === 'songs' ? (
-                    <SongResults
-                      songs={found.songs}
-                      query={shown}
-                      selection={selection}
-                      listPadding={bar.listPadding}
-                      adds={adding ? adds : null}
-                    />
-                  ) : (
-                    <ScrollView
-                      nativeID={RESULTS_ID}
-                      contentContainerStyle={[styles.results, bar.listPadding]}
-                    >
-                      {!link && offerAsk && matched === 0 ? (
-                        <AskCard words={words} first onAsk={() => ask(words)} />
-                      ) : null}
-                      {adding && link ? <LinkPick state={adding} url={link} /> : null}
-                      {link ? null : section === null ? (
-                        <AllResults
-                          found={found}
-                          lyricHits={lyricHits}
-                          selection={selection}
-                          onSeeAll={seeAll}
-                          onArtist={openArtist}
-                          adds={adding ? adds : null}
-                        />
-                      ) : section === 'places' ? (
-                        <View style={styles.section}>
-                          <Places places={placesOf(found)} onArtist={openArtist} />
-                        </View>
-                      ) : (
-                        <LyricResults
-                          hits={lyricHits}
-                          away={lyricsAway}
-                          adds={adding ? adds : null}
-                        />
-                      )}
-                      {!link && offerAsk && matched > 0 ? (
-                        <AskCard words={words} first={false} onAsk={() => ask(words)} />
-                      ) : null}
-                      {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
-                      {!link &&
-                      !offerAsk &&
-                      counts[section ?? 'all'] === 0 &&
-                      !(section === 'lyrics' && lyricsAway) ? (
-                        <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
-                      ) : null}
-                      <ChromeSpacer />
-                    </ScrollView>
-                  )}
-                </Reanimated.View>
+                    ) : (
+                      <ScrollView
+                        nativeID={RESULTS_ID}
+                        contentContainerStyle={[styles.results, bar.listPadding]}
+                      >
+                        {!link && offerAsk && matched === 0 ? (
+                          <AskCard words={words} first onAsk={() => ask(words)} />
+                        ) : null}
+                        {adding && link ? <LinkPick state={adding} url={link} /> : null}
+                        {link ? null : section === null ? (
+                          <AllResults
+                            found={found}
+                            lyricHits={lyricHits}
+                            selection={selection}
+                            onSeeAll={seeAll}
+                            onArtist={openArtist}
+                            adds={adding ? adds : null}
+                          />
+                        ) : section === 'places' ? (
+                          <View style={styles.section}>
+                            <Places places={placesOf(found)} onArtist={openArtist} />
+                          </View>
+                        ) : (
+                          <LyricResults
+                            hits={lyricHits}
+                            away={lyricsAway}
+                            adds={adding ? adds : null}
+                          />
+                        )}
+                        {!link && offerAsk && matched > 0 ? (
+                          <AskCard words={words} first={false} onAsk={() => ask(words)} />
+                        ) : null}
+                        {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
+                        {!link &&
+                        !offerAsk &&
+                        counts[section ?? 'all'] === 0 &&
+                        !(section === 'lyrics' && lyricsAway) ? (
+                          <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
+                        ) : null}
+                        <ChromeSpacer />
+                      </ScrollView>
+                    )}
+                  </Reanimated.View>
+                </LayoutAnimationConfig>
               </Reanimated.View>
             </View>
           </SafeAreaView>
@@ -515,6 +526,32 @@ function AskCard({
       style={[styles.ask, !first && styles.askAfter]}
       testID="search-ask"
     />
+  )
+}
+
+/**
+ * What Search shows under its head before anything is typed, laid out as
+ * Search lays it out, for Home's field to bring in as it rises
+ * (`useSearchDoor`), so Search arrives with it already there.
+ */
+export function BeforeTypingCopy(): ReactNode {
+  const { data: library } = useLibrary()
+  const currentId = usePlayingSongId()
+  const empty = useMemo(() => beforeTyping(library, currentId), [library, currentId])
+  const ids = useMemo(() => empty.recent.map(song => song.id), [empty.recent])
+  const selection = useSelection(ids)
+  return (
+    <View style={styles.view}>
+      <View style={styles.headGap} />
+      <View style={styles.view}>
+        <BeforeTyping
+          tags={empty.tags}
+          recent={empty.recent}
+          selection={selection}
+          listPadding={undefined}
+        />
+      </View>
+    </View>
   )
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
+import { LayoutAnimationConfig } from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
@@ -77,7 +78,10 @@ const RENEW_DETAIL = 'A week from now, a month if it keeps playing'
 export function LinksScreen(): ReactNode {
   const router = useRouter()
   const wide = useLayoutValue(layout => layout.wide)
-  const { data: links, isLoading } = useSentLinks()
+  // Pending, not loading: until the connection is ready the query is off,
+  // and an off query is not loading, so "No links yet" stood there before the
+  // links came.
+  const { data: links, isPending } = useSentLinks()
   // Links are kept with a self.mp3 sign-in; a server address alone has none to list.
   const { fromCloud } = useConnection()
   const act = useShareAct()
@@ -260,82 +264,86 @@ export function LinksScreen(): ReactNode {
           )}
         />
 
-        <ScrollView
-          contentContainerStyle={[styles.page, selection.active && !wide && styles.pageUnderBar]}
-          testID="links"
-        >
-          {isLoading ? <PageLoading /> : null}
-          {asks.length > 0 ? (
-            <View style={[styles.asks, wide && styles.asksWide]}>
-              {asks.map(({ link, ask }) => (
-                <AskAgainCard
-                  key={ask.id}
-                  ask={ask}
-                  link={link}
-                  onShare={() => renew(link, `Shared “${link.name}” again`)}
-                  onDismiss={() =>
-                    void act(link.id, { type: 'dismiss', askId: ask.id }).catch(sayRoomFailure)
-                  }
-                />
-              ))}
-            </View>
-          ) : null}
-          {/* Nothing shared yet, or nothing that can share: a server connected by address. */}
-          {!fromCloud ? (
-            <EmptyState
-              picture={<LinkPageOutline />}
-              title="Sign in to share a link"
-              line="Links need a self.mp3 account; this library is reached by its address."
-              testID="links-none"
-            />
-          ) : !isLoading && (links ?? []).length === 0 ? (
-            <EmptyState
-              picture={<LinkPageOutline />}
-              title="No links yet"
-              line="Share a song or playlist from its ⋯ menu."
-              testID="links-empty"
-            />
-          ) : null}
-
-          <LinkSection
-            title="Playing"
-            count={playing.length}
-            every={playing.length > 0 && playing.every(link => selection.has(link.id))}
-            picking={selection.active}
-            onPick={() => pickSection(playing)}
-            testID="links-playing"
+        {/* An empty state there as the page opens is simply there with it;
+            one that comes later fades in. */}
+        <LayoutAnimationConfig skipEntering>
+          <ScrollView
+            contentContainerStyle={[styles.page, selection.active && !wide && styles.pageUnderBar]}
+            testID="links"
           >
-            {rows(playing)}
-          </LinkSection>
-          <LinkSection
-            title="Ended"
-            count={ended.length}
-            every={ended.length > 0 && ended.every(link => selection.has(link.id))}
-            picking={selection.active}
-            onPick={() => pickSection(ended)}
-            testID="links-ended"
-          >
-            {rows(endedShown)}
-            {folded ? (
-              <Press
-                feedback="wash"
-                onPress={() => setUnfolded(true)}
-                onHoverIn={() => setFoldHovered(true)}
-                onHoverOut={() => setFoldHovered(false)}
-                accessibilityRole="button"
-                style={[
-                  styles.fold,
-                  wide ? styles.foldWide : styles.foldPhone,
-                  foldHovered && styles.foldHovered,
-                ]}
-                testID="links-unfold"
-              >
-                <Text style={styles.foldText}>Show {ended.length - ENDED_SHOWN} more</Text>
-              </Press>
+            {isPending && fromCloud ? <PageLoading /> : null}
+            {asks.length > 0 ? (
+              <View style={[styles.asks, wide && styles.asksWide]}>
+                {asks.map(({ link, ask }) => (
+                  <AskAgainCard
+                    key={ask.id}
+                    ask={ask}
+                    link={link}
+                    onShare={() => renew(link, `Shared “${link.name}” again`)}
+                    onDismiss={() =>
+                      void act(link.id, { type: 'dismiss', askId: ask.id }).catch(sayRoomFailure)
+                    }
+                  />
+                ))}
+              </View>
             ) : null}
-          </LinkSection>
-          <ChromeSpacer />
-        </ScrollView>
+            {/* Nothing shared yet, or nothing that can share: a server connected by address. */}
+            {!fromCloud ? (
+              <EmptyState
+                picture={<LinkPageOutline />}
+                title="Sign in to share a link"
+                line="Links need a self.mp3 account; this library is reached by its address."
+                testID="links-none"
+              />
+            ) : !isPending && (links ?? []).length === 0 ? (
+              <EmptyState
+                picture={<LinkPageOutline />}
+                title="No links yet"
+                line="Share a song or playlist from its ⋯ menu."
+                testID="links-empty"
+              />
+            ) : null}
+
+            <LinkSection
+              title="Playing"
+              count={playing.length}
+              every={playing.length > 0 && playing.every(link => selection.has(link.id))}
+              picking={selection.active}
+              onPick={() => pickSection(playing)}
+              testID="links-playing"
+            >
+              {rows(playing)}
+            </LinkSection>
+            <LinkSection
+              title="Ended"
+              count={ended.length}
+              every={ended.length > 0 && ended.every(link => selection.has(link.id))}
+              picking={selection.active}
+              onPick={() => pickSection(ended)}
+              testID="links-ended"
+            >
+              {rows(endedShown)}
+              {folded ? (
+                <Press
+                  feedback="wash"
+                  onPress={() => setUnfolded(true)}
+                  onHoverIn={() => setFoldHovered(true)}
+                  onHoverOut={() => setFoldHovered(false)}
+                  accessibilityRole="button"
+                  style={[
+                    styles.fold,
+                    wide ? styles.foldWide : styles.foldPhone,
+                    foldHovered && styles.foldHovered,
+                  ]}
+                  testID="links-unfold"
+                >
+                  <Text style={styles.foldText}>Show {ended.length - ENDED_SHOWN} more</Text>
+                </Press>
+              ) : null}
+            </LinkSection>
+            <ChromeSpacer />
+          </ScrollView>
+        </LayoutAnimationConfig>
       </View>
 
       <Sheet

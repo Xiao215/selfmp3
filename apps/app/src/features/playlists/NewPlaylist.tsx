@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Keyboard, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
@@ -128,6 +128,8 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   const finish = (id: number): void => {
+    // Down with the sheet, not taken by the push halfway through the next page's arrival.
+    Keyboard.dismiss()
     reset()
     onClose()
     router.push(playlistLink(id))

@@ -537,9 +537,13 @@ export function ImportScreen({
         <View style={styles.stack}>
           {form}
           {notices}
-          <Reanimated.View key={jobs ? 'jobs' : 'recent'} entering={belowIn}>
-            {jobs ?? <RecentlyImported />}
-          </Reanimated.View>
+          {/* There as the page opens; it rises in only when one takes the
+              other's place later, the queue starting or emptying. */}
+          <LayoutAnimationConfig skipEntering>
+            <Reanimated.View key={jobs ? 'jobs' : 'recent'} entering={belowIn}>
+              {jobs ?? <RecentlyImported />}
+            </Reanimated.View>
+          </LayoutAnimationConfig>
         </View>
         <ChromeSpacer />
       </ScrollView>

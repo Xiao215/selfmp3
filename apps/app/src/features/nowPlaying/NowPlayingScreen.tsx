@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Image, PanResponder, Text, useWindowDimensions, View } from 'react-native'
-import Reanimated from 'react-native-reanimated'
+import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import { Guide } from '../guide/Guide'
 import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -535,28 +535,32 @@ function CoverView({
             <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
-        {/* Play-and-tag takes the head's line: at the top, it stays clear of the editor's sheet. */}
-        <Reanimated.View key={middle} {...middleFade} style={styles.headSwap}>
-          {tagging ? (
-            <TaggingLine line={tagging.line} onStop={tagging.stop} center />
-          ) : sleep.line !== null ? (
-            <View style={styles.headMiddle}>
-              <HeadPill
-                lead={<Moon size={iconSize.field} color={theme.colors.accent} />}
-                text={sleep.line}
-                label={`Sleep timer: ${sleep.line}`}
-                onPress={onSleep}
-                testID="now-playing-sleep"
-              />
-            </View>
-          ) : inRoom ? (
-            <View style={styles.headMiddle}>
-              <RoomPill />
-            </View>
-          ) : (
-            <PlayingFrom />
-          )}
-        </Reanimated.View>
+        {/* Play-and-tag takes the head's line: at the top, it stays clear of the editor's sheet.
+            What holds it as the page opens is simply there, rising with the
+            page; only a later change crossfades. */}
+        <LayoutAnimationConfig skipEntering>
+          <Reanimated.View key={middle} {...middleFade} style={styles.headSwap}>
+            {tagging ? (
+              <TaggingLine line={tagging.line} onStop={tagging.stop} center />
+            ) : sleep.line !== null ? (
+              <View style={styles.headMiddle}>
+                <HeadPill
+                  lead={<Moon size={iconSize.field} color={theme.colors.accent} />}
+                  text={sleep.line}
+                  label={`Sleep timer: ${sleep.line}`}
+                  onPress={onSleep}
+                  testID="now-playing-sleep"
+                />
+              </View>
+            ) : inRoom ? (
+              <View style={styles.headMiddle}>
+                <RoomPill />
+              </View>
+            ) : (
+              <PlayingFrom />
+            )}
+          </Reanimated.View>
+        </LayoutAnimationConfig>
         {/* Both sides as wide, so whatever is in the middle sits in the middle. */}
         <View style={[styles.headSide, styles.headSideEnd]}>
           {inRoom && !middleTaken ? null : <TogetherButton filled />}

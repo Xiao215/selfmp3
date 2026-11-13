@@ -120,14 +120,17 @@ export function LikedScreen(): ReactNode {
         head={head}
         label="Liked songs"
         scope="in Liked"
+        // Only once the library has come: no songs while it loads is not nothing liked.
         empty={
-          <EmptyState
-            compact
-            testID="liked-empty"
-            picture={<HeartOutline />}
-            title="Songs you like land here"
-            line="Like a song from Now Playing, or from its ⋯ menu."
-          />
+          library ? (
+            <EmptyState
+              compact
+              testID="liked-empty"
+              picture={<HeartOutline />}
+              title="Songs you like land here"
+              line="Like a song from Now Playing, or from its ⋯ menu."
+            />
+          ) : null
         }
       />
     </View>

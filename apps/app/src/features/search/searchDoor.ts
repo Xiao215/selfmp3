@@ -1,4 +1,6 @@
+import type { ReactNode } from 'react'
 import type { TextInputProps } from 'react-native'
+import { createValueStore } from '../../state/valueStore.model'
 
 /**
  * Home's search field and Search, on a phone (A, Xiao 2026-11-11). Press the
@@ -10,7 +12,16 @@ import type { TextInputProps } from 'react-native'
  * rises: a page opened from inside a modal lands under it. So Home plays the
  * open itself, and Search arrives in the frame where it ends. Going back,
  * Search fades what it found, and Home plays the same move in reverse.
+ *
+ * The field on its way is drawn over the pages by the shell (`doorFlight`),
+ * not inside Home's: a field inside a page loses the keyboard the moment
+ * another page is pushed over it, so the keyboard dropped and came back up
+ * as Search arrived. Over the pages it keeps the keyboard until Search's own
+ * field takes it, once Search has finished arriving.
  */
+
+/** Home's field on its way to Search or back, drawn over every page (`SearchDoorLayer`). */
+export const doorFlight = createValueStore<ReactNode>(null)
 
 /** What Home's field says. */
 export const DOOR_HINT = 'One song, an artist, a lyric…'
@@ -51,7 +62,7 @@ export function takeDoorArrival(): boolean {
 }
 
 interface Door {
-  /** Search is up: Home can put its field back. */
+  /** Search is up and its field has the focus: Home can put its field back. */
   readonly settle: () => void
   /** Search is going: Home sets its field at the top, to come back down. False if it can't. */
   readonly comeBack: () => boolean

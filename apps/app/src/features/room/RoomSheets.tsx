@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
+import { holdKeyboard } from '../../ports/keyboardHold'
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
@@ -315,6 +316,8 @@ function JoinByCode({ autoFocus = false }: { autoFocus?: boolean }): ReactNode {
       setWrong(true)
       return
     }
+    // The join page may want a name typed: the keyboard stays up for it.
+    holdKeyboard()
     closeRoomSheet()
     go({ pathname: '/join/[code]', params: { code: normalizeRoomCode(code) } })
   }
@@ -328,9 +331,10 @@ function JoinByCode({ autoFocus = false }: { autoFocus?: boolean }): ReactNode {
         setWrong(false)
       }}
       onSubmitEditing={join}
-      // The keyboard's own key joins, and keeps the keyboard up if it cannot.
+      // The keyboard's own key joins, and the keyboard stays up either way:
+      // to put a code right, or for the join page's name (`holdKeyboard`).
       returnKeyType="join"
-      submitBehavior={valid ? 'blurAndSubmit' : 'submit'}
+      submitBehavior="submit"
       hint={wrong ? 'A room code is six letters and digits.' : undefined}
       placeholder="Room code"
       accessibilityLabel="Room code"

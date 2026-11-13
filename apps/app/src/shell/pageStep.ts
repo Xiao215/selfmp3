@@ -53,6 +53,45 @@ export function clearQuietStep(): void {
   quietTo = null
 }
 
+/** How far a page steps in from: a phone's from the side, a computer's from below. */
+export const PAGE_STEP_PHONE = 8
+export const PAGE_STEP_WIDE = 6
+
+/**
+ * A phone's tab pressed: the page it brings steps in itself, from its first
+ * frame (`keepNearTop.tsx`), and `PageStep` leaves that change alone.
+ *
+ * `PageStep` learns of a change from the address, and the address changes
+ * only once the new page has been drawn — expo-router hears of it from the
+ * navigator afterwards — so its step came a frame late: the new tab was
+ * drawn whole for a frame, vanished, and then stepped in. Told from the
+ * press, it stepped on the old page, as the navigator draws the new one in a
+ * render of its own; told by the new page as it mounted, its frame still
+ * came after the page's own. Only the page's first render is sure to be in
+ * the page's first frame.
+ */
+let pressed: { readonly to: string; readonly from: string; readonly at: number } | null = null
+
+/** How long after the press the page it went to may still arrive as its own. */
+const ARRIVAL_MS = 1500
+
+/** Call it just before going from the tab `from` to the tab `to`. */
+export function stepAheadTo(to: string, from: string): void {
+  pressed = { to, from, at: Date.now() }
+}
+
+/**
+ * Asked once by a page as it mounts at `address`: the side it steps in from
+ * if it is the tab just pressed for, or null.
+ */
+export function takeTabArrival(address: string): -1 | 1 | null {
+  const press = pressed
+  if (press === null || Date.now() - press.at > ARRIVAL_MS || address !== press.to) return null
+  pressed = null
+  quietNextStepTo(press.to)
+  return stepSide(pageKey(press.from, false) ?? press.from, press.to)
+}
+
 /** The page `PageStep` last showed: what it was counted by, and under which layout. */
 export interface PageShown {
   readonly key: string

@@ -28,10 +28,19 @@ import {
   type FieldKey,
   type FieldKeyEffect,
 } from './fieldKeys.model'
+import {
+  gestureEnd,
+  panEnd,
+  panMove,
+  panStart,
+  pinchEnd,
+  pinchMove,
+  pinchStart,
+} from './fieldMotion'
 import { SkyLayer } from './SkyLayer'
 import type { TagRegion } from '@selfmp3/client'
 import { SKY_EDGE, type MapTake, type SkyPoint } from './sky.model'
-import { baseOf, liveView, type FieldSize, type MapView } from './soundMapView.model'
+import { baseOf, type FieldSize, type MapView } from './soundMapView.model'
 
 /** How long a finger holds still before a drag draws rather than moves the map. */
 const HOLD_MS = 320
@@ -102,9 +111,6 @@ export function SoundField({
   onPathCancel: () => void
 }): ReactNode {
   const [field, setField] = useState<FieldSize | null>(null)
-  // Where the map is, each frame, for the sky to read without a render: the
-  // page is drawn again only when a move settles.
-  const [live] = useState(() => liveView({ scale: 1, x: 0, y: 0 }))
   // The view the stars were last drawn for: changes only when a move settles.
   const [settled, setSettled] = useState<MapView | null>(null)
   const [hold, setHold] = useState<{ x: number; y: number } | null>(null)
@@ -243,7 +249,6 @@ export function SoundField({
   useLayoutEffect(
     () =>
       control.listen({
-        show: live.show,
         settle: setSettled,
         press: (spot, point, reach) => {
           letGo.current()
@@ -268,7 +273,7 @@ export function SoundField({
           if (keysRef.current.line === null) letGo.current()
         },
       }),
-    [control, live],
+    [control],
   )
 
   const onLayout = useCallback(
@@ -314,20 +319,42 @@ export function SoundField({
       })
     if (armed) draw.minDistance(2)
     else draw.activateAfterLongPress(HOLD_MS).onBegin(event => control.holdBegin(event.x, event.y))
+    // Moving and pinching run on the UI thread, where the map's view is
+    // (`fieldMotion`): the map follows the finger whatever the JS thread is doing.
+    const { motion } = control
     const move = Gesture.Pan()
       .minPointers(armed ? 2 : 1)
       .maxPointers(2)
       .minDistance(armed ? 2 : 6)
-      .runOnJS(true)
-      .onStart(event => control.panStart(event.translationX, event.translationY))
-      .onUpdate(event => control.panMove(event.translationX, event.translationY))
-      .onEnd(event => control.panEnd(event.velocityX, event.velocityY))
-      .onFinalize(() => control.gestureEnd())
+      .onStart(event => {
+        'worklet'
+        panStart(motion, event.translationX, event.translationY)
+      })
+      .onUpdate(event => {
+        'worklet'
+        panMove(motion, event.translationX, event.translationY)
+      })
+      .onEnd(event => {
+        'worklet'
+        panEnd(motion, event.velocityX, event.velocityY)
+      })
+      .onFinalize(() => {
+        'worklet'
+        gestureEnd(motion)
+      })
     const pinch = Gesture.Pinch()
-      .runOnJS(true)
-      .onStart(() => control.pinchStart())
-      .onUpdate(event => control.pinchMove(event.scale, event.focalX, event.focalY))
-      .onEnd(() => control.pinchEnd())
+      .onStart(() => {
+        'worklet'
+        pinchStart(motion)
+      })
+      .onUpdate(event => {
+        'worklet'
+        pinchMove(motion, event.scale, event.focalX, event.focalY)
+      })
+      .onEnd(() => {
+        'worklet'
+        pinchEnd(motion)
+      })
     return Gesture.Race(draw, Gesture.Simultaneous(pinch, move), Gesture.Exclusive(doubleTap, tap))
   }, [control, armed])
 
@@ -351,7 +378,7 @@ export function SoundField({
         {field && settled ? (
           <SkyLayer
             field={field}
-            live={live}
+            view={control.motion.view}
             settled={settled}
             base={baseOf(field)}
             points={points}

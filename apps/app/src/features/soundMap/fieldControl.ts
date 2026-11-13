@@ -1,21 +1,29 @@
 import type { MapPlace } from '@selfmp3/shared'
+import { onUIThread } from '../../ports/uiThread'
 import type { FieldWheel } from './fieldInput'
 import type { FieldSpot } from './fieldKeys.model'
 import {
+  fieldMotion,
+  flyTo,
+  glideBy,
+  land,
+  place,
+  setRoom,
+  settle,
+  slideToward,
+  zoomFly,
+  zoomNow,
+  type FieldMotion,
+} from './fieldMotion'
+import {
   baseOf,
-  between,
   boundsOf,
   centredOn,
   fitView,
-  FLING_LEAST,
-  flung,
-  heldOn,
   keptClear,
-  panBy,
   pathReach,
   toMap,
   toScreen,
-  zoomAt,
   type FieldInsets,
   type FieldSize,
   type MapBounds,
@@ -24,8 +32,6 @@ import {
 
 /** What the field is told as the map is moved, pressed and drawn on. */
 interface FieldEvents {
-  /** Every frame of a move or a zoom. */
-  readonly show: (view: MapView) => void
   /** The map has held still: stars are drawn again for it and covers asked for. */
   readonly settle: (view: MapView) => void
   /** A tap: where on the map, where on the field, and a finger's reach there (as `pathReach`). */
@@ -48,44 +54,22 @@ const ZOOM_PER_POINT = { pinch: 0.01, notch: 0.002, scroll: 0.002 } as const
 /** A wheel that has stopped for this long has settled. */
 const WHEEL_SETTLE_MS = 120
 
-/**
- * A mouse's wheel zooms by gliding to where its notches point rather than
- * jumping a notch at a time: it closes this much of the way in each such
- * stretch of milliseconds, as a map's wheel does.
- */
-const WHEEL_GLIDE_MS = 70
-
-/** How fast the arrow keys move the map, in points a millisecond. */
-const KEY_SPEED = 0.9
-/** How quickly the arrow keys' move gets up to speed, and slows once they are let go. */
-const KEY_EASE_MS = 90
-
-/** A pinch let go this recently: a pan ending with it is not a flick. */
-const PINCH_GRACE_MS = 250
-
-/** How long a flight to a tag, a song or the whole map takes. */
-const FLY_MS = 420
-
 /** How far in a song is shown when the map flies to it. */
 const SONG_SCALE = 6
 
-const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
-
 /**
- * Where the sound map is, as the gestures move it: kept here rather than in
- * React state, so a pinch reads the view the last frame left and not the one
- * the last render saw, and the gestures are built once.
+ * The sound map's field, as the page and the keys move it and as it is
+ * pressed and drawn on. Where the map is lives on the UI thread
+ * (`fieldMotion`), which the drag and pinch gestures move themselves; what
+ * starts here (a flight, a fit, a zoom from the buttons or the keys) is run
+ * there too, through `onUIThread`, so the two never come out of order.
  */
 export class FieldControl {
-  #view: MapView | null = null
+  /** Where the map is, and what moves it, on the UI thread: the gestures and the sky use it. */
+  readonly motion: FieldMotion
   #field: FieldSize | null = null
   #insets: FieldInsets = { top: 0, bottom: 0, right: 0 }
-  #pinchFrom = 1
-  #panFrom: { x: number; y: number } | null = null
   #wheelTimer: ReturnType<typeof setTimeout> | null = null
-  #flight: number | null = null
-  /** Where the flight in progress is going, so a flight started on top of it begins from there. */
-  #heading: MapView | null = null
   #events: FieldEvents | null = null
   #bounds: MapBounds | undefined = undefined
   #drawing = false
@@ -93,25 +77,34 @@ export class FieldControl {
   #touched = false
   /** A song to show as soon as the field has a size: the map opened on it. */
   #waiting: MapPlace | null = null
-  /** Where a mouse's wheel is gliding the zoom to, while it glides. */
-  #glide: { scale: number; at: { x: number; y: number } } | null = null
-  /** When a pinch last ended, or 0 while one is under way. */
-  #pinchEnded = -Infinity
-  /** The arrow keys' move, while they are held or it is slowing: which way, and how fast now. */
-  #keyMove: { direction: { x: number; y: number }; speed: { x: number; y: number } } | null = null
+  /** Where the map last settled: a finger lifted from a still map does not settle it again. */
+  #settled: MapView | null = null
+
+  constructor() {
+    this.motion = fieldMotion({
+      settled: view => this.#settle(view),
+      grabbed: () => {
+        this.#touched = true
+        this.#events?.hold(null)
+      },
+    })
+  }
 
   listen(events: FieldEvents): () => void {
     this.#events = events
+    // A new listener has been told nothing yet.
+    this.#settled = null
     return () => {
       if (this.#events === events) this.#events = null
       if (this.#wheelTimer) clearTimeout(this.#wheelTimer)
-      this.#land()
+      onUIThread(land, this.motion)
     }
   }
 
   /** The field's size, from its layout: the map is fitted to it. */
   resize(field: FieldSize): void {
     this.#field = field
+    this.#tellRoom()
     this.fit(false)
     const waiting = this.#waiting
     this.#waiting = null
@@ -122,9 +115,10 @@ export class FieldControl {
   setInsets(insets: FieldInsets): void {
     const before = this.#insets
     this.#insets = insets
+    this.#tellRoom()
     // The tray's panel coming or going on a computer: the map glides with the
     // room it leaves, rather than jumping, and what was in the middle stays there.
-    const view = this.#heading ?? this.#view
+    const view = this.#heading()
     const slide = view !== null && before.right !== insets.right
     if (!this.#touched) this.fit(slide)
     else if (view && slide) this.#fly({ ...view, x: view.x + (before.right - insets.right) / 2 })
@@ -133,6 +127,7 @@ export class FieldControl {
   /** Where the songs are: what fitting shows. Fitted again only until a hand has moved it. */
   setBounds(bounds: MapBounds): void {
     this.#bounds = bounds
+    this.#tellRoom()
     if (!this.#touched) this.fit(false)
   }
 
@@ -141,29 +136,32 @@ export class FieldControl {
     if (!this.#field) return
     const target = fitView(this.#field, this.#bounds, { insets: this.#insets })
     if (fly) this.#fly(target)
-    else this.#set(target, true)
+    else this.#place(target)
   }
 
   /** The songs given, in view, as large as they will go: a tag's, under its lens. */
   flyToPlaces(places: readonly MapPlace[]): void {
     if (!this.#field || places.length === 0) return
     this.#fly(
-      fitView(this.#field, boundsOf(places), { insets: this.#insets, turned: this.#view?.turned }),
+      fitView(this.#field, boundsOf(places), {
+        insets: this.#insets,
+        turned: this.#view()?.turned,
+      }),
     )
   }
 
   /** One song in the middle, close enough that its neighbours are covers. */
-  flyToSong(place: MapPlace, instant = false): void {
-    const view = this.#view
+  flyToSong(spot: MapPlace, instant = false): void {
+    const view = this.#view()
     const field = this.#field
     if (!view || !field) {
-      this.#waiting = place
+      this.#waiting = spot
       return
     }
-    const target = centredOn(view, field, place, Math.max(view.scale, SONG_SCALE), this.#insets)
+    const target = centredOn(view, field, spot, Math.max(view.scale, SONG_SCALE), this.#insets)
     this.#events?.toSong()
     this.#touched = true
-    if (instant) this.#set(target, true)
+    if (instant) this.#place(target)
     else this.#fly(target)
   }
 
@@ -172,7 +170,7 @@ export class FieldControl {
    * a stroke, the map slides (at the same scale) until the stroke is clear.
    */
   keepClear(places: readonly MapPlace[]): void {
-    const view = this.#heading ?? this.#view
+    const view = this.#heading()
     const field = this.#field
     if (!view || !field) return
     const target = keptClear(view, field, places, this.#insets)
@@ -181,38 +179,40 @@ export class FieldControl {
 
   /** The + and − buttons: about the middle of what the page leaves clear. */
   zoomBy(factor: number): void {
-    const view = this.#view
     const middle = this.middle()
-    if (view && middle) this.#fly(zoomAt(view, factor, middle))
+    if (!middle) return
+    this.#touched = true
+    onUIThread(zoomFly, this.motion, factor, middle)
   }
 
   /**
    * + and − on the keyboard: about the song it has chosen, which stays where
    * it is, or the middle as the buttons zoom.
    */
-  zoomAbout(place: MapPlace | null, factor: number): void {
-    const view = this.#view
-    const point = place ? this.screenOf(place) : null
-    if (!view || !point) {
+  zoomAbout(spot: MapPlace | null, factor: number): void {
+    const point = spot ? this.screenOf(spot) : null
+    if (!point) {
       this.zoomBy(factor)
       return
     }
-    this.#fly(zoomAt(view, factor, point))
+    this.#touched = true
+    onUIThread(zoomFly, this.motion, factor, point)
   }
 
   /** Where a song is drawn on the field now, in points. */
-  screenOf(place: MapPlace): { x: number; y: number } | null {
-    if (!this.#view || !this.#field) return null
-    return toScreen(this.#view, baseOf(this.#field), place)
+  screenOf(spot: MapPlace): { x: number; y: number } | null {
+    const view = this.#view()
+    if (!view || !this.#field) return null
+    return toScreen(view, baseOf(this.#field), spot)
   }
 
   /** Where each song is drawn on the field now: what the keyboard steps between. */
   spotsOf(places: readonly (MapPlace & { id: number })[]): FieldSpot[] {
-    const view = this.#view
+    const view = this.#view()
     const field = this.#field
     if (!view || !field) return []
     const base = baseOf(field)
-    return places.map(place => ({ id: place.id, ...toScreen(view, base, place) }))
+    return places.map(each => ({ id: each.id, ...toScreen(view, base, each) }))
   }
 
   /** The middle of what the page leaves clear of its head, tray and panel. */
@@ -225,113 +225,50 @@ export class FieldControl {
 
   /** A finger's reach on the map as it is now (`pathReach`): how near a song a press or a line takes it. */
   reach(): number | null {
-    if (!this.#view || !this.#field) return null
-    return pathReach(this.#view, baseOf(this.#field))
+    const view = this.#view()
+    if (!view || !this.#field) return null
+    return pathReach(view, baseOf(this.#field))
   }
 
   /** A double tap: in, about where it landed, as a street map does. */
   doubleTap(x: number, y: number): void {
-    const view = this.#view
-    if (view) this.#fly(zoomAt(view, 2, { x, y }))
+    if (!this.#field) return
+    this.#touched = true
+    onUIThread(zoomFly, this.motion, 2, { x, y })
   }
 
   wheel(wheel: FieldWheel): void {
-    const view = this.#view
-    if (!view) return
+    if (!this.#field) return
     const factor = Math.exp(-wheel.dy * ZOOM_PER_POINT[wheel.from])
+    const at = { x: wheel.x, y: wheel.y }
+    this.#touched = true
     if (wheel.from === 'notch') {
-      this.#glideBy(factor, { x: wheel.x, y: wheel.y })
+      onUIThread(glideBy, this.motion, factor, at)
       return
     }
-    this.#land()
-    this.#touched = true
-    this.#set(zoomAt(view, factor, { x: wheel.x, y: wheel.y }), false)
+    onUIThread(zoomNow, this.motion, factor, at)
     if (this.#wheelTimer) clearTimeout(this.#wheelTimer)
-    this.#wheelTimer = setTimeout(() => this.#settle(), WHEEL_SETTLE_MS)
-  }
-
-  /**
-   * A mouse's notch: the zoom glides there, about the pointer, and a notch
-   * while it glides goes further from where it was heading. It settles once
-   * it arrives.
-   */
-  #glideBy(factor: number, at: { x: number; y: number }): void {
-    const view = this.#view
-    if (!view) return
-    const glide = this.#glide
-    if (!glide) this.#land()
-    this.#touched = true
-    const scale = zoomAt(view, (glide ? glide.scale / view.scale : 1) * factor, at).scale
-    this.#glide = { scale, at }
-    if (glide) return
-    let last = Date.now()
-    const frame = (): void => {
-      const now = Date.now()
-      const heading = this.#glide
-      const from = this.#view
-      if (!heading || !from) return
-      const left = Math.log(heading.scale / from.scale)
-      if (Math.abs(left) < 0.003) {
-        this.#flight = null
-        this.#glide = null
-        this.#set(zoomAt(from, heading.scale / from.scale, heading.at), true)
-        return
-      }
-      const share = 1 - Math.exp(-(now - last) / WHEEL_GLIDE_MS)
-      last = now
-      this.#set(zoomAt(from, Math.exp(left * share), heading.at), false)
-      this.#flight = requestAnimationFrame(frame)
-    }
-    this.#flight = requestAnimationFrame(frame)
+    this.#wheelTimer = setTimeout(() => onUIThread(settle, this.motion), WHEEL_SETTLE_MS)
   }
 
   /**
    * The arrow keys held, as a direction (none: let go): the map slides that
-   * way, as a map's does, getting up to speed and slowing to a stop rather
-   * than jumping a step at each key repeat. An arrow shows more of the map
-   * that way, so the map itself moves the other.
+   * way, getting up to speed and slowing to a stop (`slideToward`).
    */
   keys(direction: { x: number; y: number }): void {
+    if (!this.#field) return
     const length = Math.hypot(direction.x, direction.y)
     const unit =
       length === 0 ? { x: 0, y: 0 } : { x: direction.x / length, y: direction.y / length }
-    const moving = this.#keyMove
-    if (moving) {
-      moving.direction = unit
-      return
-    }
-    if (length === 0 || !this.#view) return
-    this.#land()
-    this.#touched = true
-    const move = { direction: unit, speed: { x: 0, y: 0 } }
-    this.#keyMove = move
-    let last = Date.now()
-    const frame = (): void => {
-      const view = this.#view
-      if (this.#keyMove !== move || !view) return
-      const now = Date.now()
-      const ms = Math.min(50, now - last)
-      last = now
-      const share = 1 - Math.exp(-ms / KEY_EASE_MS)
-      move.speed.x += (move.direction.x * KEY_SPEED - move.speed.x) * share
-      move.speed.y += (move.direction.y * KEY_SPEED - move.speed.y) * share
-      const still = move.direction.x === 0 && move.direction.y === 0
-      if (still && Math.hypot(move.speed.x, move.speed.y) < 0.02) {
-        this.#keyMove = null
-        this.#flight = null
-        this.#settle()
-        return
-      }
-      this.#set(panBy(view, -move.speed.x * ms, -move.speed.y * ms), false)
-      this.#flight = requestAnimationFrame(frame)
-    }
-    this.#flight = requestAnimationFrame(frame)
+    if (length !== 0) this.#touched = true
+    onUIThread(slideToward, this.motion, unit)
   }
 
   tap(x: number, y: number): void {
-    const spot = this.#mapAt(x, y)
-    if (spot && this.#view && this.#field) {
-      this.#events?.press(spot, { x, y }, pathReach(this.#view, baseOf(this.#field)))
+    const view = this.#view()
+    const spot = this.#mapAt(view, x, y)
+    if (spot && view && this.#field) {
+      this.#events?.press(spot, { x, y }, pathReach(view, baseOf(this.#field)))
     }
   }
 
@@ -346,8 +283,8 @@ export class FieldControl {
   }
 
   drawStart(x: number, y: number): void {
-    const spot = this.#mapAt(x, y)
-    this.#land()
+    const spot = this.#mapAt(this.#view(), x, y)
+    onUIThread(land, this.motion)
     this.#events?.hold(null)
     if (!spot) return
     this.#drawing = true
@@ -355,9 +292,10 @@ export class FieldControl {
   }
 
   drawMove(x: number, y: number): void {
-    const spot = this.#mapAt(x, y)
-    if (this.#drawing && spot && this.#view && this.#field) {
-      this.#events?.pathMove(spot, pathReach(this.#view, baseOf(this.#field)))
+    const view = this.#view()
+    const spot = this.#mapAt(view, x, y)
+    if (this.#drawing && spot && view && this.#field) {
+      this.#events?.pathMove(spot, pathReach(view, baseOf(this.#field)))
     }
   }
 
@@ -367,141 +305,57 @@ export class FieldControl {
     this.#events?.pathEnd()
   }
 
-  pinchStart(): void {
-    this.#events?.hold(null)
-    this.#land()
-    this.#touched = true
-    this.#pinchFrom = 1
-    this.#pinchEnded = 0
+  /** Where the map is now, once the field has a size: read from the UI thread, where it moves. */
+  #view(): MapView | null {
+    return this.#field ? this.motion.view.value : null
   }
 
-  pinchEnd(): void {
-    this.#pinchEnded = Date.now()
-    this.gestureEnd()
+  /** Where the flight under way is going, or where the map is. */
+  #heading(): MapView | null {
+    return this.#field ? (this.motion.heading.value ?? this.motion.view.value) : null
   }
 
-  pinchMove(scale: number, focalX: number, focalY: number): void {
-    const view = this.#view
-    if (!view) return
-    const factor = scale / this.#pinchFrom
-    this.#pinchFrom = scale
-    this.#set(zoomAt(view, factor, { x: focalX, y: focalY }), false)
+  #mapAt(view: MapView | null, x: number, y: number): MapPlace | null {
+    if (!view || !this.#field) return null
+    return toMap(view, baseOf(this.#field), { x, y })
   }
 
-  panStart(translationX: number, translationY: number): void {
-    this.#events?.hold(null)
-    this.#land()
-    this.#touched = true
-    this.#panFrom = { x: translationX, y: translationY }
+  #tellRoom(): void {
+    onUIThread(setRoom, this.motion, {
+      field: this.#field,
+      bounds: this.#bounds ?? null,
+      insets: this.#insets,
+    })
   }
 
-  panMove(translationX: number, translationY: number): void {
-    const view = this.#view
-    const from = this.#panFrom
-    if (!view || !from) return
-    this.#set(panBy(view, translationX - from.x, translationY - from.y), false)
-    this.#panFrom = { x: translationX, y: translationY }
-  }
-
-  /**
-   * A move let go at a speed, in points a second: a flick carries the map on,
-   * slowing, as any map does; a pinch just ended is not a flick.
-   */
-  panEnd(velocityX: number, velocityY: number): void {
-    this.#panFrom = null
-    const velocity = { x: velocityX / 1000, y: velocityY / 1000 }
-    const pinched = this.#pinchEnded === 0 || Date.now() - this.#pinchEnded < PINCH_GRACE_MS
-    if (pinched || Math.hypot(velocity.x, velocity.y) < FLING_LEAST) return
-    const from = this.#view
-    if (!from) return
-    this.#land()
-    const start = Date.now()
-    let was = { x: 0, y: 0 }
-    const frame = (): void => {
-      const now = flung(velocity, Date.now() - start)
-      const view = this.#view
-      if (!view) return
-      const next = panBy(view, now.x - was.x, now.y - was.y)
-      was = now
-      // Against the edge of the songs, it stops there.
-      const held = this.#held(next)
-      if (now.done || held !== next) {
-        this.#flight = null
-        this.#set(held, true)
-        return
-      }
-      this.#set(next, false)
-      this.#flight = requestAnimationFrame(frame)
-    }
-    this.#flight = requestAnimationFrame(frame)
-  }
-
-  /** A move or a pinch let go: the map settles, unless a flick carries it on. */
-  gestureEnd(): void {
-    this.#panFrom = null
-    if (this.#flight === null) this.#settle()
-  }
-
-  #mapAt(x: number, y: number): MapPlace | null {
-    if (!this.#view || !this.#field) return null
-    return toMap(this.#view, baseOf(this.#field), { x, y })
-  }
-
-  /**
-   * Eased from where the map is to `target`, a frame at a time, settling once
-   * it lands. A finger on the map stops it where it is.
-   */
+  /** Eased there from where the map is, settling once it lands (`flyTo`). */
   #fly(target: MapView): void {
-    const from = this.#view
-    const field = this.#field
-    this.#land()
     this.#touched = true
-    if (!from || !field) {
-      this.#set(target, true)
+    onUIThread(flyTo, this.motion, target)
+  }
+
+  /** Put there at once, and settled. */
+  #place(target: MapView): void {
+    this.#settle(onUIThread(place, this.motion, target))
+  }
+
+  /**
+   * The map holds still at `view`. What comes from the UI thread is a copy, so
+   * it is compared by value: every tap ends a pan that never began, and each
+   * settle redraws the sky.
+   */
+  #settle(view: MapView): void {
+    const was = this.#settled
+    if (
+      was &&
+      was.scale === view.scale &&
+      was.x === view.x &&
+      was.y === view.y &&
+      was.turned === view.turned
+    ) {
       return
     }
-    this.#heading = target
-    const start = Date.now()
-    const frame = (): void => {
-      const t = Math.min(1, (Date.now() - start) / FLY_MS)
-      if (t >= 1) {
-        this.#flight = null
-        this.#heading = null
-        this.#set(target, true)
-        return
-      }
-      this.#set(between(from, target, easeInOut(t), field), false)
-      this.#flight = requestAnimationFrame(frame)
-    }
-    this.#flight = requestAnimationFrame(frame)
-  }
-
-  /** A flight stopped where it is. */
-  #land(): void {
-    if (this.#flight === null) return
-    cancelAnimationFrame(this.#flight)
-    this.#flight = null
-    this.#heading = null
-    this.#glide = null
-    this.#keyMove = null
-    this.#settle()
-  }
-
-  /** Kept over the songs (`heldOn`), once there are songs and a field. */
-  #held(view: MapView): MapView {
-    return this.#field && this.#bounds
-      ? heldOn(view, this.#field, this.#bounds, this.#insets)
-      : view
-  }
-
-  #set(view: MapView, settle: boolean): void {
-    view = this.#held(view)
-    this.#view = view
-    this.#events?.show(view)
-    if (settle) this.#events?.settle(view)
-  }
-
-  #settle(): void {
-    if (this.#view) this.#events?.settle(this.#view)
+    this.#settled = view
+    this.#events?.settle(view)
   }
 }

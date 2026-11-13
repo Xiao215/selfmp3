@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { View } from 'react-native'
+import { PixelRatio, View } from 'react-native'
 import type { View as ViewType } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import {
@@ -9,8 +9,10 @@ import {
   Canvas,
   ClipOp,
   createPicture,
+  FilterMode,
   FontWeight,
   Group,
+  MipmapMode,
   PaintStyle,
   Picture,
   Rect,
@@ -20,18 +22,27 @@ import {
   TextAlign,
   TileMode,
   type SkCanvas,
+  type SkColor,
+  type SkData,
   type SkImage,
   type SkPaint,
   type SkParagraph,
   type SkPicture,
 } from '@shopify/react-native-skia'
 import {
+  useAnimatedReaction,
   useDerivedValue,
   useFrameCallback,
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated'
 import { useUnistyles } from 'react-native-unistyles'
+import {
+  createWorkletRuntime,
+  scheduleOnRN,
+  scheduleOnRuntime,
+  type WorkletRuntime,
+} from 'react-native-worklets'
 import type { MapPlace, Song } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
@@ -78,11 +89,11 @@ import {
   type StarLook,
 } from './sky.model'
 import {
+  TILE_MOST,
   tileSide,
   toMap,
   toScreen,
   type FieldSize,
-  type LiveView,
   type MapView,
 } from './soundMapView.model'
 
@@ -93,7 +104,8 @@ import {
  *
  * The songs are recorded as a picture for where the map is, a little past
  * the screen's edges, and the native side moves and scales that picture each
- * frame from a shared value (`useLiveView`), so a move costs React nothing.
+ * frame from the field's view, a shared value the gestures move on the UI
+ * thread (`fieldMotion`), so a move costs React and the JS thread nothing.
  * A picture is drawing commands, not pixels: scaled while a pinch goes on, it
  * is drawn again from them, sharp. Once the map has moved far enough from
  * where it was recorded that its edge or its stars' sizes would show
@@ -106,14 +118,24 @@ import {
  * showed empty sky at the edges until the finger lifted.
  */
 export function SkyLayer(
-  props: SkyLayerProps & { pointerRef: RefObject<ViewType | null> },
+  props: SkyLayerProps & {
+    view: SharedValue<MapView>
+    pointerRef: RefObject<ViewType | null>
+  },
 ): ReactNode {
-  const view = useLiveView(props.live)
+  const { view } = props
   const [anchor, setAnchor] = useState<MapView>(props.settled)
+  const { field } = props
+  // The deep sky moves a part as far as the songs do: recorded again only once
+  // it would show its edge, not each time the songs are.
+  const onDrawn = useCallback(
+    (at: MapView) => setAnchor(was => (deepDrifted(at, was, field) ? at : was)),
+    [field],
+  )
   return (
     <View style={FILL} pointerEvents="none">
-      <DeepSky field={props.field} view={view} anchor={anchor} still={props.still ?? false} />
-      <SongSky {...props} view={view} onDrawn={setAnchor} />
+      <DeepSky field={field} view={view} anchor={anchor} still={props.still ?? false} />
+      <SongSky {...props} view={view} onDrawn={onDrawn} />
     </View>
   )
 }
@@ -121,18 +143,20 @@ export function SkyLayer(
 const FILL = { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 } as const
 
 /**
- * Where the map is, on the native side: the field's frames go straight to a
- * shared value, which moves the sky without a render.
+ * Whether the deep sky recorded for `from` would no longer do at `to`: the
+ * layer that follows the map most (`DEEP_LAYERS`) has moved or shrunk until
+ * its recorded edge (`DEEP_MARGIN`) is near the screen's.
  */
-function useLiveView(live: LiveView): SharedValue<MapView> {
-  const view = useSharedValue(live.now())
-  useEffect(() => {
-    view.value = live.now()
-    return live.watch(next => {
-      view.value = next
-    })
-  }, [live, view])
-  return view
+function deepDrifted(to: MapView, from: MapView, field: FieldSize): boolean {
+  if (to.turned !== from.turned) return true
+  const moved = deepSince(to, from, Math.max(...DEEP_LAYERS.map(layer => layer.parallax)))
+  const reach = (side: number): number =>
+    side * (0.5 + DEEP_MARGIN) * Math.min(1, moved.scale) - (side * DEEP_MARGIN) / 3
+  return (
+    moved.scale > REDRAW_ZOOM ||
+    Math.abs(moved.x) + field.width / 2 > reach(field.width) ||
+    Math.abs(moved.y) + field.height / 2 > reach(field.height)
+  )
 }
 
 /**
@@ -156,9 +180,12 @@ const MARGIN = 0.35
 const REDRAW_ZOOM = 1.25
 /** Recorded again at most this often while the map moves. */
 const REDRAW_MS = 90
+/** The map held still this long: covers arriving are recorded in at once. */
+const STILL_MS = 250
 
 /** Whether the picture recorded for `from` no longer does for `to`: its edge is near the screen, or the zoom has gone far from it. */
 function drifted(to: MapView, from: MapView, field: FieldSize): boolean {
+  'worklet'
   const ratio = to.scale / from.scale
   if (ratio > REDRAW_ZOOM || ratio < 1 / REDRAW_ZOOM || to.turned !== from.turned) return true
   const mx = field.width * MARGIN
@@ -191,7 +218,7 @@ const EMPTY = createPicture(() => {})
 function SongSky(
   props: SkyLayerProps & { view: SharedValue<MapView>; onDrawn: (view: MapView) => void },
 ): ReactNode {
-  const { field, live, settled, view, onDrawn } = props
+  const { field, settled, view, onDrawn } = props
   const art = useArt(128)
   const accent = useUnistyles().theme.colors.accent
   const grid = useMemo(() => skyGrid(props.points), [props.points])
@@ -210,11 +237,20 @@ function SongSky(
     }
   }, [])
 
-  const latest = useRef({ props, art, accent, grid, byId })
+  const latest = useRef({ props, art, accent, grid, byId, covers })
   useLayoutEffect(() => {
-    latest.current = { props, art, accent, grid, byId }
+    latest.current = { props, art, accent, grid, byId, covers }
   })
-  const recorded = useRef<{ view: MapView; at: number } | null>(null)
+  const recorded = useRef<{
+    view: MapView
+    at: number
+    art: typeof art
+    covers: number
+  } | null>(null)
+  // When the map last moved, on the UI thread: covers arriving meanwhile wait for the next recording.
+  const movedAt = useSharedValue(0)
+  // A recording asked of the JS thread and not yet made: asked once, however many frames drift meanwhile.
+  const asked = useSharedValue(false)
   const record = useCallback(
     (at: MapView) => {
       const now = latest.current
@@ -240,10 +276,11 @@ function SongSky(
         bounds,
       )
       sky.set({ picture, view: at })
-      recorded.current = { view: at, at: Date.now() }
+      asked.set(false)
+      recorded.current = { view: at, at: Date.now(), art: now.art, covers: now.covers }
       onDrawn(at)
     },
-    [arrived, field, onDrawn, sky],
+    [arrived, asked, field, onDrawn, sky],
   )
 
   // Settled, or anything drawn changed: recorded for where the map is.
@@ -251,52 +288,74 @@ function SongSky(
   // What the keys chose is lit as a song from the tray is: VoiceOver rings the field itself.
   const lit = props.chosen ?? props.lit
   useLayoutEffect(() => {
-    latest.current = { props, art, accent, grid, byId }
-    record(live.now())
+    latest.current = { props, art, accent, grid, byId, covers }
+    record(view.get())
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `props` itself is new each render; what is drawn from it is listed.
-  }, [
-    record,
-    live,
-    settled,
-    points,
-    songs,
-    regions,
-    lens,
-    takes,
-    playing,
-    lit,
-    art,
-    accent,
-    covers,
-  ])
+  }, [record, view, settled, points, songs, regions, lens, takes, playing, lit, accent])
 
-  // Moving, recorded again once the picture no longer does.
-  useEffect(() => {
+  // Covers that arrived, or moved, recorded in at once while the map holds
+  // still. While it moves they wait for the recording the move brings or the
+  // one it settles with: each burst of them was a whole recording mid-move,
+  // several a second as new covers came on screen (2026-11-12).
+  useLayoutEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null
-    const stop = live.watch(next => {
+    const recordWhenStill = (): void => {
+      timer = null
       const last = recorded.current
-      if (timer || !last || !drifted(next, last.view, field)) return
-      timer = setTimeout(
-        () => {
-          timer = null
-          const now = live.now()
-          if (recorded.current && drifted(now, recorded.current.view, field)) record(now)
-        },
-        Math.max(0, REDRAW_MS - (Date.now() - last.at)),
-      )
-    })
+      if (last && last.art === art && last.covers === covers) return
+      const wait = STILL_MS - (Date.now() - movedAt.get())
+      if (wait > 0) timer = setTimeout(recordWhenStill, wait)
+      else record(view.get())
+    }
+    recordWhenStill()
     return () => {
-      stop()
       if (timer) clearTimeout(timer)
     }
-  }, [field, live, record])
+  }, [art, covers, view, movedAt, record])
+
+  // Moving, recorded again once the picture no longer does: watched on the
+  // UI thread, where the map moves, and asked of the JS thread once, at most
+  // once in `REDRAW_MS`.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const redraw = useCallback(() => {
+    const last = recorded.current
+    if (timer.current || !last) return
+    timer.current = setTimeout(
+      () => {
+        timer.current = null
+        const now = view.get()
+        if (recorded.current && drifted(now, recorded.current.view, field)) record(now)
+        else asked.set(false)
+      },
+      Math.max(0, REDRAW_MS - (Date.now() - last.at)),
+    )
+  }, [asked, field, record, view])
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
+    },
+    [],
+  )
+  useAnimatedReaction(
+    () => view.value,
+    (next, before) => {
+      if (before === null || next === before) return
+      movedAt.set(Date.now())
+      const drawn = sky.value
+      if (asked.value || !drawn || !drifted(next, drawn.view, field)) return
+      asked.set(true)
+      scheduleOnRN(redraw)
+    },
+    [field, redraw],
+  )
 
   // What is over the sky, recorded for where the map is when it changes.
   const { stroke, pulse } = props
   const litPlace = lit === null ? undefined : byId.get(lit)
   const litOpen = litPlace !== undefined && starLook(litPlace, settled.scale).share > 0.5
   useLayoutEffect(() => {
-    const at = live.now()
+    const at = view.get()
     const litSong = litPlace ? songs.get(litPlace.id) : undefined
     const image = litSong && litOpen ? coverImage(art(litSong), arrived) : null
     const picture = createPicture(canvas =>
@@ -316,12 +375,12 @@ function SongSky(
     field,
     litOpen,
     litPlace,
-    live,
     over,
     panel,
     pulse,
     songs,
     stroke,
+    view,
   ])
 
   const skyPicture = useDerivedValue(() => sky.value?.picture ?? EMPTY)
@@ -467,14 +526,14 @@ function groundPicture(field: FieldSize): SkPicture {
       Skia.Shader.MakeRadialGradient(
         Skia.Point(field.width / 2, field.height * 0.45),
         Math.max(field.width, field.height) * 0.8,
-        [Skia.Color(SKY_TOP), Skia.Color(SKY_EDGE)],
+        [colorOf(SKY_TOP), colorOf(SKY_EDGE)],
         null,
         TileMode.Clamp,
       ),
     )
     canvas.drawRect(Skia.XYWHRect(0, 0, field.width, field.height), paint)
     const speck = Skia.Paint()
-    speck.setColor(Skia.Color('#c8d2ff'))
+    speck.setColor(colorOf('#c8d2ff'))
     for (const dust of dustSpecks(field, 260)) {
       speck.setAlphaf(dust.opacity)
       canvas.drawRect(Skia.XYWHRect(dust.x, dust.y, dust.side, dust.side), speck)
@@ -496,7 +555,7 @@ function deepPictures(
       paint.setAntiAlias(true)
       for (const { star, x, y, size } of placed) {
         if (star.beat !== beat) continue
-        paint.setColor(Skia.Color(star.tint))
+        paint.setColor(colorOf(star.tint))
         paint.setAlphaf(star.opacity)
         canvas.drawCircle(x, y, size / 2, paint)
       }
@@ -505,6 +564,20 @@ function deepPictures(
 }
 
 // Recording the songs ————————————————————————————————————————————————————
+
+/**
+ * Colours parsed from their CSS text, once: a recording asks for the same few
+ * hundred, star after star, and each parse is a call across to Skia.
+ */
+const parsed = new Map<string, SkColor>()
+function colorOf(css: string): SkColor {
+  const kept = parsed.get(css)
+  if (kept) return kept
+  const color = Skia.Color(css)
+  if (parsed.size > 4000) parsed.clear()
+  parsed.set(css, color)
+  return color
+}
 
 /** One glow a colour: a small picture of the falloff, drawn at each star's size. */
 const glows = new Map<string, SkImage>()
@@ -521,7 +594,7 @@ function glowOf(glow: string): SkImage | null {
     Skia.Shader.MakeRadialGradient(
       Skia.Point(half, half),
       half,
-      GLOW_STOPS.map(([, opacity]) => Skia.Color(skyRgba(glow, opacity))),
+      GLOW_STOPS.map(([, opacity]) => colorOf(skyRgba(glow, opacity))),
       GLOW_STOPS.map(([offset]) => offset),
       TileMode.Clamp,
     ),
@@ -556,10 +629,12 @@ function coverImage(uri: string | null | undefined, arrived: () => void): SkImag
   const entry: { image: SkImage | null; record: number } = { image: null, record: coverRecord }
   coverCache.set(uri, entry)
   Skia.Data.fromURI(uri)
-    .then(data => {
-      entry.image = Skia.Image.MakeImageFromEncoded(data)
-      if (entry.image) arrived()
-    })
+    .then(data =>
+      decode(data, image => {
+        entry.image = image
+        if (image) arrived()
+      }),
+    )
     // A cover that does not load leaves its star drawn without one.
     .catch(() => undefined)
   for (const [oldest, each] of coverCache) {
@@ -567,6 +642,58 @@ function coverImage(uri: string | null | undefined, arrived: () => void): SkImag
     coverCache.delete(oldest)
   }
   return null
+}
+
+/** A cover's side in pixels where the sky draws it largest: lit, or playing, close in. */
+const COVER_PIXELS = Math.ceil(spotlightSide(TILE_MOST) * PixelRatio.get())
+
+/**
+ * Covers are decoded on a thread of their own (`decodedSmall`): on the JS
+ * thread, which the gestures move the map from, each decode held a move up.
+ */
+let decoder: WorkletRuntime | null = null
+function decode(data: SkData, then: (image: SkImage | null) => void): void {
+  decoder ??= createWorkletRuntime({ name: 'sky-covers' })
+  scheduleOnRuntime(
+    decoder,
+    (bytes: SkData, side: number) => {
+      'worklet'
+      scheduleOnRN(then, decodedSmall(bytes, side))
+    },
+    data,
+    COVER_PIXELS,
+  )
+}
+
+/**
+ * A cover decoded once, at the size the sky draws it: at most `most` pixels square.
+ * Left encoded, a cover was decoded on the UI thread by the first frame that
+ * drew it, from the 640-pixel copy a phone keeps, and decoded again whenever
+ * the GPU's cache had let it go: a few hundred covers at 1.6 MB each outgrew
+ * that cache, so moving about the map close in decoded covers frame after
+ * frame, and it grew heavier the longer it was moved (2026-11-12).
+ */
+function decodedSmall(data: SkData, most: number): SkImage | null {
+  'worklet'
+  const encoded = Skia.Image.MakeImageFromEncoded(data)
+  if (!encoded) return null
+  const width = encoded.width()
+  const height = encoded.height()
+  const side = Math.min(most, Math.max(width, height))
+  const surface = Skia.Surface.Make(side, side)
+  if (!surface) return encoded.makeNonTextureImage()
+  // Squeezed square, as the sky draws a cover; mipmapped, so the smaller copy is not grainy.
+  surface
+    .getCanvas()
+    .drawImageRectOptions(
+      encoded,
+      Skia.XYWHRect(0, 0, width, height),
+      Skia.XYWHRect(0, 0, side, side),
+      FilterMode.Linear,
+      MipmapMode.Linear,
+    )
+  surface.flush()
+  return surface.makeImageSnapshot()
 }
 
 /** Laid-out names, by text, size and width: the same names are recorded again at every move. */
@@ -589,13 +716,13 @@ function nameOf(
   })
     // Skia takes no `undefined` here: a style without a shadow leaves the key out.
     .pushStyle({
-      color: Skia.Color(color),
+      color: colorOf(color),
       fontSize: size,
       fontStyle: { weight },
       ...(shadow
         ? {
             shadows: [
-              { color: Skia.Color('rgba(0,0,0,0.85)'), blurRadius: 6, offset: Skia.Point(0, 0) },
+              { color: colorOf('rgba(0,0,0,0.85)'), blurRadius: 6, offset: Skia.Point(0, 0) },
             ],
           }
         : {}),
@@ -622,7 +749,7 @@ function paintSky(
   const at = (place: MapPlace): { x: number; y: number } => toScreen(view, base, place)
   const paint = Skia.Paint()
   paint.setAntiAlias(true)
-  const white = Skia.Color('#ffffff')
+  const white = colorOf('#ffffff')
 
   // The nebulae: each tag's region, a soft cloud in its colour, a little off round.
   const cloud = Skia.Paint()
@@ -639,7 +766,7 @@ function paintSky(
         Skia.Shader.MakeRadialGradient(
           Skia.Point(x, y),
           size,
-          [Skia.Color(skyRgba(color, lens === null ? 0.16 : 0.24)), Skia.Color(skyRgba(color, 0))],
+          [colorOf(skyRgba(color, lens === null ? 0.16 : 0.24)), colorOf(skyRgba(color, 0))],
           null,
           TileMode.Clamp,
         ),
@@ -692,7 +819,7 @@ function paintSky(
           alpha * look.star,
         )
       }
-      paint.setColor(Skia.Color(point.core))
+      paint.setColor(colorOf(point.core))
       paint.setAlphaf(alpha * look.star)
       canvas.drawCircle(spot.x, spot.y, look.r * CORE, paint)
     }
@@ -735,23 +862,23 @@ function paintSky(
       paint.setAlphaf(look.cover * dim)
       canvas.drawImageRect(image, Skia.XYWHRect(0, 0, image.width(), image.height()), face, paint)
     } else {
-      paint.setColor(Skia.Color(point.glow))
+      paint.setColor(colorOf(point.glow))
       paint.setAlphaf(look.cover * dim)
       canvas.drawRect(face, paint)
     }
     if (look.veil > 0) {
-      paint.setColor(Skia.Color('#000000'))
+      paint.setColor(colorOf('#000000'))
       paint.setAlphaf(look.veil * look.cover * dim)
       canvas.drawRect(face, paint)
     }
     canvas.restore()
-    rim.setColor(Skia.Color(point.core))
+    rim.setColor(colorOf(point.core))
     rim.setAlphaf(look.cover * dim * 0.35)
     canvas.drawRRect(box, rim)
     if (point.flare) {
       const shine = glint(side)
       flare(canvas, { x: x + shine.dx, y: y + shine.dy }, shine.reach, point.core, look.share * dim)
-      paint.setColor(Skia.Color(SKY_INK))
+      paint.setColor(colorOf(SKY_INK))
       paint.setAlphaf(look.share * dim)
       canvas.drawCircle(x + shine.dx, y + shine.dy, 1.6, paint)
     }
@@ -794,10 +921,10 @@ function paintSky(
         else builder.lineTo(spot.x, spot.y)
       })
       const path = builder.close().detach()
-      paint.setColor(Skia.Color(take.tone))
+      paint.setColor(colorOf(take.tone))
       paint.setAlphaf(0.07)
       canvas.drawPath(path, paint)
-      line.setColor(Skia.Color(skyRgba(take.tone, 0.9)))
+      line.setColor(colorOf(skyRgba(take.tone, 0.9)))
       line.setStrokeWidth(1.8)
       line.setPathEffect(Skia.PathEffect.MakeDash([6, 5], 0))
       canvas.drawPath(path, line)
@@ -812,7 +939,7 @@ function paintSky(
         else builder.lineTo(spot.x, spot.y)
         first = false
       }
-      line.setColor(Skia.Color(skyRgba(take.tone, 0.85)))
+      line.setColor(colorOf(skyRgba(take.tone, 0.85)))
       line.setStrokeWidth(1.4)
       canvas.drawPath(builder.detach(), line)
     }
@@ -820,10 +947,10 @@ function paintSky(
       const place = byId.get(id)
       if (!place) continue
       const spot = at(place)
-      paint.setColor(Skia.Color(SKY_INK))
+      paint.setColor(colorOf(SKY_INK))
       paint.setAlphaf(1)
       canvas.drawCircle(spot.x, spot.y, 2.2, paint)
-      line.setColor(Skia.Color(skyRgba(take.tone, 0.55)))
+      line.setColor(colorOf(skyRgba(take.tone, 0.55)))
       line.setStrokeWidth(1)
       canvas.drawCircle(spot.x, spot.y, ringRadius(place, view.scale, 5.5), line)
     }
@@ -836,7 +963,7 @@ function paintSky(
   if (now && nowSong && !(litOpen && lit === now)) {
     const spot = at(now)
     const big = Math.max(22, starLook(now, view.scale).side * 1.15)
-    paint.setColor(Skia.Color(accent))
+    paint.setColor(colorOf(accent))
     paint.setAlphaf(0.25)
     canvas.drawCircle(spot.x, spot.y, big * 1.05, paint)
     const face = Skia.XYWHRect(spot.x - big / 2, spot.y - big / 2, big, big)
@@ -850,11 +977,11 @@ function paintSky(
       canvas.drawImageRect(image, Skia.XYWHRect(0, 0, image.width(), image.height()), face, paint)
       canvas.restore()
     } else {
-      paint.setColor(Skia.Color(now.glow))
+      paint.setColor(colorOf(now.glow))
       paint.setAlphaf(1)
       canvas.drawRRect(box, paint)
     }
-    line.setColor(Skia.Color(SKY_INK))
+    line.setColor(colorOf(SKY_INK))
     line.setStrokeWidth(1.5)
     canvas.drawRRect(box, line)
   }
@@ -862,7 +989,7 @@ function paintSky(
   // The song pressed in the tray's list, while it is still a star: ringed.
   if (lit && !litOpen) {
     const spot = at(lit)
-    line.setColor(Skia.Color(SKY_INK))
+    line.setColor(colorOf(SKY_INK))
     line.setStrokeWidth(1.5)
     canvas.drawCircle(spot.x, spot.y, ringRadius(lit, view.scale, 7), line)
   }
@@ -892,9 +1019,9 @@ function flare(
   stroke.setStrokeWidth(0.8)
   stroke.setAlphaf(alpha)
   const colors = [
-    Skia.Color(skyRgba(color, 0)),
-    Skia.Color(skyRgba(color, 0.9)),
-    Skia.Color(skyRgba(color, 0)),
+    colorOf(skyRgba(color, 0)),
+    colorOf(skyRgba(color, 0.9)),
+    colorOf(skyRgba(color, 0)),
   ]
   for (const [dx, dy] of [
     [reach, 0],
@@ -948,7 +1075,7 @@ function paintOver(
     // pale fill is left at the cover's soft edge as a light outline.
     const glow = Skia.Paint()
     glow.setAntiAlias(true)
-    glow.setColor(Skia.Color(lit.place.glow))
+    glow.setColor(colorOf(lit.place.glow))
     glow.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, 11, true))
     const inner = Math.max(0, radius - SPOTLIGHT_INSET)
     canvas.drawRRect(
@@ -977,7 +1104,7 @@ function paintOver(
       )
       canvas.restore()
     } else {
-      paint.setColor(Skia.Color(lit.place.glow))
+      paint.setColor(colorOf(lit.place.glow))
       canvas.drawRRect(box, paint)
     }
     const middle = Math.min(spot.x, field.width - panel - SPOT_WORDS / 2 - 8)
@@ -1006,12 +1133,12 @@ function paintOver(
     line.setStrokeWidth(3)
     line.setStrokeCap(StrokeCap.Round)
     line.setStrokeJoin(StrokeJoin.Round)
-    line.setColor(Skia.Color(skyRgba(accent, 0.95)))
+    line.setColor(colorOf(skyRgba(accent, 0.95)))
     line.setPathEffect(Skia.PathEffect.MakeDash([2, 7], 0))
     canvas.drawPath(path, line)
   }
   if (pulse) {
-    paint.setColor(Skia.Color(skyRgba(accent, 0.35)))
+    paint.setColor(colorOf(skyRgba(accent, 0.35)))
     canvas.drawCircle(pulse.x, pulse.y, 16, paint)
   }
 }

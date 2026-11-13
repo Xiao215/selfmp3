@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import type { View } from 'react-native'
+import type { SharedValue } from 'react-native-reanimated'
 import { useUnistyles } from 'react-native-unistyles'
 import { useFocusEffect } from 'expo-router'
 import type { MapPlace, Song } from '@selfmp3/shared'
@@ -50,14 +51,7 @@ import {
   type SkyPoint,
   type StarLook,
 } from './sky.model'
-import {
-  tileSide,
-  toMap,
-  toScreen,
-  type FieldSize,
-  type LiveView,
-  type MapView,
-} from './soundMapView.model'
+import { tileSide, toMap, toScreen, type FieldSize, type MapView } from './soundMapView.model'
 
 /**
  * The sound map's sky in a browser and the desktop app: one canvas for the
@@ -74,8 +68,10 @@ import {
  * (`skyGrid`), so a library many times larger costs a frame no more where it
  * is not in view.
  */
-export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | null> }): ReactNode {
-  const { field, pointerRef } = props
+export function SkyLayer(
+  props: SkyLayerProps & { view: SharedValue<MapView>; pointerRef: RefObject<View | null> },
+): ReactNode {
+  const { field, pointerRef, view } = props
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const art = useArt(128)
   const accent = useUnistyles().theme.colors.accent
@@ -98,7 +94,7 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   const again = useRef(() => {})
   // A frame to draw, at most one a frame: asked for by every render, with the
   // newest props kept for it, and by every frame of a move, which reads where
-  // the map is from `live` without a render.
+  // the map is from `view` without a render.
   const paint = useCallback(() => {
     if (frame.current !== null) return
     frame.current = requestAnimationFrame(() => {
@@ -114,7 +110,7 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
         ctx,
         canvas,
         now,
-        now.live.now(),
+        now.view.value,
         placed,
         cells,
         latest.current.accent,
@@ -137,7 +133,7 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
     again.current = paint
     paint()
   })
-  useEffect(() => props.live.watch(paint), [props.live, paint])
+  useEffect(() => watchView(view, paint), [view, paint])
   useEffect(
     () => () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current)
@@ -146,10 +142,22 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   )
   return (
     <>
-      <DeepSky field={field} live={props.live} still={props.still ?? false} />
+      <DeepSky field={field} view={view} still={props.still ?? false} />
       <canvas ref={canvasRef} aria-hidden="true" style={FILL} />
     </>
   )
+}
+
+/**
+ * Told each time the map moves. In a browser a shared value is a plain value
+ * that calls its listeners as it is set; the ids are this file's own, high
+ * enough to stay clear of Reanimated's.
+ */
+let listeners = 2 ** 30
+function watchView(view: SharedValue<MapView>, moved: () => void): () => void {
+  const id = ++listeners
+  view.addListener(id, moved)
+  return () => view.removeListener(id)
 }
 
 const FILL = {
@@ -169,11 +177,11 @@ const FILL = {
  */
 function DeepSky({
   field,
-  live,
+  view,
   still,
 }: {
   field: FieldSize
-  live: LiveView
+  view: SharedValue<MapView>
   still: boolean
 }): ReactNode {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -199,7 +207,7 @@ function DeepSky({
     }
     const tick = (now: number): void => {
       frame = twinkle ? requestAnimationFrame(tick) : null
-      const at = live.now()
+      const at = view.value
       const { ground: back } = latest.current
       const changed = at !== drawn.view || back !== drawn.ground
       if (!changed && (!twinkle || now - drawn.at < TWINKLE_FRAME_MS)) return
@@ -216,12 +224,12 @@ function DeepSky({
       if (frame !== null) cancelAnimationFrame(frame)
       wake.current = null
     }
-  }, [field, focused, layers, live, reduced, still])
+  }, [field, focused, layers, view, reduced, still])
   useLayoutEffect(() => {
     latest.current = { ground }
     wake.current?.()
   })
-  useEffect(() => live.watch(() => wake.current?.()), [live])
+  useEffect(() => watchView(view, () => wake.current?.()), [view])
   return <canvas ref={canvasRef} aria-hidden="true" style={FILL} />
 }
 

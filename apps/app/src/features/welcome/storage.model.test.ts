@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest'
 
 import { afterWelcome, FIRST_SYNC_SEEN } from './firstSync.model'
 import {
+  STORAGE_ROUTE,
   addressReady,
   backblazeReady,
   cloudConnectInput,
+  driveArrived,
+  moveAction,
+  movedLine,
+  moveProgressLine,
   needsRegion,
-  STORAGE_ROUTE,
+  spaceLine,
+  spaceLow,
   storageDue,
   whereItIs,
 } from './storage.model'
@@ -74,6 +80,7 @@ describe('the address way', () => {
 
 describe('where the bucket is, in words', () => {
   const storage = {
+    kind: 'bucket' as const,
     endpoint: 'https://s3.us-west-004.backblazeb2.com',
     region: 'us-west-004',
     bucket: 'selfmp3-xiao',
@@ -85,6 +92,10 @@ describe('where the bucket is, in words', () => {
     expect(whereItIs(storage)).toBe('selfmp3-xiao on Backblaze, us-west-004')
   })
 
+  it('names Google Drive by the folder the library is in', () => {
+    expect(whereItIs({ kind: 'drive', folder: '1AbC' })).toBe('self.mp3 in your Google Drive')
+  })
+
   it('names any other provider by its address', () => {
     expect(
       whereItIs({
@@ -93,6 +104,29 @@ describe('where the bucket is, in words', () => {
         region: 'auto',
       }),
     ).toBe('selfmp3-xiao at abc123.r2.cloudflarestorage.com')
+  })
+})
+
+describe('Google Drive arriving with no link to say so', () => {
+  const drive = { kind: 'drive' as const, folder: '1AbC' }
+  const bucket = {
+    kind: 'bucket' as const,
+    endpoint: 'https://s3.us-west-004.backblazeb2.com',
+    region: 'us-west-004',
+    bucket: 'selfmp3-xiao',
+    prefix: 'selfmp3',
+    keyIdHint: '004abc…',
+  }
+
+  it('is news on an account that had nothing, or a bucket', () => {
+    expect(driveArrived(null, drive)).toBe(true)
+    expect(driveArrived(bucket, drive)).toBe(true)
+  })
+
+  it('is not news while nothing has changed', () => {
+    expect(driveArrived(null, null)).toBe(false)
+    expect(driveArrived(bucket, bucket)).toBe(false)
+    expect(driveArrived(drive, drive)).toBe(false)
   })
 })
 
@@ -114,5 +148,47 @@ describe('the address as it is sent', () => {
     expect(
       cloudConnectInput({ ...typed, endpoint: 'abc123.r2.cloudflarestorage.com' }).region,
     ).toBe('auto')
+  })
+})
+
+describe('moving the library', () => {
+  const bucket = {
+    kind: 'bucket' as const,
+    endpoint: 'https://s3.us-west-004.backblazeb2.com',
+    region: 'us-west-004',
+    bucket: 'my-music',
+    prefix: 'selfmp3',
+    keyIdHint: '004abc…',
+  }
+  const drive = { kind: 'drive' as const, folder: '1AbC' }
+
+  it('names the one other place a library can go', () => {
+    expect(moveAction(bucket)).toBe('Move your library to Google Drive')
+    expect(moveAction(drive)).toBe('Move your library to your own bucket')
+  })
+
+  it('says how much room is left, and when that is little', () => {
+    const GB = 1024 ** 3
+    expect(spaceLine({ used: 10.9 * GB, limit: 15 * GB })).toBe('4.1 GB free of 15 GB')
+    expect(spaceLine({ used: 16 * GB, limit: 15 * GB })).toBe('0 MB free of 15 GB')
+    expect(spaceLine({ used: 2 * GB, limit: null })).toBe('2.0 GB used')
+    expect(spaceLow({ used: 11 * GB, limit: 15 * GB })).toBe(false)
+    expect(spaceLow({ used: 12 * GB, limit: 15 * GB })).toBe(true)
+    expect(spaceLow({ used: 900 * GB, limit: null })).toBe(false)
+  })
+
+  it('says how far a move has got', () => {
+    expect(moveProgressLine({ phase: 'songs', done: 412, total: 1930 })).toBe(
+      'Moving 412 of 1,930 songs',
+    )
+    expect(moveProgressLine({ phase: 'rest', done: 3, total: 2400 })).toBe(
+      'Moving covers, lyrics and the rest: 3 of 2,400',
+    )
+  })
+
+  it('says where the library is now, and that the old copy was left', () => {
+    expect(movedLine(drive, bucket)).toBe(
+      'Your library is now in my-music on Backblaze, us-west-004. The copy in the self.mp3 folder in your Google Drive was left as it was; you can delete it there.',
+    )
   })
 })

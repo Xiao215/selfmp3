@@ -19,7 +19,7 @@ import {
   type DoormanList,
   type DoormanReadApp,
 } from '@selfmp3/shared'
-import { changesOf, requireBucket, requireSession, type Context } from './context.js'
+import { changesOf, requireStore, requireSession, type Context } from './context.js'
 import {
   badRequest,
   discard,
@@ -31,7 +31,7 @@ import {
   notFound,
   redact,
 } from './http.js'
-import type { Bucket } from './bucket.js'
+import type { Store } from './store.js'
 import type { Session } from './sessions.js'
 import { tallyOf } from './tally.js'
 
@@ -91,11 +91,12 @@ export async function list(ctx: Context): Promise<Response> {
   const prefix = ctx.url.searchParams.get('prefix') ?? ''
   if (!isCloudListPrefix(prefix)) throw badRequest('that is not a folder a device may list')
   const cursor = ctx.url.searchParams.get('cursor')
-  if (cursor !== null && (cursor === '' || cursor.length > 1024)) {
+  // A bucket's token is a few dozen characters; Google Drive's can be several hundred.
+  if (cursor !== null && (cursor === '' || cursor.length > 4096)) {
     throw badRequest('that is not a cursor from a listing')
   }
 
-  const bucket = await requireBucket(ctx, session)
+  const bucket = await requireStore(ctx, session)
   const page = await bucket.list(prefix, cursor)
   const body: DoormanList = {
     // Anything else in the folder is not the library's, so not a device's business.
@@ -138,7 +139,7 @@ async function read(
   key: string,
   method: 'GET' | 'HEAD',
 ): Promise<Response> {
-  return relayRead(ctx, await requireBucket(ctx, session), key, method, readApp(ctx, session))
+  return relayRead(ctx, await requireStore(ctx, session), key, method, readApp(ctx, session))
 }
 
 /**
@@ -164,7 +165,7 @@ function readApp(ctx: Context, session: Session): DoormanReadApp {
  */
 export async function relayRead(
   ctx: Context,
-  bucket: Bucket,
+  bucket: Store,
   key: string,
   method: 'GET' | 'HEAD',
   app: DoormanReadApp,
@@ -217,7 +218,7 @@ export async function relayRead(
   headers.set('x-content-type-options', 'nosniff')
 
   // The bytes as stored, headers and all. They were fetched undecoded (see
-  // Bucket.fetchObject), so they are still in the Content-Encoding the headers
+  // Store.fetchObject), so they are still in the Content-Encoding the headers
   // name; `encodeBody: 'manual'` sends them on as they are, where the default
   // would compress a gzipped snapshot a second time.
   return new Response(upstream.body, { status: upstream.status, headers, encodeBody: 'manual' })
@@ -260,7 +261,7 @@ async function write(ctx: Context, session: Session, key: string): Promise<Respo
   // Sending one twice puts the same bytes under the same name. The bucket
   // cannot refuse it for us — Backblaze takes If-None-Match on a PUT and
   // ignores it — and nothing here needs it to.
-  const bucket = await requireBucket(ctx, session)
+  const bucket = await requireStore(ctx, session)
   await bucket.write(key, length > 0 && body ? { stream: body, length } : new Uint8Array(0), {
     contentType,
     contentEncoding: encoding,
@@ -272,7 +273,7 @@ async function remove(ctx: Context, session: Session, key: string): Promise<Resp
   if (!isDeletableCloudKey(key)) {
     throw forbidden('format.json is never deleted')
   }
-  const bucket = await requireBucket(ctx, session)
+  const bucket = await requireStore(ctx, session)
   await bucket.remove(key)
   return counted(ctx, session, key, noContent())
 }

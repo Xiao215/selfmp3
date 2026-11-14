@@ -24,8 +24,8 @@
 
 Your music as files you own, not a catalogue you rent. There is no subscription and no
 telemetry. You sign in with Google, and your library — every song, cover, lyric and play —
-lives in a storage bucket of your own. A small server on an always-on computer imports and
-analyses music into that bucket; your devices read it from there, so they keep working, and
+lives in storage of your own: a folder in your own Google Drive, or a bucket. A small server
+on an always-on computer imports and analyses music into it; your devices read it from there, so they keep working, and
 keep their edits, when the server is out of reach.
 
 It is made for one person, or a few friends.
@@ -118,7 +118,7 @@ It is made for one person, or a few friends.
 
 | | |
 |---|---|
-| **In a browser** | [xiao215.github.io/selfmp3](https://xiao215.github.io/selfmp3). Sign in with Google, then connect your bucket ([set one up](https://xiao215.github.io/selfmp3/bucket.html), about ten minutes). Add it to the Home Screen for a full-screen app |
+| **In a browser** | [xiao215.github.io/selfmp3](https://xiao215.github.io/selfmp3). Sign in with Google, then choose where your library lives: your own Google Drive, in one press, or a bucket of your own ([set one up](https://xiao215.github.io/selfmp3/bucket.html), about ten minutes). Add it to the Home Screen for a full-screen app |
 | **iPhone and Android** | [The install page](https://xiao215.github.io/selfmp3/install/), opened on the phone. Android downloads straight away; an iPhone sends its ID once, for the server's owner to add ([MOBILE.md](docs/MOBILE.md#sharing-the-iphone-app)) |
 | **Mac** | A `.dmg` from the [releases page](https://github.com/Xiao215/selfmp3/releases), or `npm run build:desktop` ([INSTALL.md](docs/INSTALL.md#the-desktop-app)) |
 | **Chrome** | `npm run build:extension`, then load `apps/extension/dist` unpacked ([browser-extension](docs/features/browser-extension.md)) |
@@ -151,9 +151,9 @@ every setting, the AI helper, your own doorman, running without Docker, backups 
 ## How it works
 
 ```
-  your devices                         Cloudflare                       Backblaze B2
+  your devices                         Cloudflare                  Google Drive, or a bucket
 ┌──────────────────────┐   sign in,  ┌──────────────────────┐        ┌──────────────────────┐
-│ the web app (Pages)  │   read and  │ the doorman          │        │ your bucket          │
+│ the web app (Pages)  │   read and  │ the doorman          │        │ your storage         │
 │ iPhone / Android app │◄───────────►│ Google sign-in,      │◄──────►│ audio, covers,       │
 │ desktop app          │   write     │ bucket access, rooms,│        │ lyrics, the snapshot,│
 └──────────────────────┘             │ share links, grants  │        │ change log and plays │
@@ -169,7 +169,8 @@ every setting, the AI helper, your own doorman, running without Docker, backups 
 └──────────────────────────────────────────────────┘
 ```
 
-- **The bucket is the library.** Audio, covers, lyrics, the snapshot every device reads, the
+- **The bucket is the library**, whether it is a folder in your Google Drive or a bucket of
+  your own ([storage-providers](docs/features/storage-providers.md)). Audio, covers, lyrics, the snapshot every device reads, the
   change log every device writes, and the plays. Keeping a backup means keeping a copy of the
   bucket ([SYNC.md](docs/SYNC.md)).
 - **The server** imports, analyses and publishes. One server works for every account that

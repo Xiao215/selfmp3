@@ -41,6 +41,7 @@ describe('/v1/storage/backblaze', () => {
     const response = await h.connectBackblaze(token)
     expect(response.status).toBe(200)
     expect(DoormanMeSchema.parse(await response.json()).storage).toEqual({
+      kind: 'bucket',
       endpoint: `https://${B2_HOST}`,
       region: 'us-west-004',
       bucket: BUCKET,
@@ -172,6 +173,7 @@ describe('/v1/me', () => {
     expect(text).not.toContain(APPLICATION_KEY)
     expect(text).not.toContain(KEY_ID)
     expect(DoormanMeSchema.parse(JSON.parse(text)).storage).toEqual({
+      kind: 'bucket',
       endpoint: `https://${B2_HOST}`,
       region: 'us-west-004',
       bucket: BUCKET,
@@ -434,7 +436,7 @@ describe('forgetting a bucket', () => {
     const list = await h.call('/v1/list', { token })
     expect(list.status).toBe(409)
     expect(ErrorBodySchema.parse(await list.json())).toEqual({
-      error: 'connect your bucket first',
+      error: 'connect your storage first',
       code: 'no_storage',
     })
   })
@@ -454,7 +456,7 @@ describe('a sealed bucket', () => {
     expect((await me(h, theirs)).storage).toBeNull()
     expect((await h.call('/v1/list', { token: theirs })).status).toBe(409)
     expect(h.logs.map(line => line.message)).toContain(
-      'an account’s bucket could not be opened; treating it as not connected',
+      'an account’s storage could not be opened; treating it as not connected',
     )
     // Mine still opens.
     expect((await me(h, mine)).storage?.bucket).toBe(BUCKET)

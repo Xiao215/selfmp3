@@ -14,7 +14,15 @@ import { untilCapResets } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { useAccount } from '../profile/useAccount'
 import { useCloudSession } from '../profile/useCloudSession'
-import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
+import {
+  MOVE_ROUTE,
+  STORAGE_ROUTE,
+  moveAction,
+  spaceLine,
+  spaceLow,
+  whereItIs,
+} from '../welcome/storage.model'
+import { useStorageSpace } from './useStorageSpace'
 import { JoinSharedButton } from '../../connection/ServerAway'
 import { Card, DangerButton, LinkRow, partStyles, Row } from './SettingsParts'
 import { computerRow, noComputersHint } from './computers.model'
@@ -39,10 +47,11 @@ const AVATAR = 36
  * (`ServerAddress`) can still point the app at a server so the simulator flows
  * have a library without a Google account.
  *
- * Storage is the account's bucket, as the doorman last said: this is where
- * the bucket connected on Where it lives can be changed or forgotten
- * afterwards. A bucket refusing for the day
- * says so there too, with the way to raise its cap.
+ * Storage is the one place the account's library is kept, as the doorman last
+ * said, with how much room a Google Drive has left under it. There is one
+ * thing to do about it: move the library to the other kind of place
+ * (`MoveScreen`). Forgetting it is at the foot of the page. A bucket refusing
+ * for the day says so there too, with the way to raise its cap.
  *
  * Computers are the servers the account has let into its bucket
  * (docs/features/shared-server.md): each can be removed here, and with none,
@@ -84,6 +93,10 @@ export function AccountCards({ onConfirm }: { onConfirm: (what: Confirming) => v
   const askBucketAgain = useAskBucketAgain()
   const { wide } = useLayoutFlags()
   const where = storage ? whereItIs(storage) : null
+  // How much room a Google Drive has; a bucket has no size to ask about.
+  const space = useStorageSpace(storage?.kind === 'drive')
+  // Only while the storage is a Drive: what was last asked of one says nothing of a bucket.
+  const room = storage?.kind === 'drive' ? (space.data ?? null) : null
   if (!fromCloud) {
     return (
       <Card title="Library">
@@ -117,17 +130,37 @@ export function AccountCards({ onConfirm }: { onConfirm: (what: Confirming) => v
                     : `${untilCapResets(new Date(), true)} left`
                 }`}
               </Text>
+            ) : room ? (
+              <Text style={spaceLow(room) ? styles.capped : undefined} testID="cloud-storage-space">
+                {spaceLine(room)}
+              </Text>
             ) : undefined
           }
-          last={!hold}
+          last={!hold && !storage}
         >
-          <Button
-            label={storage ? 'Change' : 'Connect'}
-            variant="text"
-            onPress={() => router.push(STORAGE_ROUTE)}
-            testID="cloud-storage-change"
-          />
+          {storage === null ? (
+            <Button
+              label="Connect"
+              variant="text"
+              onPress={() => router.push(STORAGE_ROUTE)}
+              testID="cloud-storage-change"
+            />
+          ) : null}
         </Row>
+        {storage ? (
+          <Row
+            label={moveAction(storage)}
+            hint="Everything is copied first. Nothing changes until it is finished."
+            last={!hold}
+          >
+            <Button
+              label="Move"
+              variant="text"
+              onPress={() => router.push(MOVE_ROUTE)}
+              testID="cloud-storage-move"
+            />
+          </Row>
+        ) : null}
         {hold ? (
           <Row label="Raise the limit" hint="On Backblaze, then try again here." last>
             <Button

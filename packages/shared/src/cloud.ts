@@ -9,6 +9,7 @@ import {
   type CloudWords,
 } from './schemas/cloud.js'
 import { HASH_FILE_NAME } from './doormanWire.js'
+import { DRIVE_FOLDER_NAME, type DoormanStorage } from './schemas/doorman.js'
 import type { SmartRules } from './schemas/smart.js'
 
 /**
@@ -545,16 +546,17 @@ export async function decodeBucketText(bytes: Uint8Array): Promise<string> {
 }
 
 /**
- * Where a bucket is, in two parts a line can set apart: the host without its
- * scheme, and the bucket with its folder ("selfmp3-xiao/selfmp3").
+ * Where a library is kept, in two parts a line can set apart: the host without
+ * its scheme and the bucket with its folder ("selfmp3-xiao/selfmp3"), or
+ * Google Drive and the folder's name there.
  */
-export function bucketPlace(target: {
-  readonly endpoint: string
-  readonly bucket: string
-  readonly prefix: string
-}): { readonly host: string; readonly folder: string } {
+export function storagePlace(storage: DoormanStorage): {
+  readonly host: string
+  readonly folder: string
+} {
+  if (storage.kind === 'drive') return { host: 'Google Drive', folder: DRIVE_FOLDER_NAME }
   return {
-    host: target.endpoint.replace(/^https?:\/\//, ''),
-    folder: target.prefix ? `${target.bucket}/${target.prefix}` : target.bucket,
+    host: storage.endpoint.replace(/^https?:\/\//, ''),
+    folder: storage.prefix ? `${storage.bucket}/${storage.prefix}` : storage.bucket,
   }
 }

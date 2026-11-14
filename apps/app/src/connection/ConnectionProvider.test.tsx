@@ -64,6 +64,7 @@ const SESSION: CloudSession = {
     name: 'Sim',
     picture: null,
     storage: {
+      kind: 'bucket' as const,
       endpoint: 'https://s3.test',
       region: 'test',
       bucket: 'test',

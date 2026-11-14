@@ -157,8 +157,8 @@ export async function share(ctx: Context): Promise<Response> {
     if (method !== 'POST') return methodNotAllowed(['GET', 'POST'])
     const body = await readJson(ctx.request, ShareCreateSchema, CREATE_MAX_BYTES)
     // A link lends from your bucket, so there has to be one.
-    if (!(await ctx.accounts.bucket(session.sub))) {
-      throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your bucket first')
+    if (!(await ctx.accounts.storage(session.sub))) {
+      throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your storage first')
     }
     const same = await sameKey(session.sub, body)
     const before = await sharedBefore(ctx, session.sub, same, body)

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -198,6 +199,60 @@ describe('a server working for several accounts', () => {
       'https://pi.example.ts.net',
     ])
   })
+
+  it('works in a library kept in Google Drive as it does in a bucket: a song goes up, is published, and plays', async () => {
+    const { hub, url } = await startHub()
+    const friend = { sub: '2', email: 'friend@example.com' }
+    const session = await doorman.signIn(friend)
+    expect((await doorman.connectDrive(session, { as: friend })).status).toBe(200)
+    const joined = CloudServerSchema.parse((await join(url, session)).body)
+    const { container } = hub.workspaces()[0]!
+    const [folder] = doorman.drive.roots()
+
+    // A song in the library's folder, as an import leaves it.
+    const audio = Buffer.from(Array.from({ length: 5000 }, (_, at) => at % 251))
+    fs.mkdirSync(container.config.libraryDir, { recursive: true })
+    fs.writeFileSync(path.join(container.config.libraryDir, 'Monster.m4a'), audio)
+    const file = path.join(container.config.libraryDir, 'Monster.m4a')
+    // Written a while ago: a copy only just written may still be being written, and waits.
+    const written = new Date(Date.now() - 60 * 60_000)
+    fs.utimesSync(file, written, written)
+    const songId = container.songs.insert(
+      newSong({
+        title: 'Monster',
+        artist: 'YOASOBI',
+        sizeBytes: audio.length,
+        // As the sweep reads it: a later look at the copy compares with this.
+        mtimeMs: Math.floor(fs.statSync(file).mtimeMs),
+      }),
+    )
+    void container.cloudSync.syncNow()
+
+    // The audio is in Drive under its hash, and a snapshot there lists the song.
+    const key = `audio/${createHash('sha256').update(audio).digest('hex')}.m4a`
+    await until(() => doorman.drive.find(folder!.id, key) !== null, 'the audio in Drive')
+    expect(Buffer.from(doorman.drive.find(folder!.id, key)!.body)).toEqual(audio)
+    const published = (): string | null => {
+      const snapshots = [...doorman.drive.files.values()]
+        .filter(file => /^\d{8}T\d{9}Z-.*\.json$/.test(file.name))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      const newest = snapshots.at(-1)
+      return newest ? zlib.gunzipSync(Buffer.from(newest.body)).toString('utf8') : null
+    }
+    await until(() => published()?.includes(key) ?? false, 'a snapshot naming the song')
+    expect(published()).toContain(joined.token)
+
+    // Played through the server once its own copy is let go: a range, read from Drive.
+    await until(
+      () => !fs.existsSync(path.join(container.config.libraryDir, 'Monster.m4a')),
+      'the server letting its copy go',
+    )
+    const played = await fetch(`${url}/api/stream/${songId}`, {
+      headers: { Authorization: `Bearer ${joined.token}`, Range: 'bytes=100-199' },
+    })
+    expect(played.status).toBe(206)
+    expect(Buffer.from(await played.arrayBuffer())).toEqual(audio.subarray(100, 200))
+  }, 20_000)
 
   it('keeps each library’s lyrics to its own search', async () => {
     const { hub, url } = await startHub()

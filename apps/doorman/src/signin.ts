@@ -64,8 +64,26 @@ const StateSchema = z.object({
 })
 export type SignInState = z.infer<typeof StateSchema>
 
+/**
+ * The same trip to Google made to connect Google Drive (driveConnect.ts),
+ * by an account already signed in: no attempt to claim, since nothing comes
+ * back to the device, and the account the answer must be for instead.
+ */
+const DriveStateSchema = z.object({
+  /** The Google account's id that asked, and that Google must answer for. */
+  drive: z.string().min(1),
+  /** The Drive is where the library is to be moved to (move.ts), not the storage itself yet. */
+  move: z.boolean().optional(),
+  returnTo: z.string().nullable(),
+  nonce: z.string().regex(TOKEN_PATTERN),
+  exp: z.number().int(),
+})
+export type DriveState = z.infer<typeof DriveStateSchema>
+
+const AnyStateSchema = z.union([StateSchema, DriveStateSchema])
+
 /** `<payload>.<mac>`, both base64url: safe in a URL as it is. */
-export async function signState(state: SignInState, key: CryptoKey): Promise<string> {
+export async function signState(state: SignInState | DriveState, key: CryptoKey): Promise<string> {
   const payload = toBase64Url(utf8(JSON.stringify(state)))
   return `${payload}.${await mac(key, payload)}`
 }
@@ -75,7 +93,7 @@ export async function openState(
   value: string,
   key: CryptoKey,
   now: number,
-): Promise<SignInState | null> {
+): Promise<SignInState | DriveState | null> {
   if (value.length > MAX_STATE_LENGTH) return null
   const dot = value.lastIndexOf('.')
   const payload = value.slice(0, Math.max(dot, 0))
@@ -91,7 +109,7 @@ export async function openState(
   } catch {
     return null
   }
-  const parsed = StateSchema.safeParse(data)
+  const parsed = AnyStateSchema.safeParse(data)
   return parsed.success && parsed.data.exp > now ? parsed.data : null
 }
 

@@ -12,9 +12,10 @@ self.mp3 has three parts, and only one of them is installed on a computer of you
   for every Google account that joins it ([features/shared-server.md](features/shared-server.md)).
 
 If somebody already runs a server and a doorman and has let you in, you need nothing from
-this guide: open the app, sign in, and make your bucket the first time, as
-**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** shows step by step (about ten minutes, on Backblaze; the app's
-*Don't have a bucket yet?* lists the same steps). Your devices join that server by themselves.
+this guide: open the app, sign in, and press **Use Google Drive** on the page that follows,
+which keeps your library in your own Drive. (A bucket of your own is the other choice there:
+**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** shows it step by step, about ten minutes, on Backblaze; the app's
+*Don't have a bucket yet?* lists the same steps.) Your devices join that server by themselves.
 This guide is for running the server.
 
 | You want | Go to |
@@ -245,15 +246,17 @@ of its own instead.
 
 ## The bucket and the doorman
 
-The library is the bucket. Each account makes its own on Backblaze and pastes its key once, on
-the first device that signs in: **[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** is that, step by step, for
+The library is the bucket: each account's own storage, which is a folder in its Google Drive
+unless it chooses a bucket of its own ([features/storage-providers.md](features/storage-providers.md)).
+Drive takes one press on the first device that signs in. A bucket is made on Backblaze and its
+key pasted once: **[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** is that, step by step, for
 someone who has never seen a bucket (the words live in `packages/shared/src/bucketGuide.ts`,
 which the app's *Don't have a bucket yet?* reads too). The doorman that signs devices in to
 it is a Cloudflare Worker deployed by hand from `apps/doorman`
 ([apps/doorman/README.md](../apps/doorman/README.md)); both are in **[SYNC.md](SYNC.md),
 "Setting up"**.
 
-The server is never given a bucket key by hand. When a device whose bucket names no server
+The server is never given a bucket key, or Google's token, by hand. When a device whose bucket names no server
 asks for one, it joins the server the app offers. The server gets a **grant** for that
 account from the doorman, and works for it from then on in a workspace of its own
 ([features/shared-server.md](features/shared-server.md)).

@@ -7,16 +7,18 @@ import ReanimatedSwipeable, {
 } from 'react-native-gesture-handler/ReanimatedSwipeable'
 import Reanimated, {
   Easing,
-  FadeIn,
+  Extrapolation,
   FadeInDown,
   FadeInRight,
-  FadeOut,
   FadeOutDown,
   FadeOutRight,
+  interpolate,
   LinearTransition,
-  SlideInDown,
-  SlideOutDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated'
+import { scheduleOnRN } from 'react-native-worklets'
 import Svg, { Circle, Path } from 'react-native-svg'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { formatDuration, formatLongDuration, plural, type Song } from '@selfmp3/shared'
@@ -65,8 +67,9 @@ export const TRAY_PANEL_WIDTH = 376
  * play. On a computer it is one card down the right of the map, the map laid
  * out beside it, and a song under the pointer is ringed on the map; folded,
  * the card is its head alone (K4), the list folding up under it and back
- * down. On a phone it is a sheet half the screen high, and a row swiped left
- * leaves its song out. Play, Save, and in ⋯ Up next, Shuffle and Clear. Nothing here is a
+ * down. On a phone it is a sheet half the screen high that folds down into
+ * the folded line and back up out of it, and a row swiped left leaves its
+ * song out. Play, Save, and in ⋯ Up next, Shuffle and Clear. Nothing here is a
  * playlist until Save makes one.
  */
 export function MapTray({
@@ -74,8 +77,10 @@ export function MapTray({
   sections,
   open,
   wide,
+  sheetHeight,
   saving,
   onOpen,
+  onFoldedHeight,
   onRename,
   onRemove,
   onBringBack,
@@ -93,8 +98,12 @@ export function MapTray({
   open: boolean
   /** A computer's panel rather than a phone's sheet. */
   wide: boolean
+  /** How high a phone's sheet stands, opened. */
+  sheetHeight: number
   saving: boolean
   onOpen: (open: boolean) => void
+  /** A phone's folded line measured: how high the tray stands, folded. */
+  onFoldedHeight: (height: number) => void
   /** A name of its own, or null for the strokes' names again. */
   onRename: (name: string | null) => void
   onRemove: (id: number) => void
@@ -112,7 +121,7 @@ export function MapTray({
 }): ReactNode {
   const { theme } = useUnistyles()
   const art = useArt()
-  const moves = useTrayMotion(wide)
+  const fold = useSheetFold(open, sheetHeight)
   const songs = useMemo(() => sections.flatMap(section => section.songs), [sections])
   const empty = songs.length === 0
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
@@ -124,17 +133,9 @@ export function MapTray({
   // A computer's column, and its head: the list takes what is between.
   const [room, setRoom] = useState(0)
   const [headRoom, setHeadRoom] = useState(0)
-  const pull = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .activeOffsetY([-8, 8])
-        .onEnd(event => {
-          if (event.translationY < -PULL) onOpen(true)
-          else if (event.translationY > PULL) onOpen(false)
-        }),
-    [onOpen],
-  )
+  // One each for the folded line's head and the sheet's: a gesture is held by one detector.
+  const pullFolded = useMemo(() => pullGesture(onOpen), [onOpen])
+  const pullSheet = useMemo(() => pullGesture(onOpen), [onOpen])
 
   const actions = (
     <View style={styles.actions}>
@@ -193,71 +194,59 @@ export function MapTray({
     </View>
   )
 
-  if (!open && !wide) {
-    return (
-      // Keyed apart from the sheet: the same view type in the same place would
-      // be one view to React, and neither would come or go.
-      <Reanimated.View
-        key="folded"
-        style={[styles.tray, glassBlur]}
-        entering={moves.foldedIn}
-        exiting={moves.foldedOut}
-        testID="sound-map-tray"
-      >
-        <GestureDetector gesture={pull}>
-          <View style={styles.head}>
-            <View style={styles.grab} />
-            <View style={styles.row}>
-              <Press
-                feedback="dim"
-                onPress={() => onOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`Show the songs in ${name}`}
-                accessibilityState={{ expanded: false }}
-                style={styles.open}
-                wrap={styles.grow}
-                testID="sound-map-tray-head"
-              >
-                <View style={styles.stack}>
-                  {songs.slice(0, 3).map((song, index) => (
-                    <View key={song.id} style={[styles.stacked, index > 0 && styles.overlap]}>
-                      <Cover uri={art(song)} title={song.title} size={STACK} radius={6} />
-                    </View>
-                  ))}
+  const foldedLine = (
+    <GestureDetector gesture={pullFolded}>
+      <View style={styles.head}>
+        <View style={styles.grab} />
+        <View style={styles.row}>
+          <Press
+            feedback="dim"
+            onPress={() => onOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Show the songs in ${name}`}
+            accessibilityState={{ expanded: false }}
+            style={styles.open}
+            wrap={styles.grow}
+            testID="sound-map-tray-head"
+          >
+            <View style={styles.stack}>
+              {songs.slice(0, 3).map((song, index) => (
+                <View key={song.id} style={[styles.stacked, index > 0 && styles.overlap]}>
+                  <Cover uri={art(song)} title={song.title} size={STACK} radius={6} />
                 </View>
-                <View style={styles.words}>
-                  <Text style={styles.name} numberOfLines={1} testID="sound-map-tray-name">
-                    {name}
-                  </Text>
-                  <Text style={styles.sub} numberOfLines={1}>
-                    {count}
-                  </Text>
-                </View>
-              </Press>
-              <IconButton
-                label={saving ? 'Saving…' : 'Save as playlist'}
-                filled
-                disabled={saving || empty}
-                onPress={onSave}
-                testID="sound-map-save"
-              >
-                <ListMusic size={iconSize.item} tone="textPrimary" />
-              </IconButton>
-              <IconButton
-                label="Play"
-                filled="primary"
-                disabled={empty}
-                onPress={onPlay}
-                testID="sound-map-play"
-              >
-                <Play size={iconSize.item} color={theme.colors.onPrimary} />
-              </IconButton>
+              ))}
             </View>
-          </View>
-        </GestureDetector>
-      </Reanimated.View>
-    )
-  }
+            <View style={styles.words}>
+              <Text style={styles.name} numberOfLines={1} testID="sound-map-tray-name">
+                {name}
+              </Text>
+              <Text style={styles.sub} numberOfLines={1}>
+                {count}
+              </Text>
+            </View>
+          </Press>
+          <IconButton
+            label={saving ? 'Saving…' : 'Save as playlist'}
+            filled
+            disabled={saving || empty}
+            onPress={onSave}
+            testID="sound-map-save"
+          >
+            <ListMusic size={iconSize.item} tone="textPrimary" />
+          </IconButton>
+          <IconButton
+            label="Play"
+            filled="primary"
+            disabled={empty}
+            onPress={onPlay}
+            testID="sound-map-play"
+          >
+            <Play size={iconSize.item} color={theme.colors.onPrimary} />
+          </IconButton>
+        </View>
+      </View>
+    </GestureDetector>
+  )
 
   const title = renaming ? (
     <NameField
@@ -388,57 +377,162 @@ export function MapTray({
     )
   }
 
+  // A phone's tray is one sheet: opened, it stands half the screen high; folded,
+  // it sinks to the folded line, the list going down under the foot with it
+  // and the line coming up in the sheet's head as it lands.
   return (
     <Reanimated.View
-      key="sheet"
-      style={[styles.tray, styles.opened, glassBlur]}
-      entering={moves.sheetIn}
-      exiting={moves.sheetOut}
+      style={[styles.tray, styles.sheet, glassBlur, fold.shell]}
       testID="sound-map-tray"
     >
-      <GestureDetector gesture={pull}>
-        <View style={styles.head}>
-          <View style={styles.grab} />
-          <View style={styles.row}>
-            <View style={styles.words}>
-              {title}
-              {sub}
+      <Reanimated.View
+        style={[styles.foldedLine, fold.foldedLine]}
+        pointerEvents={open ? 'none' : 'auto'}
+        accessibilityElementsHidden={open}
+        importantForAccessibility={open ? 'no-hide-descendants' : 'auto'}
+        onLayout={event => {
+          const height = event.nativeEvent.layout.height
+          fold.setFolded(height)
+          onFoldedHeight(height)
+        }}
+      >
+        {foldedLine}
+      </Reanimated.View>
+      {fold.sheetDrawn ? (
+        <Reanimated.View
+          style={[styles.opened, { height: sheetHeight }, fold.sheet]}
+          pointerEvents={open ? 'auto' : 'none'}
+          accessibilityElementsHidden={!open}
+          importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+        >
+          <GestureDetector gesture={pullSheet}>
+            <View style={styles.head}>
+              <View style={styles.grab} />
+              <View style={styles.row}>
+                <View style={styles.words}>
+                  {title}
+                  {sub}
+                </View>
+                <IconButton
+                  label="Fold the list"
+                  filled
+                  onPress={() => onOpen(false)}
+                  testID="sound-map-tray-fold"
+                >
+                  <ChevronDown size={iconSize.item} tone="textSecondary" />
+                </IconButton>
+              </View>
+              {actions}
             </View>
-            <IconButton
-              label="Fold the list"
-              filled
-              onPress={() => onOpen(false)}
-              testID="sound-map-tray-head"
-            >
-              <ChevronDown size={iconSize.item} tone="textSecondary" />
-            </IconButton>
-          </View>
-          {actions}
-        </View>
-      </GestureDetector>
-      {list}
+          </GestureDetector>
+          {list}
+        </Reanimated.View>
+      ) : null}
     </Reanimated.View>
   )
 }
 
-type Entering = FadeInDown | FadeInRight | FadeIn | SlideInDown
-type Exiting = FadeOutDown | FadeOutRight | FadeOut | SlideOutDown
+/** A drag on a phone tray's head: up opens it, down folds it. */
+function pullGesture(onOpen: (open: boolean) => void): ReturnType<typeof Gesture.Pan> {
+  return Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetY([-8, 8])
+    .onEnd(event => {
+      if (event.translationY < -PULL) onOpen(true)
+      else if (event.translationY > PULL) onOpen(false)
+    })
+}
+
+/*
+ * The fold's curves, never handed a time before the start: in a browser the
+ * first frame after a long render can carry a stamp from before the fold
+ * began, and the ease-in curve read back to front throws the tray a third of
+ * the way for that one frame.
+ */
+const riseCurve = Easing.bezierFn(...EASE_OUT_POINTS)
+const sinkCurve = Easing.bezierFn(...EASE_IN_POINTS)
+function rise(t: number): number {
+  'worklet'
+  return riseCurve(Math.max(0, t))
+}
+function sink(t: number): number {
+  'worklet'
+  return sinkCurve(Math.max(0, t))
+}
+
+/**
+ * A phone tray's fold: one height sliding between the folded line's and the
+ * sheet's, so the sheet sinks down into the line and rises back out of it
+ * rather than one card leaving as another comes. The sheet's content holds
+ * until the fold is half done and then fades as the line comes up under it;
+ * opening, the line goes first. The sheet is drawn only while it is open or
+ * moving. At once under Reduce Motion, as everywhere (`motion.ts`).
+ */
+function useSheetFold(
+  open: boolean,
+  sheetHeight: number,
+): {
+  shell: ReturnType<typeof useAnimatedStyle>
+  sheet: ReturnType<typeof useAnimatedStyle>
+  foldedLine: ReturnType<typeof useAnimatedStyle>
+  sheetDrawn: boolean
+  setFolded: (height: number) => void
+} {
+  const reduced = useMotionReduced()
+  const progress = useSharedValue(open ? 1 : 0)
+  const folded = useSharedValue(0)
+  const high = useSharedValue(sheetHeight)
+  // Still drawn after a fold until it has landed; drawn again the moment it opens.
+  const [drawn, setDrawn] = useState(open)
+  if (open && !drawn) setDrawn(true)
+  useEffect(() => {
+    high.set(sheetHeight)
+  }, [high, sheetHeight])
+  useEffect(() => {
+    const to = open ? 1 : 0
+    if (reduced) {
+      progress.set(to)
+      return
+    }
+    progress.set(
+      withTiming(
+        to,
+        {
+          duration: open ? MOVE_MS.sheetUp : MOVE_MS.sheetDown,
+          easing: open ? rise : sink,
+        },
+        done => {
+          if (done && !open) scheduleOnRN(setDrawn, false)
+        },
+      ),
+    )
+  }, [open, progress, reduced])
+  // Until the folded line is measured the tray is as tall as the line is.
+  const shell = useAnimatedStyle(() => {
+    const low = folded.get()
+    return low === 0 ? {} : { height: low + (high.get() - low) * progress.get() }
+  })
+  const sheet = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.get(), [0.15, 0.55], [0, 1], Extrapolation.CLAMP),
+  }))
+  const foldedLine = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.get(), [0, 0.35], [1, 0], Extrapolation.CLAMP),
+  }))
+  const setFolded = useMemo(() => (height: number) => folded.set(height), [folded])
+  const sheetDrawn = open || (drawn && !reduced)
+  return { shell, sheet, foldedLine, sheetDrawn, setFolded }
+}
 
 /**
  * How the tray comes and goes, so nothing about it is a cut: the first stroke
  * brings it up from the foot (a computer's card in from the right), Clear
- * takes it back down, and on a phone the sheet slides up out of the folded
- * tray and back down into it as the folded line fades. The buttons over the
- * folded tray glide up and down with it (`tools`). Nothing at all under
- * Reduce Motion, as everywhere (`motion.ts`).
+ * takes it back down. A phone's fold is the tray's own (`useSheetFold`). The
+ * buttons over the folded tray glide up and down with it (`tools`). Nothing
+ * at all under Reduce Motion, as everywhere (`motion.ts`).
  */
 export function useTrayMotion(wide: boolean): {
-  trayIn?: Entering
-  trayOut?: Exiting
-  foldedIn?: Entering
-  foldedOut?: Exiting
-  sheetIn?: Entering
-  sheetOut?: Exiting
+  trayIn?: FadeInDown | FadeInRight
+  trayOut?: FadeOutDown | FadeOutRight
   tools?: LinearTransition
 } {
   const reduced = useMotionReduced()
@@ -449,10 +543,6 @@ export function useTrayMotion(wide: boolean): {
     return {
       trayIn: (wide ? FadeInRight : FadeInDown).duration(MOVE_MS.sheetUp).easing(out),
       trayOut: (wide ? FadeOutRight : FadeOutDown).duration(MOVE_MS.sheetDown).easing(away),
-      foldedIn: FadeIn.duration(MOVE_MS.rowIn).easing(out),
-      foldedOut: FadeOut.duration(MOVE_MS.rowOut).easing(away),
-      sheetIn: SlideInDown.duration(MOVE_MS.sheetUp).easing(out),
-      sheetOut: SlideOutDown.duration(MOVE_MS.sheetDown).easing(away),
       tools: LinearTransition.duration(MOVE_MS.sheetUp).easing(out),
     }
   }, [reduced, wide])
@@ -764,7 +854,10 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
     ...floating(theme.colors),
   },
-  opened: { flex: 1, paddingHorizontal: space.xs, paddingBottom: 0 },
+  // A phone's tray: the folded line in its flow, the sheet laid over it from the top.
+  sheet: { paddingHorizontal: 0, paddingBottom: 0 },
+  foldedLine: { paddingHorizontal: space.md, paddingBottom: space.sm },
+  opened: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space.xs },
   column: { flex: 1 },
   panel: { paddingHorizontal: space.xs, paddingBottom: 0 },
   body: { minHeight: 0 },

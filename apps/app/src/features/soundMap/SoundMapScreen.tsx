@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
-import type { LayoutChangeEvent } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import Reanimated, { LayoutAnimationConfig } from 'react-native-reanimated'
+import Reanimated from 'react-native-reanimated'
 import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg'
 import { StyleSheet, ScopedTheme } from 'react-native-unistyles'
 import { plural, type MapPlace } from '@selfmp3/shared'
@@ -342,24 +341,19 @@ export function SoundMapScreen(): ReactNode {
   // at the foot, folded, or open as a sheet half the screen high.
   const [field, setField] = useState<{ width: number; height: number } | null>(null)
   const [head, setHead] = useState(0)
-  const [tray, setTray] = useState(0)
   const [folded, setFolded] = useState(0)
   const [tools, setTools] = useState(0)
   const bottom = (wide ? 0 : chrome) + space.md
   const holding = takes.length > 0
   const panel = wide && holding && trayOpen
-  const sheet = !wide && holding && trayOpen ? Math.round((field?.height ?? 0) * SHEET_SHARE) : 0
+  const sheetHeight = Math.round((field?.height ?? 0) * SHEET_SHARE)
+  const sheet = !wide && holding && trayOpen ? sheetHeight : 0
   // A computer's card folds to its head, at the top beside the page's own head: no room at the foot.
   const trayRoom = !holding || wide ? 0 : trayOpen ? sheet : folded
   const panelRoom = panel ? TRAY_PANEL_WIDTH + space.md : 0
   useEffect(() => {
     control.setInsets({ top: head, bottom: bottom + trayRoom, right: panelRoom })
   }, [control, head, bottom, trayRoom, panelRoom])
-  const onTray = (event: LayoutChangeEvent): void => {
-    const height = event.nativeEvent.layout.height
-    setTray(height)
-    if (!trayOpen) setFolded(height)
-  }
   // A computer opens the panel with the first stroke; a phone keeps the tray
   // folded until it is pulled up. Whatever opens over a stroke, or a stroke
   // drawn where the tray lies, the map slides out from under it.
@@ -379,8 +373,8 @@ export function SoundMapScreen(): ReactNode {
   const toolsBottom = wide || !holding ? 0 : folded + space.sm
   // The toasts rise above the tray and the buttons rather than cover Play or the pen.
   useEffect(() => {
-    setPageFoot(Math.max(wide ? 0 : tray, toolsBottom + tools) + space.md)
-  }, [wide, tray, toolsBottom, tools])
+    setPageFoot(Math.max(trayRoom, toolsBottom + tools) + space.md)
+  }, [trayRoom, toolsBottom, tools])
 
   const shown = places.length > 0
   const trayMoves = useTrayMotion(wide)
@@ -560,45 +554,38 @@ export function SoundMapScreen(): ReactNode {
 
             {holding ? (
               <Reanimated.View
-                style={[
-                  wide ? styles.trayWide : styles.tray,
-                  { bottom },
-                  wide && styles.panel,
-                  sheet > 0 && { height: sheet },
-                ]}
+                style={[wide ? styles.trayWide : styles.tray, { bottom }, wide && styles.panel]}
                 entering={trayMoves.trayIn}
                 exiting={trayMoves.trayOut}
                 pointerEvents="box-none"
-                onLayout={onTray}
               >
                 {/* The sky is night whatever the app's appearance, but the tray
                     is the app's own sheet laid over it, light in light mode as
-                    the mini player under it is. Its first paint rides the
-                    tray's own rise; a fold or an open after that moves. */}
+                    the mini player under it is. */}
                 <ScopedTheme reset>
-                  <LayoutAnimationConfig skipEntering>
-                    <MapTray
-                      name={trayName}
-                      sections={sections}
-                      open={trayOpen}
-                      wide={wide}
-                      saving={saving}
-                      onOpen={setTrayOpen}
-                      onRename={setNamed}
-                      onRemove={id => setLeft(before => new Set(before).add(id))}
-                      onBringBack={ids =>
-                        setLeft(before => new Set([...before].filter(id => !ids.includes(id))))
-                      }
-                      onDrop={dropTake}
-                      onShow={showSong}
-                      onLight={setLit}
-                      onClear={clearTray}
-                      onPlay={playTray}
-                      onShuffle={shuffleTray}
-                      onSave={saveTray}
-                      onUpNext={upNextTray}
-                    />
-                  </LayoutAnimationConfig>
+                  <MapTray
+                    name={trayName}
+                    sections={sections}
+                    open={trayOpen}
+                    wide={wide}
+                    sheetHeight={sheetHeight}
+                    saving={saving}
+                    onOpen={setTrayOpen}
+                    onFoldedHeight={setFolded}
+                    onRename={setNamed}
+                    onRemove={id => setLeft(before => new Set(before).add(id))}
+                    onBringBack={ids =>
+                      setLeft(before => new Set([...before].filter(id => !ids.includes(id))))
+                    }
+                    onDrop={dropTake}
+                    onShow={showSong}
+                    onLight={setLit}
+                    onClear={clearTray}
+                    onPlay={playTray}
+                    onShuffle={shuffleTray}
+                    onSave={saveTray}
+                    onUpNext={upNextTray}
+                  />
                 </ScopedTheme>
               </Reanimated.View>
             ) : null}

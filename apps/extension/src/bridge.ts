@@ -67,6 +67,13 @@ export const BridgeRequestSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('requests') }),
   z.object({ type: z.literal('cancelRequest'), uid: z.string().min(1).max(100) }),
+  /**
+   * Take a song this extension just imported back out of the library, by its
+   * link (background/recent.ts says which can be).
+   */
+  z.object({ type: z.literal('undo'), url: z.string().max(2000) }),
+  /** Whether `undo` would take this link's song out, or already has. */
+  z.object({ type: z.literal('undoState'), url: z.string().max(2000) }),
   /** The extension's own options (background/options.ts). */
   z.object({ type: z.literal('options') }),
   z.object({ type: z.literal('setOptions'), useYouTubeSignIn: z.boolean() }),
@@ -145,6 +152,12 @@ export const REPLIES = {
   requestImport: ImportRequestViewSchema,
   requests: ImportRequestListSchema,
   cancelRequest: OkSchema,
+  undo: OkSchema,
+  /**
+   * `available`: `undo` would take it out. `undone`: it already did, so a
+   * finished job for the link no longer means the song is in.
+   */
+  undoState: z.enum(['none', 'available', 'undone']),
   options: ExtensionOptionsSchema,
   setOptions: ExtensionOptionsSchema,
 } satisfies Record<RequestType, z.ZodTypeAny>
@@ -170,6 +183,8 @@ export type Handlers = {
 export const PageRequestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('pillState'), url: z.string().max(2000) }),
   z.object({ type: z.literal('pillImport'), url: z.string().max(2000) }),
+  /** Undo the pill's own import, which only an import this extension started can be. */
+  z.object({ type: z.literal('pillUndo'), url: z.string().max(2000) }),
   /**
    * The song rows on the page: which of their videos are yours. A page learns
    * no more than the pill already tells it one link at a time — yes or no for
@@ -183,14 +198,20 @@ export const PillStateSchema = z.object({
   /**
    * `queued`: in the server's queue, not yet downloading — the page can be
    * left. `importing`: downloading now. `waiting`: left in the bucket, for
-   * the server to take when it wakes (I3).
+   * the server to take when it wakes (I3). `removing`: an Undo on its way,
+   * drawn by the pill itself while it waits for the worker.
    */
-  state: z.enum(['idle', 'have', 'queued', 'importing', 'waiting', 'added', 'failed']),
+  state: z.enum(['idle', 'have', 'queued', 'importing', 'waiting', 'added', 'removing', 'failed']),
   /** 0 to 100 while downloading, null otherwise. */
   progress: z.number().min(0).max(100).nullable(),
   /** The job, while it can still be cancelled. */
   jobId: z.string().nullable(),
   message: z.string().nullable(),
+  /**
+   * `added` by this extension, lately enough that the pill offers Undo. It
+   * tells the page only what the page itself just did.
+   */
+  undoable: z.boolean().optional(),
 })
 export type PillState = z.infer<typeof PillStateSchema>
 
@@ -198,6 +219,7 @@ export type PillState = z.infer<typeof PillStateSchema>
 export interface PageReplies {
   pillState: PillState
   pillImport: PillState
+  pillUndo: PillState
   owned: Owned
 }
 

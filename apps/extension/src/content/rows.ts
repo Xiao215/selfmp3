@@ -9,7 +9,10 @@ import { VIDEOS_ATTRIBUTE } from './videoIds.js'
  * carries — a link where it has one, the attribute videoIds.ts writes where
  * it does not — and the check sits where the row already says something
  * small about the song: before the duration, or after the title where a row
- * has no duration. Everything here came from the live pages of 2026-10-31.
+ * has no duration. A video card on YouTube has no such line, so its mark sits
+ * on the thumbnail's top-left corner instead, the one corner YouTube leaves
+ * empty (the length is bottom-right, the hover buttons top-right). The rows
+ * came from the live pages of 2026-10-31, the cards from those of 2026-11-13.
  */
 
 interface RowKind {
@@ -18,6 +21,8 @@ interface RowKind {
   videos(row: Element): string[]
   /** Where the check goes in this row, or null when the row is not drawn enough to say. */
   place(row: Element): { parent: Element; before: Element | null } | null
+  /** Drawn over a thumbnail's corner rather than in a line of text. */
+  readonly overlay?: true
 }
 
 /** The video a row's link opens, from its `href` as written (it may be relative). */
@@ -27,6 +32,22 @@ function linked(row: Element, selector: string): string[] {
   const id = youtubeVideoId(new URL(href, 'https://www.youtube.com/').toString())
   return id ? [id] : []
 }
+
+/** Over the thumbnail: appended last, so it is drawn above YouTube's own overlays. */
+const over = (row: Element, selector: string) => {
+  const thumbnail = row.querySelector(selector)
+  return thumbnail ? { parent: thumbnail, before: null } : null
+}
+
+/**
+ * A card's link, when the card is one video. A mix or a playlist is a stack of
+ * thumbnails (`yt-collection-thumbnail-view-model`) linking to its first
+ * video, which says nothing about whether the list is yours. Every link carries
+ * `list=RD…&start_radio=1` now, even a single video's, so the link alone
+ * cannot tell them apart.
+ */
+const oneVideo = (row: Element, selector: string): string[] =>
+  row.querySelector('yt-collection-thumbnail-view-model') ? [] : linked(row, selector)
 
 const before = (row: Element, selector: string) => {
   const next = row.querySelector(selector)
@@ -63,6 +84,23 @@ const KINDS: Record<Site, readonly RowKind[]> = {
       videos: row => linked(row, 'a#wc-endpoint'),
       place: row => before(row, ':scope > #menu'),
     },
+    {
+      // A video card: Home, a channel's videos, and the column beside a watch
+      // page. An ad is one too, and links to an ad server, not a video.
+      selector: 'yt-lockup-view-model',
+      videos: row => oneVideo(row, 'a.ytLockupViewModelContentImage[href*="watch?v="]'),
+      place: row => over(row, 'a.ytLockupViewModelContentImage > yt-thumbnail-view-model'),
+      overlay: true,
+    },
+    {
+      // The cards YouTube still draws the older way: search results, and the
+      // grid and the column where the new card has not reached yet. The
+      // thumbnail's link is the one positioned box inside the card.
+      selector: 'ytd-video-renderer, ytd-rich-grid-media, ytd-compact-video-renderer',
+      videos: row => linked(row, 'ytd-thumbnail a#thumbnail[href*="watch?v="]'),
+      place: row => over(row, 'ytd-thumbnail a#thumbnail'),
+      overlay: true,
+    },
   ],
   mobile: [],
 }
@@ -90,3 +128,6 @@ export function findRows(root: ParentNode, site: Site): FoundRow[] {
 
 /** Where a found row's check goes. */
 export const placeOf = (found: FoundRow) => found.kind.place(found.row)
+
+/** Whether a found row's check sits over a thumbnail. */
+export const isOverlay = (found: FoundRow): boolean => found.kind.overlay === true

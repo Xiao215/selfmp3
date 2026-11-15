@@ -76,6 +76,11 @@ const SHADOW_CSS = `
   button.have { color: var(--text-secondary) }
   button.waiting { color: var(--warning) }
   button.failed { color: var(--danger) }
+  /* Undo after a song is in: the pill still says it is Added, and the word
+     after the dot is what pressing it does. */
+  .action { color: var(--text-secondary); font-weight: 500 }
+  .action::before { content: '·'; margin-right: 6px; color: var(--text-muted) }
+  button.added.undoable:hover .action { color: var(--text-primary) }
   button[disabled] { cursor: default }
   svg { flex: none }
   .spin {
@@ -109,6 +114,8 @@ export interface PillHandles {
   readonly element: HTMLElement
   /** The video the pill is about; read at click time, never from the page. */
   videoId: string
+  /** What it is drawing now, so a press knows whether it imports or undoes. */
+  readonly state: PillState
   draw(state: PillState): void
   /**
    * Play the exit and take the element away when it lands: for the pill that
@@ -122,6 +129,8 @@ export interface PillHandles {
 /** What the pill says for each state it can be in: `E4`'s five faces, the queue, and a failure. */
 export function pillLabel(state: PillState): {
   text: string
+  /** What pressing the pill does, after its words: only Undo has one. */
+  action?: string
   className: string
   mark: PillMark
   busy: boolean
@@ -144,10 +153,14 @@ export function pillLabel(state: PillState): {
     // percentage to show because nothing is downloading anywhere.
     case 'waiting':
       return { text: 'Waiting for your server', className: 'waiting', mark: 'dot', busy: true }
-    // Undo is not built yet, so the pill does not offer it: once the song is
-    // in, there is nothing here left to press.
+    // Put in by this extension a moment ago, so pressing it takes it back
+    // out; otherwise, once the song is in, there is nothing here to press.
     case 'added':
-      return { text: 'Added', className: 'added', mark: 'check', busy: true }
+      return state.undoable
+        ? { text: 'Added', action: 'Undo', className: 'added undoable', mark: 'check', busy: false }
+        : { text: 'Added', className: 'added', mark: 'check', busy: true }
+    case 'removing':
+      return { text: 'Removing', className: 'removing', mark: 'spin', busy: true }
     case 'failed':
       return {
         text: state.message ?? 'Could not import',
@@ -163,6 +176,9 @@ export function pillLabel(state: PillState): {
 /** What hovering a song on its way says: the page need not stay open. */
 const LEAVE_HINT =
   'You can leave this page. The badge counts it, and a notification says when it’s in.'
+
+/** What hovering an Undo says it does. */
+const UNDO_HINT = 'Added to your library. Press to take it back out.'
 
 const SVG = 'http://www.w3.org/2000/svg'
 
@@ -216,16 +232,26 @@ export function createPill(
 
   /** The state the pill is wearing, to tell a new one from a moving percentage. */
   let worn: string | null = null
+  let drawn: PillState = { state: 'idle', progress: null, jobId: null, message: null }
 
   const pill: PillHandles = {
     element,
     videoId,
+    get state() {
+      return drawn
+    },
     draw(state) {
+      drawn = state
       const label = pillLabel(state)
       const mark = markElement(document, label.mark)
       const words = document.createElement('span')
       words.className = 'words'
       words.textContent = label.text
+      const action = label.action ? document.createElement('span') : null
+      if (action) {
+        action.className = 'action'
+        action.textContent = label.action ?? ''
+      }
       // A new state's words and mark fade in; the first draw does not, because
       // the whole pill is arriving and that is the entrance's business.
       if (worn !== null && worn !== label.className) {
@@ -233,7 +259,7 @@ export function createPill(
         mark?.classList.add('swap')
       }
       worn = label.className
-      button.replaceChildren(...(mark ? [mark] : []), words)
+      button.replaceChildren(...(mark ? [mark] : []), words, ...(action ? [action] : []))
       button.className = label.className
       // The reason for a failure, whole, where the pill had to cut it; and
       // while a song is on its way, that there is no need to stay.
@@ -242,10 +268,15 @@ export function createPill(
           ? label.text
           : state.state === 'queued' || state.state === 'importing'
             ? LEAVE_HINT
-            : ''
+            : label.action
+              ? UNDO_HINT
+              : ''
       // Nothing to press while it is going, or once the song is yours.
       button.disabled = label.busy
-      button.setAttribute('aria-label', `${label.text} — self.mp3`)
+      button.setAttribute(
+        'aria-label',
+        label.action ? `Added. Undo — self.mp3` : `${label.text} — self.mp3`,
+      )
       // On the host, where the page cannot reach the shadow root's contents and
       // an end-to-end spec cannot either: this is what both can see.
       element.setAttribute('data-state', state.state)

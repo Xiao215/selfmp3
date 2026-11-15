@@ -41,6 +41,46 @@ const panelItem = (videoId: string) => `
     <div id="menu"></div>
   </ytd-playlist-panel-video-renderer>`
 
+/** A video card as Home, a channel and the watch page's column drew it on 2026-11-13. */
+const lockup = (videoId: string, mix = false) => `
+  <yt-lockup-view-model class="ytLockupViewModelWrapper">
+    <div class="ytLockupViewModelHost content-id-${videoId}">
+      <a href="/watch?v=${videoId}&list=RD${videoId}&start_radio=1" class="ytLockupViewModelContentImage">
+        ${
+          mix
+            ? `<yt-collection-thumbnail-view-model><yt-collections-stack><div>
+                 <yt-thumbnail-view-model class="ytThumbnailViewModelHost"></yt-thumbnail-view-model>
+               </div></yt-collections-stack></yt-collection-thumbnail-view-model>`
+            : `<yt-thumbnail-view-model class="ytThumbnailViewModelHost">
+                 <div class="ytThumbnailViewModelImage"><img></div>
+                 <yt-thumbnail-bottom-overlay-view-model></yt-thumbnail-bottom-overlay-view-model>
+               </yt-thumbnail-view-model>`
+        }
+      </a>
+      <div class="ytLockupViewModelMetadata">A video</div>
+    </div>
+  </yt-lockup-view-model>`
+
+/** An ad drawn as a card: its picture links to the ad server. */
+const adLockup = `
+  <yt-lockup-view-model>
+    <a href="https://www.googleadservices.com/pagead/aclk?sa=L" class="ytLockupViewModelContentImage">
+      <yt-thumbnail-view-model></yt-thumbnail-view-model>
+    </a>
+    <a href="/watch?v=${MINE}">Watch</a>
+  </yt-lockup-view-model>`
+
+/** A search result, still drawn the older way. */
+const videoRenderer = (href: string) => `
+  <ytd-video-renderer>
+    <div id="dismissible">
+      <ytd-thumbnail>
+        <a id="thumbnail" href="${href}"><yt-image><img></yt-image><div id="overlays"></div></a>
+      </ytd-thumbnail>
+      <div class="text-wrapper"><a id="video-title" href="${href}">A video</a></div>
+    </div>
+  </ytd-video-renderer>`
+
 /** A library of one song, and every question asked of it. */
 function setUp(html: string, site: Site = 'music', answer: string[] | null = [MINE]) {
   document.body.innerHTML = html
@@ -128,6 +168,35 @@ describe('the checks on the song rows', () => {
     await settle()
     expect(checked('ytd-playlist-panel-video-renderer')).toEqual([true, false])
     expect(document.querySelector(CHECK_TAG)?.nextElementSibling?.id).toBe('menu')
+  })
+
+  it('marks a video card’s thumbnail on its top-left corner, and not a mix’s or an ad’s', async () => {
+    const { checks, asked } = setUp(
+      lockup(MINE) + lockup(NOT_MINE) + lockup(MINE, true) + adLockup,
+      'www',
+    )
+    checks.scan()
+    await settle()
+    expect(asked).toEqual([[MINE, NOT_MINE]])
+    expect(checked('yt-lockup-view-model')).toEqual([true, false, false, false])
+    const check = document.querySelector(CHECK_TAG)
+    // Last in the thumbnail, so it is drawn above the picture and its badges.
+    expect(check?.parentElement?.tagName).toBe('YT-THUMBNAIL-VIEW-MODEL')
+    expect(check?.nextElementSibling).toBeNull()
+    expect(check?.getAttribute('style')).toContain('position:absolute')
+  })
+
+  it('marks a search result’s thumbnail, and leaves a Short alone', async () => {
+    const { checks } = setUp(
+      videoRenderer(`/watch?v=${MINE}&pp=ygUH`) +
+        videoRenderer(`/watch?v=${NOT_MINE}`) +
+        videoRenderer(`/shorts/${MINE}`),
+      'www',
+    )
+    checks.scan()
+    await settle()
+    expect(checked('ytd-video-renderer')).toEqual([true, false, false])
+    expect(document.querySelector(CHECK_TAG)?.parentElement?.id).toBe('thumbnail')
   })
 
   it('checks a song imported from this page at once, without asking', async () => {

@@ -85,8 +85,9 @@ mark. It says *In library* when the song is already yours; otherwise pressing it
 imports the song with the tags your last import went in with, and it follows
 it — *In the queue*
 while the song waits its turn, then a turning ring and *Importing 40%* — to a
-green *Added*. Hovering a song on its way says the page can be left: the badge
-counts it and a notification says when it is in. Left in your bucket it says
+green *Added · Undo*. Hovering a song on its way says the page can be left: the badge
+counts it and a notification says when it is in. Pressing *Added · Undo* takes the song back
+out of the library, on every device, and the pill offers it again. Left in your bucket it says
 *Waiting for your server*. It finds its place from the address, so it follows
 you from video to video without a reload, and it is not drawn where there is no
 song.
@@ -94,7 +95,10 @@ song.
 **A mark on the songs you have.** The app's note on a small accent coin sits on
 every song row that is already in your library: YouTube Music's Up next, its playlists,
 albums and search results, and the playlist beside a YouTube watch page. It
-goes before the duration, or after the title where a row has no duration.
+goes before the duration, or after the title where a row has no duration. On
+YouTube's video cards (Home, a channel's videos, search results and the column
+beside a watch page) it sits on the thumbnail's top-left corner. A mix or a
+playlist card gets none, though its link names a song: the list is not yours.
 A row is yours when its video is the one you imported, so the album track and
 the music video of one song are two different rows. In Up next, a row with a
 Song/Video switch counts as yours when either half is. A song you import from
@@ -153,8 +157,6 @@ the badge is only ever about what you did here.
 
 ## What it does not do yet
 
-- **Undo.** Once a song is in, the pill says *Added* and stops there; cancelling
-  is in the popup while the download is still running.
 - **Anything but Chromium.** Firefox needs a little of its own, and Safari would
   ride along inside the Mac app.
 - **Read what is on the page.** It knows the address of the tab you are on and
@@ -188,6 +190,7 @@ the badge is only ever about what you did here.
 | The pill: where it goes, what it is, when to look again | `apps/extension/src/content/` |
 | The checks on song rows: which rows, where the check goes, and the script that reads Up next's videos | `apps/extension/src/content/rows.ts`, `checks.ts`, `videoIds.ts` |
 | The badge and the notification | `apps/extension/src/background/jobs.model.ts`, `watcher.ts` |
+| What Undo may take back out: the imports this extension started in the last hour | `apps/extension/src/background/recent.ts` |
 | Options | `apps/extension/src/options/` |
 | The look: the app's tokens, written into CSS by every build, and the parts both pages share | `apps/extension/scripts/theme.mjs`, `apps/extension/src/ui/` |
 | The end-to-end specs, and the fake server they run against | `apps/extension/verify/` |
@@ -373,7 +376,7 @@ sends — tags, and never a playlist.
 | Already in your library | Link index hit, or `alreadyHave` | "In your library since … · played N times", Open in self.mp3, Import anyway |
 | Playlist, album, artist (C, `E2`) | `kind: 'playlist'` | "4 of 6 coming in"; rows whose name opens title and artist fields and whose far end says "Left out" when clicked; "Yours already" rows dimmed; tags; "Import N songs"; "Open the full review" past eight |
 | Importing | A job for this link is not finished | Step label, a bar while downloading, Cancel while it can still be cancelled |
-| Added | Job done | The tags it got, and that the phone has it after its next sync |
+| Added | Job done | The tags it got, that the phone has it after its next sync, and **Undo** when this extension put it in within the hour |
 | Your server is asleep | Bucket mode, a link not left yet | The link, tags, Keep it for later |
 | No computer works for your library yet | The same, with a bucket that names no server, or one that refuses the library's token | The link, tags, Keep it for later, and Open self.mp3 to connect one |
 | Waiting for your server | Bucket request `waiting` | The sentence from the mock |
@@ -425,9 +428,9 @@ which the Import page understands from the share target.
   root and an inline layout style on the outer element: content scripts have no
   `customElements`, and `:host` rules lose to YouTube's CSS. The video id is
   read from `location` at click time, since the row lags the URL by a second.
-  Its states: **self.mp3** → **In the queue** → **Importing 40%** → **Added**
-  → **In library**, or **Waiting for your server** when the link went to the
-  bucket. There is no Undo on the pill; cancelling is in the popup.
+  Its states: **self.mp3** → **In the queue** → **Importing 40%** → **Added ·
+  Undo** → **In library**, or **Waiting for your server** when the link went to
+  the bucket. Cancelling a song still on its way is in the popup.
 - Unit tests use small hand-written fixtures of those structures in jsdom, with
   `isVisible` and the navigation source passed in, since jsdom has neither
   layout nor the Navigation API.
@@ -445,14 +448,34 @@ which the Import page understands from the share target.
   `background/menus.ts`), the popup with a link given instead of a tab, because a context-menu click cannot open the
   action popup reliably.
 
+## Undo
+
+The pill and the popup offer **Undo** on a song this extension imported in the last hour,
+once it has landed. It removes the song from the library, on every device, as the app's
+Remove does. A content script is treated as the YouTube page it runs in, and naming any
+video must not delete a song. So the worker keeps the imports it started
+(`background/recent.ts`): the link, when, the side it went through (a server's address or
+the bucket) and its job or request. Undo removes only those songs, through the same side, since a
+song's id is that side's. A song from the phone, the app, or an import older than the
+hour is removed in self.mp3. An undone link is kept as undone, because its finished job
+stays in the server's queue and would otherwise read as *Added* again. Both pages ask the
+worker (`undoState`, `undo`; the pill's `pillUndo`) rather than deciding themselves.
+
 ## The checks on song rows (D1)
 
 - **Which rows** live in `rows.ts`, per site: `ytmusic-player-queue-item` (Up
   next), `ytmusic-responsive-list-item-renderer` (playlists, albums, search;
   an artist's or an album's row links elsewhere and is skipped) and
   `ytd-playlist-panel-video-renderer` (the playlist beside a www watch page).
-  Video cards on YouTube's home, search and sidebar are not rows and get
-  nothing yet. m.youtube.com has no rows here.
+  On www, the video cards too: `yt-lockup-view-model` (Home, a channel's
+  videos, the column beside a watch page) and the older `ytd-video-renderer`,
+  `ytd-rich-grid-media` and `ytd-compact-video-renderer` (search). A card's
+  mark sits over its thumbnail (`yt-thumbnail-view-model`, or `a#thumbnail`),
+  top-left, the corner YouTube leaves empty. Every card's link carries
+  `list=RD…&start_radio=1` now, a single video's too, so a mix is known by its
+  stacked thumbnail (`yt-collection-thumbnail-view-model`) and skipped; an ad's
+  picture links to an ad server and is skipped by its link. Shapes from the
+  live pages of 2026-11-13. m.youtube.com has no rows here.
 - **Up next has no links.** A queue row's video is only in the data Polymer
   hands it, a property the page's own JavaScript sets, which a content script
   cannot see from its own world. So a second, tiny script runs in the page's

@@ -139,7 +139,19 @@ test('a song page imports, and the popup follows the job until it is added', asy
   // The write came from the extension's own origin, the one the server lets through.
   const write = server.requests.find(request => request.path === '/api/import/enqueue')
   expect(write?.origin).toBe(EXTENSION_ORIGIN)
+
+  // Put in from here a moment ago, so it can be taken back out, and the
+  // popup offers the song again as it was before.
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByRole('button', { name: 'Import to your library' })).toBeVisible()
+  expect(server.removed).toEqual([99])
   await page.close()
+
+  // Opened again, it is still the song to import, not a finished job.
+  const again = await popup(IDOL_URL, IDOL_TAB_TITLE)
+  await expect(again.getByRole('button', { name: 'Import to your library' })).toBeVisible()
+  await expect(again.getByRole('button', { name: 'Undo' })).toHaveCount(0)
+  await again.close()
 })
 
 test('a song already in the library says so, without asking the server to read it', async () => {

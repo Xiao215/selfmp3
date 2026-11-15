@@ -19,6 +19,7 @@ import { LibraryCache } from './library.js'
 import { serverApi, timedFetch } from './server.js'
 import type { KeyValueStore } from './store.js'
 import { readOptions, writeOptions } from './options.js'
+import { recentImports, type RecentImport } from './recent.js'
 
 /**
  * What the worker does with each request from a page (bridge.ts): everything
@@ -53,7 +54,13 @@ interface HandlerDeps {
    * memoised route (`workerRouter`). Built here when a test leaves it out.
    */
   readonly router?: Router
+  /** The clock Undo's time is kept by; a test's own. */
+  readonly now?: () => number
 }
+
+/** Why Undo is not here for a link, in the words a page shows. */
+const NOT_UNDOABLE =
+  'Only a song added from here in the last hour can be undone here. Remove it in self.mp3.'
 
 /**
  * The tags the last import went in with, by where it went (`baseUrl`, or the
@@ -106,8 +113,10 @@ export function createHandlers({
   watcher,
   cloud,
   router = workerRouter({ store, fetch, cloud }),
+  now = Date.now,
 }: HandlerDeps): Handlers {
   const library = new LibraryCache(store)
+  const recent = recentImports(store, now)
 
   /** Why a route with no way through has no way through, in the words a page shows. */
   function refuse(route: Route): BridgeError {
@@ -174,6 +183,34 @@ export function createHandlers({
       )
     }
     return side
+  }
+
+  /**
+   * The import of this link this extension started lately, if Undo can reach
+   * it now: not undone already, and through the same side it went through,
+   * since its song's id is that side's.
+   */
+  async function undoTarget(
+    url: string,
+  ): Promise<{ started: RecentImport; api: Api; viaBucket: boolean } | null> {
+    const started = await recent.find(url)
+    if (!started || started.undone) return null
+    const { route, api, identity } = await answering()
+    if (identity.baseUrl !== started.where) return null
+    return { started, api, viaBucket: route.mode === 'bucket' }
+  }
+
+  /** The songs an import of ours landed as: none while it is still on its way. */
+  async function landedAs(started: RecentImport, api: Api): Promise<number[]> {
+    if (started.jobId !== null) {
+      const job = (await api.importQueue()).jobs.find(each => each.id === started.jobId)
+      return job?.status === 'done' && job.songId !== null ? [job.songId] : []
+    }
+    if (started.uid !== null) {
+      const request = (await api.cloudImports()).imports.find(each => each.uid === started.uid)
+      return request?.state === 'done' ? request.songIds : []
+    }
+    return []
   }
 
   async function status(): Promise<Status> {
@@ -337,6 +374,10 @@ export function createHandlers({
       const { api, identity } = await direct()
       const result = await api.importEnqueue(request)
       await rememberTags(store, identity, request.tagIds)
+      // So each can be undone for a while, from the pill or the popup.
+      for (const job of result.jobs) {
+        await recent.remember(job.url, { where: identity.baseUrl, jobId: job.id, uid: null })
+      }
       // The badge and the notification are about what this extension started.
       await watcher?.add(result.jobs, label)
       return result
@@ -362,6 +403,7 @@ export function createHandlers({
       // for the app, and the extension leaves it empty.
       const made = await side.api.requestCloudImport({ url, tagIds, playlistId: null })
       await rememberTags(store, BUCKET, tagIds)
+      await recent.remember(url, { where: BUCKET.baseUrl, jobId: null, uid: made.uid })
       /*
        * The replica's own flush is on a 1.5 s timer, and Chrome may stop this
        * worker before it fires — which would leave the link sitting in an
@@ -377,6 +419,36 @@ export function createHandlers({
     async requests() {
       if (!cloud || !(await cloud.session())) return { imports: [] }
       return cloud.api.cloudImports()
+    },
+
+    async undoState({ url }) {
+      if ((await recent.find(url))?.undone) return 'undone'
+      const target = await undoTarget(url)
+      if (!target) return 'none'
+      return (await landedAs(target.started, target.api)).length > 0 ? 'available' : 'none'
+    },
+
+    /*
+     * Out of the library on every device, as the app's Remove takes it: the
+     * song was there for a minute and nobody meant it to stay. Not a trash it
+     * could come back from, because nothing about it was the person's yet.
+     */
+    async undo({ url }) {
+      const target = await undoTarget(url)
+      if (!target) throw new BridgeError(NOT_UNDOABLE, 409)
+      const songIds = await landedAs(target.started, target.api)
+      if (songIds.length === 0) {
+        throw new BridgeError('It is still on its way. Cancel it in the queue instead.', 409)
+      }
+      await target.api.bulkDeleteSongs({ songIds })
+      if (target.viaBucket) {
+        // Sent now: the worker may be stopped before the replica's timer fires.
+        await cloud?.flush().catch(() => undefined)
+      }
+      await recent.undone(url)
+      // The link index still has the song in it until it is read again.
+      await library.forget()
+      return { ok: true as const }
     },
 
     async cancelRequest({ uid }) {

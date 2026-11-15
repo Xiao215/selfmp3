@@ -1,6 +1,6 @@
 import { NOTE_PATH } from '../ui/mark.js'
 import type { Site } from './anchors.js'
-import { findRows, placeOf, type FoundRow } from './rows.js'
+import { findRows, isOverlay, placeOf, type FoundRow } from './rows.js'
 import { VIDEO_ID } from './videoIds.js'
 
 /**
@@ -27,6 +27,9 @@ const REMEMBER_MS = 5 * 60_000
 const BATCH = 500
 
 const OUTER_STYLE = 'display:inline-flex;align-items:center;flex:0 0 auto;margin:0 8px'
+/** On a thumbnail's top-left corner, above the picture and YouTube's own badges. */
+const OVERLAY_STYLE =
+  'display:flex;position:absolute;top:8px;left:8px;z-index:2;margin:0;pointer-events:none'
 const LABEL = 'In your self.mp3 library'
 
 const SHADOW_CSS = `
@@ -37,14 +40,20 @@ const SHADOW_CSS = `
     background: var(--accent); color: var(--on-accent);
   }
   svg { display: block }
+  /* Over a picture the coin needs an edge of its own: an accent coin on a
+     thumbnail of the same colour would vanish. */
+  span.overlay {
+    width: 22px; height: 22px;
+    box-shadow: 0 0 0 1.5px rgb(0 0 0 / 0.35), 0 1px 4px rgb(0 0 0 / 0.4);
+  }
 `
 
 const SVG = 'http://www.w3.org/2000/svg'
 
 /** The coin, built as elements: the page's Trusted Types policy may refuse `innerHTML`. */
-function createCheck(document: Document, theme: string): HTMLElement {
+function createCheck(document: Document, theme: string, overlay: boolean): HTMLElement {
   const element = document.createElement(CHECK_TAG)
-  element.setAttribute('style', OUTER_STYLE)
+  element.setAttribute('style', overlay ? OVERLAY_STYLE : OUTER_STYLE)
   element.setAttribute('role', 'img')
   element.setAttribute('aria-label', LABEL)
   element.title = LABEL
@@ -52,6 +61,7 @@ function createCheck(document: Document, theme: string): HTMLElement {
   const style = document.createElement('style')
   style.textContent = theme + SHADOW_CSS
   const coin = document.createElement('span')
+  if (overlay) coin.className = 'overlay'
   const svg = document.createElementNS(SVG, 'svg')
   svg.setAttribute('viewBox', '0 0 24 24')
   svg.setAttribute('width', '12')
@@ -78,7 +88,7 @@ function draw(document: Document, found: FoundRow, owned: boolean, theme: string
   if (!place) return
   if (existing?.parentElement === place.parent) return
   existing?.remove()
-  place.parent.insertBefore(createCheck(document, theme), place.before)
+  place.parent.insertBefore(createCheck(document, theme, isOverlay(found)), place.before)
 }
 
 interface Checks {
@@ -86,6 +96,8 @@ interface Checks {
   scan(): void
   /** A video this page just imported: its rows are yours now, without asking. */
   markOwned(videoId: string): void
+  /** A video this page just undid: its rows are not yours any more. */
+  markNotOwned(videoId: string): void
 }
 
 export function createChecks(options: {
@@ -150,6 +162,10 @@ export function createChecks(options: {
     scan,
     markOwned(videoId) {
       known.set(videoId, { owned: true, at: now() })
+      scan()
+    },
+    markNotOwned(videoId) {
+      known.set(videoId, { owned: false, at: now() })
       scan()
     },
   }

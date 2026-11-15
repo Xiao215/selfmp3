@@ -65,6 +65,8 @@ function fakeHandlers(patch: Partial<Record<keyof Handlers, unknown>>): {
     requests: () => Promise.resolve({ imports: [] }),
     queue: () => Promise.resolve({ jobs: [], active: 0, queued: 0 }),
     songFor: () => Promise.resolve(null),
+    // Nothing here was imported by this extension, so nothing is Undo's.
+    undoState: () => Promise.resolve('none'),
     preview: () => Promise.resolve({ kind: 'single', playlistTitle: null, items: [item] }),
     enqueue: (request: unknown) => {
       enqueued.push(request)

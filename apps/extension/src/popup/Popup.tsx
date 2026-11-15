@@ -147,8 +147,6 @@ export function Popup(): ReactNode {
     enabled: viaBucket,
     refetchInterval: BUCKET_POLL_MS,
   })
-  const request = requestForLink(requests.data?.imports ?? [], link)
-
   const queue = useQuery({
     queryKey: ['queue'],
     queryFn: () => ask({ type: 'queue' }),
@@ -158,10 +156,29 @@ export function Popup(): ReactNode {
       return data && data.active + data.queued > 0 ? BUSY_POLL_MS : IDLE_POLL_MS
     },
   })
-  const linkJob = jobForLink(queue.data?.jobs ?? [], link, started, new Date())
+  const foundRequest = requestForLink(requests.data?.imports ?? [], link)
+  const foundJob = jobForLink(queue.data?.jobs ?? [], link, started, new Date())
+
+  /*
+   * Undo, for a song this extension put in lately: the worker decides which
+   * those are (background/recent.ts), so the popup asks rather than guesses —
+   * again whenever this link's import moves on, since only a song that has
+   * landed can be taken out. A song taken back out still has its finished job
+   * in the queue, which no longer speaks for it.
+   */
+  const undoState = useQuery({
+    queryKey: ['undoState', link, foundJob?.status ?? foundRequest?.state ?? null],
+    queryFn: () => ask({ type: 'undoState', url: link ?? '' }),
+    enabled: link !== null && (ready || viaBucket),
+    retry: false,
+  })
+  const linkUndone = undoState.data === 'undone'
+  const request = linkUndone ? null : foundRequest
+  const linkJob = linkUndone ? null : foundJob
   // A playlist's tracks are queued under their own links, so what was started
   // from the list is followed as a batch instead.
-  const batch = linkJob ? null : batchProgress(queue.data?.jobs ?? [], started)
+  // The song taken back out was started here too, and is no batch to follow.
+  const batch = linkJob || linkUndone ? null : batchProgress(queue.data?.jobs ?? [], started)
   const job = linkJob ?? batch?.job ?? null
 
   const view = popupView({
@@ -175,6 +192,27 @@ export function Popup(): ReactNode {
     request,
     importAnyway,
   })
+
+  // One song only: a batch from a list is taken apart in the app.
+  const undoWanted =
+    (view.name === 'added' && !(batch && batch.total > 1)) ||
+    (view.name === 'requested' && view.request.songIds.length === 1)
+  const undo = useMutation({
+    mutationFn: (url: string) => ask({ type: 'undo', url }),
+    onSuccess: (_, url) => {
+      setImportAnyway(false)
+      // Every state of this link's import, whichever key the popup is on.
+      queryClient.setQueriesData({ queryKey: ['undoState', url] }, 'undone')
+      void queryClient.invalidateQueries({ queryKey: ['songFor', url] })
+      void queryClient.invalidateQueries({ queryKey: ['preview', url] })
+    },
+  })
+  const undoing = {
+    offered: undoWanted && undoState.data === 'available',
+    pending: undo.isPending,
+    error: undo.error?.message ?? null,
+    onUndo: () => link !== null && undo.mutate(link),
+  }
 
   const choices = useQuery({
     queryKey: ['choices'],
@@ -307,6 +345,7 @@ export function Popup(): ReactNode {
             job={view.job}
             {...(batch && batch.total > 1 ? { count: batch.added } : {})}
             tagged={taggedLine(view.job.tagIds, choices.data?.tags ?? [])}
+            undo={undoing}
             onOpen={() => openApp('/import')}
           />
         )
@@ -360,7 +399,7 @@ export function Popup(): ReactNode {
           />
         )
       case 'requested':
-        return <Requested request={view.request} onOpen={() => openApp('/import')} />
+        return <Requested request={view.request} undo={undoing} onOpen={() => openApp('/import')} />
       case 'list':
         return (
           <ListReview

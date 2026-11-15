@@ -88,6 +88,18 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
     return imports.find(each => sameLink(url, each.url)) ?? null
   }
 
+  /** What the pill says about the song now, before asking whether it may undo it. */
+  async function stateNow(url: string, viaBucket: boolean): Promise<PillState> {
+    const hit = await handlers.songFor({ type: 'songFor', url })
+    if (hit) return bare('have')
+    if (viaBucket) {
+      const waiting = await requestFor(url)
+      return waiting ? stateOfRequest(waiting) : idle
+    }
+    const job = await jobFor(url)
+    return job ? stateOfJob(job) : idle
+  }
+
   return async function handle(request: PageRequest): Promise<PageReplies[PageRequest['type']]> {
     // The checks on a page's song rows: yes or no for each video it named.
     if (request.type === 'owned') return handlers.owned(request)
@@ -95,17 +107,28 @@ export function createPageHandler(handlers: Handlers, mode: () => Promise<Route[
     const videoId = youtubeVideoId(request.url)
     if (!videoId) return idle
     const url = youtubeWatchUrl(videoId)
+
+    /*
+     * Undo: the worker checks that this extension put the song in, lately,
+     * and the pill offers again once it is out.
+     */
+    if (request.type === 'pillUndo') {
+      await handlers.undo({ type: 'undo', url })
+      return idle
+    }
+
     const viaBucket = (await mode()) === 'bucket'
 
     if (request.type === 'pillState') {
-      const hit = await handlers.songFor({ type: 'songFor', url })
-      if (hit) return bare('have')
-      if (viaBucket) {
-        const waiting = await requestFor(url)
-        return waiting ? stateOfRequest(waiting) : idle
-      }
-      const job = await jobFor(url)
-      return job ? stateOfJob(job) : idle
+      const state = await stateNow(url, viaBucket)
+      // Asked only of a song that is in: an import still going is not
+      // something to undo, and asking on every poll would read the queue twice.
+      if (state.state !== 'have' && state.state !== 'added') return state
+      const undo = await handlers.undoState({ type: 'undoState', url })
+      if (undo === 'available') return { ...bare('added'), undoable: true }
+      // Its finished job is still in the queue, but the song is not in.
+      if (undo === 'undone' && state.state === 'added') return idle
+      return state
     }
 
     /*

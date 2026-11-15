@@ -388,3 +388,129 @@ describe('a bucket that names no server', () => {
     })
   })
 })
+
+describe('undo', () => {
+  /**
+   * A server whose one import lands when the test says, as song 42, and that
+   * writes down what it is asked to remove.
+   */
+  async function importedHere(clock = { now: 0 }) {
+    let landed = false
+    const removed: unknown[] = []
+    const fetchImpl = (input: string, init: RequestInit = {}) => {
+      const route = `${init.method ?? 'GET'} ${new URL(input).pathname}`
+      const job: ImportJob = {
+        ...failedJob,
+        id: 'job-2',
+        error: null,
+        status: landed ? 'done' : 'queued',
+        step: landed ? 'finished' : 'waiting',
+        songId: landed ? 42 : null,
+      }
+      switch (route) {
+        case 'GET /api/health':
+          return Promise.resolve(
+            json(200, { ok: true, version: 't', serverId: 's', uptimeSeconds: 1, songCount: 2 }),
+          )
+        case 'GET /api/library/version':
+          return Promise.resolve(json(200, { version: 1, songCount: library.songs.length }))
+        case 'GET /api/library':
+          return Promise.resolve(json(200, library))
+        case 'POST /api/import/enqueue':
+          return Promise.resolve(
+            json(200, { jobs: [job], skipped: 0, playlistId: null, device: null }),
+          )
+        case 'GET /api/import/queue':
+          return Promise.resolve(
+            json(200, {
+              jobs: [job],
+              active: 0,
+              queued: 1,
+              done: 0,
+              pacing: IDLE_PACING,
+              run: null,
+            }),
+          )
+        case 'POST /api/songs/bulk/delete':
+          removed.push(JSON.parse(String(init.body)))
+          return Promise.resolve(json(200, { removed: 1, failed: [] }))
+        default:
+          return Promise.resolve(json(404, { error: 'not found', code: 'not_found' }))
+      }
+    }
+    const store = memoryStore()
+    const handlers = createHandlers({
+      store,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now: () => clock.now,
+    })
+    await handlers.connect({ type: 'connect', baseUrl: 'http://localhost:4600', token: null })
+    await handlers.enqueue({
+      type: 'enqueue',
+      request: {
+        items: [
+          {
+            url: IDOL_URL,
+            title: 'Idol',
+            artist: 'YOASOBI',
+            album: '',
+            duration: 213,
+            thumbnail: null,
+            alreadyHave: false,
+            waitingToUpload: false,
+            inQueue: false,
+          },
+        ],
+        tagIds: [],
+        playlistId: null,
+        createPlaylistName: null,
+      },
+      label: null,
+    })
+    return { handlers, removed, land: () => (landed = true), clock }
+  }
+
+  it('takes a song this extension imported back out, once it has landed', async () => {
+    const { handlers, removed, land } = await importedHere()
+    expect(await handlers.undoState({ type: 'undoState', url: IDOL_URL })).toBe('none')
+    await expect(handlers.undo({ type: 'undo', url: IDOL_URL })).rejects.toThrow('on its way')
+    land()
+    // Any form of the link is the same video.
+    const music = 'https://music.youtube.com/watch?v=ZRtdQ81jPUQ&list=RDAMVM'
+    expect(await handlers.undoState({ type: 'undoState', url: music })).toBe('available')
+    expect(await handlers.undo({ type: 'undo', url: music })).toEqual({ ok: true })
+    expect(removed).toEqual([{ songIds: [42] }])
+    // Once only, and remembered as undone.
+    expect(await handlers.undoState({ type: 'undoState', url: IDOL_URL })).toBe('undone')
+    await expect(handlers.undo({ type: 'undo', url: IDOL_URL })).rejects.toBeInstanceOf(BridgeError)
+  })
+
+  it('never removes a song it did not import, or one past the hour', async () => {
+    const { handlers, removed, land, clock } = await importedHere()
+    land()
+    await expect(handlers.undo({ type: 'undo', url: HELLO_URL })).rejects.toBeInstanceOf(
+      BridgeError,
+    )
+    clock.now = 60 * 60_000
+    expect(await handlers.undoState({ type: 'undoState', url: IDOL_URL })).toBe('none')
+    await expect(handlers.undo({ type: 'undo', url: IDOL_URL })).rejects.toThrow('last hour')
+    expect(removed).toEqual([])
+  })
+
+  it('has the pill offer Undo once the song is in, and offer the song again after', async () => {
+    const { handlers, removed, land } = await importedHere()
+    const page = createPageHandler(handlers, () => Promise.resolve('server'))
+    land()
+    expect(await page({ type: 'pillState', url: IDOL_URL })).toMatchObject({
+      state: 'added',
+      undoable: true,
+    })
+    expect(await page({ type: 'pillUndo', url: IDOL_URL })).toMatchObject({ state: 'idle' })
+    expect(removed).toEqual([{ songIds: [42] }])
+    // The finished job is still in the queue; the pill offers the song again all the same.
+    expect(await page({ type: 'pillState', url: IDOL_URL })).toMatchObject({ state: 'idle' })
+    // A song in the library this extension did not put there stays out of reach.
+    expect(await page({ type: 'pillState', url: HELLO_URL })).toMatchObject({ state: 'have' })
+    await expect(page({ type: 'pillUndo', url: HELLO_URL })).rejects.toThrow('last hour')
+  })
+})

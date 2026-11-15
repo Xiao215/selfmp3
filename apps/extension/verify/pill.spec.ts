@@ -94,6 +94,17 @@ test('the pill appears on a watch page, and imports the song it is on', async ()
   await page.close()
 })
 
+test('a song the pill just put in can be taken back out from the pill', async () => {
+  // The import above landed as song 99, so this page opens on it, with Undo.
+  const page = await watch(IDOL_URL)
+  const pill = page.locator('selfmp3-pill')
+  await expect(pill).toHaveAttribute('data-state', 'added')
+  await pill.click()
+  await expect(pill).toHaveAttribute('data-state', 'idle')
+  expect(server.removed).toEqual([99])
+  await page.close()
+})
+
 test('a song already in the library says so instead of offering to import it', async () => {
   const page = await watch(HELLO_URL)
   await expect(page.locator('selfmp3-pill')).toHaveAttribute('data-state', 'have')

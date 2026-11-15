@@ -18,6 +18,8 @@ export interface FakeServer {
   readonly requests: readonly { method: string; path: string; origin: string | null }[]
   /** The body of every enqueue. */
   readonly enqueued: readonly ImportEnqueue[]
+  /** The song ids every removal asked for. */
+  readonly removed: readonly number[]
   close(): Promise<void>
 }
 
@@ -43,6 +45,7 @@ export async function startFakeServer(): Promise<FakeServer> {
   const library = fixtureLibrary()
   const requests: { method: string; path: string; origin: string | null }[] = []
   const enqueued: ImportEnqueue[] = []
+  const removed: number[] = []
   const jobs: ImportJob[] = []
   const stage = new Map<string, number>()
 
@@ -147,6 +150,11 @@ export async function startFakeServer(): Promise<FakeServer> {
           device: null,
         })
       }
+      case 'POST /api/songs/bulk/delete': {
+        const body = (await readJson(req)) as { songIds: number[] }
+        removed.push(...body.songIds)
+        return send(res, 200, { removed: body.songIds.length, failed: [] })
+      }
       case 'GET /api/import/queue': {
         jobs.forEach(advance)
         const count = (status: ImportJob['status']): number =>
@@ -194,6 +202,7 @@ export async function startFakeServer(): Promise<FakeServer> {
     url: `http://127.0.0.1:${port}`,
     requests,
     enqueued,
+    removed,
     close: () => new Promise<void>(resolve => server.close(() => resolve())),
   }
 }

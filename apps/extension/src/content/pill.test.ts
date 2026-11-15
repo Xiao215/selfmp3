@@ -20,6 +20,14 @@ describe('what the pill says', () => {
     }
   })
 
+  it('offers Undo after a song it put in, and turns while it takes it out', () => {
+    const undoable = state({ state: 'added', undoable: true })
+    expect([undoable.text, undoable.action, undoable.busy]).toEqual(['Added', 'Undo', false])
+    expect(state({ state: 'added' }).action).toBeUndefined()
+    const removing = state({ state: 'removing' })
+    expect([removing.text, removing.mark, removing.busy]).toEqual(['Removing', 'spin', true])
+  })
+
   it('says a queued song is in the queue, not importing, so the page can be left', () => {
     const queued = state({ state: 'queued', jobId: 'j1' })
     expect(queued.text).toBe('In the queue')

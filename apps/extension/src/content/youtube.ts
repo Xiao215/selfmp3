@@ -137,9 +137,32 @@ function follow(videoId: string): void {
   setTimeout(again, FOLLOW_FIRST_MS)
 }
 
+/** How long a failed Undo says why before the pill goes back to offering it. */
+const UNDO_FAILED_MS = 4_000
+
+/** Take the song this pill just put in back out of the library. */
+function undo(clickedPill: PillHandles, videoId: string): void {
+  clickedPill.draw({ state: 'removing', progress: null, jobId: null, message: null })
+  void (async () => {
+    const reply = await askPage({ type: 'pillUndo', url: youtubeWatchUrl(videoId) })
+    if (!pill || pill.videoId !== videoId) return
+    if (reply.ok) {
+      pill.draw(reply.value)
+      checks?.markNotOwned(videoId)
+      return
+    }
+    pill.draw({ state: 'failed', progress: null, jobId: null, message: reply.message })
+    setTimeout(() => void refresh(videoId), UNDO_FAILED_MS)
+  })()
+}
+
 function clicked(clickedPill: PillHandles): void {
   const videoId = videoIdNow()
   if (!videoId) return
+  if (clickedPill.state.state === 'added' && clickedPill.state.undoable) {
+    undo(clickedPill, videoId)
+    return
+  }
   clickedPill.draw({ state: 'queued', progress: null, jobId: null, message: null })
   void (async () => {
     const reply = await askPage({

@@ -300,10 +300,28 @@ export function Importing({
   )
 }
 
+/** Undo after a song is in: offered for one this extension put in lately. */
+interface Undoing {
+  readonly offered: boolean
+  readonly pending: boolean
+  readonly error: string | null
+  readonly onUndo: () => void
+}
+
+function UndoButton({ undo }: { undo: Undoing }): ReactNode {
+  if (!undo.offered) return null
+  return (
+    <button type="button" className="link" disabled={undo.pending} onClick={undo.onUndo}>
+      {undo.pending ? 'Removing…' : 'Undo'}
+    </button>
+  )
+}
+
 export function Added({
   job,
   count,
   tagged,
+  undo,
   onOpen,
 }: {
   job: ImportJob
@@ -311,6 +329,7 @@ export function Added({
   count?: number
   /** "Tagged yoasobi.", when the import was tagged. */
   tagged: string | null
+  undo: Undoing
   onOpen: () => void
 }): ReactNode {
   return (
@@ -322,12 +341,16 @@ export function Added({
           : 'Added to your library'
       }
       actions={
-        <button type="button" className="tonal" onClick={onOpen}>
-          Open in self.mp3
-        </button>
+        <>
+          <button type="button" className="tonal" onClick={onOpen}>
+            Open in self.mp3
+          </button>
+          <UndoButton undo={undo} />
+        </>
       }
     >
       <p>{tagged ? `${tagged} ` : ''}It will be on your phone the next time it syncs.</p>
+      {undo.error && <ErrorLine message={undo.error} />}
     </State>
   )
 }
@@ -441,9 +464,11 @@ export function Waiting({
 /** The server took it while nobody was looking, and it landed. */
 export function Requested({
   request,
+  undo,
   onOpen,
 }: {
   request: ImportRequestView
+  undo: Undoing
   onOpen: () => void
 }): ReactNode {
   return (
@@ -455,12 +480,16 @@ export function Requested({
           : 'Added to your library'
       }
       actions={
-        <button type="button" className="tonal" onClick={onOpen}>
-          Open in self.mp3
-        </button>
+        <>
+          <button type="button" className="tonal" onClick={onOpen}>
+            Open in self.mp3
+          </button>
+          <UndoButton undo={undo} />
+        </>
       }
     >
       <p>It will be on your phone the next time it syncs.</p>
+      {undo.error && <ErrorLine message={undo.error} />}
     </State>
   )
 }

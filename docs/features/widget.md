@@ -12,6 +12,9 @@ Two iOS widgets (docs/ui-mock `P28`), both medium:
 - **Now playing** — the song, and "Paused · 1:52 left" or a countdown the system keeps by
   itself while it plays. Tapping it opens Now Playing (`selfmp3://now-playing`).
 
+The same target draws a room's Live Activity on the Lock Screen and in the Dynamic Island
+([listen-together.md](listen-together.md), "On the Lock Screen").
+
 **Where:** the iPhone only; Android, the web and the desktop app have none (iOS first). The
 code is in the table under "How it works": `apps/app/src/features/widget/`, the port
 `apps/app/src/ports/widget.ios.ts` and the SwiftUI target `apps/app/targets/widget/`.

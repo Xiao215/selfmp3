@@ -78,6 +78,10 @@ const config = {
       // The iPhone stays portrait (`orientation` above); the iPad turns every
       // way, and the layout follows its width (docs/ui-mock `T06`–`T09`). Expo
       // writes only the iPhone's key from `orientation`, never this one.
+      // The room on the Lock Screen and in the Dynamic Island (modules/room-activity,
+      // drawn by targets/widget). Updated by the app itself, which runs while a
+      // room plays, so no push token is asked for.
+      NSSupportsLiveActivities: true,
       'UISupportedInterfaceOrientations~ipad': [
         'UIInterfaceOrientationPortrait',
         'UIInterfaceOrientationPortraitUpsideDown',

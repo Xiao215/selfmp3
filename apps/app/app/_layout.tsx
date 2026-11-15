@@ -58,6 +58,7 @@ import { singularPage, singularPlaces, singularSearch } from '../src/ports/singu
 import { useHistoryStepsOnLiveKeys } from '../src/ports/historySteps'
 import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
+import { RoomActivitySync } from '../src/features/room/RoomActivitySync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
 import { sendPending, showToast } from '../src/ui/toast'
 import { SIDEBAR_WIDTH } from '../src/shell/widths'
@@ -225,6 +226,7 @@ export default function RootLayout(): ReactNode {
                             <Keeping />
                             {/* The home-screen widget's snapshot, where there is one. */}
                             <WidgetSync />
+                            <RoomActivitySync />
                             {/* The bucket refusing for the day, said once. */}
                             <BucketHoldNotice />
                             {/* Yesterday's feature counts, sent to the server once. */}

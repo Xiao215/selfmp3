@@ -83,13 +83,9 @@ Accepted for later:
 - **E2: read another site's track list** and hand it to Import's review, as a Spotify or
   网易云 link is (docs/features/import-sources.md).
 - **H1: YouTube sign-in handoff**, straight to the server only.
-- **D1 on video cards.** Song rows have their mark (browser-extension.md); the cards on
-  YouTube's home, search and watch-page sidebar do not yet.
 - **G1: a live-version suggestion**, reusing `youtubeMatch`.
 - **K2: Firefox**, which needs a little of its own. **K3: Safari**, which would ride along
   inside the Mac app.
-- **Undo** after a song is in. Today the pill says *Added* and stops; cancelling is
-  possible only while the download is running.
 
 Checks that only a person can do, and whether they have been done. Playwright's Chromium
 cannot do them: real Chrome ignores `--load-extension`, and nothing automated can sign in

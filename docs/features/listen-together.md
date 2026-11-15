@@ -233,6 +233,29 @@ Only the songs you add. A friend can also put up a **shelf**: one tag or playlis
 which everyone can add from in Search while adding to the room. A shelf is lent only while they are in the
 room.
 
+## On the Lock Screen
+
+On an iPhone, a room is a Live Activity while you are in it: on the Lock Screen, and in the
+Dynamic Island while the app is out of sight. The Lock Screen shows the song's cover, its title,
+*YOASOBI · Mia added it*, the room's faces (everyone else first, up to three) with *3 here*,
+*Xiao's room · KQ7 482* in the accent, and a bar that moves by itself while the song plays.
+The Dynamic Island shows the cover and the people mark with *3* when it is small, and the same as the Lock Screen
+when it is held open. A tap on either opens `/room`. Instead of the artist line it says
+*Reconnecting…* while the room's line is down, and *Nothing playing yet* (*Add songs to start*
+for the host) with nothing playing.
+
+It starts when you join or start a room, changes when the song, the pause, a seek or the people
+change, and goes when the room ends or you leave. An app opened outside any room takes away
+one left over from before. It is the host's and every friend's, whichever phone plays. A guest
+in a browser has none. Settings › self.mp3 › Live Activities turns it off, and then the app
+asks for none.
+
+The app keeps it up to date itself: the app runs while a room plays (background audio), so
+no push is involved. The cover is the copy the phone already keeps, your own or the one the
+room lent (`keepLent`), made small (156 px) into the App Group for the widget target to draw.
+Without one, the square is the cover's colour (`coverTone`). Nothing is read from the bucket
+for it.
+
 ## After (A3, G1)
 
 When the room ends it becomes a Recently played tile, **With Mia, Ken, Ana**: the covers of
@@ -342,6 +365,9 @@ share sheet; where there is none (the desktop app), it copies the link.
 | Ask's answer for a room | `apps/app/src/features/room/TogetherAnswer.tsx` |
 | `/join/<code>`, `/room`, `/past-room/<code>` | `apps/app/src/features/room/RoomScreens.tsx` |
 | The invite's QR code | `apps/app/src/features/room/qr.model.ts`, `RoomQr.tsx` |
+| The room on the Lock Screen: what it shows and when it changes | `apps/app/src/features/room/roomActivity.model.ts` (+ test), `RoomActivitySync.tsx` |
+| Starting, updating and ending it, and its small cover | `apps/app/modules/room-activity` (Swift), `apps/app/src/ports/roomActivity.ts` |
+| Drawing it: the Lock Screen and the Dynamic Island | `apps/app/targets/widget/RoomActivity.swift`, `RoomActivityAttributes.swift` (the same file as the module's) |
 | Sound vectors: reading a pack, packing, closeness | `packages/shared/src/soundVectors.ts` |
 | A shared playlist's rules | `packages/shared/src/sharedPlaylist.ts`, `schemas/shared.ts` |
 | A shared playlist on the doorman, and its routes | `apps/doorman/src/shared.ts`, `sharedRoutes.ts` |

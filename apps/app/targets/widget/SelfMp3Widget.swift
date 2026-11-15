@@ -367,5 +367,7 @@ struct SelfMp3Widgets: WidgetBundle {
   var body: some Widget {
     TagsWidget()
     NowPlayingWidget()
+    // The room on the Lock Screen and in the Dynamic Island (RoomActivity.swift).
+    RoomActivityWidget()
   }
 }

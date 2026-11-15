@@ -23,7 +23,10 @@ function configColours(): Record<string, string> {
     ]),
   )
 }
-const swift = readFileSync(new URL('SelfMp3Widget.swift', target), 'utf8')
+/** Every Swift file the target draws with: the widgets, and the room's Live Activity. */
+const swift = ['SelfMp3Widget.swift', 'RoomActivity.swift']
+  .map(file => readFileSync(new URL(file, target), 'utf8'))
+  .join('\n')
 
 describe('the widget’s colours', () => {
   it('are the dark palette’s, the theme the widget is drawn in', () => {

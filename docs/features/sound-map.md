@@ -299,7 +299,11 @@ stays there (`FieldControl.setInsets`).
 
 **On a phone** it stays folded at the foot until pulled up or pressed, and opens as a sheet
 half the screen high, its buttons under its head; the map's clear part shrinks to above it.
-The sheet slides up as the folded line fades, and back down as the line comes back.
+It is one sheet that grows up out of the folded line and folds back down into it
+(`useSheetFold`, 2026-11-13): its top edge slides between the two heights, the list going
+down under the foot as it folds, the sheet's head fading into the folded line as it lands
+and back out as it rises. Before, the open sheet slid off past the screen's foot while a
+second, folded tray faded in where it had been, which never looked like folding.
 
 Nothing about the tray is a cut (`useTrayMotion`, 2026-11-11): the first stroke brings it up
 from the foot (a computer's panel in from the right), Clear takes it away the same way, and

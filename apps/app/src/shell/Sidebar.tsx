@@ -65,7 +65,7 @@ import {
 } from '../connection/useDoormanTrouble'
 import { Button } from '../ui/components/Button'
 import { BrandMark } from '../ui/components/BrandMark'
-import { Heart, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
+import { Heart, More, Plus, Search, Sparkle, Tag as TagIcon } from '../ui/components/Icons'
 import { HueSwatches } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
@@ -79,6 +79,9 @@ import { useFade, useKeptWhileClosing } from '../ui/motion'
 import { Fold } from '../ui/components/Fold'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
+import { browserKeys } from '../ports/browserKeys'
+import { ASK_HINT } from '../features/search/searchDoor'
+import { useSmartOn } from '../features/smart/useSmartOn'
 import { label, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
@@ -258,22 +261,24 @@ function useScrollEdges(): {
 }
 
 /**
- * The key the menu gives Search, drawn beside the row: the installed app's, or
- * an iPad's while a keyboard is attached. Only there: a browser tab has no ⌘K
- * (its ⌘K is the browser's), and a row that named a key that does nothing
- * would teach the wrong thing.
+ * The key that opens Search, drawn beside the row: the menu's in the installed
+ * app, or an iPad's while a keyboard is attached; "/" in a browser tab, whose
+ * ⌘K is the browser's (`playbackKeys`). None on an iPad with no keyboard: a
+ * row that named a key that does nothing would teach the wrong thing.
  */
 function useSearchKeys(): readonly string[] | null {
   const accelerator = useMenuCommands()?.find(item => item.command === 'search')?.accelerator
-  if (!accelerator) return null
+  if (!accelerator) return browserKeys ? ['/'] : null
   const { modifiers, key } = acceleratorKeys(accelerator)
   return [...modifiers, key]
 }
 
 /**
- * Search, at the top of the rail: opens the command palette. A button rather
- * than a field, because the palette is where the typing happens — a second
- * box here would be two places to type the same thing.
+ * Search, at the top of the rail: opens the command palette. Drawn as the
+ * field it opens (B1, Xiao 2026-11-16: a small "Search" row in the corner
+ * said nothing about Ask), with Ask's sparkle while Ask is on. Still a button
+ * rather than a field, because the palette is where the typing happens — a
+ * second box here would be two places to type the same thing.
  *
  * Under the title-bar strip in the installed app, which the rail's padding
  * already clears, so the window's drag region never covers it.
@@ -282,6 +287,8 @@ function SearchRow(): ReactNode {
   const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
   const searchKeys = useSearchKeys()
+  const asks = useSmartOn()
+  const words = asks ? ASK_HINT : 'Search'
   return (
     <Press
       feedback="wash"
@@ -289,12 +296,14 @@ function SearchRow(): ReactNode {
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
       accessibilityRole="button"
-      accessibilityLabel="Search"
+      accessibilityLabel={words}
       testID="nav-search"
       style={[styles.search, hovered && styles.searchHovered]}
     >
-      <Search size={iconSize.button} color={theme.colors.textMuted} />
-      <Text style={styles.searchText}>Search</Text>
+      <Search size={iconSize.medium} color={theme.colors.textSecondary} />
+      <Text style={styles.searchText} numberOfLines={1}>
+        {words}
+      </Text>
       {searchKeys ? (
         <View style={styles.searchKeys}>
           {searchKeys.map(key => (
@@ -304,6 +313,7 @@ function SearchRow(): ReactNode {
           ))}
         </View>
       ) : null}
+      {asks ? <Sparkle size={iconSize.medium} /> : null}
     </Press>
   )
 }
@@ -1053,13 +1063,14 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textSecondary,
     fontSize: type.body,
   },
+  // The one Search's field, as the palette draws it with a mouse (`SearchField`, dense).
   search: {
     _web: HOVER_TRANSITION,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    minHeight: 32,
-    paddingHorizontal: space.sm,
+    minHeight: 40,
+    paddingHorizontal: space.md,
     marginTop: -space.sm,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,

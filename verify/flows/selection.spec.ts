@@ -312,7 +312,7 @@ test.describe('selecting songs', () => {
 
     // In the search box ⌘A selects the words, not the songs under it.
     await page.getByTestId('library-search').click()
-    const box = page.getByRole('combobox', { name: /Search songs, playlists and tags/ })
+    const box = page.getByRole('combobox', { name: /^Search (songs, playlists and tags|or ask),/ })
     await box.fill('abc')
     await page.keyboard.press('ControlOrMeta+a')
     await expect.poll(() => box.evaluate(el => (el as HTMLInputElement).selectionEnd)).toBe(3)

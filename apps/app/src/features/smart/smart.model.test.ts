@@ -17,6 +17,7 @@ import {
   askSuggestions,
   askable,
   asksOnEnter,
+  soundsLikeRequest,
   describeNotes,
   onlyTags,
   parts,
@@ -349,11 +350,45 @@ describe('a reply of several cards', () => {
 })
 
 describe('asksOnEnter', () => {
-  it('asks only when nothing matches, however many words', () => {
-    expect(asksOnEnter('lakeside town', 1)).toBe(false)
-    expect(asksOnEnter('yoru', 13)).toBe(false)
-    expect(asksOnEnter('something calm for studying', 0)).toBe(true)
-    expect(asksOnEnter('ab', 0)).toBe(false)
+  it('asks when nothing matches, and never for words too short to ask', () => {
+    expect(asksOnEnter('something calm for studying', 0, false)).toBe(true)
+    expect(asksOnEnter('yoru', 0, false)).toBe(true)
+    expect(asksOnEnter('ab', 0, false)).toBe(false)
+  })
+
+  it('keeps a name that matched in the search, however many words', () => {
+    expect(asksOnEnter('lakeside town', 1, true)).toBe(false)
+    expect(asksOnEnter('yoru', 13, true)).toBe(false)
+    // A long title typed whole, or the start of one, is still that song.
+    expect(asksOnEnter('where mercy endures', 2, true)).toBe(false)
+  })
+
+  it('asks when the words read as a request and name nothing found, matches or not', () => {
+    // A lyric line somewhere matched "studying": Ask still leads (D1).
+    expect(asksOnEnter('calm songs for studying', 3, false)).toBe(true)
+    expect(asksOnEnter('play jpop', 4, false)).toBe(true)
+    expect(asksOnEnter('适合学习的歌', 2, false)).toBe(true)
+    // Two words that start no request are a name, found or not.
+    expect(asksOnEnter('lakeside town', 1, false)).toBe(false)
+  })
+})
+
+describe('soundsLikeRequest', () => {
+  it('hears a question, three words or more, or two that start a request', () => {
+    expect(soundsLikeRequest('what did I play most?')).toBe(true)
+    expect(soundsLikeRequest('jpop？')).toBe(true)
+    expect(soundsLikeRequest('calm songs for studying')).toBe(true)
+    expect(soundsLikeRequest('make playlist')).toBe(true)
+    expect(soundsLikeRequest('Tag these')).toBe(true)
+    expect(soundsLikeRequest('lakeside town')).toBe(false)
+    expect(soundsLikeRequest('jpop')).toBe(false)
+  })
+
+  it('hears a word that asks in Chinese or Japanese, from four characters', () => {
+    expect(soundsLikeRequest('给我来点安静的')).toBe(true)
+    expect(soundsLikeRequest('おすすめの曲')).toBe(true)
+    expect(soundsLikeRequest('失坠的征咎')).toBe(false)
+    expect(soundsLikeRequest('什么')).toBe(false)
   })
 })
 

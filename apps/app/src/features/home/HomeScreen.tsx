@@ -25,7 +25,8 @@ import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
-import { DOOR_HINT } from '../search/searchDoor'
+import { searchHints } from '../search/searchDoor'
+import { useSmartOn } from '../smart/useSmartOn'
 import { useSearchDoor } from '../search/useSearchDoor'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { DISPLAY_SCALE } from '../../ui/textScale'
@@ -176,6 +177,8 @@ function HomePage({
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
   const openSearch = useOpenSearch()
+  // Says it takes a request too, with Ask's sparkle, while Ask is on (C1).
+  const asks = useSmartOn()
   // On a phone the field rises into Search's as it opens (`useSearchDoor`).
   const { doorRef, doorStyle, pageStyle, open: openDoor } = useSearchDoor(openSearch, wide)
 
@@ -219,7 +222,8 @@ function HomePage({
                 testID="home-search"
                 onPress={openDoor}
                 accessibilityLabel="Search"
-                placeholder={DOOR_HINT}
+                placeholder={searchHints(asks).door}
+                asks={asks}
               />
             </Reanimated.View>
           )}

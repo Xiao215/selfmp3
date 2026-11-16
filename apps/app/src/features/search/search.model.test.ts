@@ -8,6 +8,7 @@ import {
   lyricHitsHere,
   lyricsQueryFor,
   matchCount,
+  namesSomething,
   placesOf,
   recentItems,
   sectionCounts,
@@ -164,6 +165,23 @@ describe('searchLibrary', () => {
   it('counts every section, lyrics included', () => {
     const found = searchLibrary('yorushika', library)
     expect(sectionCounts(found, 2)).toEqual({ all: 5, places: 2, songs: 1, lyrics: 2 })
+  })
+})
+
+describe('namesSomething', () => {
+  it('is true for words that are part of a title, an artist or a tag found', () => {
+    expect(namesSomething(searchLibrary('racing into', library))).toBe(true)
+    expect(namesSomething(searchLibrary('yorushika', library))).toBe(true)
+  })
+
+  it('is false for words found only scattered across a song, or nothing', () => {
+    expect(namesSomething(searchLibrary('monster yoasobi', library))).toBe(false)
+    expect(namesSomething(searchLibrary('calm songs for studying', library))).toBe(false)
+  })
+
+  it('counts a playlist where one is found', () => {
+    const found = { ...searchLibrary('night drive', library), playlists: [{ name: 'Night drive' }] }
+    expect(namesSomething(found)).toBe(true)
   })
 })
 

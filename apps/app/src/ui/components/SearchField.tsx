@@ -7,7 +7,7 @@ import { ASK_TEXT_MAX } from '@selfmp3/shared'
 import { HIT_TARGET, hitSlopFor, iconSize, radius, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
-import { Search, X } from './Icons'
+import { Search, Sparkle, X } from './Icons'
 import { Press } from './Press'
 import { NO_AUTOFILL } from '../noAutofill'
 
@@ -36,11 +36,16 @@ import { NO_AUTOFILL } from '../noAutofill'
  * `focusRing` draws it focused whether or not it has the focus, for a copy
  * standing in for a field that does: Home's field on its way up into
  * Search's, which takes the focus over from it (`useSearchDoor`).
+ *
+ * `asks` is for the one Search while Ask is on (A1, Xiao 2026-11-16): Ask's
+ * sparkle at the end, in the accent, so the field says it takes a request as
+ * well as a name. Words typed put the × in its place.
  */
 export function SearchField({
   inputRef,
   raised = false,
   focusRing = false,
+  asks = false,
   trailing,
   onPress,
   style,
@@ -56,6 +61,7 @@ export function SearchField({
   inputRef?: Ref<TextInput>
   raised?: boolean
   focusRing?: boolean
+  asks?: boolean
   trailing?: ReactNode
   /** Makes it a door: pressed, it opens the search that is elsewhere. */
   onPress?: () => void
@@ -88,6 +94,7 @@ export function SearchField({
         <Text style={styles.hint} numberOfLines={1}>
           {placeholder}
         </Text>
+        {asks ? <Sparkle size={iconSize.medium} /> : null}
       </Press>
     )
   }
@@ -129,6 +136,8 @@ export function SearchField({
         >
           <X size={iconSize.field} tone="textMuted" />
         </Press>
+      ) : asks ? (
+        <Sparkle size={iconSize.medium} />
       ) : null}
     </View>
   )

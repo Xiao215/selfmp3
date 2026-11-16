@@ -298,12 +298,73 @@ export function askable(text: string): boolean {
 }
 
 /**
- * Whether Enter in Search sends the words to Ask (I1): only when nothing on
- * the device matches. People press Enter by reflex, so a song name that found
- * its song never leaves the search.
+ * Whether Enter in Search sends the words to Ask, and Ask leads the results:
+ * when nothing on the device matches (I1), or when the words read as a
+ * request and name nothing found (D1, Xiao 2026-11-16: "calm songs for
+ * studying" matched a lyric line somewhere, so Ask sank under it and Enter
+ * did nothing useful). People press Enter by reflex, so a song name that
+ * found its song never leaves the search, however long it is.
  */
-export function asksOnEnter(text: string, matches: number): boolean {
-  return askable(text) && matches === 0
+export function asksOnEnter(text: string, matches: number, namesSomething: boolean): boolean {
+  if (!askable(text)) return false
+  return matches === 0 || (!namesSomething && soundsLikeRequest(text))
+}
+
+/** The first word of a request, in English: "play something calm", "which songs…". */
+const REQUEST_START = new Set([
+  'add',
+  'any',
+  'anything',
+  'delete',
+  'find',
+  'fix',
+  'get',
+  'give',
+  'how',
+  'list',
+  'make',
+  'more',
+  'play',
+  'put',
+  'queue',
+  'remove',
+  'show',
+  'shuffle',
+  'skip',
+  'some',
+  'something',
+  'songs',
+  'sort',
+  'tag',
+  'tidy',
+  'what',
+  'when',
+  'which',
+  'who',
+  'why',
+])
+
+/**
+ * Words in Chinese or Japanese that make a request of what is typed, where
+ * no spaces part the words: 给我, 来点, 适合; おすすめ, 教えて.
+ */
+const REQUEST_MARK =
+  /给我|帮我|来点|来些|来首|播放|推荐|适合|一些|哪些|哪首|什么|多少|吗|呢|おすすめ|教えて|ください|流して|どの|なに|何/u
+
+/**
+ * Whether the words read as a request rather than a name (D1): a question
+ * mark, three words or more, two that start the way a request does ("play
+ * jpop"), or in Chinese or Japanese a word that asks (`REQUEST_MARK`) in four
+ * characters or more. Asked only of words that name nothing found
+ * (`asksOnEnter`), so a long song title is still a title.
+ */
+export function soundsLikeRequest(text: string): boolean {
+  const trimmed = text.trim()
+  if (/[?？]/u.test(trimmed)) return true
+  const words = trimmed.toLowerCase().split(/\s+/).filter(Boolean)
+  if (words.length >= 3) return true
+  if (words.length === 2 && REQUEST_START.has(words[0]!)) return true
+  return [...trimmed].length >= 4 && REQUEST_MARK.test(trimmed)
 }
 
 /**

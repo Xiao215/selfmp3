@@ -4,8 +4,11 @@ import { pageKeptCombinations } from '@selfmp3/desktop-bridge'
 import { playbackKeys } from './playbackKeys'
 
 describe('playbackKeys', () => {
-  it('gives a browser tab Space for play and pause, and nothing else', () => {
-    expect([...playbackKeys(false)]).toEqual([[' ', 'play-pause']])
+  it('gives a browser tab Space for play and pause and / for Search, and nothing else', () => {
+    expect([...playbackKeys(false)]).toEqual([
+      [' ', 'play-pause'],
+      ['/', 'search'],
+    ])
   })
 
   it('leaves the browser its own keys: Back, Forward, changing tabs, ⌘K', () => {

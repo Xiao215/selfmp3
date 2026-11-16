@@ -107,6 +107,7 @@ const draw = async (query: string) => {
       useLibrarySearch(query, {
         search: () => [],
         matches: (_found, lyricHits) => lyricHits,
+        names: () => false,
       }),
     { wrapper },
   )

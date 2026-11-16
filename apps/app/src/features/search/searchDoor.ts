@@ -23,11 +23,21 @@ import { createValueStore } from '../../state/valueStore.model'
 /** Home's field on its way to Search or back, drawn over every page (`SearchDoorLayer`). */
 export const doorFlight = createValueStore<ReactNode>(null)
 
-/** What Home's field says. */
-export const DOOR_HINT = 'One song, an artist, a lyric…'
+/**
+ * What the one Search says before anything is typed: Home's field (`door`)
+ * and Search's own (`search`). While Ask is on, both say it takes a request
+ * as well as a name (A1, Xiao 2026-11-16: "One song, an artist, a lyric…"
+ * promised a lookup, and nobody guessed they could ask). Off, they say what
+ * there is to find.
+ */
+export function searchHints(asks: boolean): { readonly door: string; readonly search: string } {
+  return asks
+    ? { door: ASK_HINT, search: ASK_HINT }
+    : { door: 'One song, an artist, a lyric…', search: 'Songs, tags, artists, lyrics' }
+}
 
-/** What Search's field says before anything is typed. */
-export const SEARCH_HINT = 'Songs, tags, artists, lyrics'
+/** The one Search's words while Ask is on, on every platform: the rail, Home, Search, the palette. */
+export const ASK_HINT = 'Search or ask'
 
 /**
  * The keyboard Search's field asks for. Home's rising field asks for the same

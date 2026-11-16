@@ -6,13 +6,17 @@ import { pageKeptCombinations, type Command } from '@selfmp3/desktop-bridge'
  * In the installed app, the ones its menu draws but leaves to the page: Space
  * and the ⌘-arrows (`pageKeptCombinations`).
  *
- * In a browser tab, Space alone, for play and pause — what anyone who has
- * paused a video or a web player expects of a page that plays music. The rest
- * belong to the browser: ⌘← and ⌘→ are Back and Forward, and ⌥⌘← and ⌥⌘→
+ * In a browser tab, Space for play and pause — what anyone who has paused a
+ * video or a web player expects of a page that plays music — and "/" for
+ * Search, as on most sites with a search box. The rest belong to the browser: ⌘← and ⌘→ are Back and Forward, and ⌥⌘← and ⌥⌘→
  * change tabs. ⌘K stays the browser's too.
  */
 export function playbackKeys(installedApp: boolean): ReadonlyMap<string, Command> {
   return installedApp ? pageKeptCombinations() : BROWSER_KEYS
 }
 
-const BROWSER_KEYS: ReadonlyMap<string, Command> = new Map<string, Command>([[' ', 'play-pause']])
+const BROWSER_KEYS: ReadonlyMap<string, Command> = new Map<string, Command>([
+  [' ', 'play-pause'],
+  // Search (B1, Xiao 2026-11-16), as on most sites with a search box: the rail draws it.
+  ['/', 'search'],
+])

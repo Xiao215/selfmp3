@@ -176,7 +176,7 @@ test.describe('navigation', () => {
     test.skip(info.project.name !== 'desktop', 'one window, resized; the phone project is fixed')
     await page.setViewportSize({ width: 1194, height: 834 })
     await page.goto('/search')
-    const field = page.getByPlaceholder('Songs, tags, artists, lyrics')
+    const field = page.getByTestId('search-field')
     await expect(field).toBeVisible({ timeout: 30_000 })
     await field.fill('yoas')
     // A mark on the element itself: a remounted page would draw a new field without it.

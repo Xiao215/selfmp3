@@ -25,7 +25,7 @@ test.describe('command palette', () => {
     await skipIfNoLibrary(page)
 
     const title = await titleOf(songRows(page).nth(2))
-    const box = page.getByRole('combobox', { name: /Search songs, playlists and tags/ })
+    const box = page.getByRole('combobox', { name: /^Search (songs, playlists and tags|or ask),/ })
     const search = page.getByTestId('nav-search')
 
     // No key of its own in a tab: ⌘K is the browser's.
@@ -71,7 +71,7 @@ test.describe('command palette', () => {
    */
   test('every door opens the same search, and it finds an artist', async ({ page }, info) => {
     test.skip(info.project.name === 'phone', 'a phone opens the Search page instead')
-    const box = page.getByRole('combobox', { name: /Search songs, playlists and tags/ })
+    const box = page.getByRole('combobox', { name: /^Search (songs, playlists and tags|or ask),/ })
 
     await page.goto('/')
     await page.getByTestId('nav-search').click()

@@ -125,6 +125,32 @@ export function matchCount(found: SearchFound, lyricLines: number): number {
   return sectionCounts(found, lyricLines).all - found.named.length
 }
 
+/**
+ * Whether what was typed is part of the name of something it found: a song's
+ * title, album or artist, an artist, a tag or a playlist (D1). Such words are
+ * a name, however much they read like a sentence, so Enter keeps to the
+ * matches rather than asking. A tag only some of the words name, or a line
+ * of lyrics, is not that.
+ */
+export function namesSomething(found: {
+  readonly words: string
+  readonly songs: readonly Pick<Song, 'title' | 'album' | 'artist'>[]
+  readonly tags: readonly Pick<Tag, 'name'>[]
+  readonly artists: readonly Pick<Artist, 'name'>[]
+  readonly playlists?: readonly { readonly name: string }[]
+}): boolean {
+  const words = found.words
+  if (!words) return false
+  const has = (name: string | null | undefined): boolean =>
+    name ? name.toLowerCase().includes(words) : false
+  return (
+    found.songs.some(song => has(song.title) || has(song.album) || has(song.artist)) ||
+    found.tags.some(tag => has(tag.name)) ||
+    found.artists.some(artist => has(artist.name)) ||
+    (found.playlists ?? []).some(playlist => has(playlist.name))
+  )
+}
+
 /** A place a query found: an artist or a tag, drawn together at the top of All. */
 export type SearchPlace =
   { readonly kind: 'artist'; readonly artist: Artist } | { readonly kind: 'tag'; readonly tag: Tag }

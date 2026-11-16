@@ -35,9 +35,10 @@ interface LibrarySearch<Found> {
   /** What the words in the field now find, for a key that cannot wait for the results. */
   readonly foundNow: () => Found
   /**
-   * Whether these words, having found this, are a question for Ask (I1): Ask
-   * is on, they are long enough to ask, and nothing on the device matches.
-   * The palette puts its Ask row first then, so Enter takes it.
+   * Whether these words, having found this, are a question for Ask: Ask is
+   * on, they are long enough to ask, and nothing on the device matches (I1)
+   * or they read as a request and name nothing found (D1, `asksOnEnter`).
+   * Search and the palette put Ask first then, so Enter takes it.
    */
   readonly asks: (found: Found, text: string) => boolean
   /**
@@ -63,11 +64,14 @@ export function useLibrarySearch<Found>(
   {
     search,
     matches,
+    names,
   }: {
     /** What a query finds. Kept the same function while the library is the same, so the results are not worked out again. */
     search: (text: string) => Found
     /** How many results a find is, with this many lines of lyrics. */
     matches: (found: Found, lyricHits: number) => number
+    /** Whether the words are part of the name of something found (`namesSomething`). */
+    names: (found: Found) => boolean
   },
 ): LibrarySearch<Found> {
   const smartOn = useSmartOn()
@@ -83,7 +87,7 @@ export function useLibrarySearch<Found>(
 
   const foundNow = (): Found => (shown === query ? found : search(query))
   const asks = (them: Found, text: string): boolean =>
-    smartOn && asksOnEnter(text, matches(them, lyricHits.length))
+    smartOn && asksOnEnter(text, matches(them, lyricHits.length), names(them))
   return {
     shown,
     found,

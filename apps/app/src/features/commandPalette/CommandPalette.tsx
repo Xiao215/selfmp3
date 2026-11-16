@@ -48,6 +48,7 @@ import {
   PALETTE_LYRICS,
   commandHref,
   paletteMatches,
+  paletteNames,
   paletteResults,
   stepIndex,
   type PaletteCommandId,
@@ -128,6 +129,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       [library.data, fromCloud, pathname, currentSongId],
     ),
     matches: paletteMatches,
+    names: paletteNames,
   })
   const shownQuery = search.shown
   const lyricHits = search.lyricHits.slice(0, PALETTE_LYRICS)
@@ -226,8 +228,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         },
       ],
     }
-    // First when nothing on the device matches, so ↵ asks; after the matches
-    // otherwise, so ↵ still opens the song or tag that was typed.
+    // First when nothing on the device matches, or the words read as a request
+    // and name nothing found (D1), so ↵ asks; after the matches otherwise, so
+    // ↵ still opens the song or tag that was typed.
     return search.asks(found, text) ? [ask, ...groups] : [...groups, ask]
   }
 
@@ -501,7 +504,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
               onClose()
             }
           }}
-          placeholder="Search songs, playlists, tags — or type a command"
+          // Says it asks as well while Ask is on (A1), as the rail's field does.
+          placeholder={
+            smartOn
+              ? 'Search, ask, or type a command'
+              : 'Search songs, playlists, tags — or type a command'
+          }
           autoCapitalize="none"
           autoCorrect={false}
           spellCheck={false}
@@ -510,12 +518,18 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           aria-controls={listId}
           aria-activedescendant={rows.length > 0 ? optionId(active) : undefined}
           aria-autocomplete="list"
-          accessibilityLabel="Search songs, playlists and tags, or type a command"
+          accessibilityLabel={
+            smartOn
+              ? 'Search or ask, or type a command'
+              : 'Search songs, playlists and tags, or type a command'
+          }
           trailing={
             trimmed ? (
               <Text style={styles.count} accessibilityLiveRegion="polite">
                 {plural(rows.length, 'result', 'results')}
               </Text>
+            ) : smartOn ? (
+              <Sparkle size={iconSize.medium} />
             ) : null
           }
         />

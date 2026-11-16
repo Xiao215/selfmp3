@@ -1,6 +1,6 @@
 import { plural, fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
 import { isUntagged } from '../tag/tag.model'
-import { recentItems, searchLibrary, type RecentItem } from '../search/search.model'
+import { namesSomething, recentItems, searchLibrary, type RecentItem } from '../search/search.model'
 
 /**
  * The command palette's rules, with nothing drawn: which commands there are, what a
@@ -200,6 +200,17 @@ export function paletteMatches(found: PaletteResults, lyricHits: number): number
     Math.min(lyricHits, PALETTE_LYRICS) +
     found.playlists.length +
     found.commands.length
+  )
+}
+
+/**
+ * Whether what was typed is part of the name of something the palette found,
+ * a command's included: "shuffle all" is the command, not a request (D1).
+ */
+export function paletteNames(found: PaletteResults): boolean {
+  return (
+    namesSomething(found) ||
+    found.commands.some(command => command.label.toLowerCase().includes(found.words))
   )
 }
 

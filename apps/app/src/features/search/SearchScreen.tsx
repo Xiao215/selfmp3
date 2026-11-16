@@ -65,6 +65,7 @@ import {
   guestWords,
   isSearchSection,
   matchCount,
+  namesSomething,
   placesOf,
   searchLibrary,
   SECTION_TITLES,
@@ -93,8 +94,8 @@ import { useMotionReduced } from '../../ui/motion'
 import { EASE_IN_POINTS, MOVE_MS } from '../../ui/motion.model'
 import {
   returnToDoor,
-  SEARCH_HINT,
   SEARCH_KEYBOARD,
+  searchHints,
   settleDoor,
   takeDoorArrival,
 } from './searchDoor'
@@ -188,18 +189,20 @@ export function SearchScreen(): ReactNode {
   const search = useLibrarySearch(query, {
     search: useCallback((text: string) => searchLibrary(text, library), [library]),
     matches: matchCount,
+    names: namesSomething,
   })
   const { shown, found, lyricHits, lyricsAway } = search
   const typed = shown.trim() !== ''
 
   const empty = useMemo(() => beforeTyping(library, currentId), [library, currentId])
   const counts = sectionCounts(found, lyricHits.length)
-  const matched = matchCount(found, lyricHits.length)
   const words = shown.trim()
   const smartOn = useSmartOn()
   // A guest in a room (`opensSignedOut`): no Ask, which would open the sign-in page.
   const guest = useConnection().status === 'missing'
   const offerAsk = smartOn && !guest && section === null && askable(words)
+  // Ask leads when nothing matches, or the words read as a request (D1): Enter asks then.
+  const askFirst = offerAsk && search.asks(found, words)
   const linksOn = adding !== null && youMay(adding, 'addLink')
   const forGuest = guest ? guestWords(linksOn) : null
   // A YouTube or 网易云 link typed while adding: looked up, not searched for.
@@ -317,8 +320,9 @@ export function SearchScreen(): ReactNode {
                     setQuery(text)
                     if (text.trim() === '') setSection(null)
                   }}
-                  // Enter asks only when nothing matches (I1); with matches it puts
-                  // the keyboard away and the results stay where they are.
+                  // Enter asks when nothing matches (I1) or the words read as a
+                  // request (D1); otherwise it puts the keyboard away and the
+                  // results stay where they are.
                   onSubmitEditing={() => {
                     if (!guest && search.enterAsks()) ask(query.trim())
                     else field.current?.blur()
@@ -328,8 +332,9 @@ export function SearchScreen(): ReactNode {
                       ? forGuest.placeholder
                       : adding
                         ? 'Songs, a link, or ask for some'
-                        : SEARCH_HINT
+                        : searchHints(smartOn).search
                   }
+                  asks={smartOn && !guest}
                   // ↓ goes from the field down into the results, as the
                   // palette's does: Tab past Cancel was the only way in.
                   onKeyPress={event => {
@@ -419,7 +424,7 @@ export function SearchScreen(): ReactNode {
                         nativeID={RESULTS_ID}
                         contentContainerStyle={[styles.results, bar.listPadding]}
                       >
-                        {!link && offerAsk && matched === 0 ? (
+                        {!link && askFirst ? (
                           <AskCard words={words} first onAsk={() => ask(words)} />
                         ) : null}
                         {adding && link ? <LinkPick state={adding} url={link} /> : null}
@@ -443,7 +448,7 @@ export function SearchScreen(): ReactNode {
                             adds={adding ? adds : null}
                           />
                         )}
-                        {!link && offerAsk && matched > 0 ? (
+                        {!link && offerAsk && !askFirst ? (
                           <AskCard words={words} first={false} onAsk={() => ask(words)} />
                         ) : null}
                         {/* Nothing to say while Ask is offered: it is what to do next (D1). */}

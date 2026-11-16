@@ -24,13 +24,14 @@ import { useValueStore } from '../../state/useValueStore'
 import { EASE_OUT_POINTS, MOVE_MS } from '../../ui/motion.model'
 import { PAGE_TOP_PHONE } from '../../ui/surfaces'
 import { BeforeTypingCopy } from './SearchScreen'
+import { Sparkle } from '../../ui/components/Icons'
+import { useSmartOn } from '../smart/useSmartOn'
 import {
-  DOOR_HINT,
   doorFlight,
   listenAsDoor,
   markDoorArrival,
-  SEARCH_HINT,
   SEARCH_KEYBOARD,
+  searchHints,
 } from './searchDoor'
 
 /** A field's place in the window: its top-left corner and its width. */
@@ -288,6 +289,8 @@ function DoorFlight({
   const landed = useRef(false)
   const [words, setWords] = useState('')
   const [listsDrawn, setListsDrawn] = useState(false)
+  const asks = useSmartOn()
+  const hints = searchHints(asks)
 
   const fieldStyle = useAnimatedStyle(() => {
     if (placed.value === 0) return { opacity: 0, width: '100%', transform: [] }
@@ -345,18 +348,25 @@ function DoorFlight({
               }}
               placeholder=""
               accessibilityLabel="Search"
-              trailing={null}
+              // Ask's sparkle rides up with the field, as both ends draw it.
+              trailing={asks && words === '' ? <Sparkle size={iconSize.medium} /> : null}
             />
-            {words === '' ? (
+            {words === '' && hints.door === hints.search ? (
+              <View pointerEvents="none" style={[styles.hints, dense && styles.hintsDense]}>
+                <Reanimated.Text style={styles.hint} numberOfLines={1}>
+                  {hints.door}
+                </Reanimated.Text>
+              </View>
+            ) : words === '' ? (
               <View pointerEvents="none" style={[styles.hints, dense && styles.hintsDense]}>
                 <Reanimated.Text style={[styles.hint, doorHintStyle]} numberOfLines={1}>
-                  {DOOR_HINT}
+                  {hints.door}
                 </Reanimated.Text>
                 <Reanimated.Text
                   style={[styles.hint, styles.hintOver, searchHintStyle]}
                   numberOfLines={1}
                 >
-                  {SEARCH_HINT}
+                  {hints.search}
                 </Reanimated.Text>
               </View>
             ) : null}

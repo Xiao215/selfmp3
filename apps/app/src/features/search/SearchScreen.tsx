@@ -598,6 +598,7 @@ function BeforeTyping({
               now={now}
               onPress={() => router.push({ pathname: '/ask', params: { thread: thread.thread } })}
               testID={`search-asked-${index}`}
+              style={styles.place}
             />
           ))}
         </View>

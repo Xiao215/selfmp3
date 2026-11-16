@@ -5,6 +5,7 @@ import {
   commandHref,
   paletteCommands,
   paletteMatches,
+  paletteNames,
   paletteResults,
   stepIndex,
   untaggedCount,
@@ -163,5 +164,12 @@ describe('the command palette', () => {
     expect(stepIndex(0, -1, 5)).toBe(4)
     expect(stepIndex(4, 1, 5)).toBe(0)
     expect(stepIndex(2, 1, 0)).toBe(0)
+  })
+
+  it('takes part of a command’s name, or a song’s or a playlist’s, as naming it, not as a request', () => {
+    expect(paletteNames(paletteResults('shuffle every', library))).toBe(true)
+    expect(paletteNames(paletteResults('racing into', library))).toBe(true)
+    expect(paletteNames(paletteResults('reference — evening', library))).toBe(true)
+    expect(paletteNames(paletteResults('play something calm', library))).toBe(false)
   })
 })

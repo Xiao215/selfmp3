@@ -207,8 +207,9 @@ export function paletteMatches(found: PaletteResults, lyricHits: number): number
 }
 
 /**
- * Whether what was typed is part of the name of something the palette found,
- * a command's included: "shuffle all" is the command, not a request (D1).
+ * Whether what was typed names something the palette found (D1): part of a
+ * song's, a place's or a playlist's name, or of a command found ("shuffle
+ * every" is Shuffle everything, not a request for Ask).
  */
 export function paletteNames(found: PaletteResults): boolean {
   return (

@@ -13,7 +13,6 @@ import {
 } from '@selfmp3/shared'
 import { failureText, radius, shareLinkUrl, space } from '@selfmp3/client'
 import { linkAddress } from '../../ports/linkAddress'
-import { copyText } from '../../ports/clipboard'
 import { hasTabs, openInNewTab } from '../../ports/newTab'
 import { canShareLink, shareLink } from '../../ports/shareLink'
 import { useArt } from '../../offline/useArt'
@@ -21,6 +20,7 @@ import { usePlayingSongId } from '../../player/PlayerProvider'
 import { library as cloudLibrary } from '../../replica'
 import { hint, lineSub, smallTitle, textColumn } from '../../ui/surfaces'
 import { useSongsById } from '../../ui/songsById'
+import { useCopied } from '../../ui/useCopied'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -47,9 +47,6 @@ import { closeShareSheet, useShareRequest, type ShareRequest } from './shareShee
  * on that song rather than its first. Drawn once, by the shell, and by the phone's Now
  * Playing while it covers the shell.
  */
-
-/** How long the copy icon is a tick before it is the copy icon again. */
-const COPIED_MS = 2000
 
 /** One link per opening, however often a render or a strict effect asks for it. */
 const making = new WeakMap<ShareRequest, Promise<ShareLink>>()
@@ -231,12 +228,7 @@ function MadeLink({
   const [onPlaying, setOnPlaying] = useState(true)
   const url = opensOn && onPlaying ? opensOn.url : firstUrl
   const path = opensOn && onPlaying ? opensOn.path : firstPath
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    if (!copied) return undefined
-    const timer = setTimeout(() => setCopied(false), COPIED_MS)
-    return () => clearTimeout(timer)
-  }, [copied])
+  const { copied, copy } = useCopied('Couldn’t copy the link')
 
   return (
     <>
@@ -272,12 +264,7 @@ function MadeLink({
         <IconButton
           label={copied ? 'Link copied' : 'Copy link'}
           caption={copied ? 'Copied' : 'Copy link'}
-          onPress={() =>
-            void copyText(url).then(done => {
-              if (done) setCopied(true)
-              else showToast('Couldn’t copy the link', 'error')
-            })
-          }
+          onPress={() => copy(url)}
           testID="share-sheet-copy"
         >
           {copied ? <Check tone="textPrimary" /> : <Copy tone="textSecondary" />}

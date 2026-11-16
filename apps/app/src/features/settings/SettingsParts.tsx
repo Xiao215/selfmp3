@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { Circle, Svg } from 'react-native-svg'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { radius, type, space, iconSize, textStyle } from '@selfmp3/client'
-import { ChevronRight, Copy, Minus, Plus } from '../../ui/components/Icons'
+import { Check, ChevronRight, Copy, Minus, Plus } from '../../ui/components/Icons'
 import { card, label, hint } from '../../ui/surfaces'
 import { clamp01 } from '@selfmp3/shared'
 import { OPACITY } from '../../ui/motion.model'
@@ -12,8 +12,7 @@ import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { useLargeText } from '../../ui/textScale'
-import { copyText } from '../../ports/clipboard'
-import { showToast } from '../../ui/toast'
+import { useCopied } from '../../ui/useCopied'
 
 /**
  * The pieces every Settings page is made of (redesign B, 2026-10-26): one row
@@ -330,21 +329,23 @@ export function Stepper({
  * copy. A phone cuts it in the middle, where the folder's own name survives.
  */
 export function PathRow({ label: name, path }: { label: string; path: string }): ReactNode {
+  const { copied, copy } = useCopied()
   return (
     <Row label={name}>
       <Text style={styles.path} numberOfLines={1} ellipsizeMode="middle" selectable>
         {path}
       </Text>
       <IconButton
-        label={`Copy ${name.toLowerCase()}`}
+        label={copied ? `${name} copied` : `Copy ${name.toLowerCase()}`}
+        caption={copied ? 'Copied' : undefined}
         size={32}
-        onPress={() =>
-          void copyText(path).then(done =>
-            done ? showToast('Copied', 'good') : showToast('Couldn’t copy it', 'error'),
-          )
-        }
+        onPress={() => copy(path)}
       >
-        <Copy size={iconSize.field} tone="textMuted" />
+        {copied ? (
+          <Check size={iconSize.field} tone="textMuted" />
+        ) : (
+          <Copy size={iconSize.field} tone="textMuted" />
+        )}
       </IconButton>
     </Row>
   )

@@ -13,12 +13,11 @@ import { radius, space, type, textStyle, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { copyText } from '../../ports/clipboard'
 import { SelectableText } from '../../ports/selectableText'
 import { Button } from '../../ui/components/Button'
 import { Check, Copy as CopyIcon } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
-import { showToast } from '../../ui/toast'
+import { useCopied } from '../../ui/useCopied'
 import { foundSource } from '../lists/lists.model'
 import { cardHeading } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
@@ -406,6 +405,7 @@ function Words({
   testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
+  const { copied, copy: copyWords } = useCopied()
   return (
     <View style={styles.words}>
       <SelectableText style={styles.answer} testID={testID}>
@@ -418,15 +418,17 @@ function Words({
           ) : null}
           {copy ? (
             <Button
-              label="Copy"
+              label={copied ? 'Copied' : 'Copy'}
               variant="text"
               size="small"
-              icon={<CopyIcon size={iconSize.sub} color={theme.colors.textSecondary} />}
-              onPress={() =>
-                void copyText(text).then(done => {
-                  if (done) showToast('Copied', 'good')
-                })
+              icon={
+                copied ? (
+                  <Check size={iconSize.sub} color={theme.colors.textSecondary} />
+                ) : (
+                  <CopyIcon size={iconSize.sub} color={theme.colors.textSecondary} />
+                )
               }
+              onPress={() => copyWords(text)}
               testID="ask-copy"
             />
           ) : null}

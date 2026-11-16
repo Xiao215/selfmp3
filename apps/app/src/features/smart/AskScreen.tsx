@@ -337,6 +337,12 @@ export function AskScreen(): ReactNode {
   )
   const pushed = usePushedPage(wide ? null : openList, window.width, reduced)
 
+  // The toasts rise above the field rather than cover it, on a computer as on
+  // a phone; but not while it waits in the middle, where nothing of it is at
+  // the foot (A2). From an effect rather than the field's own layout, which
+  // is not told when the first question moves it down at the same size.
+  const [dockHeight, setDockHeight] = useState(0)
+  useEffect(() => setPageFoot(starting ? 0 : dockHeight), [starting, dockHeight])
   useEffect(() => () => setPageFoot(0), [])
   const { top } = useSafeAreaInsets()
   const frame = pageFrame(wide)
@@ -350,8 +356,7 @@ export function AskScreen(): ReactNode {
   const dock = (
     <View
       style={[styles.dock, wide && styles.dockWide, wide && styles.column]}
-      // The toasts rise above the field rather than cover it.
-      onLayout={event => setPageFoot(wide ? 0 : event.nativeEvent.layout.height)}
+      onLayout={event => setDockHeight(event.nativeEvent.layout.height)}
     >
       <AskField
         inputRef={field}

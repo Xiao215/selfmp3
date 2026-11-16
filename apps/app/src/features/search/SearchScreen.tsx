@@ -67,6 +67,7 @@ import {
   matchCount,
   namesSomething,
   placesOf,
+  RECENT_ASKS,
   searchLibrary,
   SECTION_TITLES,
   sectionCounts,
@@ -74,6 +75,8 @@ import {
   type SearchSection,
 } from './search.model'
 import { useSongsById } from '../../ui/songsById'
+import { AskedLine } from '../smart/AskedLine'
+import { useAskedThreads } from '../smart/askThread.store'
 import { useFocusOnArrival } from '../../ui/useFocusOnArrival'
 import { showToast } from '../../ui/toast'
 import { useFadeMotion } from '../../ui/rowMotion'
@@ -560,7 +563,10 @@ export function BeforeTypingCopy(): ReactNode {
   )
 }
 
-/** Before anything is typed: your tags and what you played last. No history is kept. */
+/**
+ * Before anything is typed: the conversations with Ask this device kept (E1),
+ * your tags, and what you played last. Words typed here are never kept.
+ */
 function BeforeTyping({
   tags,
   recent,
@@ -574,8 +580,28 @@ function BeforeTyping({
   listPadding: ViewStyle | undefined
 }): ReactNode {
   const openTag = useOpenTag()
+  const router = useRouter()
+  const smartOn = useSmartOn()
+  const kept = useAskedThreads()
+  const asks = smartOn ? kept.slice(0, RECENT_ASKS) : []
+  // Read once: "Asked yesterday" need not turn over while the page is open.
+  const [now] = useState(() => new Date())
   return (
     <ScrollView contentContainerStyle={[styles.results, listPadding]}>
+      {asks.length > 0 ? (
+        <View style={styles.section}>
+          <SectionHead title="You asked" style={styles.sectionHead} />
+          {asks.map((thread, index) => (
+            <AskedLine
+              key={thread.thread}
+              thread={thread}
+              now={now}
+              onPress={() => router.push({ pathname: '/ask', params: { thread: thread.thread } })}
+              testID={`search-asked-${index}`}
+            />
+          ))}
+        </View>
+      ) : null}
       {tags.length > 0 ? (
         <View style={styles.section}>
           <SectionHead title="Your tags" style={styles.sectionHead} />

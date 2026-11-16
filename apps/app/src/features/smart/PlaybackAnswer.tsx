@@ -79,6 +79,18 @@ export function PlaybackAnswer({
   )
 }
 
+/**
+ * A playback answer brought back from earlier (a conversation reopened from
+ * Recent): what it came to when it was asked, and nothing done now.
+ */
+export function PlaybackSaid({ said }: { said: string | null }): ReactNode {
+  return (
+    <Text style={styles.line} testID="ask-playback-said">
+      {said ?? 'Done when you asked.'}
+    </Text>
+  )
+}
+
 const styles = StyleSheet.create(theme => ({
   line: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))

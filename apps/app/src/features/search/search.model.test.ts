@@ -205,24 +205,47 @@ describe('All', () => {
 })
 
 describe('recentItems', () => {
+  const dated = {
+    ...library,
+    songs: [
+      song(1, 'アイドル', 'x', { lastPlayedAt: '2026-09-10T10:00:00Z' }),
+      song(2, 'Racing', 'x', { lastPlayedAt: '2026-09-12T10:00:00Z' }),
+      song(3, 'Monster', 'x', { lastPlayedAt: null }),
+    ],
+    playlists: [{ id: 9, name: 'evening', lastPlayedAt: '2026-09-11T10:00:00Z' }] as never,
+  }
+  const keys = (items: readonly RecentItem[]) =>
+    items.map(item =>
+      item.kind === 'song'
+        ? `song-${item.song.id}`
+        : item.kind === 'ask'
+          ? `ask-${item.thread.thread}`
+          : `playlist-${item.playlist.id}`,
+    )
+
   it('lists what was played lately, the loaded song first', () => {
-    const dated = {
-      ...library,
-      songs: [
-        song(1, 'アイドル', 'x', { lastPlayedAt: '2026-09-10T10:00:00Z' }),
-        song(2, 'Racing', 'x', { lastPlayedAt: '2026-09-12T10:00:00Z' }),
-        song(3, 'Monster', 'x', { lastPlayedAt: null }),
-      ],
-      playlists: [{ id: 9, name: 'evening', lastPlayedAt: '2026-09-11T10:00:00Z' }] as never,
-    }
-    const keys = (items: readonly RecentItem[]) =>
-      items.map(item =>
-        item.kind === 'song' ? `song-${item.song.id}` : `playlist-${item.playlist.id}`,
-      )
     expect(keys(recentItems(dated))).toEqual(['song-2', 'playlist-9', 'song-1'])
     expect(keys(recentItems(dated, 3))).toEqual(['song-3', 'song-2', 'playlist-9', 'song-1'])
     expect(keys(recentItems(dated, 1, 2))).toEqual(['song-1', 'song-2'])
     expect(recentItems(undefined)).toEqual([])
+  })
+
+  it('lists conversations kept with Ask among them by when they were asked, a few at most', () => {
+    const asked = (thread: string, at: string) => ({ thread, asked: thread, at, questions: 1 })
+    const asks = [
+      asked('a', '2026-09-13T08:00:00Z'),
+      asked('b', '2026-09-11T12:00:00Z'),
+      asked('c', '2026-09-01T00:00:00Z'),
+      asked('d', '2026-08-01T00:00:00Z'),
+    ]
+    expect(keys(recentItems(dated, null, 6, asks))).toEqual([
+      'ask-a',
+      'song-2',
+      'ask-b',
+      'playlist-9',
+      'song-1',
+      'ask-c',
+    ])
   })
 
   it('orders a server stamp and an ISO one by the time they say, not as text', () => {

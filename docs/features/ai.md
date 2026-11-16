@@ -313,12 +313,22 @@ forced `tool_choice`, `NATIVE_TOOLS=0`).
 
 ## S1 · Ask in the Search box
 
-The one box for most of it: Home's search bar and the sidebar's Search on a computer (the
-command palette), the Search page on a phone. Letters stay a search, matched on the device
-as you type; nothing is sent anywhere until you ask. Three letters or more add an **Ask**
-row (`askable`): first when nothing matched, so ↵ asks (`asksOnEnter`); after the matches
-otherwise, so ↵ still opens what was typed in the palette, and on the Search page only puts
-the keyboard away. A match is a word start or a run of letters
+The one box for most of it: the sidebar's field on a computer (the command palette; "/" opens
+it in a browser tab, ⌘K in the installed app), Home's field and the Search page on a phone.
+While Ask is on, every one of them says **"Search or ask"** with Ask's sparkle at its end
+(A1 + B1 + C1, Xiao 2026-11-16, canvas https://claude.ai/artifact/Y43BRNpb5cyiTqib13g9S5:
+"One song, an artist, a lyric…" and a small "Search" row promised a lookup, and nobody
+guessed they could ask; `searchHints` in `searchDoor.ts`, `SearchField`'s `asks`). No
+ready-made questions are offered: Xiao turned those down. Letters stay a search, matched on
+the device as you type; nothing is sent anywhere until you ask. Three letters or more add
+an **Ask** row (`askable`). It comes first, so ↵ asks (`asksOnEnter`), when nothing
+matched, or when the words read as a request (`soundsLikeRequest`: a question mark, three
+words or more, two that start a request such as "play jpop", or a word that asks in
+Chinese or Japanese) and are not part of the name of anything found (`namesSomething`,
+`paletteNames`): D1 of the same canvas, since "calm songs for studying" matched a lyric
+line somewhere and Ask sank under it. Otherwise it comes after the matches, so ↵ still
+opens what was typed in the palette, and on the Search page only puts the keyboard away.
+A match is a word start or a run of letters
 ([lyrics-plus.md](lyrics-plus.md), "Search by name"), so a mood typed whole ("calm evening")
 matches nothing and Ask leads, on both layouts, with no "Nothing matches" line under it; the
 tags some of the words name ("calm") are listed after it, and do not count as a match. A
@@ -377,11 +387,19 @@ conversation, saying after what it used (the "From" line). Until 2026-11-12 the 
 the list as a chip, "↳ these 19 songs", that could be let go; a shelf of such chips (B4)
 was proposed and left out as work for the person. While a turn is worked on its send is the one
 Stop, which takes that turn off the page and puts its words back in the field. ‹ goes back
-to Search, and the conversation is not kept after it (so there is no "new chat" button);
-the page drawn again any other way finds its turns as they were (`askThread.store.ts`).
-Each visit is its own conversation, named in the address (`&thread=…`): the same words
-asked again from Search start afresh, and a reload, which loses the turns, opens with the
-question waiting in the field rather than asked (and done) again. A
+to Search; the page drawn again finds its turns as they were (`askThread.store.ts`). Each
+visit is its own conversation, named in the address (`&thread=…`), so the same words asked
+again from Search start afresh (there is no "new chat" button).
+
+The newest eight conversations are kept on the device (E1, 2026-11-16): Search's "You
+asked" on a phone and the palette's Recent list them (`AskedLine`, at most three, among
+what was played by when they were last asked), and pressing one opens `/ask?thread=…` where
+it was left. Only answered turns are kept, each with its reply (`Turn.reply`), so a
+conversation reopened is drawn from what came and never asked again; it comes back
+`broughtBack`, so a list asked to play doesn't play and a playback card shows what it came
+to then (`Turn.carried`, `PlaybackSaid`) instead of skipping again. A room's conversation
+is kept for the visit only. A reload of one not kept opens with the question waiting in
+the field rather than asked (and done) again. A
 list played next, or asked for a room, keeps its card, whose button says what it does; the
 card opens the answer's own page. A
 question over 500 characters is not sent: the field stops there, and one from Search says

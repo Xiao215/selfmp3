@@ -64,8 +64,8 @@ of short names (a tag picker, the sidebar's tag suggestions), where it is a quic
 ## Search by lyric
 
 Type at least three characters (two if they are Chinese or Japanese) into Search — the
-Search page, or the command palette (the sidebar's Search row; ⌘K in the installed app)
-— and a **Lyrics** section appears with one line per song, the match highlighted: the first
+Search page, or the command palette (the sidebar's field; "/" in a browser tab, ⌘K in the
+installed app) — and a **Lyrics** section appears with one line per song, the match highlighted: the first
 line that matches, so a chorus is shown where it is first sung, and the songs ordered by their
 best match. Two copies of one song (the single and the album's: the same title, artist and
 line) are one hit (X3, 2026-10-25). Choosing a hit plays the song (`useLibrarySearch.ts`).

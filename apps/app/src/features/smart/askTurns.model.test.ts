@@ -21,6 +21,9 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   objects: [],
   lists: [],
   kinds: [],
+  reply: null,
+  carried: {},
+  broughtBack: false,
   ...patch,
 })
 

@@ -22,7 +22,7 @@ import { foundSource } from '../lists/lists.model'
 import { cardHeading } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
-import { PlaybackAnswer } from './PlaybackAnswer'
+import { PlaybackAnswer, PlaybackSaid } from './PlaybackAnswer'
 import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
 import { DeleteSongsAnswer } from './DeleteSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
@@ -77,6 +77,7 @@ export function AnswerBody({
   changedFrom = null,
   outdated,
   beside = false,
+  broughtBack = null,
 }: {
   reply: AskReply
   text: string
@@ -99,9 +100,17 @@ export function AnswerBody({
   outdated?: ReadonlySet<number>
   /** Room to the side (Ask on a computer): words with the songs they name beside them. */
   beside?: boolean
+  /**
+   * A reply brought back from this device's memory (a conversation reopened
+   * from Recent, E1), with what each playback card came to then: nothing in
+   * it acts as it arrives, since it was done when it was asked.
+   */
+  broughtBack?: Readonly<Record<number, string>> | null
 }): ReactNode {
   const several = reply.cards.length > 1
-  const playsNow = reply.cards.findIndex(card => card.kind === 'songs' && card.lead === 'play')
+  const playsNow = broughtBack
+    ? -1
+    : reply.cards.findIndex(card => card.kind === 'songs' && card.lead === 'play')
   const takesKeys = reply.cards.findIndex(
     (card, index) =>
       TAKES_KEYS.has(card.kind) && outcomes[index] === undefined && !outdated?.has(index),
@@ -150,6 +159,7 @@ export function AnswerBody({
                 onKeys={index === takesKeys ? onKeys : undefined}
                 onAsk={onAsk}
                 onCarriedOut={onCarriedOut && (said => onCarriedOut(index, said))}
+                saidThen={broughtBack ? (broughtBack[index] ?? null) : undefined}
                 playNow={index === playsNow}
                 onOpenList={onOpenList}
                 openList={openList}
@@ -227,6 +237,7 @@ function AnswerCard({
   openList,
   changedFrom,
   beside,
+  saidThen,
 }: {
   answer: Answer
   text: string
@@ -242,6 +253,8 @@ function AnswerCard({
   openList: string | null
   changedFrom: ChangedFrom | null
   beside: boolean
+  /** A playback card brought back: what it came to then, not done again (`broughtBack`). */
+  saidThen?: string | null
 }): ReactNode {
   const router = useRouter()
   switch (answer.kind) {
@@ -325,7 +338,11 @@ function AnswerCard({
     case 'remember':
       return <RememberAnswer note={answer.note} onDone={onDone} />
     case 'playback':
-      return <PlaybackAnswer answer={answer} onCarriedOut={onCarriedOut} />
+      return saidThen !== undefined ? (
+        <PlaybackSaid said={saidThen} />
+      ) : (
+        <PlaybackAnswer answer={answer} onCarriedOut={onCarriedOut} />
+      )
     case 'getMusic':
       return <GetMusicAnswer answer={answer} onDone={onDone} />
     case 'playlists':

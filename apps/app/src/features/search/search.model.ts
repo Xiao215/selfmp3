@@ -12,6 +12,7 @@ import {
   type Artist,
 } from '@selfmp3/shared'
 import { searchSongs } from '@selfmp3/client'
+import type { AskedThread } from '../smart/askThread.store'
 
 /**
  * Search, without the screen (docs/ui-mock `P18`–`P20`, `C05`; `S3`, "Search").
@@ -193,13 +194,17 @@ export function allResults(found: SearchFound): {
   }
 }
 
-/** Something played lately, offered before anything is typed. */
+/** Something played or asked lately, offered before anything is typed. */
 export type RecentItem =
   | { readonly kind: 'song'; readonly song: Library['songs'][number] }
   | { readonly kind: 'playlist'; readonly playlist: Library['playlists'][number] }
+  | { readonly kind: 'ask'; readonly thread: AskedThread }
 
 /** How many recent things an empty search offers: a glance, not a history page. */
 const RECENT_LIMIT = 5
+
+/** How many of those may be conversations, so what was played is never crowded out. */
+export const RECENT_ASKS = 3
 
 /**
  * What was played lately, newest first: the song loaded now, then songs and
@@ -208,13 +213,15 @@ const RECENT_LIMIT = 5
  * The loaded song leads because it is the one most likely wanted back — a
  * restored session, paused — and its last play may not have counted yet. The
  * rest come from the library's own `lastPlayedAt`, which the server keeps for
- * every device, so a song finished on the phone is recent here too. This is
- * listening, not searching: nothing typed is ever kept.
+ * every device, so a song finished on the phone is recent here too. Among
+ * them, the conversations with Ask this device kept (`asks`, E1); words typed
+ * into Search itself are never kept.
  */
 export function recentItems(
   library: Pick<Library, 'songs' | 'playlists'> | undefined,
   currentSongId: number | null = null,
   limit = RECENT_LIMIT,
+  asks: readonly AskedThread[] = [],
 ): readonly RecentItem[] {
   if (!library || limit <= 0) return []
   const current =
@@ -231,6 +238,8 @@ export function recentItems(
   }
   for (const playlist of library.playlists)
     add(playlist.lastPlayedAt, { kind: 'playlist', playlist })
+  // Conversations kept on this device (E1), by when they were last asked.
+  for (const thread of asks.slice(0, RECENT_ASKS)) add(thread.at, { kind: 'ask', thread })
   dated.sort((a, b) => b.at - a.at)
   const items = dated.map(entry => entry.item)
   return (current ? [{ kind: 'song' as const, song: current }, ...items] : items).slice(0, limit)

@@ -1,6 +1,7 @@
 import { plural, fuzzyRank, type Library, type Artist } from '@selfmp3/shared'
 import { isUntagged } from '../tag/tag.model'
 import { namesSomething, recentItems, searchLibrary, type RecentItem } from '../search/search.model'
+import type { AskedThread } from '../smart/askThread.store'
 
 /**
  * The command palette's rules, with nothing drawn: which commands there are, what a
@@ -128,6 +129,8 @@ export function untaggedCount(songs: Songs): number {
 interface PaletteContext {
   readonly pathname?: string | null
   readonly currentSongId?: number | null
+  /** Conversations kept on this device, newest first: Recent lists them among what was played (E1). */
+  readonly asks?: readonly AskedThread[]
 }
 
 /**
@@ -150,7 +153,7 @@ export function paletteResults(
   if (!trimmed) {
     return {
       words: '',
-      recent: recentItems(library, context.currentSongId ?? null),
+      recent: recentItems(library, context.currentSongId ?? null, undefined, context.asks),
       commands: paletteCommands(songs.length, fromCloud, untaggedCount(songs), context.pathname),
       artists: [],
       songs: [],

@@ -1,4 +1,12 @@
-import type { AskCard, AskObject, AskObjectKind, AskTurn } from '@selfmp3/shared'
+import {
+  plural,
+  type AskCard,
+  type AskObject,
+  type AskObjectKind,
+  type AskReply,
+  type AskTurn,
+} from '@selfmp3/shared'
+import { relativeDay } from '../playlists/playlists.model'
 
 /** One thing asked on the Ask page, and what came of it once it has come. */
 export interface Turn {
@@ -39,6 +47,18 @@ export interface Turn {
   readonly lists: readonly TurnList[]
   /** Its reply's cards, by kind in their places; empty until it is answered. */
   readonly kinds: readonly AskCard['kind'][]
+  /**
+   * Its reply as it came, kept with it so a conversation reopened later
+   * (Recent, E1) is drawn from it rather than asked again; null until it comes.
+   */
+  readonly reply: AskReply | null
+  /** What each playback card in its reply came to, by the card's place ("Skipped to …"). */
+  readonly carried: Readonly<Record<number, string>>
+  /**
+   * Brought back from this device's memory rather than asked on this visit:
+   * what it did, it did then, so nothing in it plays or skips again.
+   */
+  readonly broughtBack: boolean
 }
 
 /** A list a turn's reply shows, as the page opens it. */
@@ -53,7 +73,9 @@ export interface TurnList {
 /** A turn asked again (Try again): waiting for its answer, as a new one is. */
 export function retried(turns: readonly Turn[], id: number): readonly Turn[] {
   return turns.map(turn =>
-    turn.id === id ? { ...turn, answered: null, outcomes: {}, objects: [], kinds: [] } : turn,
+    turn.id === id
+      ? { ...turn, answered: null, outcomes: {}, objects: [], kinds: [], reply: null, carried: {} }
+      : turn,
   )
 }
 
@@ -176,4 +198,19 @@ export function scrollToShow(line: Span, view: Span, room: number): number | nul
   const end = line.y + line.height
   if (end > view.y + view.height) return Math.max(0, end + room - view.height)
   return null
+}
+
+/**
+ * What a kept conversation says under its first question in Recent: when it
+ * was asked, and how many questions it holds when more than one. "Asked
+ * yesterday", "3 questions · Tuesday".
+ */
+export function askedSub(
+  thread: { readonly at: string; readonly questions: number },
+  now: Date,
+): string {
+  const day = relativeDay(thread.at, now) ?? 'earlier'
+  return thread.questions === 1
+    ? `Asked ${day}`
+    : `${plural(thread.questions, 'question', 'questions')} · ${day}`
 }

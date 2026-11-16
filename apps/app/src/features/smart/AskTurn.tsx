@@ -51,7 +51,7 @@ function askKey(
 }
 
 /** What a turn's reply came to, as `ThreadTurn` tells the page. */
-export type Answered = Pick<Turn, 'answered' | 'lists' | 'objects' | 'kinds'>
+export type Answered = Pick<Turn, 'answered' | 'lists' | 'objects' | 'kinds' | 'reply' | 'carried'>
 
 /** What a turn that failed was answered with, for the turns after it. */
 const FAILED = '(This could not be answered.)'
@@ -159,6 +159,8 @@ export const ThreadTurn = memo(function ThreadTurn({
     enabled: server.api !== null && !tooLong,
     ...ASKS_MODEL,
     staleTime: Infinity,
+    // A turn kept with its reply (a conversation reopened) is drawn from it, never asked again.
+    initialData: turn.reply ?? undefined,
   })
   // Asked again after it failed (Try again) is waiting too.
   const waiting = !tooLong && (answer.isPending || (answer.isError && answer.isFetching))
@@ -199,7 +201,7 @@ export const ThreadTurn = memo(function ThreadTurn({
     return lists
   }, [keptIds, keptAnswers, server.onServer])
   // A playback card is told as what it came to on this device ("Nothing is playing."), by its place.
-  const [carried, setCarried] = useState<Readonly<Record<number, string>>>({})
+  const [carried, setCarried] = useState<Readonly<Record<number, string>>>(turn.carried)
   const carriedOut = useCallback(
     (index: number, came: string) => setCarried(was => ({ ...was, [index]: came })),
     [],
@@ -241,13 +243,15 @@ export const ThreadTurn = memo(function ThreadTurn({
     if (
       recap !== null &&
       (recap !== turn.answered ||
+        (data ?? null) !== turn.reply ||
+        JSON.stringify(carried) !== JSON.stringify(turn.carried) ||
         JSON.stringify(lists) !== JSON.stringify(turn.lists) ||
         JSON.stringify(objects) !== JSON.stringify(turn.objects) ||
         kinds.join() !== turn.kinds.join())
     ) {
-      onAnswered(turn.id, { answered: recap, lists, objects, kinds })
+      onAnswered(turn.id, { answered: recap, lists, objects, kinds, reply: data ?? null, carried })
     }
-  }, [recap, lists, objects, kinds, turn, onAnswered])
+  }, [recap, data, carried, lists, objects, kinds, turn, onAnswered])
   // Done with when every review in it is: only the newest answer's keys work, and only while one is open.
   const settled =
     data !== undefined &&
@@ -355,6 +359,7 @@ export const ThreadTurn = memo(function ThreadTurn({
                 openList={openId}
                 changedFrom={changedFrom}
                 outdated={outdated}
+                broughtBack={turn.broughtBack ? turn.carried : null}
               />
             ) : null}
           </Reanimated.View>

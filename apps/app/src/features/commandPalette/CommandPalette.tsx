@@ -38,6 +38,8 @@ import {
 import { label as labelText, dialogPanel, menuItem, menuItemDense } from '../../ui/surfaces'
 import { ASK_SUB, askable } from '../smart/smart.model'
 import { useSmartOn } from '../smart/useSmartOn'
+import { AskedLine } from '../smart/AskedLine'
+import { useAskedThreads, type AskedThread } from '../smart/askThread.store'
 import { playAlone } from '../lists/lists.model'
 import { placesOf } from '../search/search.model'
 import { useLibrarySearch } from '../search/useLibrarySearch'
@@ -62,6 +64,8 @@ import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Kbd } from '../../ui/components/Kbd'
 import { Press } from '../../ui/components/Press'
+
+const NO_ASKS: readonly AskedThread[] = []
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -109,6 +113,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
   const smartOn = useSmartOn()
+  const kept = useAskedThreads()
+  const asks = smartOn ? kept : NO_ASKS
+  // Read once: a row's "Asked yesterday" need not turn over while the palette is open.
+  const [now] = useState(() => new Date())
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   const input = useRef<TextInput>(null)
@@ -125,8 +133,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const search = useLibrarySearch(query, {
     search: useCallback(
       (text: string): PaletteResults =>
-        paletteResults(text, library.data, fromCloud, { pathname, currentSongId }),
-      [library.data, fromCloud, pathname, currentSongId],
+        paletteResults(text, library.data, fromCloud, { pathname, currentSongId, asks }),
+      [library.data, fromCloud, pathname, currentSongId, asks],
     ),
     matches: paletteMatches,
     names: paletteNames,
@@ -166,7 +174,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const openPlaylist = (playlistId: number): void => router.navigate(playlistLink(playlistId))
   /** The loaded song carries on where it is rather than starting again. */
   const runRecent = (recent: RecentItem): void => {
-    if (recent.kind === 'playlist') openPlaylist(recent.playlist.id)
+    if (recent.kind === 'ask')
+      router.push({ pathname: '/ask', params: { thread: recent.thread.thread } })
+    else if (recent.kind === 'playlist') openPlaylist(recent.playlist.id)
     else if (recent.song.id === currentSongId) {
       if (!playing) player.toggle()
     } else playSong(recent.song.id)
@@ -174,7 +184,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const recentKey = (recent: RecentItem): string =>
     recent.kind === 'song'
       ? `recent-song-${recent.song.id}`
-      : `recent-playlist-${recent.playlist.id}`
+      : recent.kind === 'ask'
+        ? `recent-ask-${recent.thread.thread}`
+        : `recent-playlist-${recent.playlist.id}`
 
   const icon = (Glyph: typeof Music): ReactNode => (
     <Glyph size={16} color={theme.colors.textSecondary} />
@@ -238,40 +250,55 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     {
       title: 'Recent',
       rows: found.recent.map(recent =>
-        recent.kind === 'song'
+        recent.kind === 'ask'
           ? {
               key: recentKey(recent),
-              label: `${recent.song.title}, ${artistOr(recent.song.artist)}`,
+              label: `${recent.thread.asked}, asked`,
+              // Ask is a page of its own: the palette closes, as for any page.
               run: () => runRecent(recent),
               node: (
-                <SongLine
+                <AskedLine
+                  thread={recent.thread}
+                  now={now}
                   style={styles.songLine}
-                  artUri={artFor(recent.song)}
-                  coverTitle={recent.song.album || recent.song.title}
-                  title={recent.song.title}
-                  sub={artistOr(recent.song.artist)}
-                  trailing={
-                    <Text style={styles.hint}>
-                      {recent.song.id === currentSongId ? 'playing now' : 'song'}
-                    </Text>
-                  }
+                  trailing={<Text style={styles.hint}>ask</Text>}
                 />
               ),
             }
-          : {
-              key: recentKey(recent),
-              label: recent.playlist.name,
-              run: () => runRecent(recent),
-              node: (
-                <>
-                  {icon(ListMusic)}
-                  <Text style={styles.label} numberOfLines={1}>
-                    {recent.playlist.name}
-                  </Text>
-                  <Text style={styles.hint}>playlist</Text>
-                </>
-              ),
-            },
+          : recent.kind === 'song'
+            ? {
+                key: recentKey(recent),
+                label: `${recent.song.title}, ${artistOr(recent.song.artist)}`,
+                run: () => runRecent(recent),
+                node: (
+                  <SongLine
+                    style={styles.songLine}
+                    artUri={artFor(recent.song)}
+                    coverTitle={recent.song.album || recent.song.title}
+                    title={recent.song.title}
+                    sub={artistOr(recent.song.artist)}
+                    trailing={
+                      <Text style={styles.hint}>
+                        {recent.song.id === currentSongId ? 'playing now' : 'song'}
+                      </Text>
+                    }
+                  />
+                ),
+              }
+            : {
+                key: recentKey(recent),
+                label: recent.playlist.name,
+                run: () => runRecent(recent),
+                node: (
+                  <>
+                    {icon(ListMusic)}
+                    <Text style={styles.label} numberOfLines={1}>
+                      {recent.playlist.name}
+                    </Text>
+                    <Text style={styles.hint}>playlist</Text>
+                  </>
+                ),
+              },
       ),
     },
     {

@@ -55,7 +55,7 @@ import { AnswerView } from './AnswerScreen'
 import { AskField, type DraftHandle } from './AskField'
 import { ThreadTurn, type Answered } from './AskTurn'
 import type { AnswerKeys } from './answerKeys'
-import { forgetThread, keepThread, keptThread, newThread } from './askThread.store'
+import { keepThread, keptThread, newThread } from './askThread.store'
 import {
   afterStop,
   namedObjects,
@@ -70,8 +70,11 @@ import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
 import { useSmartServer } from './useSmartServer'
 
-/** Names each turn, across the app's life: two pages' turns never share one. */
-let nextTurn = 1
+/**
+ * Names each turn: two pages' turns never share one, nor a turn asked now
+ * one of a conversation kept from an earlier run (`askThread.store`).
+ */
+let nextTurn = Date.now()
 
 /**
  * Ask (docs/features/ai.md, "The Ask page"): `/ask?q=…` from Search's Enter or
@@ -97,8 +100,8 @@ let nextTurn = 1
  * rest from the conversation, and each reply says which earlier answers it
  * was made from ("From “Calm study night”"). While one is worked on its send
  * is a Stop, which takes the turn back off the page and its words back into
- * the field. ‹ goes back to Search with the question still typed; a
- * conversation is not kept after it.
+ * the field. ‹ goes back to Search with the question still typed; the
+ * conversation is kept, and Search's Recent opens it again (E1).
  *
  * `?to=room` asks for the room you are in, as Search does when adding to it
  * (A2): songs answered are added there rather than played.
@@ -127,6 +130,9 @@ export function AskScreen(): ReactNode {
     objects: [],
     lists: [],
     kinds: [],
+    reply: null,
+    carried: {},
+    broughtBack: false,
   })
   const opened = typeof params.q === 'string' ? params.q.trim() : ''
   // A visit's conversation is its thread, named in the address: a page drawn
@@ -138,7 +144,9 @@ export function AskScreen(): ReactNode {
   )
   // Its words wait in the field instead, asked again only with a press.
   const [unasked] = useState(() => (turns.length === 0 ? opened : ''))
-  useEffect(() => keepThread(thread, turns), [thread, turns])
+  // Kept for Recent too (E1), but not a room's: it was about a room that ends.
+  const listed = adding === null
+  useEffect(() => keepThread(thread, turns, listed), [thread, turns, listed])
   // On the page's own route: the router refuses before the app's layout is up, as on a reload.
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
   useEffect(() => {
@@ -346,11 +354,6 @@ export function AskScreen(): ReactNode {
   useEffect(() => () => setPageFoot(0), [])
   const { top } = useSafeAreaInsets()
   const frame = pageFrame(wide)
-  // ‹ lets the conversation go: the same question asked again starts afresh.
-  const leave = useCallback(() => {
-    forgetThread(thread)
-    back()
-  }, [thread, back])
   const via = reachedConnection(server.reach)?.baseUrl ?? null
 
   const dock = (
@@ -399,7 +402,8 @@ export function AskScreen(): ReactNode {
       testID="ask-thread"
     >
       <View style={[styles.threadHead, { paddingTop: top + frame.paddingTop }]}>
-        <BackButton to="/search" always onPress={leave} testID="ask-back" />
+        {/* ‹ keeps the conversation: Recent opens it again (E1). */}
+        <BackButton to="/search" always onPress={back} testID="ask-back" />
         <Text style={styles.threadTitle} accessibilityRole="header">
           Ask
         </Text>

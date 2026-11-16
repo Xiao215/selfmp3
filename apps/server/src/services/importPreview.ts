@@ -11,6 +11,7 @@ import {
   youtubeMusicSearch,
   youtubePlaylistId,
   youtubeVideoId,
+  youtubeNames,
   type ImportFrom,
   type ImportPreview,
   type ImportPreviewItem,
@@ -248,7 +249,11 @@ export async function findLooking<T extends ImportPreviewItem>(
           source: 'youtube',
           thumbnail: item.thumbnail ?? match.thumbnail,
           album: item.album || match.album,
-          youtube: { url: match.url, match: match.sure ? 'sure' : 'unsure' },
+          youtube: {
+            url: match.url,
+            match: match.sure ? 'sure' : 'unsure',
+            found: youtubeNames(match),
+          },
         }
       : { ...item, youtube: { url: null, match: 'none' } }
   })

@@ -15,6 +15,7 @@ import {
   youtubeVideoId,
   IMPORT_STEP_LABELS,
   importFailure,
+  youtubeNames,
   type ImportEnqueue,
   type ImportEnqueueItem,
   type ImportFound,
@@ -200,7 +201,11 @@ export function withFound(
       if (item.source === 'youtube') chosen.delete(index)
       return { ...item, url: item.source === 'youtube' ? '' : item.url, youtube: none }
     }
-    const youtube = { url: match.url, match: match.sure ? ('sure' as const) : ('unsure' as const) }
+    const youtube = {
+      url: match.url,
+      match: match.sure ? ('sure' as const) : ('unsure' as const),
+      found: youtubeNames(match),
+    }
     if (!match.sure && item.source === 'youtube') chosen.delete(index)
     return {
       ...item,

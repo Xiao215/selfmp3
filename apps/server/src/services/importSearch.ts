@@ -1,4 +1,4 @@
-import { cleanTitle, type ImportPreviewItem } from '@selfmp3/shared'
+import { cleanTitle, youtubeNames, type ImportPreviewItem } from '@selfmp3/shared'
 import { HttpError } from '../http/errors.js'
 import { alreadyHave, libraryIndex } from './alreadyHave.js'
 import { have, inQueue, waitingToUpload } from './importPreview.js'
@@ -9,7 +9,14 @@ import type { CloudSyncService } from './cloudSync.js'
 import type { NeteaseMusic, NeteaseTrack } from './netease.js'
 import type { ProbedTrack } from './ytdlp.js'
 import type { YouTubeMusicLists } from './youtubeMusicLists.js'
-import { bestMatch, durationScore, matchSimilarity } from './youtubeMatch.js'
+import {
+  bestMatch,
+  durationScore,
+  matchSimilarity,
+  namedAlike,
+  type ByArtist,
+  type YouTubeMatcher,
+} from './youtubeMatch.js'
 
 /**
  * Searching for songs from Import's box (docs/features/import-sources.md,
@@ -29,9 +36,9 @@ import { bestMatch, durationScore, matchSimilarity } from './youtubeMatch.js'
  *   row of its own, from 网易云.
  * - a 网易云 song it will not give out needs YouTube anyway, so it is paired
  *   by the matcher's own judgement (youtubeMatch.ts), the one a 网易云 list's
- *   VIP songs are found by, over YouTube Music's answers to the same words.
- *   Short of sure, it is a row looking for itself on YouTube, as on a list's
- *   review (`/import/find`).
+ *   VIP songs are found by, over YouTube Music's answers to the same words:
+ *   a good match that is by the song's artist. Short of sure, it is a row
+ *   looking for itself on YouTube, as on a list's review (`/import/find`).
  *
  * The two lists take turns, best first, YouTube Music's first: it ranks the
  * song people mean higher, where 网易云's first answers for a song it has no
@@ -43,7 +50,8 @@ type SearchDeps = {
   cloudRepo: Pick<CloudRepository, 'states'>
   cloudSync: Pick<CloudSyncService, 'connected'>
   imports: Pick<ImportRepository, 'pendingUrls'>
-  youtubeMusicLists: Pick<YouTubeMusicLists, 'songs'>
+  youtubeMusicLists: Pick<YouTubeMusicLists, 'songsBy'>
+  youtubeMatcher: Pick<YouTubeMatcher, 'byArtist'>
   netease: Pick<NeteaseMusic, 'search'>
 }
 
@@ -53,17 +61,15 @@ const PER_SOURCE = 10
 const SAME_NAME = 0.8
 /** How close in length, at most, two answers that are the same recording are. */
 const SAME_LENGTH = 0.9
-/** A matcher's answer as sure as the matcher's own "sure" (youtubeMatch.ts). */
-const SURE = 0.7
-
 /** A search's row before the library is asked about it. */
 type Row = Omit<ImportPreviewItem, 'alreadyHave' | 'waitingToUpload' | 'inQueue'>
 
 export async function searchSongs(deps: SearchDeps, query: string): Promise<ImportPreviewItem[]> {
-  const [youtube, netease] = await Promise.all([
-    deps.youtubeMusicLists.songs(query),
+  const [answers, netease] = await Promise.all([
+    deps.youtubeMusicLists.songsBy(query),
     deps.netease.search(query, PER_SOURCE),
   ])
+  const youtube = answers?.slice(0, PER_SOURCE) ?? null
   // 网易云 says nothing for no answer and for no songs alike; YouTube Music tells them apart.
   if (youtube === null && netease.length === 0) {
     throw HttpError.unprocessable(
@@ -73,7 +79,13 @@ export async function searchSongs(deps: SearchDeps, query: string): Promise<Impo
   const library = libraryIndex(deps.songs.all())
   const waiting = waitingToUpload(deps)
   const queued = inQueue(deps)
-  return searchRows((youtube ?? []).slice(0, PER_SOURCE), netease).map(row => ({
+  // Only a song 网易云 will not give out is paired by the matcher, so only those ask who sings them.
+  const by = await deps.youtubeMatcher.byArtist(
+    netease.filter(song => !song.free),
+    youtube ?? [],
+  )
+  const tracks = (youtube ?? []).map(answer => answer.track)
+  return searchRows(tracks, netease, by).map(row => ({
     ...row,
     ...have(alreadyHave(row, library), waiting),
     inQueue: row.url !== '' && queued(row.url),
@@ -84,12 +96,13 @@ export async function searchSongs(deps: SearchDeps, query: string): Promise<Impo
 export function searchRows(
   youtube: readonly ProbedTrack[],
   netease: readonly NeteaseTrack[],
+  by: ByArtist = namedAlike,
 ): Row[] {
   const paired = new Map<NeteaseTrack, ProbedTrack>()
   const taken = new Set<ProbedTrack>()
   for (const song of netease) {
     const free = youtube.filter(answer => !taken.has(answer))
-    const match = song.free ? sameRecording(song, free) : surely(song, free)
+    const match = song.free ? sameRecording(song, free) : surely(song, free, by)
     if (match) {
       paired.set(song, match)
       taken.add(match)
@@ -131,9 +144,13 @@ function sameRecording(
 }
 
 /** The YouTube answer the matcher is sure is this song, as it would be for a 网易云 list. */
-function surely(song: NeteaseTrack, answers: readonly ProbedTrack[]): ProbedTrack | undefined {
-  const best = bestMatch(song, answers)
-  return best && best.confidence >= SURE ? best.track : undefined
+function surely(
+  song: NeteaseTrack,
+  answers: readonly ProbedTrack[],
+  by: ByArtist,
+): ProbedTrack | undefined {
+  const best = bestMatch(song, answers, by)
+  return best?.sure ? best.track : undefined
 }
 
 /** Only on YouTube: downloaded from there, with nothing else to choose. */
@@ -176,7 +193,7 @@ const fromBoth = (song: NeteaseTrack, answer: ProbedTrack): Row => ({
   url: song.free ? song.url : answer.url,
   source: song.free ? 'netease' : 'youtube',
   netease: { url: song.url, free: song.free },
-  youtube: { url: answer.url, match: 'sure' },
+  youtube: { url: answer.url, match: 'sure', found: youtubeNames(answer) },
 })
 
 const named = (song: NeteaseTrack) => ({

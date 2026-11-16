@@ -592,7 +592,11 @@ describe('findLooking and previewFound', () => {
       url: found.url,
       album: 'Random Access Memories',
       thumbnail: found.thumbnail,
-      youtube: { url: found.url, match: 'sure' },
+      youtube: {
+        url: found.url,
+        match: 'sure',
+        found: { title: found.title, artist: found.artist, duration: found.duration },
+      },
     })
     expect(items[1]).toMatchObject({ url: '', youtube: { url: null, match: 'none' } })
   })

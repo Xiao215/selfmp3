@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { createLogger } from '../logger.js'
 import { searchRows, searchSongs } from './importSearch.js'
 import type { NeteaseTrack } from './netease.js'
+import { YouTubeMatcher } from './youtubeMatch.js'
+import type { CreditedSong } from './youtubeMusicLists.js'
 import type { ProbedTrack } from './ytdlp.js'
 
 const yt = (title: string, artist: string, duration: number, id: string): ProbedTrack => ({
@@ -42,9 +45,30 @@ const NETEASE = [
   ne('孤勇者 (女声版)', '庄园', 253, '4', true),
 ]
 
+/** Each answer credited to a channel of its own: the first is Eason Chan's. */
+const CREDITED: CreditedSong[] = YOUTUBE.map((track, at) => ({ track, channels: [`UC${at}`] }))
+
+/** The matcher, with YouTube Music's artist search knowing 陈奕迅 as the first answer's channel. */
+const matcher = (songs: CreditedSong[] | null = CREDITED) =>
+  new YouTubeMatcher({
+    lists: {
+      songsBy: () => Promise.resolve(songs),
+      artists: name =>
+        Promise.resolve(name === '陈奕迅' ? [{ name: '陳奕迅', channel: 'UC0' }] : []),
+    },
+    logger: createLogger('silent'),
+  })
+
+/** Who sings what, as a search would ask it: only of the songs 网易云 will not give out. */
+const byArtist = () =>
+  matcher().byArtist(
+    NETEASE.filter(song => !song.free),
+    CREDITED,
+  )
+
 describe('searchRows', () => {
-  it('pairs a song 网易云 only previews with YouTube’s, named as 网易云 names it', () => {
-    const rows = searchRows(YOUTUBE, NETEASE)
+  it('pairs a song 网易云 only previews with YouTube’s, named as 网易云 names it', async () => {
+    const rows = searchRows(YOUTUBE, NETEASE, await byArtist())
     const first = rows[0]
     expect(first).toMatchObject({
       title: '孤勇者',
@@ -52,10 +76,24 @@ describe('searchRows', () => {
       source: 'youtube',
       url: 'https://music.youtube.com/watch?v=E-MBcgOPHJg',
       netease: { url: 'https://music.163.com/#/song?id=1901371647', free: false },
-      youtube: { url: 'https://music.youtube.com/watch?v=E-MBcgOPHJg', match: 'sure' },
+      youtube: {
+        url: 'https://music.youtube.com/watch?v=E-MBcgOPHJg',
+        match: 'sure',
+        found: { artist: 'Eason Chan', duration: 256 },
+      },
     })
     // Eason Chan's song is that row; it is not drawn a second time.
     expect(rows.filter(row => row.url.includes('E-MBcgOPHJg'))).toHaveLength(1)
+  })
+
+  it('does not pair them on a name and a length alone: a cover has both', () => {
+    // Nothing says "Eason Chan" is 陈奕迅, so his song and 网易云's are two rows.
+    const rows = searchRows(YOUTUBE, NETEASE)
+    expect(rows.find(row => row.artist === '陈奕迅')).toMatchObject({
+      url: '',
+      youtube: { url: null, match: 'looking' },
+    })
+    expect(rows.find(row => row.artist === 'Eason Chan')).toMatchObject({ netease: null })
   })
 
   it('never pairs a cover 网易云 gives out with another singer’s song of its name and length', () => {
@@ -75,8 +113,8 @@ describe('searchRows', () => {
     })
   })
 
-  it('takes turns, YouTube Music first, every answer once', () => {
-    const rows = searchRows(YOUTUBE, NETEASE)
+  it('takes turns, YouTube Music first, every answer once', async () => {
+    const rows = searchRows(YOUTUBE, NETEASE, await byArtist())
     expect(rows.map(row => `${row.title} · ${row.artist}`)).toEqual([
       '孤勇者 · 陈奕迅',
       '孤勇者 · холли ветролов',
@@ -117,7 +155,7 @@ describe('searchRows', () => {
 
 describe('searchSongs', () => {
   const deps = (
-    youtube: ProbedTrack[] | null,
+    youtube: CreditedSong[] | null,
     netease: NeteaseTrack[],
     library: { id: number; url: string; title: string; artist: string; duration: number }[] = [],
   ) => ({
@@ -125,14 +163,15 @@ describe('searchSongs', () => {
     cloudRepo: { states: () => new Map() },
     cloudSync: { connected: false },
     imports: { pendingUrls: () => ['https://music.youtube.com/watch?v=gYCUK7Jpevc'] },
-    youtubeMusicLists: { songs: () => Promise.resolve(youtube) },
+    youtubeMusicLists: { songsBy: () => Promise.resolve(youtube) },
+    youtubeMatcher: matcher(youtube),
     netease: { search: () => Promise.resolve(netease) },
   })
 
   it('says which songs are yours already and which are on their way', async () => {
     const items = await searchSongs(
       deps(
-        YOUTUBE,
+        CREDITED,
         [],
         [
           {
@@ -151,6 +190,15 @@ describe('searchSongs', () => {
     expect(items.find(item => item.artist === '韩冬东')).toMatchObject({
       alreadyHave: false,
       inQueue: false,
+    })
+  })
+
+  it('asks who sings a song 网易云 only previews, and pairs it with their own', async () => {
+    const items = await searchSongs(deps(CREDITED, NETEASE), '孤勇者')
+    expect(items[0]).toMatchObject({
+      artist: '陈奕迅',
+      url: 'https://music.youtube.com/watch?v=E-MBcgOPHJg',
+      youtube: { match: 'sure' },
     })
   })
 

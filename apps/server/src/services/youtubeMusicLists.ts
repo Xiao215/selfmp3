@@ -10,7 +10,9 @@ import {
   rowVideoId,
   runs,
   runsOf,
+  ARTIST_SEARCH_AS_THE_WEB_APP,
   SONG_SEARCH_AS_THE_WEB_APP,
+  WEB_CLIENT,
   YouTubeMusicApi,
 } from './youtubeMusicApi.js'
 import type { FetchLike } from './fetching.js'
@@ -38,6 +40,22 @@ export interface SongList {
   readonly complete: boolean
 }
 
+/**
+ * A search's song with the channels of the artists it credits. A name says
+ * little across scripts (陈奕迅's songs are credited to "Eason Chan"); the
+ * channel is the same whatever the name is written as (youtubeMatch.ts).
+ */
+export interface CreditedSong {
+  readonly track: ProbedTrack
+  readonly channels: readonly string[]
+}
+
+/** An artist as a search lists them: the name as that language writes it, and their channel. */
+export interface ListedArtist {
+  readonly name: string
+  readonly channel: string
+}
+
 export class YouTubeMusicLists {
   readonly #api: YouTubeMusicApi
 
@@ -47,9 +65,34 @@ export class YouTubeMusicLists {
 
   /** The songs a search finds, or null when YouTube Music did not answer. */
   async songs(query: string): Promise<ProbedTrack[] | null> {
+    return (await this.songsBy(query))?.map(song => song.track) ?? null
+  }
+
+  /** `songs`, each with the channels of the artists it credits. */
+  async songsBy(query: string): Promise<CreditedSong[] | null> {
     const page = await this.#api.post('search', { query, params: SONG_SEARCH_AS_THE_WEB_APP })
     if (!page) return null
-    return rows(page, {})
+    return findAll(page, 'musicResponsiveListItemRenderer')
+      .map(item => creditedRow(item, {}))
+      .filter((song): song is CreditedSong => song !== null)
+  }
+
+  /**
+   * The artists a search finds for a name, named as `language` writes them, or
+   * null when YouTube Music did not answer. The language matters: asked in
+   * English 周杰伦 is "Jay Chou", and asked in Chinese he is 周杰倫, which can
+   * be told to be the name that was asked for.
+   */
+  async artists(name: string, language: string): Promise<ListedArtist[] | null> {
+    const page = await this.#api.post(
+      'search',
+      { query: name, params: ARTIST_SEARCH_AS_THE_WEB_APP },
+      { ...WEB_CLIENT, hl: language },
+    )
+    if (!page) return null
+    return findAll(page, 'musicResponsiveListItemRenderer')
+      .map(artistRow)
+      .filter((artist): artist is ListedArtist => artist !== null)
   }
 
   /**
@@ -196,6 +239,11 @@ function artistsIn(value: unknown): string[] {
  * album's rows name neither, which the page does for them.
  */
 export function songRow(item: unknown, defaults: RowDefaults = {}): ProbedTrack | null {
+  return creditedRow(item, defaults)?.track ?? null
+}
+
+/** `songRow`, with the channel each artist's name leads to. */
+function creditedRow(item: unknown, defaults: RowDefaults): CreditedSong | null {
   const videoId = rowVideoId(item)
   if (videoId === null) return null
 
@@ -207,6 +255,7 @@ export function songRow(item: unknown, defaults: RowDefaults = {}): ProbedTrack 
   if (!title) return null
 
   const artists: string[] = []
+  const channels: string[] = []
   let album = ''
   let duration = 0
   const texts = [
@@ -219,21 +268,39 @@ export function songRow(item: unknown, defaults: RowDefaults = {}): ProbedTrack 
     if (typeof run.text !== 'string') continue
     const text = run.text.trim()
     const pageType = pageTypeOf(run)
-    if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') artists.push(text)
-    else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') album = text
+    if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') {
+      artists.push(text)
+      const channel = run.navigationEndpoint?.browseEndpoint?.browseId
+      if (typeof channel === 'string') channels.push(channel)
+    } else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') album = text
     else duration = parseLength(text) ?? duration
   }
 
   const largest = largestThumbnail(item)
 
   return {
-    url: `https://music.youtube.com/watch?v=${videoId}`,
-    title,
-    artist: artists.length > 0 ? artists.join(', ') : (defaults.artist ?? ''),
-    album: album || (defaults.album ?? ''),
-    duration,
-    thumbnail: largest !== null ? coverSized(largest) : (defaults.thumbnail ?? null),
+    track: {
+      url: `https://music.youtube.com/watch?v=${videoId}`,
+      title,
+      artist: artists.length > 0 ? artists.join(', ') : (defaults.artist ?? ''),
+      album: album || (defaults.album ?? ''),
+      duration,
+      thumbnail: largest !== null ? coverSized(largest) : (defaults.thumbnail ?? null),
+    },
+    channels,
   }
+}
+
+/** One row of an artist search: the row itself leads to the artist's page. */
+function artistRow(item: unknown): ListedArtist | null {
+  const row = item as Parameters<typeof pageTypeOf>[0]
+  if (pageTypeOf(row) !== 'MUSIC_PAGE_TYPE_ARTIST') return null
+  const channel = row.navigationEndpoint?.browseEndpoint?.browseId
+  const name = (rowColumns(item)[0] ?? [])
+    .map(run => (typeof run.text === 'string' ? run.text : ''))
+    .join('')
+    .trim()
+  return typeof channel === 'string' && name ? { name, channel } : null
 }
 
 /**

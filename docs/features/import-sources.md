@@ -73,7 +73,8 @@ and YouTube often spells the original artist in another script (陈奕迅 is Eas
 - a 网易云 song it gives out whole pairs only with a YouTube answer by the same artist, of
   the same name and length; unpaired, it is its own row, from 网易云;
 - a 网易云 song it only previews pairs with the YouTube answer the matcher (below) is sure
-  of; short of that it is a row looking for itself on YouTube, as on a 网易云 list.
+  of, which means a good match by the song's own artist; short of that it is a row looking
+  for itself on YouTube, as on a 网易云 list.
 
 The two lists take turns, YouTube Music's first: for a song 网易云 has no rights to, its
 first answers are other people's covers. 网易云's search says on each song what this server
@@ -127,15 +128,42 @@ A song known only by its name is looked for with YouTube Music's song search
 its answers are songs with their artist, album, length and square art. Each answer is
 scored 0–1 on title and artist similarity (multiplied, so the right artist cannot rescue a
 wrong title), length, and penalties for live, cover, remix and the like unless the name
-asks for that version. YouTube Music's first answer gets a little more trust: it knows an
-artist by every name, so 陈奕迅's "Eason Chan" is still his. Chinese names are compared
+asks for that version. The version words are read in Chinese and Japanese too (翻自, 伴奏,
+现场, DJ版, 女声版, 粤语版, 钢琴版, カバー), and in the answer's album as well as its title:
+a concert's album is a live take whatever the song is called. YouTube Music's first answer
+gets a little more trust: it is the one it thinks was meant. Chinese names are compared
 as pinyin, so 周杰伦 and 周杰倫 are the same; a run of characters is one word
 ("zhoujielun"), so 忘我 is not found inside 我不曾忘记 just because it shares its characters.
 
-- 0.7 and up is a match taken as it is;
-- 0.4 to 0.7 is **not sure**, said on the row, worth a listen, and left unticked until it
-  has had one;
-- below that is **not found**: the row has no box and nothing to import.
+A good score is not enough to take a match unheard. A song YouTube Music does not have is
+answered with other people's covers of it, and a cover has the song's name and nearly its
+length. So a match is **sure** only when it also is by the artist asked for (`ByArtist`),
+which any of these says:
+
+- the two artists are named the same, one of them where several are credited. A name
+  written twice counts by either side ("五月天 (Mayday)", "G.E.M.邓紫棋"); a name that only
+  holds the artist's ("Daft Punk Tribute Band", 五月天 阿信) is somebody else;
+- the answer's artist is a name the library knows the artist also goes by
+  (`services/artistNames.ts`);
+- both are from the same album, unless the album is named after the song (a single, which
+  a cover is too);
+- the answer is credited to the artist's own channel. YouTube Music credits 陈奕迅's songs
+  to "Eason Chan", which no comparison of names can see. Its artist search is asked for
+  the name in the language it is written in (`languagesOf`; Chinese, then Japanese, for a
+  name in characters alone), where 陈奕迅 is listed as 陳奕迅
+  with the channel those songs carry. Only an artist listed under the very name asked for
+  counts (`listedAs`): asked for a name it does not know, the search lists whoever is
+  popular. This is one more plain request, asked once per artist and only when the names
+  left a good match unsettled.
+
+An answer by the artist is taken before a better-scoring one that is not, so the artist's
+own recording wins over a cover that came first. A song that names no artist has nothing
+to check, and a good score is enough.
+
+- 0.7 and up, by the artist asked for, is a match taken as it is;
+- 0.4 and up otherwise is **not sure**, said on the row, worth a listen, and left unticked
+  until it has had one;
+- below 0.4 is **not found**: the row has no box and nothing to import.
 
 The review shows at once and fills in as songs are found, eight at a time
 (`useFindSongs.ts`), so a long list never waits on one request; Import waits until the
@@ -153,6 +181,11 @@ The same review as a YouTube link (`ImportReview.tsx`):
   for switching back).
 - Open a song found by its name and **Look again**: by its name as it stands now, after
   fixing a title or an artist.
+- A row keeps the names it was listed by (网易云's, a pasted list's), and what downloads is
+  YouTube's song. So the open row says what YouTube calls it whenever that is not what the
+  row calls it, or its length is more than three seconds off (`foundAs`): "YouTube has 晴天
+  · 刘瑞琦 · 4:28", in amber when the match is not sure, with YouTube's cover beside it when
+  the row wears another. The match's names travel with the row (`youtube.found`).
 - A song from 网易云 or YouTube can be heard before importing; a song still being looked
   for cannot yet. Nothing is looked up until a song is played, and the first second or
   several (seven on a Pi) is the server asking yt-dlp where its audio is. Listening is not
@@ -173,7 +206,7 @@ source link, a 网易云 song in any spelling, or the name and length.
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/api/import/preview` | `{ url }`: links or song names → `{ kind, playlistTitle, from, items }`. Each item says its `source`, its `netease` song, and its `youtube` match (`looking` until found). |
+| `POST` | `/api/import/preview` | `{ url }`: links or song names → `{ kind, playlistTitle, from, items }`. Each item says its `source`, its `netease` song, and its `youtube` match (`looking` until found, then with what YouTube calls it as `found`). |
 | `POST` | `/api/import/search` | `{ query }`: words → `{ items }`, review rows from YouTube Music and 网易云, a song both have once. |
 | `POST` | `/api/import/find` | `{ tracks }` (up to 25) → `{ found }`, one YouTube match or null per track. |
 | `GET` | `/api/import/listen?url=` | A YouTube or 网易云 song's audio, for hearing it on the review. |
@@ -185,10 +218,12 @@ source link, a 网易云 song in any spelling, or the name and length.
 - `apps/server/src/services/netease.ts` — 网易云 lists, privileges and lyrics.
 - `apps/server/src/services/spotify.ts` — Spotify's embed page.
 - `apps/server/src/services/trackLists.ts` — text and CSV.
-- `apps/server/src/services/youtubeMatch.ts` — scoring and the YouTube Music search.
+- `apps/server/src/services/youtubeMatch.ts` — scoring, who an answer is by, and the YouTube Music search.
+- `apps/server/src/services/youtubeMusicLists.ts` — `songsBy` (a search's songs with their artists' channels), `artists`.
 - `apps/server/src/services/importPreview.ts` — every kind of paste into one review.
 - `apps/server/src/services/importSearch.ts` — a search's two lists as one.
 - `packages/client/src/import/model.ts` — `describePaste`, `searchQuery`, `withFound`, `chooseSource`, `lookAgain`.
 - `apps/app/src/features/import/useFindSongs.ts`, `ImportReview.tsx` — the review.
 - `apps/app/src/features/import/ReviewRows.tsx` — the review's rows, which a search's songs share.
+- `apps/app/src/features/import/SourceChoice.tsx`, `review.model.ts` (`foundAs`) — where an open row's song comes from, and what YouTube calls it.
 - `apps/app/src/features/import/ImportSearch.tsx`, `useSongSearch.ts`, `importDraft.model.ts` (`withSearchResults`) — searching.

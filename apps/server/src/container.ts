@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { ANALYSIS_VERSION, joinedNames } from '@selfmp3/shared'
+import { ANALYSIS_VERSION, artistKey, joinedNames } from '@selfmp3/shared'
 import type { Config, ServingConfig } from './config.js'
 import { createLogger, type Logger } from './logger.js'
 import { createShared, type SharedServices } from './shared.js'
@@ -430,7 +430,11 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const ytdlp = new YtDlpService(logger, () => settings.get(), throttle)
   const youtubeMusicLists = new YouTubeMusicLists(logger)
   const spotify = new SpotifyLists(logger)
-  const youtubeMatcher = new YouTubeMatcher({ lists: youtubeMusicLists, logger })
+  const youtubeMatcher = new YouTubeMatcher({
+    lists: youtubeMusicLists,
+    otherNames: artist => names.artistNamed(artistKey(artist))?.names ?? [],
+    logger,
+  })
   const listen = new ListenService(ytdlp)
   const previewCoverTones = new PreviewCoverTones({ logger })
 

@@ -4,6 +4,9 @@ import {
   bestReading,
   durationScore,
   foldForMatch,
+  languagesOf,
+  listedAs,
+  namedAlike,
   normalizeForMatch,
   scoreHit,
   type MatchHit,
@@ -13,6 +16,7 @@ import {
   YouTubeMatcher,
 } from './youtubeMatch.js'
 import { createLogger } from '../logger.js'
+import type { CreditedSong, ListedArtist } from './youtubeMusicLists.js'
 import type { ProbedTrack } from './ytdlp.js'
 
 const hit = (partial: Partial<MatchHit> & { title: string }): MatchHit => ({
@@ -249,6 +253,47 @@ describe('bestMatch', () => {
     ])
     expect(found?.track.artist).toBe('Eason Chan')
     expect(found?.confidence).toBeGreaterThanOrEqual(0.7)
+    // A good match, but the names alone do not say it is his: `YouTubeMatcher.byArtist` does.
+    expect(found?.sure).toBe(false)
+  })
+
+  it('is not sure of another singer’s song of the same name and length', () => {
+    const cover = bestMatch(ne('晴天', '周杰伦', 269), [
+      song({ title: '晴天', artist: '刘瑞琦', duration: 268 }),
+    ])
+    expect(cover).toMatchObject({ track: { artist: '刘瑞琦' }, sure: false })
+    const other = bestMatch(ne('Stay', 'Rihanna', 240), [
+      song({ title: 'Stay', artist: 'The Kid LAROI', duration: 238 }),
+    ])
+    expect(other?.sure).toBe(false)
+  })
+
+  it('takes the artist’s own recording over a cover YouTube Music put first', () => {
+    const found = bestMatch(ne('晴天', '周杰伦', 269), [
+      song({ title: '晴天', artist: '刘瑞琦', duration: 269 }),
+      song({ title: '晴天', artist: '周杰倫', album: '葉惠美', duration: 270 }),
+    ])
+    expect(found).toMatchObject({ track: { artist: '周杰倫' }, sure: true })
+  })
+
+  it('is sure of a good match for a song that names no artist', () => {
+    const found = bestMatch(ne('晴天', '', 269), [
+      song({ title: '晴天', artist: '周杰倫', duration: 270 }),
+    ])
+    expect(found?.sure).toBe(true)
+  })
+
+  it('marks down a concert’s take that only its album gives away', () => {
+    // 周杰伦 晴天 on YouTube Music, 2026-11-15: the third answer is from a tour's album.
+    const found = bestMatch(ne('晴天', '周杰伦', 269), [
+      song({
+        title: '晴天',
+        artist: '周杰倫',
+        album: '周杰倫地表最強世界巡迴演唱會',
+        duration: 250,
+      }),
+    ])
+    expect(found?.sure ?? false).toBe(false)
   })
 
   it('does not take another song that shares its characters', () => {
@@ -265,6 +310,128 @@ describe('bestMatch', () => {
   it('finds nothing when no answer is the song', () => {
     expect(bestMatch(getLucky, [song({ title: 'Hey Jude', artist: 'The Beatles' })])).toBeNull()
     expect(bestMatch(getLucky, [])).toBeNull()
+  })
+})
+
+describe('version words in Chinese and Japanese', () => {
+  const houlai = { title: '后来', artist: '刘若英', album: '我等你', duration: 341 }
+  const scored = (title: string, source = houlai) =>
+    scoreHit(source, hit({ title, channel: '刘若英', duration: 341 }))
+
+  it.each([
+    '后来（翻自 刘若英）',
+    '后来 (伴奏)',
+    '后来 (DJ版)',
+    '后来 (DJ阿卓 Remix)',
+    '后来 (现场)',
+    '后来 (女声版)',
+    '后来 (粤语版)',
+    '后来 (钢琴版)',
+    '后来 (抖音版)',
+    '后来 (加速版)',
+    '後來 (演唱會)',
+    '后来 (カバー)',
+  ])('is not sure of %s', title => {
+    expect(scored(title)).toBeLessThan(0.7)
+    expect(scored('后来')).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('does not mark a version down when that version was asked for, in either language', () => {
+    expect(scored('后来 (现场)', { ...houlai, title: '后来 (现场)' })).toBeGreaterThanOrEqual(0.9)
+    // Asked for from a concert's album, in Chinese; answered with the English word.
+    const concert = { ...houlai, album: '脱掉高跟鞋 世界巡回演唱会' }
+    expect(scored('后来 (Live)', concert)).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('does not take a DJ in a song’s own name for a version', () => {
+    const source = { title: 'Hey DJ', artist: 'CNCO', album: '', duration: 207 }
+    expect(scoreHit(source, hit({ title: 'Hey DJ', channel: 'CNCO', duration: 207 }))).toBe(1)
+    const other = { title: 'Wild Thoughts', artist: 'DJ Khaled', album: '', duration: 204 }
+    expect(
+      scoreHit(
+        other,
+        hit({ title: 'Wild Thoughts (feat. Rihanna)', channel: 'DJ Khaled', duration: 204 }),
+      ),
+    ).toBeGreaterThanOrEqual(0.9)
+  })
+})
+
+describe('namedAlike', () => {
+  const asked = (artist: string, album = '', title = '晴天') => ({
+    title,
+    artist,
+    album,
+    duration: 269,
+  })
+
+  it('knows one artist across scripts, and among several credited', () => {
+    expect(namedAlike(asked('周杰伦'), { artist: '周杰倫', album: '' })).toBe(true)
+    expect(namedAlike(asked('周杰伦, 费玉清'), { artist: '費玉清', album: '' })).toBe(true)
+    expect(namedAlike(asked('G.E.M.邓紫棋'), { artist: 'G.E.M.', album: '' })).toBe(true)
+  })
+
+  it('knows a name written twice, in brackets or in two scripts', () => {
+    expect(namedAlike(asked('五月天'), { artist: '五月天 (Mayday)', album: '' })).toBe(true)
+    expect(namedAlike(asked('周杰伦'), { artist: '周杰倫 Jay Chou', album: '' })).toBe(true)
+    expect(namedAlike(asked('邓紫棋'), { artist: 'G.E.M. 鄧紫棋', album: '' })).toBe(true)
+    expect(namedAlike(asked('Official髭男dism'), { artist: 'DISM', album: '' })).toBe(false)
+  })
+
+  it('does not take a name that only holds the artist’s for the artist', () => {
+    expect(namedAlike(asked('Daft Punk'), { artist: 'Daft Punk Tribute Band', album: '' })).toBe(
+      false,
+    )
+    expect(namedAlike(asked('五月天'), { artist: '五月天 阿信', album: '' })).toBe(false)
+    expect(namedAlike(asked('Love', 'Love'), { artist: 'Someone', album: 'Love Songs' })).toBe(
+      false,
+    )
+  })
+
+  it('does not know an artist by a name in another language, unless told it', () => {
+    expect(namedAlike(asked('陈奕迅'), { artist: 'Eason Chan', album: '' })).toBe(false)
+    expect(namedAlike(asked('陈奕迅'), { artist: 'Eason Chan', album: '' }, ['Eason Chan'])).toBe(
+      true,
+    )
+  })
+
+  it('takes the same album as the same artist’s, but not a single named after its song', () => {
+    expect(
+      namedAlike(asked('邓紫棋', '新的心跳', '来自天堂的魔鬼'), {
+        artist: 'G.E.M.',
+        album: '新的心跳',
+      }),
+    ).toBe(true)
+    expect(namedAlike(asked('周杰伦', '晴天'), { artist: '刘瑞琦', album: '晴天' })).toBe(false)
+    expect(namedAlike(asked('周杰伦', ''), { artist: '刘瑞琦', album: '' })).toBe(false)
+  })
+})
+
+describe('listedAs', () => {
+  it('reads either side of a name written two ways', () => {
+    expect(listedAs('陳奕迅', '陈奕迅')).toBe(true)
+    expect(listedAs('陳奕迅 - Eason Chan', 'Eason Chan')).toBe(true)
+    expect(listedAs('Yorushika(ヨルシカ)', 'ヨルシカ')).toBe(true)
+    expect(listedAs('G.E.M.', 'GEM')).toBe(true)
+  })
+
+  it('is not a name that only holds the one asked for', () => {
+    expect(listedAs('五月天 阿信', '五月天')).toBe(false)
+    expect(listedAs('奶茶店周杰伦', '周杰伦')).toBe(false)
+    expect(listedAs('张碧晨', '小众歌手')).toBe(false)
+  })
+})
+
+describe('languagesOf', () => {
+  it('asks in the language a name is written in', () => {
+    expect(languagesOf('幾田りら')).toEqual(['ja'])
+    expect(languagesOf('ヨルシカ')).toEqual(['ja'])
+    expect(languagesOf('아이유')).toEqual(['ko'])
+    expect(languagesOf('Eason Chan')).toEqual(['en'])
+  })
+
+  it('asks in Chinese and then Japanese for a name in characters alone', () => {
+    expect(languagesOf('陈奕迅')).toEqual(['zh-TW', 'ja'])
+    expect(languagesOf('米津玄師')).toEqual(['zh-TW', 'ja'])
   })
 })
 
@@ -313,10 +480,7 @@ describe('YouTubeMatcher', () => {
       'Adele Hello': [song({ title: 'Hello (Live at the BBC)', artist: 'Someone', duration: 330 })],
       'Nobody Nothing': null,
     }
-    const matcher = new YouTubeMatcher({
-      lists: { songs: async query => answers[query] ?? [] },
-      logger: createLogger('silent'),
-    })
+    const { matcher } = withLists(query => answers[query]?.map(track => by(track)) ?? [])
     const found = await matcher.find([
       getLucky,
       { title: 'Hello', artist: 'Adele', album: '', duration: 295 },
@@ -326,7 +490,146 @@ describe('YouTubeMatcher', () => {
     expect(found[1]?.sure ?? false).toBe(false)
     expect(found[2]).toBeNull()
   })
+
+  const guyongzhe = { title: '孤勇者', artist: '陈奕迅', album: '孤勇者', duration: 256 }
+  const easons = song({ title: '孤勇者', artist: 'Eason Chan', duration: 256 })
+
+  it('knows an artist under another name by their channel on YouTube Music', async () => {
+    const { matcher, asked } = withLists(
+      () => [by(easons, 'UCeason')],
+      // As its artist search answers 陈奕迅 in Chinese: him, then someone it thought of too.
+      { 陈奕迅: [listed('陳奕迅', 'UCeason'), listed('王菲', 'UCfaye')] },
+    )
+    expect(await matcher.find([guyongzhe])).toMatchObject([{ artist: 'Eason Chan', sure: true }])
+    expect(asked).toEqual([['陈奕迅', 'zh-TW']])
+  })
+
+  it('is not sure of a cover: its singer’s channel is not the artist’s', async () => {
+    const cover = song({ title: '孤勇者', artist: '田一名', duration: 255 })
+    const { matcher } = withLists(() => [by(cover, 'UCtian')], {
+      陈奕迅: [listed('陳奕迅', 'UCeason')],
+    })
+    expect(await matcher.find([guyongzhe])).toMatchObject([{ artist: '田一名', sure: false }])
+  })
+
+  it('takes the artist’s own song over a cover that came first', async () => {
+    const cover = song({ title: '孤勇者', artist: '田一名', duration: 256 })
+    const { matcher } = withLists(() => [by(cover, 'UCtian'), by(easons, 'UCeason')], {
+      陈奕迅: [listed('陳奕迅', 'UCeason')],
+    })
+    expect(await matcher.find([guyongzhe])).toMatchObject([{ artist: 'Eason Chan', sure: true }])
+  })
+
+  it('asks in Japanese when Chinese does not list a name in characters as it is written', async () => {
+    const lemon = song({ title: 'Lemon', artist: 'Kenshi Yonezu', duration: 257 })
+    const asked: string[] = []
+    const matcher = new YouTubeMatcher({
+      lists: {
+        songsBy: async () => [by(lemon, 'UCyonezu')],
+        artists: async (_name, language) => {
+          asked.push(language)
+          return [listed(language === 'ja' ? '米津玄師' : 'Kenshi Yonezu', 'UCyonezu')]
+        },
+      },
+      logger: createLogger('silent'),
+    })
+    const found = await matcher.find([
+      { title: 'Lemon', artist: '米津玄師', album: '', duration: 256 },
+    ])
+    expect(found).toMatchObject([{ sure: true }])
+    expect(asked).toEqual(['zh-TW', 'ja'])
+  })
+
+  it('does not take whoever the artist search thought of for the artist', async () => {
+    // Asked for a name it does not know, it lists whoever is popular; the cover is one of theirs.
+    const cover = song({ title: '孤勇者', artist: '张碧晨', duration: 256 })
+    const { matcher } = withLists(() => [by(cover, 'UCzhang')], {
+      小众歌手: [listed('张碧晨', 'UCzhang')],
+    })
+    const found = await matcher.find([{ ...guyongzhe, artist: '小众歌手' }])
+    expect(found).toMatchObject([{ sure: false }])
+  })
+
+  it('asks about an artist once, and not at all when the names say enough', async () => {
+    const { matcher, asked } = withLists(
+      query =>
+        query.startsWith('周杰伦')
+          ? [by(song({ title: '晴天', artist: '周杰倫', duration: 269 }), 'UCjay')]
+          : [by(easons, 'UCeason')],
+      { 陈奕迅: [listed('陳奕迅', 'UCeason')] },
+    )
+    const found = await matcher.find([
+      guyongzhe,
+      { ...guyongzhe, duration: 257 },
+      { title: '晴天', artist: '周杰伦', album: '', duration: 269 },
+    ])
+    expect(found.map(each => each?.sure)).toEqual([true, true, true])
+    expect(asked).toEqual([['陈奕迅', 'zh-TW']])
+  })
+
+  it('asks again after YouTube Music did not answer about an artist', async () => {
+    let answering = false
+    const asked: string[] = []
+    const matcher = new YouTubeMatcher({
+      lists: {
+        songsBy: async () => [by(easons, 'UCeason')],
+        artists: async name => {
+          asked.push(name)
+          return answering ? [listed('陳奕迅', 'UCeason')] : null
+        },
+      },
+      logger: createLogger('silent'),
+    })
+    expect(await matcher.find([guyongzhe])).toMatchObject([{ sure: false }])
+    answering = true
+    expect(await matcher.find([guyongzhe])).toMatchObject([{ sure: true }])
+    expect(asked).toEqual(['陈奕迅', '陈奕迅'])
+  })
+
+  it('knows an artist by a name the library has for them', async () => {
+    const asked: string[] = []
+    const matcher = new YouTubeMatcher({
+      lists: {
+        songsBy: async () => [by(easons, 'UCeason')],
+        artists: async name => {
+          asked.push(name)
+          return []
+        },
+      },
+      otherNames: artist => (artist === '陈奕迅' ? ['Eason Chan'] : []),
+      logger: createLogger('silent'),
+    })
+    expect(await matcher.find([guyongzhe])).toMatchObject([{ sure: true }])
+    expect(asked).toEqual([])
+  })
 })
+
+/** An answer credited to a channel. */
+const by = (track: ProbedTrack, channel = 'UCsomeone'): CreditedSong => ({
+  track,
+  channels: [channel],
+})
+
+const listed = (name: string, channel: string): ListedArtist => ({ name, channel })
+
+/** A matcher over stand-ins for YouTube Music's two searches, and what its artist search was asked. */
+function withLists(
+  songs: (query: string) => CreditedSong[] | null,
+  artists: Record<string, ListedArtist[]> = {},
+) {
+  const asked: [string, string][] = []
+  const matcher = new YouTubeMatcher({
+    lists: {
+      songsBy: async query => songs(query),
+      artists: async (name, language) => {
+        asked.push([name, language])
+        return artists[name] ?? []
+      },
+    },
+    logger: createLogger('silent'),
+  })
+  return { matcher, asked }
+}
 
 describe('searchQuery', () => {
   it('puts the artist first and drops noise', () => {

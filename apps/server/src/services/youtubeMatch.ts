@@ -1,10 +1,10 @@
 import { pinyin } from 'pinyin-pro'
-import { clamp01, cleanTitle, editDistance, type ImportFound } from '@selfmp3/shared'
+import { clamp01, cleanTitle, editDistance, splitArtists, type ImportFound } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { pool } from '../util/pool.js'
 import { swapped, type ListedTrack } from './trackLists.js'
 import type { ProbedTrack } from './ytdlp.js'
-import type { YouTubeMusicLists } from './youtubeMusicLists.js'
+import type { CreditedSong, YouTubeMusicLists } from './youtubeMusicLists.js'
 
 /**
  * Finding a song on YouTube by its name: a Spotify list, a pasted list of
@@ -18,11 +18,17 @@ import type { YouTubeMusicLists } from './youtubeMusicLists.js'
  * and how close its length is, and a weak best is said to be unsure, for the
  * person to listen to before importing.
  *
+ * A good score is not enough to be sure. A song YouTube Music does not have
+ * is answered with other people's covers of it, and a cover has the song's
+ * name and very nearly its length: by the score alone it is the song. So a
+ * match is sure only when the answer is also by the artist asked for
+ * (`ByArtist`), and the rest are left to be listened to.
+ *
  * The scoring is pure, so the weighting can be tuned against a table of real
  * cases.
  */
 
-/** At or above this a match is taken without a second thought. */
+/** At or above this a match by the artist asked for is taken without a second thought. */
 const SURE = 0.7
 /** Below this the best answer is not the song at all. */
 const FOUND = 0.4
@@ -30,6 +36,8 @@ const FOUND = 0.4
 const FIRST = 0.08
 /** Songs looked up at once. */
 const CONCURRENCY = 4
+/** Artists whose channels are remembered; past it the memory starts again. */
+const ARTISTS_REMEMBERED = 2_000
 
 /** What has been folded already: a library is compared with every pasted song. */
 const folded = new Map<string, string>()
@@ -129,26 +137,42 @@ function overlap(wordsA: ReadonlySet<string>, wordsB: ReadonlySet<string>): numb
   return containment * 0.85 + jaccard * 0.15
 }
 
-/** Words that mean "this is not the studio recording". */
+/**
+ * Words that mean "this is not the studio recording", in English and as
+ * 网易云 and YouTube Music write them in Chinese and Japanese: 翻自 for a
+ * cover, 伴奏 for the backing track, a bracket that starts with a DJ's name.
+ * One line is one meaning in every language, so a song asked for as
+ * 后来 (现场) is not marked down for an answer called "后来 (Live)".
+ */
 const PENALTIES: readonly { pattern: RegExp; weight: number }[] = [
-  { pattern: /\blive\b/i, weight: 0.3 },
-  { pattern: /\bcover\b/i, weight: 0.35 },
-  { pattern: /\bremix\b/i, weight: 0.3 },
+  { pattern: /\blive\b|现场|現場|演唱会|演唱會|ライブ/i, weight: 0.3 },
+  { pattern: /\bcover\b|翻自|翻唱|カバー|歌ってみた/i, weight: 0.35 },
+  { pattern: /\bremix\b|混音|[(（[【]\s*dj\b|\bdj\s*版/i, weight: 0.3 },
   { pattern: /\breaction\b/i, weight: 0.6 },
   { pattern: /\breacts?\b/i, weight: 0.6 },
   { pattern: /\b8d\b/i, weight: 0.55 },
-  { pattern: /\bsped ?up\b/i, weight: 0.55 },
-  { pattern: /\bslowed\b/i, weight: 0.55 },
+  { pattern: /\bsped ?up\b|加速|倍速/i, weight: 0.55 },
+  { pattern: /\bslowed\b|降速|慢速|减速|減速/i, weight: 0.55 },
   { pattern: /\bnightcore\b/i, weight: 0.55 },
-  { pattern: /\bkaraoke\b/i, weight: 0.4 },
-  { pattern: /\binstrumental\b/i, weight: 0.35 },
+  { pattern: /\bkaraoke\b|卡拉\s*ok|カラオケ/i, weight: 0.4 },
+  {
+    pattern: /\binstrumental\b|\boff ?vocal\b|伴奏|纯音乐|純音樂|オフボーカル|インスト/i,
+    weight: 0.35,
+  },
   { pattern: /\bacoustic\b/i, weight: 0.2 },
   { pattern: /\btutorial\b/i, weight: 0.5 },
-  { pattern: /\bmashup\b/i, weight: 0.35 },
+  { pattern: /\bmashup\b|\bmedley\b|串烧|串燒|联唱|聯唱|メドレー/i, weight: 0.35 },
   { pattern: /\b(?:1|2|3|5|10) hours?\b/i, weight: 0.5 },
   { pattern: /\bloop\b/i, weight: 0.3 },
   { pattern: /\bextended\b/i, weight: 0.15 },
   { pattern: /\btrailer\b/i, weight: 0.4 },
+  // Sung by someone else, or in another language: 女声版, 粤语版.
+  { pattern: /[女男童][声聲]?版/, weight: 0.35 },
+  { pattern: /(?:粤语|粵語|国语|國語|日语|日語|英文|韩语|韓語)版/, weight: 0.3 },
+  // Played on one instrument: 钢琴版, 吉他弹唱.
+  { pattern: /(?:钢琴|鋼琴|吉他|古筝|古箏|小提琴|八音盒)(?:版|曲|演奏|弹唱|彈唱)/, weight: 0.35 },
+  { pattern: /抖音/, weight: 0.3 },
+  { pattern: /\bsnippet\b|\bpreview\b|片段|试听|試聽/i, weight: 0.5 },
   // Lyric videos are usually the real audio with words on top; barely a mark down.
   { pattern: /\blyrics?\b/i, weight: 0.03 },
 ]
@@ -185,6 +209,8 @@ export interface MatchHit {
   readonly channel: string
   /** Seconds; 0 when unknown. */
   readonly duration: number
+  /** The album it is from, when it says: a concert's album is a live take whatever the title says. */
+  readonly album?: string
 }
 
 /**
@@ -229,9 +255,9 @@ export function scoreHit(source: ListedTrack, hit: MatchHit): number {
   for (const bonus of BONUSES) if (bonus.pattern.test(hit.title)) score += bonus.weight
 
   const sourceText = `${source.title} ${source.album}`
+  const hitText = `${hit.title} ${hit.album ?? ''}`
   for (const penalty of PENALTIES) {
-    if (penalty.pattern.test(hit.title) && !penalty.pattern.test(sourceText))
-      score -= penalty.weight
+    if (penalty.pattern.test(hitText) && !penalty.pattern.test(sourceText)) score -= penalty.weight
   }
 
   // A result twice as long as the song is a compilation whatever the title says.
@@ -240,26 +266,115 @@ export function scoreHit(source: ListedTrack, hit: MatchHit): number {
   return clamp01(score)
 }
 
-/** The best of YouTube Music's answers for a song, with how well it matched; null for none worth having. */
+/**
+ * Whether an answer is by the artist a song names, as far as anything says.
+ * What can say so: the two names being alike, a name the artist also goes by,
+ * the album being the same one, and the answer's channel being the artist's
+ * on YouTube Music (`YouTubeMatcher.byArtist`). A song that names no artist
+ * is not asked.
+ */
+export type ByArtist = (source: ListedTrack, answer: ProbedTrack) => boolean
+
+/** Text folded and run together, so "G.E.M." is "GEM" and 周杰伦 is 周杰倫. */
+const compact = (text: string): string => normalizeForMatch(text).replaceAll(' ', '')
+
+/** A run of Chinese, Japanese or Korean writing. */
+const CJK_RUN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu
+
+/**
+ * The ways one name is written, each `compact`: the whole of it, and each
+ * side where it is written twice — in brackets ("五月天 (Mayday)"), around a
+ * dash ("陳奕迅 - Eason Chan"), or as two scripts side by side
+ * ("G.E.M.邓紫棋", "周杰倫 Jay Chou").
+ *
+ * Nothing looser. A name that only holds another is somebody else: 五月天 阿信
+ * is not 五月天, and "Daft Punk Tribute Band" is not Daft Punk.
+ */
+function writtenAs(name: string): Set<string> {
+  const ways = new Set<string>()
+  const sides = name.split(/\s+-\s+|[()（）[\]【】]/)
+  for (const side of [name, ...sides]) {
+    ways.add(compact(side))
+    // Two scripts side by side: one run of each, and nothing else ("Official髭男dism" is one name).
+    const native = side.match(CJK_RUN) ?? []
+    const latin = side.split(CJK_RUN).filter(piece => compact(piece) !== '')
+    if (native.length === 1 && latin.length === 1) {
+      ways.add(compact(native[0] ?? ''))
+      ways.add(compact(latin[0] ?? ''))
+    }
+  }
+  ways.delete('')
+  return ways
+}
+
+/** Whether two names are one artist's: some way one is written is a way the other is. */
+function sameArtist(a: string, b: string): boolean {
+  const ways = writtenAs(b)
+  return [...writtenAs(a)].some(way => ways.has(way))
+}
+
+/**
+ * By what is written alone: one of the answer's artists is named as one of
+ * the song's is, or as a name they also go by; or both are from the same
+ * album.
+ *
+ * An album named after its song is a single, and says nothing: a cover is a
+ * single of the same name.
+ */
+export function namedAlike(
+  source: ListedTrack,
+  answer: Pick<ProbedTrack, 'artist' | 'album'>,
+  otherNames: readonly string[] = [],
+): boolean {
+  const asked = [...splitArtists(source.artist), ...otherNames]
+  const credited = splitArtists(answer.artist)
+  if (asked.some(name => credited.some(other => sameArtist(name, other)))) return true
+  const album = compact(cleanTitle(source.album))
+  return (
+    album !== '' &&
+    album === compact(cleanTitle(answer.album)) &&
+    album !== compact(cleanTitle(source.title))
+  )
+}
+
+/** One of YouTube Music's answers for a song: how well it matched, and whether it can be taken unheard. */
+interface Match {
+  readonly track: ProbedTrack
+  readonly confidence: number
+  /** A good match by the artist asked for; a good match by anyone, for a song that names no artist. */
+  readonly sure: boolean
+}
+
+/**
+ * The best of YouTube Music's answers for a song; null for none worth having.
+ * An answer that is sure is taken before a better-scoring one that is not: the
+ * artist's own recording, where there is one, rather than a cover that
+ * happened to come first.
+ */
 export function bestMatch(
   source: ListedTrack,
   results: readonly ProbedTrack[],
-): { track: ProbedTrack; confidence: number } | null {
-  let best: { track: ProbedTrack; confidence: number } | null = null
+  by: ByArtist = namedAlike,
+): Match | null {
+  const asksArtist = source.artist.trim() !== ''
+  let best: Match | null = null
   for (const [rank, track] of results.entries()) {
     const score = scoreHit(source, {
       title: track.title,
       channel: track.artist,
       duration: track.duration,
+      album: track.album,
     })
     /*
-     * YouTube Music's own first answer gets a little more trust: it knows an
-     * artist by every name they go by. 陈奕迅 is "Eason Chan" in its answers,
-     * which no comparison of the two names can see, and its first answer for
-     * "陈奕迅 孤勇者" is his.
+     * YouTube Music's own first answer gets a little more trust: it is the
+     * one it thinks was meant, and it knows a song by names no comparison
+     * here can see.
      */
     const confidence = Math.round(Math.min(1, score + (rank === 0 ? FIRST : 0)) * 100) / 100
-    if (!best || confidence > best.confidence) best = { track, confidence }
+    const sure = confidence >= SURE && (!asksArtist || by(source, track))
+    if (!best || (sure && !best.sure) || (sure === best.sure && confidence > best.confidence)) {
+      best = { track, confidence, sure }
+    }
   }
   return best && best.confidence >= FOUND ? best : null
 }
@@ -274,12 +389,18 @@ export function bestMatch(
 export function bestReading(
   source: ListedTrack,
   results: readonly ProbedTrack[],
-): { track: ProbedTrack; confidence: number; reversed: boolean } | null {
-  const asWritten = bestMatch(source, results)
+  by: ByArtist = namedAlike,
+): (Match & { reversed: boolean }) | null {
+  const asWritten = bestMatch(source, results, by)
   const written = asWritten && { ...asWritten, reversed: false }
   if (!source.artist.trim()) return written
-  const reversed = bestMatch(swapped(source), results)
-  if (!reversed || (asWritten && reversed.confidence <= asWritten.confidence)) return written
+  const reversed = bestMatch(swapped(source), results, by)
+  if (!reversed) return written
+  if (asWritten) {
+    const better =
+      reversed.sure === asWritten.sure ? reversed.confidence > asWritten.confidence : reversed.sure
+    if (!better) return written
+  }
   return { ...reversed, reversed: true }
 }
 
@@ -291,12 +412,44 @@ export function searchQuery(source: ListedTrack): string {
     .trim()
 }
 
-export class YouTubeMatcher {
-  readonly #lists: Pick<YouTubeMusicLists, 'songs'>
-  readonly #logger: Logger
+/**
+ * Whether an artist a search listed is the one asked for by name: one of the
+ * ways the row writes them (`writtenAs`: "陳奕迅 - Eason Chan",
+ * "Yorushika(ヨルシカ)") is the name asked for, whole.
+ */
+export function listedAs(listed: string, asked: string): boolean {
+  const wanted = compact(asked)
+  return wanted !== '' && writtenAs(listed).has(wanted)
+}
 
-  constructor(deps: { lists: Pick<YouTubeMusicLists, 'songs'>; logger: Logger }) {
+/**
+ * The languages to ask YouTube Music about an artist in, in turn: the one
+ * their name is written in, so the answer is written the same way and can be
+ * recognised. Characters alone may be Chinese or Japanese: asked in Chinese
+ * 米津玄師 is "Kenshi Yonezu", and in Japanese he is 米津玄師.
+ */
+export function languagesOf(name: string): readonly string[] {
+  if (/[\u3040-\u30ff]/.test(name)) return ['ja']
+  if (/[\uac00-\ud7af]/.test(name)) return ['ko']
+  if (/\p{Script=Han}/u.test(name)) return ['zh-TW', 'ja']
+  return ['en']
+}
+
+export class YouTubeMatcher {
+  readonly #lists: Pick<YouTubeMusicLists, 'songsBy' | 'artists'>
+  readonly #otherNames: (artist: string) => readonly string[]
+  readonly #logger: Logger
+  /** Each artist asked about, by `compact` name: their channels on YouTube Music. */
+  readonly #channels = new Map<string, Promise<ReadonlySet<string>>>()
+
+  constructor(deps: {
+    lists: Pick<YouTubeMusicLists, 'songsBy' | 'artists'>
+    /** The names the library knows an artist also goes by (services/artistNames.ts). */
+    otherNames?: (artist: string) => readonly string[]
+    logger: Logger
+  }) {
     this.#lists = deps.lists
+    this.#otherNames = deps.otherNames ?? (() => [])
     this.#logger = deps.logger.child('youtube-match')
   }
 
@@ -305,14 +458,94 @@ export class YouTubeMatcher {
     return pool(tracks, CONCURRENCY, track => this.#one(track))
   }
 
+  /**
+   * How to tell whether one of these answers is by the artist one of these
+   * songs names (`ByArtist`), with everything that can say so.
+   *
+   * Names are tried first, and they are free. YouTube Music is asked who an
+   * artist is only for a song they leave unsettled: one with a good answer
+   * under a name unlike the artist's. 陈奕迅's songs are credited to "Eason
+   * Chan" there, which no comparison of the two names can see; its artist
+   * search, asked for 陈奕迅 in Chinese, lists 陳奕迅 with the channel those
+   * songs are credited to. A cover's singer has another channel.
+   */
+  async byArtist(
+    sources: readonly ListedTrack[],
+    answers: readonly CreditedSong[],
+  ): Promise<ByArtist> {
+    const named: ByArtist = (source, answer) =>
+      namedAlike(
+        source,
+        answer,
+        splitArtists(source.artist).flatMap(name => this.#otherNames(name)),
+      )
+    const tracks = answers.map(answer => answer.track)
+    const unsettled = sources.filter(source => {
+      const best = bestMatch(source, tracks, named)
+      return best !== null && !best.sure && best.confidence >= SURE
+    })
+    if (unsettled.length === 0) return named
+
+    // Each artist once, however many of the songs are theirs.
+    const artists = new Map(
+      unsettled.flatMap(source => splitArtists(source.artist)).map(name => [compact(name), name]),
+    )
+    const channels = new Map<string, ReadonlySet<string>>()
+    await Promise.all(
+      [...artists].map(async ([key, name]) => channels.set(key, await this.#channelsOf(name))),
+    )
+    const creditedTo = new Map(answers.map(answer => [answer.track, answer.channels]))
+    return (source, answer) =>
+      named(source, answer) ||
+      splitArtists(source.artist).some(name => {
+        const theirs = channels.get(compact(name))
+        return theirs !== undefined && (creditedTo.get(answer) ?? []).some(id => theirs.has(id))
+      })
+  }
+
+  /** An artist's channels on YouTube Music: those its artist search lists under this very name. */
+  #channelsOf(name: string): Promise<ReadonlySet<string>> {
+    const key = compact(name)
+    const known = this.#channels.get(key)
+    if (known) return known
+    const asked = this.#ask(name).then(channels => {
+      // No answer is not "no such artist": asked again next time.
+      if (channels === null) this.#channels.delete(key)
+      return channels ?? new Set<string>()
+    })
+    if (this.#channels.size >= ARTISTS_REMEMBERED) this.#channels.clear()
+    this.#channels.set(key, asked)
+    return asked
+  }
+
+  /** `#channelsOf`, asked of YouTube Music; null when it did not answer. */
+  async #ask(name: string): Promise<ReadonlySet<string> | null> {
+    for (const language of languagesOf(name)) {
+      const listed = await this.#lists.artists(name, language)
+      if (listed === null) return null
+      const theirs = listed.filter(artist => listedAs(artist.name, name))
+      if (theirs.length > 0) return new Set(theirs.map(artist => artist.channel))
+    }
+    return new Set()
+  }
+
   async #one(source: ListedTrack): Promise<ImportFound | null> {
-    const results = await this.#lists.songs(searchQuery(source))
-    if (!results) {
+    const answers = await this.#lists.songsBy(searchQuery(source))
+    if (!answers) {
       this.#logger.debug('YouTube Music did not answer', { title: source.title })
       return null
     }
-    const best = bestReading(source, results)
+    const tracks = answers.map(answer => answer.track)
+    const written = await this.byArtist([source], answers)
+    let best = bestReading(source, tracks, written)
+    // Read the other way round its title is an artist to ask about too: only once the song as written is not settled.
+    if (best && !best.sure && source.artist.trim()) {
+      const turned = await this.byArtist([swapped(source)], answers)
+      best = bestReading(source, tracks, (song, answer) =>
+        song === source ? written(song, answer) : turned(song, answer),
+      )
+    }
     if (!best) return null
-    return { ...best.track, sure: best.confidence >= SURE, reversed: best.reversed }
+    return { ...best.track, sure: best.sure, reversed: best.reversed }
   }
 }

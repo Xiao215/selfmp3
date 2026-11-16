@@ -1,4 +1,4 @@
-import { plural } from '@selfmp3/shared'
+import { artistKey, cleanTitle, formatDuration, plural, splitArtists } from '@selfmp3/shared'
 import type { ImportEnqueue, ImportPreviewItem } from '@selfmp3/shared'
 import {
   ApiError,
@@ -140,12 +140,54 @@ export function youtubeOptionWords(match: YouTubeMatch): string {
   return 'Find it there'
 }
 
-/** An open row's line about YouTube's match, for a song with nowhere else to come from. */
-export function youtubeFoundWords(match: YouTubeMatch): string {
+/** Lengths this close are one recording's: two places round a song's length differently. */
+const SAME_LENGTH_S = 3
+
+/**
+ * What YouTube calls the song it found for a row, when that is not what the
+ * row calls it: "晴天 · 刘瑞琦 · 4:28". A row keeps the names it was listed
+ * by — 网易云's, a pasted list's — and what downloads is YouTube's song, so a
+ * cover by somebody else would otherwise look like the song asked for until
+ * it is played. Null when YouTube's is named and timed as the row is, or
+ * nothing was found.
+ *
+ * The same names are the same title once a "(feat. …)" or "(Official Audio)"
+ * is set aside, by the row's artists among whoever else YouTube credits: a
+ * guest it lists is not another song. A row that names no artist is told
+ * whose song was found.
+ */
+export function foundAs(item: ImportPreviewItem): string | null {
+  const found = item.youtube?.found
+  if (!found) return null
+  const credited = new Set(splitArtists(found.artist).map(artistKey))
+  const asked = splitArtists(item.artist)
+  const sameNames =
+    artistKey(cleanTitle(found.title)) === artistKey(cleanTitle(item.title)) &&
+    asked.length > 0 &&
+    asked.every(name => credited.has(artistKey(name)))
+  const sameLength =
+    item.duration <= 0 ||
+    found.duration <= 0 ||
+    Math.abs(found.duration - item.duration) <= SAME_LENGTH_S
+  if (sameNames && sameLength) return null
+  return [found.title, found.artist, found.duration > 0 ? formatDuration(found.duration) : '']
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/**
+ * An open row's line about YouTube's match, for a song with nowhere else to
+ * come from; `as` is what YouTube calls it (`foundAs`).
+ */
+export function youtubeFoundWords(match: YouTubeMatch, as: string | null = null): string {
   if (match === 'looking') return 'Looking for it on YouTube…'
   if (match === 'none') return 'Not found on YouTube. Fix its name, then look again.'
-  if (match === 'unsure') return 'Found on YouTube, but not sure it’s the song: have a listen.'
-  return 'Found on YouTube.'
+  if (match === 'unsure') {
+    return as
+      ? `YouTube has ${as}. Not sure it’s the song: have a listen.`
+      : 'Found on YouTube, but not sure it’s the song: have a listen.'
+  }
+  return as ? `Found on YouTube as ${as}.` : 'Found on YouTube.'
 }
 
 /** What the place a review's songs were listed by is called. */

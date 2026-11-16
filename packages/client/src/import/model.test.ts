@@ -640,7 +640,12 @@ describe('songs found by their names', () => {
       url: 'https://www.youtube.com/watch?v=1',
       album: 'An Album',
       thumbnail: 'https://lh3.googleusercontent.com/1=w544-h544',
-      youtube: { url: 'https://www.youtube.com/watch?v=1', match: 'sure' },
+      // What YouTube calls it stays with the row, which keeps the names it was listed by.
+      youtube: {
+        url: 'https://www.youtube.com/watch?v=1',
+        match: 'sure',
+        found: { title: 'Song 1', artist: 'Someone', duration: 201 },
+      },
     })
     expect(next.items[1]).toMatchObject({ url: '', youtube: { url: null, match: 'none' } })
     expect([...next.chosen]).toEqual([0, 2])

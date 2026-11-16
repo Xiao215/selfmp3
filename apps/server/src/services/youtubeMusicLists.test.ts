@@ -273,11 +273,70 @@ describe('YouTubeMusicLists', () => {
     expect(result?.tracks.map(track => track.title)).toEqual(['One'])
   })
 
+  it('says which channel each of a song’s artists is', async () => {
+    const lists = new YouTubeMusicLists(
+      logger,
+      answer({
+        contents: [
+          row(
+            'duet',
+            [
+              [{ text: '千里之外' }],
+              [
+                { text: '周杰倫', ...to('UCjay', 'MUSIC_PAGE_TYPE_ARTIST') },
+                { text: ' & ' },
+                { text: '費玉清', ...to('UCfei', 'MUSIC_PAGE_TYPE_ARTIST') },
+              ],
+            ],
+            '4:14',
+          ),
+        ],
+      }),
+    )
+    expect(await lists.songsBy('千里之外')).toMatchObject([
+      { track: { title: '千里之外', artist: '周杰倫, 費玉清' }, channels: ['UCjay', 'UCfei'] },
+    ])
+  })
+
+  it('asks a search for artists in the language given, and reads each one’s channel', async () => {
+    const asked: unknown[] = []
+    const artistRow = (name: string, channel: string, pageType = 'MUSIC_PAGE_TYPE_ARTIST') => ({
+      musicResponsiveListItemRenderer: {
+        flexColumns: [
+          { musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: name }] } } },
+          { musicResponsiveListItemFlexColumnRenderer: { text: text('Artist • 4.28M') } },
+        ],
+        ...to(channel, pageType),
+      },
+    })
+    const lists = new YouTubeMusicLists(logger, (_url, init) => {
+      asked.push(JSON.parse(String(init?.body)))
+      return answer({
+        contents: [
+          artistRow('陳奕迅', 'UCeason'),
+          artistRow('王菲', 'UCfaye'),
+          // Not an artist's row: a profile, which a search for artists can list.
+          artistRow('eason', 'UCfan', 'MUSIC_PAGE_TYPE_USER_CHANNEL'),
+        ],
+      })()
+    })
+    expect(await lists.artists('陈奕迅', 'zh-TW')).toEqual([
+      { name: '陳奕迅', channel: 'UCeason' },
+      { name: '王菲', channel: 'UCfaye' },
+    ])
+    expect(asked[0]).toMatchObject({
+      query: '陈奕迅',
+      params: expect.stringMatching(/^EgWKAQIgAW/),
+      context: { client: { hl: 'zh-TW' } },
+    })
+  })
+
   it('is null when YouTube Music does not answer, or answers no page', async () => {
     const down = new YouTubeMusicLists(logger, () =>
       Promise.resolve(new Response('', { status: 503 })),
     )
     expect(await down.songs('yoasobi')).toBeNull()
+    expect(await down.artists('yoasobi', 'en')).toBeNull()
     expect(await down.album('MPREb_x')).toBeNull()
     const empty = new YouTubeMusicLists(logger, answer({ contents: [] }))
     expect(await empty.playlist('PLx')).toBeNull()

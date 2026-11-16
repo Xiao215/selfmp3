@@ -68,6 +68,30 @@ export type ImportJob = z.infer<typeof ImportJobSchema>
 export const ImportSourceSchema = z.enum(['youtube', 'netease'])
 export type ImportSource = z.infer<typeof ImportSourceSchema>
 
+/**
+ * A song as YouTube names it, where a row is named by somewhere else: what
+ * the download will be, for the row to say when it is not what the row is
+ * called. A song found under another artist is someone else's recording,
+ * however alike the title.
+ */
+export const YouTubeNamesSchema = z.object({
+  title: z.string(),
+  artist: z.string(),
+  duration: z.number().nonnegative(),
+  thumbnail: z.string().nullable(),
+})
+export type YouTubeNames = z.infer<typeof YouTubeNamesSchema>
+
+/** The `YouTubeNames` of a song that carries them among other things. */
+export function youtubeNames(song: YouTubeNames): YouTubeNames {
+  return {
+    title: song.title,
+    artist: song.artist,
+    duration: song.duration,
+    thumbnail: song.thumbnail,
+  }
+}
+
 /** Metadata scraped from a URL before the user commits to downloading it. */
 export const ImportPreviewItemSchema = z.object({
   url: z.string(),
@@ -110,8 +134,13 @@ export const ImportPreviewItemSchema = z.object({
     .object({
       /** The match; null while `match` is `looking` or `none`. */
       url: z.string().nullable(),
-      /** How the name matched: still `looking`, `sure`, `unsure` (worth a listen), or `none` found. */
+      /**
+       * How the name matched: still `looking`, `sure` (a good match by the
+       * artist asked for), `unsure` (worth a listen), or `none` found.
+       */
       match: z.enum(['looking', 'sure', 'unsure', 'none']),
+      /** The match as YouTube names it; absent with no match. */
+      found: YouTubeNamesSchema.optional(),
     })
     .nullable(),
 })
@@ -156,7 +185,10 @@ export const ImportFindRequestSchema = z.object({
 })
 export type ImportFindRequest = z.infer<typeof ImportFindRequestSchema>
 
-/** One song found on YouTube Music: what it is called there, and how sure the name match is. */
+/**
+ * One song found on YouTube Music: what it is called there, and whether the
+ * match is sure — a good one, by the artist asked for.
+ */
 export const ImportFoundSchema = z.object({
   url: z.string(),
   title: z.string(),

@@ -14,6 +14,7 @@ import {
   reviewKicker,
   reviewName,
   rowState,
+  foundAs,
   sourceWords,
   stillFinding,
   toggleChosen,
@@ -253,5 +254,50 @@ describe('what an open row says of YouTube’s match', () => {
   it('says what to do about a match that is missing or weak', () => {
     expect(youtubeFoundWords('none')).toBe('Not found on YouTube. Fix its name, then look again.')
     expect(youtubeFoundWords('sure')).toBe('Found on YouTube.')
+  })
+
+  const asked = (found: { title: string; artist: string; duration: number }) =>
+    item(2, {
+      title: '晴天',
+      artist: '周杰伦',
+      duration: 269,
+      youtube: {
+        url: 'https://www.youtube.com/watch?v=2',
+        match: 'unsure',
+        found: { ...found, thumbnail: null },
+      },
+    })
+
+  it('says what YouTube calls the song when that is not what the row calls it', () => {
+    const cover = asked({ title: '晴天', artist: '刘瑞琦', duration: 268 })
+    expect(foundAs(cover)).toBe('晴天 · 刘瑞琦 · 4:28')
+    expect(youtubeFoundWords('unsure', foundAs(cover))).toBe(
+      'YouTube has 晴天 · 刘瑞琦 · 4:28. Not sure it’s the song: have a listen.',
+    )
+    expect(youtubeFoundWords('sure', '孤勇者 · Eason Chan · 4:16')).toBe(
+      'Found on YouTube as 孤勇者 · Eason Chan · 4:16.',
+    )
+    // The right names at another length is another recording: a concert's, a shortened one.
+    expect(foundAs(asked({ title: '晴天', artist: '周杰伦', duration: 300 }))).toBe(
+      '晴天 · 周杰伦 · 5:00',
+    )
+  })
+
+  it('says nothing more when YouTube’s song is named and timed as the row is', () => {
+    expect(foundAs(asked({ title: '晴天', artist: '周杰伦', duration: 270 }))).toBeNull()
+    // A guest YouTube credits, in the title and beside the artist, is not another song.
+    const withGuest = asked({
+      title: '晴天 (feat. 费玉清)',
+      artist: '周杰伦, 费玉清',
+      duration: 269,
+    })
+    expect(foundAs(withGuest)).toBeNull()
+    expect(foundAs(asked({ title: ' 晴天', artist: '周杰伦', duration: 0 }))).toBeNull()
+    expect(foundAs(item(2))).toBeNull()
+  })
+
+  it('says whose song was found for a row that names no artist', () => {
+    const titleOnly = { ...asked({ title: '晴天', artist: '周杰倫', duration: 269 }), artist: '' }
+    expect(foundAs(titleOnly)).toBe('晴天 · 周杰倫 · 4:29')
   })
 })

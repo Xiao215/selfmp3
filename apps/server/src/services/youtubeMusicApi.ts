@@ -32,6 +32,9 @@ export const SONG_SEARCH_FOR_MATCHING = 'EgWKAQIIAWoMEA4QChADEAQQCRAF'
 /** Songs only, as the YouTube Music web app sends it: the import review's search (youtubeMusicLists.ts). */
 export const SONG_SEARCH_AS_THE_WEB_APP = 'EgWKAQIIAWoKEAoQCRADEAQQBQ%3D%3D'
 
+/** The search's "Artists" filter (`8a 01 02 20 01`), as the web app sends it (youtubeMusicLists.ts). */
+export const ARTIST_SEARCH_AS_THE_WEB_APP = 'EgWKAQIgAWoKEAoQCRADEAQQBQ%3D%3D'
+
 export class YouTubeMusicApi {
   readonly #logger: Logger
   readonly #fetch: FetchLike

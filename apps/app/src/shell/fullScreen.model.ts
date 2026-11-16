@@ -1,4 +1,4 @@
-import { STORAGE_ROUTE } from '../features/welcome/storage.model'
+import { MOVE_ROUTE, STORAGE_ROUTE } from '../features/welcome/storage.model'
 
 /**
  * The way in: Welcome, Where it lives and First sync. Each replaces the
@@ -8,11 +8,11 @@ import { STORAGE_ROUTE } from '../features/welcome/storage.model'
 export const GATE_ROUTES: readonly string[] = ['/welcome', STORAGE_ROUTE, '/first-sync']
 
 /**
- * The pages that take the whole display at every width — the way in, and Now
- * Playing. No tab bar or mini player is drawn over them (`pageChrome.ts`), and
+ * The pages that take the whole display at every width — the way in, moving
+ * the library (drawn as a page of the way in is), and Now Playing. No tab bar or mini player is drawn over them (`pageChrome.ts`), and
  * each has its own entrance rather than the shell's page step (`pageStep.ts`).
  */
-export const FULL_SCREEN_ROUTES: readonly string[] = [...GATE_ROUTES, '/now-playing']
+export const FULL_SCREEN_ROUTES: readonly string[] = [...GATE_ROUTES, MOVE_ROUTE, '/now-playing']
 
 /**
  * The pages that open without signing in: joining a room from its invite

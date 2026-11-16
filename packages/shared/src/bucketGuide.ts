@@ -43,7 +43,7 @@ export const BUCKET_GUIDE: {
   readonly refusals: readonly { readonly says: string; readonly fix: string }[]
 } = {
   intro: [
-    'self.mp3 keeps your music in a storage bucket of your own, at Backblaze. You make it once, in about ten minutes, and every device you sign in to finds it by itself after that.',
+    'self.mp3 can keep your music in your own Google Drive, which takes one press and none of this page. This is the other way: a storage bucket of your own, at Backblaze. You make it once, in about ten minutes, and every device you sign in to finds it by itself after that.',
     'It is easiest on a computer: Backblaze shows a long key once, and you copy it into self.mp3.',
   ],
   steps: [

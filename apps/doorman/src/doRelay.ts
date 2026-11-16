@@ -5,7 +5,8 @@ import {
   type RoomRefusal,
 } from '@selfmp3/shared'
 import { z } from 'zod'
-import { Bucket, BucketError } from './bucket.js'
+import { StoreError } from './store.js'
+import { openStore } from './stores.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
 import { JSON_HEADERS, noContent, notFound } from './http.js'
@@ -71,12 +72,12 @@ export async function readLent(
   method: 'GET' | 'HEAD',
   owner: string,
 ): Promise<Response> {
-  const target = await ctx.accounts.bucket(file.sub)
+  const target = await ctx.accounts.storage(file.sub)
   if (!target) throw notFound(`${owner} has no bucket connected any more`)
   try {
-    return await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method, 'lent')
+    return await relayRead(ctx, openStore(target, ctx.storeDeps), file.key, method, 'lent')
   } catch (error) {
-    if (!(error instanceof BucketError) || error.kind !== 'cap') throw error
+    if (!(error instanceof StoreError) || error.kind !== 'cap') throw error
     throw new DoormanError(
       502,
       DOORMAN_ERROR.lenderCapExceeded,

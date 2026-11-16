@@ -21,6 +21,7 @@ const ME: DoormanMe = {
   name: 'Me',
   picture: null,
   storage: {
+    kind: 'bucket' as const,
     endpoint: 'https://s3.us-west-004.backblazeb2.com',
     region: 'us-west-004',
     bucket: 'my-music',
@@ -69,9 +70,9 @@ describe('DoormanClient', () => {
     const answers: Array<[Response, string, RegExp]> = [
       [json({ error: 'nope', code: 'unauthorized' }, 401), 'auth', /taken back/],
       [
-        json({ error: 'connect your bucket first', code: 'no_storage' }, 409),
+        json({ error: 'connect your storage first', code: 'no_storage' }, 409),
         'missing',
-        /No bucket/,
+        /No storage/,
       ],
       // The same status, for something else entirely: the account's grants are full.
       [
@@ -92,6 +93,12 @@ describe('DoormanClient', () => {
       ],
       [json({ error: 'Could not reach s3.', code: 'bucket_unreachable' }, 502), 'network', /reach/],
       [json({ error: 'Backblaze says “cap”.', code: 'bucket_cap_exceeded' }, 502), 'cap', /cap/],
+      // A Google Drive with no room left: no song after the first will fit either.
+      [
+        json({ error: 'Your Google storage is full.', code: 'storage_full' }, 502),
+        'full',
+        /storage is full/,
+      ],
     ]
     for (const [response, kind, text] of answers) {
       const { client } = stand(() => response)

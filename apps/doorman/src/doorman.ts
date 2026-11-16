@@ -11,15 +11,18 @@ import { version as DOORMAN_VERSION } from '../package.json'
 import { Access, readAccess, stats, writeAccess, type AccessCache } from './access.js'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
-import { BucketError, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
+import * as driveConnect from './driveConnect.js'
+import type { DriveDeps } from './drive.js'
 import * as files from './files.js'
+import { GoogleTokens, googleClientOf, type GoogleTokenCache } from './googleTokens.js'
 import { device, iphones } from './device.js'
 import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
 import { linkPage } from './linkPage.js'
+import * as move from './move.js'
 import { share } from './shareRoutes.js'
 import {
   errorResponse,
@@ -33,16 +36,19 @@ import {
 import { deriveKeys, type DoormanKeys } from './keys.js'
 import { Sessions, type SessionCache } from './sessions.js'
 import * as storage from './storage.js'
+import { StoreError, type Fetch } from './store.js'
 
 /**
  * The doorman: one small Cloudflare Worker between every device and the
  * bucket — see docs/SYNC.md and the contract in packages/shared.
  *
  * It signs people in with Google and a one-time code (auth.ts, signin.ts),
- * keeps the one bucket that belongs to each Google account with its key
- * sealed (accounts.ts, seal.ts, keys.ts), and passes a signed-in device's
- * reads and writes through to that bucket (files.ts, bucket.ts). Devices
- * never hold the bucket's key.
+ * keeps the one place each Google account's library lives — a bucket of its
+ * own, or a folder in its own Google Drive — with the way in sealed
+ * (accounts.ts, seal.ts, keys.ts), and passes a signed-in device's reads and
+ * writes through to it (files.ts, and store.ts with its two drivers,
+ * bucket.ts and drive.ts). Devices never hold the bucket's key or Google's
+ * token.
  *
  * `createDoorman` builds it with what it talks to — fetch and a clock — so the
  * tests can run the very same code against a fake Google and a fake bucket.
@@ -51,7 +57,7 @@ import * as storage from './storage.js'
  */
 
 interface DoormanDeps {
-  /** How Google and the bucket are reached. The Worker's own fetch unless a test says otherwise. */
+  /** How Google and the storage are reached. The Worker's own fetch unless a test says otherwise. */
   readonly fetch?: Fetch
   readonly now?: () => number
   readonly log?: Log
@@ -77,7 +83,7 @@ type Route = (ctx: Context) => Promise<Response>
 const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.health]: { GET: health },
   [DOORMAN_PATHS.signInStart]: { GET: auth.start },
-  [DOORMAN_PATHS.signInCallback]: { GET: auth.callback },
+  [DOORMAN_PATHS.signInCallback]: { GET: driveConnect.callback },
   [DOORMAN_PATHS.claim]: { POST: auth.claim },
   [DOORMAN_PATHS.signOut]: { POST: auth.signOut },
   [DOORMAN_PATHS.signOutEverywhere]: { POST: auth.signOutEverywhere },
@@ -86,6 +92,12 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.stats]: { GET: stats },
   [DOORMAN_PATHS.storage]: { PUT: storage.connect, DELETE: storage.disconnect },
   [DOORMAN_PATHS.backblaze]: { POST: storage.connectBackblaze },
+  [DOORMAN_PATHS.drive]: { POST: driveConnect.start },
+  [DOORMAN_PATHS.space]: { GET: move.space },
+  [DOORMAN_PATHS.move]: { GET: move.state, PUT: move.start, DELETE: move.stop },
+  [DOORMAN_PATHS.moveList]: { GET: move.list },
+  [DOORMAN_PATHS.moveCopy]: { POST: move.copy },
+  [DOORMAN_PATHS.moveFinish]: { POST: move.finish },
   [DOORMAN_PATHS.list]: { GET: files.list },
   [DOORMAN_PATHS.changes]: { GET: files.changes },
 }
@@ -100,13 +112,14 @@ const {
   iphones: IPHONES,
 } = DOORMAN_PATHS
 
-/** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
+/** Errors from storage, as a device sees them: the doorman's own upstream failed. */
 const BUCKET_CODES: Readonly<Record<BucketRefusalKind, DoormanErrorCode>> = {
   auth: DOORMAN_ERROR.bucketRefusedKey,
   missing: DOORMAN_ERROR.noSuchBucket,
   network: DOORMAN_ERROR.bucketUnreachable,
   cap: DOORMAN_ERROR.bucketCapExceeded,
   busy: DOORMAN_ERROR.bucketBusy,
+  full: DOORMAN_ERROR.storageFull,
   other: DOORMAN_ERROR.bucketError,
 }
 
@@ -118,6 +131,9 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
   const accountCache = newAccountCache()
   const accessCache: AccessCache = new Map()
   const signingKeys = new Map<string, ArrayBuffer>()
+  const googleTokens: GoogleTokenCache = new Map()
+  const driveFiles: DriveDeps['found'] = new Map()
+  const driveFolders: DriveDeps['alive'] = new Map()
   let derived: { secret: string | undefined; keys: Promise<DoormanKeys> } | null = null
 
   /** SEAL_KEY's keys, derived once per instance. A missing or malformed one is the owner's to fix. */
@@ -146,7 +162,15 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
         sessions: new Sessions(env.KV, now, sessionCache),
         accounts: new Accounts(env.KV, now, accountCache, keys, log),
         access: new Access(env.KV, env.OWNER_EMAILS, now, accessCache),
-        bucketDeps: { fetch: fetcher, now, signingKeys },
+        storeDeps: {
+          bucket: { fetch: fetcher, now, signingKeys },
+          drive: {
+            fetch: fetcher,
+            tokens: new GoogleTokens(fetcher, now, googleClientOf(env), googleTokens),
+            found: driveFiles,
+            alive: driveFolders,
+          },
+        },
         // Without the runtime's (a test calling in), the work simply runs on.
         // Nobody waits on it, so a failure is the log's to say: the answer has gone.
         waitUntil: work => {
@@ -209,7 +233,7 @@ function health(): Promise<Response> {
 
 function asDoormanError(error: unknown, log: Log): DoormanError {
   if (error instanceof DoormanError) return error
-  if (error instanceof BucketError) {
+  if (error instanceof StoreError) {
     return new DoormanError(502, BUCKET_CODES[error.kind], error.message)
   }
   // Only the message, never a stack's worth of values, and with anything like

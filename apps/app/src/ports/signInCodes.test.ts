@@ -60,6 +60,43 @@ describe('signInLink', () => {
   })
 })
 
+describe('a link back from connecting Google Drive', () => {
+  it('reads how it went, for Where it lives', () => {
+    expect(signInLink('selfmp3://storage#storage=connected')).toEqual({
+      target: 'storage',
+      back: { kind: 'connected' },
+    })
+    expect(
+      signInLink('https://example.github.io/selfmp3/storage#storage-refused=unticked'),
+    ).toEqual({ target: 'storage', back: { kind: 'refused', refusal: 'unticked' } })
+  })
+
+  it('reads nothing of a sign-in’s there, or of its own at Welcome', () => {
+    expect(signInLink('selfmp3://storage#signin-code=4F7K2QXM')).toBeNull()
+    expect(signInLink('selfmp3://welcome#storage=connected')).toBeNull()
+    expect(signInLink('selfmp3://storage')).toBeNull()
+    // The same trip, asked for as somewhere to move a library to.
+    expect(signInLink('selfmp3://move#storage-refused=holds-library')).toEqual({
+      target: 'move',
+      back: { kind: 'refused', refusal: 'holds-library' },
+    })
+    expect(signInLink('selfmp3://storage#storage-refused=because')).toBeNull()
+  })
+
+  it('waits in the inbox for its own screen, and not for Welcome', () => {
+    const inbox = createSignInInbox()
+    expect(inbox.arrive('selfmp3://storage#storage=connected')).toBe(true)
+    const welcome: unknown[] = []
+    inbox.listen('welcome', back => welcome.push(back))
+    expect(welcome).toEqual([])
+
+    const storage: unknown[] = []
+    inbox.listen('storage', back => storage.push(back))
+    inbox.arrive('selfmp3://storage#storage-refused=cancelled')
+    expect(storage).toEqual([{ kind: 'connected' }, { kind: 'refused', refusal: 'cancelled' }])
+  })
+})
+
 describe('createSignInInbox', () => {
   it('keeps a link that arrived before anyone listened', () => {
     const inbox = createSignInInbox()

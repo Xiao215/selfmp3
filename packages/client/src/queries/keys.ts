@@ -78,6 +78,8 @@ export const queryKeys = {
   cloud: ['cloud'] as const,
   /** The stored doorman session's account, read on the device itself. */
   cloudSession: ['cloud-session'] as const,
+  /** How much room the account's Google Drive has (`useStorageSpace`). */
+  storageSpace: ['storage-space'] as const,
   /** A library's uids: `which` is this device's copy or the server being asked. */
   cloudUids: (which: 'device' | 'via-server', baseUrl?: string) =>
     ['cloud-uids', which, baseUrl] as const,

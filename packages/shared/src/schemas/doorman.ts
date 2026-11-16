@@ -20,7 +20,15 @@ import { z } from 'zod'
  *   PUT    /v1/storage      CloudConnect               → connect your bucket
  *   POST   /v1/storage/backblaze  { keyId, applicationKey, prefix? }
  *                                                      → connect a Backblaze bucket from its key alone
+ *   POST   /v1/storage/drive  { returnTo? }            → Google's page asking to keep the
+ *                                                         library in your Google Drive; Google
+ *                                                         comes back to /v1/auth/callback
  *   DELETE /v1/storage                                 → forget it
+ *   GET    /v1/storage/space[?of=move]                 → how much room a Google Drive has
+ *   GET | PUT | DELETE  /v1/storage/move               → the move under way: where to, start, stop
+ *   GET    /v1/storage/move/list?cursor=<c>            → what the new place holds so far
+ *   POST   /v1/storage/move/copy  { keys, remove }     → copy a few files across
+ *   POST   /v1/storage/move/finish                     → the new place becomes the storage
  *   GET    /v1/list?prefix=<p>&cursor=<c>
  *   GET    /v1/changes                                 → the account's change counter
  *   GET | HEAD | PUT | DELETE  /v1/files/<key>
@@ -154,8 +162,9 @@ export const DoormanClaimRequestSchema = z.object({
 })
 export type DoormanClaimRequest = z.infer<typeof DoormanClaimRequestSchema>
 
-/** Where your bucket is. The key itself is never sent back. */
-export const DoormanStorageSchema = z.object({
+/** Where a bucket is. The key itself is never sent back. */
+const DoormanBucketStorageSchema = z.object({
+  kind: z.literal('bucket'),
   endpoint: z.string(),
   region: z.string(),
   bucket: z.string(),
@@ -163,7 +172,102 @@ export const DoormanStorageSchema = z.object({
   /** The first few characters of the key id, to tell two keys apart. */
   keyIdHint: z.string(),
 })
+
+/** The library's folder in the account's own Google Drive. Google's token is never sent back. */
+const DoormanDriveStorageSchema = z.object({
+  kind: z.literal('drive'),
+  /** The folder's id in Drive: which folder it is, whatever it is renamed to. */
+  folder: z.string(),
+})
+
+/**
+ * Where the account's library is kept: a bucket of its own, or a folder in its
+ * own Google Drive (docs/features/storage-providers.md). One or the other,
+ * never both.
+ */
+export const DoormanStorageSchema = z.discriminatedUnion('kind', [
+  DoormanBucketStorageSchema,
+  DoormanDriveStorageSchema,
+])
 export type DoormanStorage = z.infer<typeof DoormanStorageSchema>
+
+/** What the `self.mp3` folder is called in a Google Drive, and so on every screen that names it. */
+export const DRIVE_FOLDER_NAME = 'self.mp3'
+
+/** Whether two answers name the same place: the same bucket and folder, or the same Drive folder. */
+export function sameStorage(a: DoormanStorage, b: DoormanStorage): boolean {
+  if (a.kind === 'drive' || b.kind === 'drive') {
+    return a.kind === 'drive' && b.kind === 'drive' && a.folder === b.folder
+  }
+  return a.endpoint === b.endpoint && a.bucket === b.bucket && a.prefix === b.prefix
+}
+
+/**
+ * Connecting Google Drive (`POST /v1/storage/drive`): where the browser should
+ * come back to once Google has asked, as a sign-in's `return` is. The answer
+ * is the address of Google's page, for the device to open.
+ */
+export const DoormanDriveStartSchema = z.object({
+  returnTo: z.string().max(1024).nullable().optional(),
+  /**
+   * The Drive is where the library is to be moved to (`DoormanMoveSchema`),
+   * not connected in place of the storage the account has.
+   */
+  move: z.boolean().optional(),
+})
+export type DoormanDriveStart = z.infer<typeof DoormanDriveStartSchema>
+
+export const DoormanDriveStartedSchema = z.object({ url: z.string().url() })
+export type DoormanDriveStarted = z.infer<typeof DoormanDriveStartedSchema>
+
+/**
+ * How connecting Google Drive ended, in the fragment of the address the
+ * doorman sends the browser back to: `#storage=connected`, or
+ * `#storage-refused=<why>`. Nothing secret comes back, so nothing is claimed
+ * as a sign-in's code is: the device asks `/v1/me` and finds its storage there.
+ */
+export const DRIVE_CONNECTED_FRAGMENT = 'storage'
+export const DRIVE_REFUSED_FRAGMENT = 'storage-refused'
+
+export const DRIVE_REFUSAL = {
+  /** Cancel on Google's page. */
+  cancelled: 'cancelled',
+  /** Google's page was passed with the Drive box left unticked. */
+  unticked: 'unticked',
+  /** Another Google account than the one signed in to self.mp3. */
+  otherAccount: 'other-account',
+  /** Google, or Drive, could not finish. */
+  failed: 'failed',
+  /** A move was asked for, and the Drive already has a library of its own in it. */
+  holdsLibrary: 'holds-library',
+} as const
+export type DriveRefusal = (typeof DRIVE_REFUSAL)[keyof typeof DRIVE_REFUSAL]
+
+/** What to say for each refusal, wherever it is said: the doorman's own page, and the app. */
+export const DRIVE_REFUSAL_WORDS: Readonly<Record<DriveRefusal, string>> = {
+  [DRIVE_REFUSAL.cancelled]: 'Google Drive was not connected.',
+  [DRIVE_REFUSAL.unticked]:
+    'Google asks with a tick box. Tick the one that lets self.mp3 keep its own files in your Google Drive, then continue.',
+  [DRIVE_REFUSAL.otherAccount]:
+    'That was a different Google account. Choose the one you are signed in to self.mp3 with.',
+  [DRIVE_REFUSAL.failed]: 'Google Drive could not be connected. Try again in a moment.',
+  [DRIVE_REFUSAL.holdsLibrary]: `Your Google Drive already has a library in its ${DRIVE_FOLDER_NAME} folder. Delete that folder in Google Drive, then move again.`,
+}
+
+export type DriveBack =
+  { readonly kind: 'connected' } | { readonly kind: 'refused'; readonly refusal: DriveRefusal }
+
+const DriveRefusalSchema = z.nativeEnum(DRIVE_REFUSAL)
+
+/** What the doorman said about connecting Drive in an address it sent back, or null when nothing. */
+export function driveBackFromUrl(url: string): DriveBack | null {
+  const hash = url.indexOf('#')
+  if (hash < 0) return null
+  const params = new URLSearchParams(url.slice(hash + 1))
+  const refusal = DriveRefusalSchema.safeParse(params.get(DRIVE_REFUSED_FRAGMENT))
+  if (refusal.success) return { kind: 'refused', refusal: refusal.data }
+  return params.get(DRIVE_CONNECTED_FRAGMENT) === 'connected' ? { kind: 'connected' } : null
+}
 
 /**
  * A Backblaze bucket from its key alone (`POST /v1/storage/backblaze`).
@@ -188,7 +292,7 @@ export type DoormanBackblazeConnect = z.infer<typeof DoormanBackblazeConnectSche
  */
 export const DoormanAccountSchema = z.string().regex(/^[0-9a-f]{32}$/, 'not an account id')
 
-/** Who is signed in, and the bucket that belongs to their Google account. */
+/** Who is signed in, and where their Google account's library is kept. */
 export const DoormanMeSchema = z.object({
   /**
    * Which account this is, for a server that works for several
@@ -198,8 +302,14 @@ export const DoormanMeSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
   picture: z.string().nullable(),
-  /** Null until a bucket is connected: the first thing a new account does. */
+  /** Null until storage is connected: the first thing a new account does. */
   storage: DoormanStorageSchema.nullable(),
+  /**
+   * Where the library was before it was moved to `storage`, file for file
+   * (`DoormanMoveSchema`). A server that kept its books against the old place
+   * keeps them: everything it knew is still true of the new one.
+   */
+  movedFrom: DoormanStorageSchema.optional(),
 })
 export type DoormanMe = z.infer<typeof DoormanMeSchema>
 
@@ -364,3 +474,18 @@ export function parseChangesHeader(
 
 export const DoormanHealthSchema = z.object({ ok: z.literal(true), version: z.string() })
 export type DoormanHealth = z.infer<typeof DoormanHealthSchema>
+
+/**
+ * How much room the account's storage has (`GET /v1/storage/space`). Null for
+ * a bucket, which has no size to run out of that the doorman can ask about.
+ * `limit` is null for a Google account with no limit.
+ */
+export const DoormanSpaceSchema = z.object({
+  space: z
+    .object({
+      used: z.number().nonnegative(),
+      limit: z.number().nonnegative().nullable(),
+    })
+    .nullable(),
+})
+export type DoormanSpace = z.infer<typeof DoormanSpaceSchema>

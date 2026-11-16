@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Fetch } from './bucket.js'
+import type { Fetch } from './store.js'
 import { fromBase64Url, fromUtf8 } from './encoding.js'
 import { redact } from './http.js'
 import type { Identity } from './sessions.js'
@@ -47,7 +47,20 @@ interface SignInLink {
   readonly nonce: string
   /** base64url(SHA-256(verifier)). */
   readonly codeChallenge: string
+  /**
+   * Set when the trip is to connect Google Drive rather than to sign in
+   * (driveConnect.ts): the address already signed in, which Google is asked
+   * to offer first.
+   */
+  readonly drive?: { readonly email: string }
 }
+
+/**
+ * The one thing asked of a Google Drive: the files self.mp3 itself puts there,
+ * and no others. Google counts it non-sensitive, so asking for it needs no
+ * review of the app (apps/doorman/README.md).
+ */
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 
 /** Google's sign-in page, set up to come back to the doorman. */
 export function authUrl(link: SignInLink): string {
@@ -55,18 +68,39 @@ export function authUrl(link: SignInLink): string {
   url.searchParams.set('client_id', link.clientId)
   url.searchParams.set('redirect_uri', link.redirectUri)
   url.searchParams.set('response_type', 'code')
-  url.searchParams.set('scope', 'openid email profile')
+  url.searchParams.set('scope', link.drive ? `openid email ${DRIVE_SCOPE}` : 'openid email profile')
   url.searchParams.set('state', link.state)
   url.searchParams.set('nonce', link.nonce)
   url.searchParams.set('code_challenge', link.codeChallenge)
   url.searchParams.set('code_challenge_method', 'S256')
+  if (link.drive) {
+    // A refresh token comes only with offline access, and for certain only
+    // when Google asks afresh rather than remembering an earlier yes.
+    url.searchParams.set('access_type', 'offline')
+    url.searchParams.set('prompt', 'consent')
+    url.searchParams.set('login_hint', link.drive.email)
+    return url.toString()
+  }
   // Always ask which account: the one the browser is signed in to is often
   // not the one this self.mp3 knows.
   url.searchParams.set('prompt', 'select_account')
   return url.toString()
 }
 
-const TokenResponseSchema = z.object({ id_token: z.string().min(1) })
+const TokenResponseSchema = z.object({
+  id_token: z.string().min(1),
+  /** Only with offline access: what connecting Google Drive is after. */
+  refresh_token: z.string().min(1).optional(),
+  /** What was granted, space-separated: a person may untick what was asked for. */
+  scope: z.string().optional(),
+})
+
+/** What Google gave for the code. */
+interface GoogleTokenAnswer {
+  readonly idToken: string
+  readonly refreshToken: string | null
+  readonly scopes: readonly string[]
+}
 
 interface CodeExchange {
   readonly fetch: Fetch
@@ -77,8 +111,8 @@ interface CodeExchange {
   readonly codeVerifier: string
 }
 
-/** Trade the code Google sent back for an ID token. */
-export async function exchangeCode(exchange: CodeExchange): Promise<string> {
+/** Trade the code Google sent back for an ID token, and whatever else was asked for. */
+export async function exchangeCode(exchange: CodeExchange): Promise<GoogleTokenAnswer> {
   const form = new URLSearchParams({
     code: exchange.code,
     client_id: exchange.clientId,
@@ -114,7 +148,11 @@ export async function exchangeCode(exchange: CodeExchange): Promise<string> {
   }
   const parsed = TokenResponseSchema.safeParse(data)
   if (!parsed.success) throw new GoogleError('Google answered without an ID token', 502)
-  return parsed.data.id_token
+  return {
+    idToken: parsed.data.id_token,
+    refreshToken: parsed.data.refresh_token ?? null,
+    scopes: parsed.data.scope?.split(/\s+/).filter(Boolean) ?? [],
+  }
 }
 
 const ClaimsSchema = z.object({

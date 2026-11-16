@@ -59,12 +59,14 @@ const KIND_OF: Partial<Record<DoormanErrorCode, CloudError['kind']>> = {
   // refusal rather than trying every song against it.
   [DOORMAN_ERROR.bucketCapExceeded]: 'cap',
   [DOORMAN_ERROR.bucketBusy]: 'busy',
+  // A full Google Drive takes no song after the first it refused, either.
+  [DOORMAN_ERROR.storageFull]: 'full',
 }
 
 /** The few refusals said here in words of this server's, because what to do is done here. */
 const WORDS: Partial<Record<DoormanErrorCode, string>> = {
   [DOORMAN_ERROR.unauthorized]: 'This server’s access to your bucket was taken back.',
-  [DOORMAN_ERROR.noStorage]: 'No bucket is connected to this Google account yet.',
+  [DOORMAN_ERROR.noStorage]: 'No storage is connected to this Google account yet.',
   [DOORMAN_ERROR.tooManyGrants]:
     'This Google account already lets as many servers in as it can. Remove one under ' +
     'Settings › Account › Computers on one of your devices, then try again.',

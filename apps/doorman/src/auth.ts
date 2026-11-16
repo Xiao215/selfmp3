@@ -19,6 +19,7 @@ import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
 import { randomToken } from './encoding.js'
 import { GoogleError, authUrl, checkIdToken, exchangeCode } from './google.js'
+import { googleClientOf, type GoogleClient } from './googleTokens.js'
 import { forgetGrants, unlistGrant } from './grants.js'
 import { page } from './html.js'
 import {
@@ -146,7 +147,8 @@ export async function callback(ctx: Context): Promise<Response> {
 
   const params = ctx.url.searchParams
   const state = await openState(params.get('state') ?? '', keys.state, ctx.now())
-  if (!state) return expiredPage()
+  // A trip made to connect Google Drive is driveConnect.ts's, which looks first.
+  if (!state || 'drive' in state) return expiredPage()
 
   const refused = params.get('error')
   if (refused !== null) {
@@ -167,7 +169,7 @@ export async function callback(ctx: Context): Promise<Response> {
 
   let identity: Identity
   try {
-    const idToken = await exchangeCode({
+    const { idToken } = await exchangeCode({
       fetch: ctx.fetch,
       code,
       codeVerifier: await pkceVerifier(state.nonce, keys.pkce),
@@ -307,7 +309,7 @@ function attemptKey(attempt: string): string {
   return `attempt:${attempt}`
 }
 
-async function keysOrNull(ctx: Context): Promise<DoormanKeys | null> {
+export async function keysOrNull(ctx: Context): Promise<DoormanKeys | null> {
   try {
     return await ctx.keys()
   } catch {
@@ -315,14 +317,12 @@ async function keysOrNull(ctx: Context): Promise<DoormanKeys | null> {
   }
 }
 
-function googleClient(ctx: Context): { clientId: string; clientSecret: string } | null {
-  const clientId = ctx.env.GOOGLE_CLIENT_ID?.trim()
-  const clientSecret = ctx.env.GOOGLE_CLIENT_SECRET?.trim()
-  return clientId && clientSecret ? { clientId, clientSecret } : null
+export function googleClient(ctx: Context): GoogleClient | null {
+  return googleClientOf(ctx.env)
 }
 
 /** Google must be told the same address when the code is traded as when it was asked for. */
-function redirectUri(ctx: Context): string {
+export function redirectUri(ctx: Context): string {
   return `${ctx.url.origin}${DOORMAN_PATHS.signInCallback}`
 }
 
@@ -334,7 +334,7 @@ function redirectUri(ctx: Context): string {
  * doorman never sends anyone, or any code, to a site of someone else's
  * choosing. The loopback exception is for this redirect only, never CORS.
  */
-function safeReturn(
+export function safeReturn(
   value: string | null,
   origins: ReadonlySet<string>,
   schemes: ReadonlySet<string>,
@@ -374,14 +374,14 @@ export function appSchemes(value: string | undefined): ReadonlySet<string> {
   return new Set(listed.map(each => `${each}:`))
 }
 
-function withFragment(address: string, fragment: string): string {
+export function withFragment(address: string, fragment: string): string {
   const url = new URL(address)
   url.hash = fragment
   return url.toString()
 }
 
 /** The way back from a page that ends a sign-in: to the web app, which starts one again. */
-const BACK_TO_APP = { href: `${DEFAULT_APP_URL}/`, label: 'Back to self.mp3' } as const
+export const BACK_TO_APP = { href: `${DEFAULT_APP_URL}/`, label: 'Back to self.mp3' } as const
 
 function expiredPage(): Promise<Response> {
   return page({

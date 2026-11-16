@@ -2,6 +2,7 @@ import path from 'node:path'
 import { z } from 'zod'
 import {
   DoormanStorageSchema,
+  type DoormanStorage,
   newCloudDeviceId,
   toSqliteTime,
   type CloudCoverPack,
@@ -175,6 +176,16 @@ interface CloudTarget {
 }
 
 /**
+ * A Google Drive folder as the bookkeeping names it: by its id, which is the
+ * same folder however it is renamed, under an endpoint no bucket has.
+ */
+export function storageTarget(storage: DoormanStorage): CloudTarget {
+  return storage.kind === 'drive'
+    ? { endpoint: 'drive://', bucket: storage.folder, prefix: '' }
+    : storage
+}
+
+/**
  * One bucket and folder, however it was spelt: a folder standing in for the
  * bucket by its resolved path (a trailing slash or a `..` is the same folder),
  * an endpoint without case or a trailing slash, a prefix without slashes at
@@ -182,10 +193,11 @@ interface CloudTarget {
  * and forgot every upload.
  */
 function targetFingerprint(target: CloudTarget): string {
-  const folder = target.endpoint === 'file://'
+  // A folder's path and a Drive folder's id are kept exactly as they are.
+  const folder = target.endpoint === 'file://' || target.endpoint === 'drive://'
   return JSON.stringify([
     folder ? target.endpoint : target.endpoint.trim().replace(/\/+$/, '').toLowerCase(),
-    folder ? path.resolve(target.bucket) : target.bucket.trim(),
+    target.endpoint === 'file://' ? path.resolve(target.bucket) : target.bucket.trim(),
     target.prefix.trim().replace(/^\/+|\/+$/g, ''),
   ])
 }
@@ -484,14 +496,24 @@ export class CloudRepository {
    * remembered about the previous one is forgotten, so the next pass uploads
    * the library to where it now belongs instead of assuming it is already
    * there. A new key, or a new sign-in, for the same bucket keeps it all.
+   *
+   * So does a library moved, file for file, from the place remembered
+   * (`movedFrom`, the doorman's word for it: apps/doorman/src/move.ts).
+   * Everything known of the old place is true of the new one, and forgetting
+   * it would read the logs a second time.
    */
-  adoptTarget(target: CloudTarget): void {
+  adoptTarget(target: CloudTarget, movedFrom?: CloudTarget): void {
     const fingerprint = targetFingerprint(target)
     this.#db.transaction(() => {
       const before = this.#getSecret.get(TARGET_SECRET)?.value
-      if (before !== undefined && storedFingerprint(before) === fingerprint) {
+      const known = before === undefined ? null : storedFingerprint(before)
+      if (known === fingerprint) {
         // Written before spellings were tidied: kept in the tidy form from now on.
         if (before !== fingerprint) this.#setSecret.run(TARGET_SECRET, fingerprint)
+        return
+      }
+      if (known !== null && movedFrom && known === targetFingerprint(movedFrom)) {
+        this.#setSecret.run(TARGET_SECRET, fingerprint)
         return
       }
       this.#forgetUploads()

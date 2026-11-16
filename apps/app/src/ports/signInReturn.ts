@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking'
 import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 
-import { createSignInInbox, type SignInBack, type SignInTarget } from './signInCodes'
+import { createSignInInbox, type BackTo, type SignInTarget } from './signInCodes'
 
 /**
  * Coming back from Google, on a phone: to Welcome.
@@ -27,10 +27,10 @@ export function signInReturnUrl(target: SignInTarget): string {
   return `${DEEP_LINK_SCHEME}://${target}`
 }
 
-/** Sign-ins coming back to `target`: any that already arrived, then each as it comes. */
-export function onSignInBack(
-  target: SignInTarget,
-  listener: (back: SignInBack) => void,
+/** What Google's page sent back to `target`: any that already arrived, then each as it comes. */
+export function onSignInBack<Target extends SignInTarget>(
+  target: Target,
+  listener: (back: BackTo[Target]) => void,
 ): () => void {
   return inbox.listen(target, listener)
 }

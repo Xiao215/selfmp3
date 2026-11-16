@@ -46,6 +46,12 @@ import { sha256 } from '../util/hash.js'
  * `webSearch` asks the endpoint to let the model search the web itself
  * (`web_search_options`); one that cannot ignores it.
  *
+ * cli-bridge gives the model these tools as real tools and keeps its process
+ * waiting for their results (`paused_run` in the reply); the next request,
+ * carrying them, continues it. When the results will not go back (a call
+ * ended the task, the tools were taken away, nobody waits), that process is
+ * let go at once rather than left holding memory until it times out.
+ *
  * At most a few requests are in flight to one endpoint at a time
  * (`SELFMP3_AI_CONCURRENCY`, 2 to match cli-bridge's own limit), the rest
  * queued here in the order they were made: a tool that asks a model of its
@@ -221,9 +227,14 @@ const ChatReplySchema = z.object({
           content: z.string().nullable(),
           tool_calls: z.array(ToolCallSchema).nullable().optional(),
         }),
+        finish_reason: z.string().nullish(),
       }),
     )
     .min(1),
+  /** cli-bridge's: the process left waiting for this reply's tool results. */
+  paused_run: z.string().optional(),
+  /** cli-bridge's: settings it could not apply. */
+  warnings: z.array(z.string()).optional(),
 })
 
 /**
@@ -357,6 +368,8 @@ interface Replied {
   readonly content: string
   readonly calls: ToolCall[]
   readonly tokens: { readonly in: number; readonly out: number; readonly cached: number }
+  /** What the endpoint keeps waiting for this reply's tool results, where it says (cli-bridge). */
+  readonly paused: string | null
 }
 
 /** A system prompt that asks for JSON as text, with the schema it must fit (`json: 'text'`). */
@@ -505,7 +518,13 @@ export function openAiCompatible(
     const reply = ChatReplySchema.safeParse(body)
     if (!reply.success)
       throw new LlmError('invalid', 'The model sent something that is not a chat reply')
-    const { message } = reply.data.choices[0]!
+    if (reply.data.warnings?.length) {
+      logger.warn('model endpoint ignored a setting', { task, warnings: reply.data.warnings })
+    }
+    const { message, finish_reason: finish } = reply.data.choices[0]!
+    // Cut off at the endpoint's length limit: a repair turn would be cut off too.
+    if (finish === 'length')
+      throw new LlmError('invalid', `The model's answer to ${task} ran past its length limit`)
     const usage = reply.data.usage
     return {
       content: message.content ?? '',
@@ -515,7 +534,25 @@ export function openAiCompatible(
         out: usage?.completion_tokens ?? 0,
         cached: usage?.prompt_tokens_details?.cached_tokens ?? 0,
       },
+      paused: reply.data.paused_run ?? null,
     }
+  }
+
+  /**
+   * Lets go of what the endpoint keeps waiting for tool results this side
+   * will never send: a call ended the task, the tools were taken away, or
+   * nobody waits any more. Not gated, as it asks no model; a failure only
+   * means it waits out its own time.
+   */
+  function release(paused: string): void {
+    const at = `${settings.baseUrl.replace(/\/+$/, '')}/paused_runs/${encodeURIComponent(paused)}`
+    fetchImpl(at, {
+      method: 'DELETE',
+      headers: settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {},
+      signal: AbortSignal.timeout(5_000),
+    }).catch((caught: unknown) => {
+      logger.debug('could not release a paused model run', { error: messageOf(caught) })
+    })
   }
 
   return {
@@ -552,127 +589,140 @@ export function openAiCompatible(
         !closed &&
         rounds < maxRounds &&
         (request.budgetMs === undefined || Date.now() - started < request.budgetMs)
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        let text: string
-        // Answered by an ending tool, which checked it as it ran.
-        let byTool = false
-        // The model's tool calls, run and answered, until it replies or runs out of rounds.
-        for (;;) {
-          const callable = mayCall()
-          if (ender && !callable && !closed) {
-            messages.push({ role: 'user', content: closing(ender, request.task, schema, asText) })
-            closed = true
-          }
-          const reply = await ask({
-            task: request.task,
-            model,
-            messages,
-            format: ender && callable ? 'none' : asText ? 'object' : schema,
-            timeoutMs: Math.min(request.timeoutMs ?? settings.timeoutMs, settings.timeoutMs),
-            offer: { tools, callable, webSearch: request.webSearch === true },
-            effort,
-            stop: request.signal,
-          })
-          tokens.in += reply.tokens.in
-          tokens.out += reply.tokens.out
-          tokens.cached += reply.tokens.cached
-          tokens.requests++
-          // Words where a call to the answering tool was wanted: told so once, then the tools go.
-          if (ender && callable && reply.calls.length === 0) {
+      // The run cli-bridge keeps waiting for the last reply's tool results, until they go back.
+      let open: string | null = null
+      try {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          let text: string
+          // Answered by an ending tool, which checked it as it ran.
+          let byTool = false
+          // The model's tool calls, run and answered, until it replies or runs out of rounds.
+          for (;;) {
+            const callable = mayCall()
+            if (ender && !callable && !closed) {
+              messages.push({ role: 'user', content: closing(ender, request.task, schema, asText) })
+              closed = true
+            }
+            // No results go back while nothing may be called: let the waiting run go.
+            if (open !== null && !callable) {
+              release(open)
+              open = null
+            }
+            const reply = await ask({
+              task: request.task,
+              model,
+              messages,
+              format: ender && callable ? 'none' : asText ? 'object' : schema,
+              timeoutMs: Math.min(request.timeoutMs ?? settings.timeoutMs, settings.timeoutMs),
+              offer: { tools, callable, webSearch: request.webSearch === true },
+              effort,
+              stop: request.signal,
+            })
+            open = reply.paused
+            tokens.in += reply.tokens.in
+            tokens.out += reply.tokens.out
+            tokens.cached += reply.tokens.cached
+            tokens.requests++
+            // Words where a call to the answering tool was wanted: told so once, then the tools go.
+            if (ender && callable && reply.calls.length === 0) {
+              rounds++
+              messages.push(
+                { role: 'assistant', content: reply.content },
+                {
+                  role: 'user',
+                  content: told
+                    ? closing(ender, request.task, schema, asText)
+                    : `Answer by calling ${ender.name}: words written instead of a call never reach them.`,
+                },
+              )
+              if (told) closed = true
+              told = true
+              continue
+            }
+            if (reply.calls.length === 0 || !callable) {
+              text = reply.content
+              break
+            }
             rounds++
-            messages.push(
-              { role: 'assistant', content: reply.content },
-              {
-                role: 'user',
-                content: told
-                  ? closing(ender, request.task, schema, asText)
-                  : `Answer by calling ${ender.name}: words written instead of a call never reach them.`,
-              },
-            )
-            if (told) closed = true
-            told = true
-            continue
-          }
-          if (reply.calls.length === 0 || !callable) {
-            text = reply.content
-            break
-          }
-          rounds++
-          called += reply.calls.length
-          messages.push({
-            role: 'assistant',
-            content: reply.content || null,
-            tool_calls: reply.calls,
-          })
-          // In the order written: a later call may use what an earlier one made.
-          let ended: { value: unknown } | null = null
-          for (const call of reply.calls) {
-            const ran = await runCall(tools, call, request.signal)
-            toolNames.push(call.function.name)
-            if (ran.failed) failed++
-            messages.push({ role: 'tool', tool_call_id: call.id, content: ran.content })
-            // The answering call ran: the task is done, whatever was written after it.
-            if (ran.ended !== undefined) {
-              ended = { value: ran.ended }
+            called += reply.calls.length
+            messages.push({
+              role: 'assistant',
+              content: reply.content || null,
+              tool_calls: reply.calls,
+            })
+            // In the order written: a later call may use what an earlier one made.
+            let ended: { value: unknown } | null = null
+            for (const call of reply.calls) {
+              const ran = await runCall(tools, call, request.signal)
+              toolNames.push(call.function.name)
+              if (ran.failed) failed++
+              messages.push({ role: 'tool', tool_call_id: call.id, content: ran.content })
+              // The answering call ran: the task is done, whatever was written after it.
+              if (ran.ended !== undefined) {
+                ended = { value: ran.ended }
+                break
+              }
+            }
+            if (ended) {
+              text = JSON.stringify(ended.value)
+              byTool = true
               break
             }
           }
-          if (ended) {
-            text = JSON.stringify(ended.value)
-            byTool = true
-            break
+          let problem: string
+          // What the log says of it: a check's words name the library, so only that one failed.
+          let logged: string
+          try {
+            const parsed = request.schema.safeParse(parseReply(text))
+            const wrong =
+              parsed.success && request.check && !byTool && attempt === 1
+                ? await request.check(parsed.data)
+                : null
+            if (parsed.success && wrong === null) {
+              const ms = Date.now() - started
+              // What was asked and how long it took, never what was said: both
+              // sides of the conversation are your library.
+              logger.info('model call', {
+                task: request.task,
+                model,
+                ms,
+                attempts: attempt,
+                requests: tokens.requests,
+                tokensIn: tokens.in,
+                tokensOut: tokens.out,
+                tokensCached: tokens.cached,
+                ...(asText ? { json: 'text' } : {}),
+                ...(told ? { toldToCall: true } : {}),
+                ...(tools.length > 0
+                  ? { rounds, toolCalls: called, tools: toolNames, toolErrors: failed }
+                  : {}),
+              })
+              return { value: parsed.data, ms }
+            }
+            logged = parsed.success ? 'its check failed' : issuesOf(parsed.error)
+            problem = parsed.success
+              ? (wrong ?? '')
+              : `That reply does not match the required JSON schema (${issuesOf(parsed.error)}). Reply again with only the corrected JSON.`
+          } catch (caught) {
+            // A check that failed for another reason is no repair for the model to make.
+            if (!(caught instanceof SyntaxError)) throw caught
+            logged = 'the reply was not JSON'
+            problem =
+              'That reply does not match the required JSON schema (the reply was not JSON). Reply again with only the corrected JSON.'
           }
+          logger.warn('model reply did not fit', {
+            task: request.task,
+            model,
+            attempt,
+            problem: logged,
+          })
+          messages.push({ role: 'assistant', content: text }, { role: 'user', content: problem })
         }
-        let problem: string
-        // What the log says of it: a check's words name the library, so only that one failed.
-        let logged: string
-        try {
-          const parsed = request.schema.safeParse(parseReply(text))
-          const wrong =
-            parsed.success && request.check && !byTool && attempt === 1
-              ? await request.check(parsed.data)
-              : null
-          if (parsed.success && wrong === null) {
-            const ms = Date.now() - started
-            // What was asked and how long it took, never what was said: both
-            // sides of the conversation are your library.
-            logger.info('model call', {
-              task: request.task,
-              model,
-              ms,
-              attempts: attempt,
-              requests: tokens.requests,
-              tokensIn: tokens.in,
-              tokensOut: tokens.out,
-              tokensCached: tokens.cached,
-              ...(asText ? { json: 'text' } : {}),
-              ...(told ? { toldToCall: true } : {}),
-              ...(tools.length > 0
-                ? { rounds, toolCalls: called, tools: toolNames, toolErrors: failed }
-                : {}),
-            })
-            return { value: parsed.data, ms }
-          }
-          logged = parsed.success ? 'its check failed' : issuesOf(parsed.error)
-          problem = parsed.success
-            ? (wrong ?? '')
-            : `That reply does not match the required JSON schema (${issuesOf(parsed.error)}). Reply again with only the corrected JSON.`
-        } catch (caught) {
-          // A check that failed for another reason is no repair for the model to make.
-          if (!(caught instanceof SyntaxError)) throw caught
-          logged = 'the reply was not JSON'
-          problem =
-            'That reply does not match the required JSON schema (the reply was not JSON). Reply again with only the corrected JSON.'
-        }
-        logger.warn('model reply did not fit', {
-          task: request.task,
-          model,
-          attempt,
-          problem: logged,
-        })
-        messages.push({ role: 'assistant', content: text }, { role: 'user', content: problem })
+        throw new LlmError('invalid', `The model's answer to ${request.task} did not fit, twice`)
+      } finally {
+        // Ended by a call, failed or stopped: the results it waits for never come.
+        if (open !== null) release(open)
       }
-      throw new LlmError('invalid', `The model's answer to ${request.task} did not fit, twice`)
     },
   }
 }

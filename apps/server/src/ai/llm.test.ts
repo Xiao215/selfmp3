@@ -30,7 +30,17 @@ function reply(content: string, status = 200): Response {
 function fakeFetch(...responses: Response[]) {
   const calls: { url: string; body: Record<string, unknown>; headers: Record<string, string> }[] =
     []
+  // What was let go, as cli-bridge's DELETE /v1/paused_runs/<id>, in order among the requests.
+  const released: { url: string; after: number; headers: Record<string, string> }[] = []
   const fetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    if (init?.method === 'DELETE') {
+      released.push({
+        url,
+        after: calls.length,
+        headers: init.headers as Record<string, string>,
+      })
+      return new Response(null, { status: 204 })
+    }
     calls.push({
       url,
       body: JSON.parse(String(init?.body)) as Record<string, unknown>,
@@ -40,7 +50,7 @@ function fakeFetch(...responses: Response[]) {
     if (!next) throw new Error('no more responses')
     return next
   }
-  return { fetch, calls }
+  return { fetch, calls, released }
 }
 
 const request = {
@@ -436,6 +446,124 @@ describe('tools', () => {
   })
 })
 
+describe('a run the endpoint keeps waiting', () => {
+  /** A reply with tool calls that left cli-bridge's process waiting, as `paused_run` says. */
+  const paused = (run: string, ...list: { name: string; args: string }[]): Response =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: list.map((each, index) => ({
+                id: `toolu_${index}`,
+                type: 'function',
+                function: { name: each.name, arguments: each.args },
+              })),
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+        paused_run: run,
+      }),
+    )
+  const look = tool({ name: 'look', description: 'Look', parameters: z.object({}), run: () => 1 })
+  const answer = tool({
+    name: 'answer',
+    description: 'Answer',
+    parameters: Answer,
+    ends: true,
+    run: args => args,
+  })
+
+  it('is let go once a call ends the task, as its results never go back', async () => {
+    const { fetch, released } = fakeFetch(
+      paused('r1', { name: 'answer', args: '{"n": 1, "why": "done"}' }),
+    )
+    await openAiCompatible(settings, { fetch, logger }).generate({ ...request, tools: [answer] })
+    expect(released).toEqual([
+      {
+        url: 'http://127.0.0.1:8787/v1/paused_runs/r1',
+        after: 1,
+        headers: { Authorization: 'Bearer k' },
+      },
+    ])
+  })
+
+  it('is not let go when the results go back and continue it', async () => {
+    const { fetch, released } = fakeFetch(
+      paused('r1', { name: 'look', args: '{}' }),
+      paused('r1', { name: 'answer', args: '{"n": 2, "why": "looked"}' }),
+    )
+    await openAiCompatible(settings, { fetch, logger }).generate({
+      ...request,
+      tools: [look, answer],
+    })
+    // Only after the answering call, the second request's.
+    expect(released.map(each => each.after)).toEqual([2])
+  })
+
+  it('is let go before the answer is asked for without tools', async () => {
+    const { fetch, released } = fakeFetch(
+      paused('r1', { name: 'look', args: '{}' }),
+      reply('{"n": 3, "why": "with what it has"}'),
+    )
+    await openAiCompatible(settings, { fetch, logger }).generate({
+      ...request,
+      tools: [look, answer],
+      maxRounds: 1,
+    })
+    expect(released.map(each => [each.url.split('/').at(-1), each.after])).toEqual([['r1', 1]])
+  })
+
+  it('is let go when nobody waits any more', async () => {
+    const waiting = new AbortController()
+    const stopping = tool({
+      name: 'look',
+      description: 'Look',
+      parameters: z.object({}),
+      run: () => {
+        waiting.abort()
+        throw new LlmError('stopped', 'gone')
+      },
+    })
+    const { fetch, released } = fakeFetch(paused('r1', { name: 'look', args: '{}' }))
+    await expect(
+      openAiCompatible(settings, { fetch, logger }).generate({
+        ...request,
+        tools: [stopping],
+        signal: waiting.signal,
+      }),
+    ).rejects.toMatchObject({ kind: 'stopped' })
+    expect(released).toHaveLength(1)
+  })
+
+  it('is never asked of an endpoint that names no waiting run', async () => {
+    const { fetch, released } = fakeFetch(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'a',
+                    type: 'function',
+                    function: { name: 'answer', arguments: '{"n": 1, "why": "x"}' },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ),
+    )
+    await openAiCompatible(settings, { fetch, logger }).generate({ ...request, tools: [answer] })
+    expect(released).toEqual([])
+  })
+})
+
 describe('how a call is asked for', () => {
   /** A logger that keeps what it is told. */
   function keeping() {
@@ -500,6 +628,39 @@ describe('how a call is asked for', () => {
       tokensOut: 16,
       tokensCached: 160,
     })
+  })
+
+  it('fails at once on a reply cut off at its length limit, with no repair turn', async () => {
+    const { fetch, calls } = fakeFetch(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{"n": 1, "wh' }, finish_reason: 'length' }],
+        }),
+      ),
+    )
+    await expect(
+      openAiCompatible(settings, { fetch, logger }).generate(request),
+    ).rejects.toMatchObject({ kind: 'invalid', message: expect.stringContaining('length limit') })
+    expect(calls).toHaveLength(1)
+  })
+
+  it('logs the settings the endpoint says it ignored', async () => {
+    const { fetch } = fakeFetch(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{"n": 1, "why": "a"}' } }],
+          warnings: ['seed=7 was ignored: the CLI has no setting for it'],
+        }),
+      ),
+    )
+    const { logger: kept, lines } = keeping()
+    await openAiCompatible(settings, { fetch, logger: kept }).generate(request)
+    expect(lines.find(line => line.message === 'model endpoint ignored a setting')?.fields).toEqual(
+      {
+        task: 'test-task',
+        warnings: ['seed=7 was ignored: the CLI has no setting for it'],
+      },
+    )
   })
 
   it('waits no longer than the task says, nor than the settings', async () => {

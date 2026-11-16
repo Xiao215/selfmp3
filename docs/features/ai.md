@@ -53,7 +53,7 @@ format there is, so the endpoint is a swap, not a rewrite:
 
 | Endpoint | `SELFMP3_AI_BASE_URL` | Notes |
 |---|---|---|
-| [cli-bridge](https://github.com/Xiao215/cli-bridge), on the server itself (Xiao's) | `http://127.0.0.1:8787/v1` | A small service beside the server (a systemd user unit, `cli-bridge.service`) that answers through the Claude Code CLI signed in on that machine, and through Google's Antigravity CLI for `gemini-*` models. 2–5 s per call to start a process. Takes `tools` and `web_search_options` |
+| [cli-bridge](https://github.com/Xiao215/cli-bridge), on the server itself (Xiao's) | `http://127.0.0.1:8787/v1` | A small service beside the server (a systemd user unit, `cli-bridge.service`) that answers through the Claude Code CLI signed in on that machine, and through Google's Antigravity CLI for `gemini-*` models. 2–5 s per call to start a process. Takes `tools` and `web_search_options`; Claude gets the tools as real tools, and the request carrying their results continues the same process |
 | Anthropic | `https://api.anthropic.com/v1` | Its OpenAI-compatible endpoint, with an API key |
 | OpenAI, OpenRouter, … | their `/v1` | |
 | Ollama (nothing leaves the server) | `http://127.0.0.1:11434/v1` | Weaker picks; structured output still works |
@@ -140,8 +140,14 @@ request ──▶ build context ──▶ model call ──▶ check ──▶ f
   (`tool_choice: required`), which the Claude API refuses on its newest models. `effort` goes as
   `reasoning_effort`, `low` for the fast tier unless a task says. Quick tasks wait 30 s (the
   plans) and picks 60 s rather than the settings' 240. The log line carries each call's
-  requests and tokens (in, out, cached), so a retry nobody asked for shows. No SDK: it is one
-  `fetch`, like the server's other outbound calls.
+  requests and tokens (in, out, cached), so a retry nobody asked for shows. A reply cut off
+  at the endpoint's length limit (`finish_reason: length`) fails at once, with no repair turn
+  that would be cut off too, and settings the endpoint says it ignored (cli-bridge's
+  `warnings`) are logged. When cli-bridge keeps a process waiting for a reply's tool results
+  (`paused_run`) and they will not go back (a call ended the task, the tools were taken
+  away, or nobody waits), it is let go (`DELETE /v1/paused_runs/<id>`) rather than left
+  holding memory for five minutes; an endpoint that names no such run is never asked. No
+  SDK: it is one `fetch`, like the server's other outbound calls.
 - **Tasks.** Each model call is a task with four parts kept side by side: a *system prompt*
   that never changes between requests (so a provider can cache it), a *context builder*
   that chooses what the model sees, an *output schema*, and a *check* that grounds the
@@ -183,11 +189,15 @@ climbed when the one below cannot answer:
 What Ask's agent costs per request, measured through cli-bridge on the 103-song dev library
 (2026-11-11): 47.1k tokens in, nearly all cached. The CLI's own prompt is 0.6k, the system
 prompt 2.4k, the library and the request 0.6k, and the tools' definitions 43.6k: cli-bridge
-sends each tool's parameters twice, as text in the system prompt and nested in the one
-StructuredOutput schema it answers through. The scope and its filters repeat inside each tool
-(`pick_by_taste` is 11k characters of the 45k); zod's `reused: 'ref'` would cut them by a
-fifth, but a `#/$defs` reference breaks once cli-bridge nests the schema, so the saving is
-cli-bridge's to make (the parameters once, not twice).
+then sent each tool's parameters twice, as text in the system prompt and nested in the one
+StructuredOutput schema it answered through. Since 2026-11-13 it serves them to Claude as
+real tools, once each, and a later round continues the same process instead of starting one
+from a transcript: an Ask on the real library on 2026-11-14 took 61k tokens in over two
+requests (30k cached). Not re-measured on the dev library. The scope and its filters still
+repeat inside each tool (`pick_by_taste` is 11k characters of the 45k); zod's `reused: 'ref'`
+would cut them by a fifth, and real tools take the schema as it is, but a `#/$defs`
+reference still breaks where cli-bridge describes the tools instead (`gemini-*` models, a
+forced `tool_choice`, `NATIVE_TOOLS=0`).
 
 ### Tools, skills, MCP: where each fits
 
@@ -196,7 +206,8 @@ cli-bridge's to make (the parameters once, not twice).
   steps is not known, which is what makes an agent. Most features are not like that: what
   Describe needs (rules, maybe a title keyword) can be **planned in one structured reply and
   executed by the server**. That is the same capability as a tool call, at one round trip
-  instead of several. Round trips matter here: each one is 2–5 s through cli-bridge.
+  instead of several. Round trips matter here: each one is 2–5 s through cli-bridge, less
+  for a later round of Ask's, which continues the process the first one started.
 - The one feature that does loop is **Ask** (S1, below). The loop lives in our runner
   (`llm.ts`) and speaks OpenAI's own `tools` together with `response_format`, so it depends
   on no vendor's agent runtime. cli-bridge also accepts `mcp_servers` and `max_turns`, which
